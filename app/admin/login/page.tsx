@@ -79,7 +79,12 @@ export default function AdminLoginPage() {
             />
           </div>
           <div>
-            <label style={{display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.4rem", fontWeight: 600}}>Password</label>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem" }}>
+              <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: 0, fontWeight: 600 }}>Password</label>
+              <Link href="/forgot-password" style={{ color: "#00e5ff", fontSize: "0.75rem", textDecoration: "none" }}>
+                Forgot Password?
+              </Link>
+            </div>
             <div style={{position: "relative"}}>
               <input
                 type={showPassword ? "text" : "password"}
