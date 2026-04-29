@@ -43,6 +43,7 @@ test.describe('Engineer Workflows', () => {
   });
 
   test('TC012 - Create a new HWCN (Reclaim Flow)', async ({ page }) => {
+    page.on('console', msg => console.log('BROWSER LOG:', msg.text()));
     test.slow();
     console.log("TC012: Starting");
     await page.goto('/dashboard/profile');
@@ -78,24 +79,13 @@ test.describe('Engineer Workflows', () => {
     // Click "Office" destination
     await page.click('button:has-text("Office")');
     
-    // Click "Confirm Transfer" to trigger the HWCN flow redirect
-    await page.click('button:has-text("Confirm Transfer")');
-    
-    // Wait for redirect to full move page
-    await page.waitForURL(/\/dashboard\/move/);
-    console.log("TC012: On move page second time");
-    
-    // Intercepted again
-    await page.click('button:has-text("No, Transfer to Alternative Location")');
-    await page.click('button:has-text("Office")');
-    await expect(page.locator('text=Generate Internal HWCN')).toBeVisible();
-    console.log("TC012: HWCN visible");
-    
-    await page.fill('input[placeholder="e.g. AB12 CDE"]', 'HWCN-TEST');
+    // Click "Confirm Transfer" to trigger the inline HWCN generation
     await page.click('button:has-text("Confirm Transfer")');
     console.log("TC012: Clicked Confirm Transfer (2)");
     
-    await expect(page.locator('text=View / Download Digital HWCN')).toBeVisible({ timeout: 15000 });
+    // The inline transfer automatically generates the HWCN in the background
+    // and displays a success screen with a button to view it.
+    await expect(page.locator('text=View Digital HWCN')).toBeVisible({ timeout: 15000 });
     console.log("TC012: Success!");
   });
 
