@@ -44,42 +44,59 @@ test.describe('Engineer Workflows', () => {
 
   test('TC012 - Create a new HWCN (Reclaim Flow)', async ({ page }) => {
     test.slow();
+    console.log("TC012: Starting");
     await page.goto('/dashboard/profile');
     
     await page.click('#simulate-reclaim-btn');
     await page.click('button:has-text("Continue")');
     await page.waitForURL(/\/dashboard\/bottle\/REC-402/);
+    console.log("TC012: On bottle page");
     
     // Full Page Transfer to Van from Site
     await page.click('h3:has-text("Transfer Bottle into Van")');
     await page.waitForURL(/\/dashboard\/move/);
+    console.log("TC012: On move page first time");
     
     // Intercepted by reclaim question
     await page.click('button:has-text("No, Transfer to Alternative Location")');
+    console.log("TC012: Clicked alternative location");
     
     // Now on move page with "Van" destination
     await page.click('button:has-text("Confirm Transfer")');
+    console.log("TC012: Clicked Confirm Transfer (1)");
     
     // MoveBottlePage success screen uses "Return to Dashboard"
     await page.waitForSelector('button:has-text("Return to Dashboard")');
+    console.log("TC012: Found Return to Dashboard");
     await page.click('button:has-text("Return to Dashboard")');
     
     // Back to bottle page
     await page.goto('/dashboard/bottle/REC-402');
+    console.log("TC012: Back to bottle page");
     
-    // Now it's in Van, click Transfer Location (Inline Transfer)
-    await page.click('h3:has-text("Transfer Location")');
+    // Now it's in Van, it uses the inline transfer UI.
+    // Click "Office" destination
+    await page.click('button:has-text("Office")');
+    
+    // Click "Confirm Transfer" to trigger the HWCN flow redirect
+    await page.click('button:has-text("Confirm Transfer")');
+    
+    // Wait for redirect to full move page
     await page.waitForURL(/\/dashboard\/move/);
+    console.log("TC012: On move page second time");
     
     // Intercepted again
     await page.click('button:has-text("No, Transfer to Alternative Location")');
     await page.click('button:has-text("Office")');
     await expect(page.locator('text=Generate Internal HWCN')).toBeVisible();
+    console.log("TC012: HWCN visible");
     
     await page.fill('input[placeholder="e.g. AB12 CDE"]', 'HWCN-TEST');
     await page.click('button:has-text("Confirm Transfer")');
+    console.log("TC012: Clicked Confirm Transfer (2)");
     
     await expect(page.locator('text=View / Download Digital HWCN')).toBeVisible({ timeout: 15000 });
+    console.log("TC012: Success!");
   });
 
   test('TC007 - Switching roles updates dashboard', async ({ page }) => {
