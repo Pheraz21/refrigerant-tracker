@@ -1,0 +1,84 @@
+.layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--background);
+}
+
+.mainContent {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 80px; /* Space for bottom nav */
+}
+
+.bottomNav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 70px;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 0.5rem;
+  border-bottom: none;
+  border-left: none;
+  border-right: none;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  z-index: 50;
+  background: rgba(26, 29, 36, 0.9);
+}
+
+.navItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  flex: 1;
+}
+
+.navItem.active {
+  color: var(--primary);
+}
+
+.navItem:hover:not(.scanButton) {
+  color: var(--text-main);
+}
+
+.scanButton {
+  position: relative;
+  top: -15px;
+}
+
+.scanIconWrapper {
+  background: var(--primary);
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 15px var(--primary-glow);
+  margin-bottom: 0.25rem;
+  transition: transform 0.2s;
+}
+
+.scanButton:hover .scanIconWrapper {
+  transform: scale(1.05);
+}
+
+@media (min-width: 768px) {
+  /* Simple responsive fallback, actual admin dashboard will be different */
+  .bottomNav {
+    max-width: 420px;
+    margin: 0 auto;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border: 1px solid var(--border);
+    border-bottom: none;
+  }
+}

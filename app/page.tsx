@@ -1,66 +1,97 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+"use client";
 
-export default function Home() {
+import { useState } from "react";
+import { LogIn, KeyRound } from "lucide-react";
+import styles from "./page.module.css";
+import { useAuth } from "@/lib/AuthContext";
+import Link from "next/link";
+
+export default function LoginPage() {
+  const { login } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState("");
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    
+    // In our mock, role is detected by login function from DB
+    // We try 'engineer' first as it's the main portal, but AuthContext handles actual role
+    try {
+      await login(email, "engineer");
+    } catch (err: any) {
+      setError(err.message || "Login failed");
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+    <main className={styles.container}>
+      <div className={styles.glow} />
+      
+      <div className={`${styles.loginCard} glass-panel`}>
+        <div className={styles.header}>
+          <div style={{ marginBottom: "1.5rem" }}>
+            <img 
+              src="/21-degrees-official-transparent.png" 
+              alt="21 Degrees" 
+              style={{ width: "200px", height: "auto", margin: "0 auto", display: "block" }} 
             />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          </div>
+          <h1 className="text-gradient">F-Gas Tracker</h1>
+          <p className={styles.subtitle}>Secure Personnel Portal</p>
         </div>
-      </main>
-    </div>
+
+        <form onSubmit={handleLogin} className={styles.form}>
+          <div className={styles.inputGroup}>
+            <label htmlFor="email">Email Address</label>
+            <input 
+              type="email" 
+              id="email" 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="engineer@company.co.uk (or admin@)" 
+              required 
+            />
+          </div>
+          
+          <div className={styles.inputGroup}>
+            <label htmlFor="password">Password</label>
+            <input 
+              type="password" 
+              id="password" 
+              placeholder="••••••••" 
+              required 
+            />
+          </div>
+
+          {error && <p style={{color: "#ff4444", fontSize: "0.85rem", margin: "0.5rem 0 0"}}>{error}</p>}
+
+          <button type="submit" className={styles.loginButton} disabled={loading}>
+            {loading ? (
+              <span className={styles.spinner}></span>
+            ) : (
+              <>
+                <LogIn size={20} />
+                <span>Secure Login</span>
+              </>
+            )}
+          </button>
+        </form>
+
+        <div style={{marginTop: "1.5rem", textAlign: "center", fontSize: "0.9rem"}}>
+          <p style={{color: "var(--text-muted)", marginBottom: "0.5rem"}}>Don't have an account?</p>
+          <Link href="/signup" style={{color: "var(--primary)", fontWeight: 600, textDecoration: "none"}}>
+            Register as New User
+          </Link>
+        </div>
+
+        <p className={styles.footerText} style={{marginTop: "2rem"}}>
+          Authorized personnel only. Access subject to administrative approval.
+        </p>
+      </div>
+    </main>
   );
 }
