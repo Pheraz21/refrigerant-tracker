@@ -57,6 +57,15 @@ export default function BottleActionHub() {
     if (!bottle) return;
     setIsSubmittingTransfer(true);
     
+    // Check if HWCN is required
+    const requiresHWCN = bottle.category === "reclaim" && (bottle.currentWeight || 0) > 0 && destination === "office";
+    
+    if (requiresHWCN) {
+      // Need to redirect to full move flow to handle HWCN generation
+      router.push(`/dashboard/move?serial=${bottle.serial}&dest=office`);
+      return;
+    }
+
     try {
       if (destination === "van" || destination === "site" || destination === "engineer") {
         const finalDest = destination === "engineer" ? "van" : destination;
