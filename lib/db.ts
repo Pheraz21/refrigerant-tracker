@@ -167,6 +167,12 @@ export const db = {
     return bottles[serial] || null;
   },
 
+  async removeBottle(serial: string): Promise<void> {
+    const bottles = getStored("bottles", INITIAL_BOTTLES);
+    delete bottles[serial];
+    setStored("bottles", bottles);
+  },
+
   async createHWCN(hwcnData: any): Promise<string> {
     const id = `HWCN-${Math.floor(Math.random() * 100000)}`;
     const records = getStored("hwcn", [] as any[]);
