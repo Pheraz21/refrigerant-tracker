@@ -5,6 +5,20 @@
 
 export type BottleCategory = "new" | "reclaim" | "nitrogen";
 export type LocationType = "van" | "site" | "supplier" | "office";
+export type UserRole = "admin" | "office" | "engineer";
+export type UserStatus = "pending" | "approved" | "disabled" | "rejected";
+
+export interface AppUser {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  availableRoles: UserRole[];
+  status: UserStatus;
+  vehicleReg?: string;
+  employer: string;
+  createdAt: string;
+}
 
 export interface UsageLog {
   id: string;
@@ -166,6 +180,7 @@ export const db = {
     const bottles = getStored("bottles", INITIAL_BOTTLES);
     return bottles[serial] || null;
   },
+
 
   async removeBottle(serial: string): Promise<void> {
     const bottles = getStored("bottles", INITIAL_BOTTLES);
@@ -495,6 +510,31 @@ export const db = {
     return getStored("refrigerants", INITIAL_REFRIGERANTS);
   },
 
+  async addRefrigerant(ref: any): Promise<void> {
+    const refs = getStored("refrigerants", INITIAL_REFRIGERANTS);
+    refs.push({ id: `ref_${Date.now()}`, ...ref });
+    setStored("refrigerants", refs);
+  },
+
+  async updateRefrigerant(id: string, updates: any): Promise<void> {
+    const refs = getStored("refrigerants", INITIAL_REFRIGERANTS);
+    const ref = refs.find((r: any) => r.id === id);
+    if (ref) {
+      Object.assign(ref, updates);
+      setStored("refrigerants", refs);
+    }
+  },
+
+  async removeRefrigerant(id: string): Promise<void> {
+    const refs = getStored("refrigerants", INITIAL_REFRIGERANTS);
+    setStored("refrigerants", refs.filter((r: any) => r.id !== id));
+  },
+
+  async removeSupplier(id: string): Promise<void> {
+    const suppliers = getStored("suppliers", INITIAL_SUPPLIERS);
+    setStored("suppliers", suppliers.filter((s: any) => s.id !== id));
+  },
+
   async switchUserRole(userId: string, newRole: any): Promise<void> {
     const users = getStored("users", INITIAL_USERS);
     const user = users[userId];
@@ -545,6 +585,12 @@ export const db = {
       notif.status = "acknowledged";
       setStored("notifications", notifications);
     }
+  },
+
+  async acknowledgeAllNotifications(): Promise<void> {
+    const notifications = getStored("notifications", INITIAL_NOTIFICATIONS);
+    notifications.forEach((n: any) => n.status = "acknowledged");
+    setStored("notifications", notifications);
   },
 
   async updateBottle(serial: string, updates: any): Promise<void> {
@@ -601,5 +647,6 @@ export const db = {
       users[userId].employer = employer;
       setStored("users", users);
     }
-  }
+  },
+
 };

@@ -139,7 +139,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </div>
               )}
               {group.items.map(item => {
-                const isActive = item.exact
+                const isActive = ('exact' in item && item.exact)
                   ? pathname === item.href
                   : pathname.startsWith(item.href);
                 return (

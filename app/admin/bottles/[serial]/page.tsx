@@ -30,7 +30,7 @@ export default function ViewBottlePage() {
             if (usageMatch) {
               const amount = usageMatch[1];
               return [
-                { ...l, logType: 'movement', notes: l.notes.replace(/[\d.]+\s*kg\s*dispensed/i, "").trim() || "Transfer to site" },
+                { ...l, logType: 'movement', notes: (l.notes || "").replace(/[\d.]+\s*kg\s*dispensed/i, "").trim() || "Transfer to site" },
                 {
                   id: `${l.id}-usage`,
                   date: l.date,
@@ -44,7 +44,7 @@ export default function ViewBottlePage() {
                 }
               ];
             }
-            return { ...l, logType: 'movement' };
+            return { ...l, logType: 'movement', notes: l.notes || "" };
           }),
           ...useLogs.map(l => ({
             id: l.id,
@@ -53,8 +53,8 @@ export default function ViewBottlePage() {
             from: '',
             to: '',
             engineer: l.engineer,
-            qty: l.amount,
-            notes: `Site Job: ${l.jobId}`,
+            qty: l.weightUsed?.toString() || "",
+            notes: `Site Job: ${l.siteRef}`,
             logType: 'usage'
           }))
         ];

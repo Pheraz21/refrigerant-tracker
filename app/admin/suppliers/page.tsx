@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { db, Bottle, AppUser } from "@/lib/db";
+import { db, Bottle } from "@/lib/db";
 import { Building2, Search, Package, MapPin, Truck, Warehouse, ArrowUpDown, ArrowUp, ArrowDown, Filter as FilterIcon, Calendar, FileText, FileSpreadsheet } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -11,7 +11,7 @@ function SupplierInventoryContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [bottles, setBottles] = useState<Bottle[]>([]);
-  const [engineers, setEngineers] = useState<AppUser[]>([]);
+  const [engineers, setEngineers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [supplierFilter, setSupplierFilter] = useState("all");
   const [search, setSearch] = useState("");

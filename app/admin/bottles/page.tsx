@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { db, Bottle, AppUser } from "@/lib/db";
+import { db, Bottle } from "@/lib/db";
 import { Package, Search, MapPin, Truck, Warehouse, Building2, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Filter as FilterIcon, FileText, FileSpreadsheet, Edit2, Trash2, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -25,7 +25,7 @@ type SortKey = "serial" | "category" | "gasType" | "currentWeight" | "initialWei
 export default function AllBottlesPage() {
   const router = useRouter();
   const [bottles, setBottles] = useState<Bottle[]>([]);
-  const [engineers, setEngineers] = useState<AppUser[]>([]);
+  const [engineers, setEngineers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [locFilter, setLocFilter] = useState("all");
   const [catFilter, setCatFilter] = useState("all");

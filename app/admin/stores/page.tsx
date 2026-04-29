@@ -5,7 +5,7 @@ import { db, Bottle } from "@/lib/db";
 import { Warehouse, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown, Search, Calendar, Filter as FilterIcon, FileText, FileSpreadsheet } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-type SortKey = "serial" | "category" | "gasType" | "currentWeight" | "returnedBy" | "locationChangedAt" | "supplier" | "registeredAt";
+type SortKey = "serial" | "category" | "gasType" | "currentWeight" | "initialWeight" | "returnedBy" | "locationChangedAt" | "supplier" | "registeredAt";
 
 export default function StoresInventoryPage() {
   const router = useRouter();

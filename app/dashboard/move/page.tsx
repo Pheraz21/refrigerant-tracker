@@ -26,7 +26,7 @@ export default function MoveBottlePage() {
   const [supplierPhoto, setSupplierPhoto] = useState<string | null>(null);
   
   const [bottle, setBottle] = useState<any>(null);
-  const [reclaimFlowStep, setReclaimFlowStep] = useState<"loading" | "in_transit" | "intercept_supplier_photo" | "ask_supplier" | "confirm_supplier_hwcn" | "standard">("loading");
+  const [reclaimFlowStep, setReclaimFlowStep] = useState<"loading" | "in_transit" | "intercept_supplier_photo" | "ask_supplier" | "confirm_supplier_hwcn" | "supplier_start_transit" | "standard">("loading");
   const [supplierHwcnConfirmed, setSupplierHwcnConfirmed] = useState(false);
   const [reclaimFlowPath, setReclaimFlowPath] = useState<"normal" | "supplier_direct" | "alternative">("normal");
   

@@ -448,8 +448,8 @@ export default function BottleActionHub() {
               {/* COMPLIANCE: Using the gas inside */}
               {bottle.category !== "nitrogen" && (
                 <Link 
-                  href={bottle.locationType === 'van' ? '#' : `/dashboard/log?serial=${bottle.serial}`} 
-                  className={`${styles.actionCard} ${bottle.category === 'reclaim' ? styles.reclaimCard : styles.useCard} ${bottle.locationType === 'van' ? styles.disabledCard : ''}`}
+                  href={(bottle.locationType as string) === 'van' ? '#' : `/dashboard/log?serial=${bottle.serial}`} 
+                  className={`${styles.actionCard} ${bottle.category === 'reclaim' ? styles.reclaimCard : styles.useCard} ${(bottle.locationType as string) === 'van' ? styles.disabledCard : ''}`}
                 >
                   <div className={styles.iconWrapper}>
                     <Wrench size={32} />
@@ -458,12 +458,12 @@ export default function BottleActionHub() {
                     {bottle.category === "reclaim" ? (
                       <>
                         <h3>Log Recovered Gas</h3>
-                        <p>{bottle.locationType === 'van' ? "Bottle currently in van, transfer bottle to site to enable recovery." : "Log contaminated gas pumped into this cylinder"}</p>
+                        <p>{(bottle.locationType as string) === 'van' ? "Bottle currently in van, transfer bottle to site to enable recovery." : "Log contaminated gas pumped into this cylinder"}</p>
                       </>
                     ) : (
                       <>
                         <h3>Log Gas Usage</h3>
-                        <p>{bottle.locationType === 'van' ? "Bottle currently in van, transfer bottle to site to enable usage." : "Log refrigerant dispensed into a system"}</p>
+                        <p>{(bottle.locationType as string) === 'van' ? "Bottle currently in van, transfer bottle to site to enable usage." : "Log refrigerant dispensed into a system"}</p>
                       </>
                     )}
                   </div>
