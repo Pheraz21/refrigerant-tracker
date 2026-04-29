@@ -420,9 +420,17 @@ export const db = {
     return logs.filter((l: any) => l.serial === serial).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
   },
 
-  async getMovementLogs(serial: string): Promise<MovementLog[]> {
+  async getMovementLogs(serial?: string): Promise<MovementLog[]> {
     const logs = getStored("movements", [] as any[]);
-    return logs.filter((l: any) => l.serial === serial).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    if (serial) {
+      return logs.filter((l: any) => l.serial === serial).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }
+    return [...logs].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  },
+
+  async getAllMovementLogs(): Promise<MovementLog[]> {
+    const logs = getStored("movements", [] as any[]);
+    return [...logs].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
   },
 
   async getAllUsageLogs(): Promise<UsageLog[]> {
