@@ -60,7 +60,7 @@ export default function EditBottlePage() {
 
       <form onSubmit={handleSave} className="glass-panel" style={{padding: "2rem", display: "flex", flexDirection: "column", gap: "1.5rem"}}>
         <div style={{padding: "1.5rem", background: "rgba(255, 51, 102, 0.05)", border: "1px solid rgba(255, 51, 102, 0.2)", borderRadius: "10px", marginBottom: "1rem"}}>
-          <label style={{display: "block", fontSize: "0.9rem", fontWeight: 600, color: "#ff3366", marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "0.5rem"}}>
+          <label style={{fontSize: "0.9rem", fontWeight: 600, color: "#ff3366", marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "0.5rem"}}>
             <Calendar size={18} /> Rental Expiry Date
           </label>
           <input 
