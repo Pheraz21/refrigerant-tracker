@@ -296,8 +296,7 @@ export default function MoveBottlePage() {
               type="button"
               className={styles.secondaryBtn} 
               onClick={() => {
-                setDestination("office");
-                setReclaimFlowPath("alternative");
+                setReclaimFlowPath("normal");
                 setReclaimFlowStep("standard");
               }}
             >
