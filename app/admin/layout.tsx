@@ -27,7 +27,8 @@ import {
   Trash2,
   ShieldAlert,
   BarChart2,
-  Briefcase
+  Briefcase,
+  UserCircle
 } from "lucide-react";
 
 const navGroups = [
@@ -67,6 +68,7 @@ const navGroups = [
       { href: "/admin/users", label: "User Management", icon: Users },
       { href: "/admin/analytics", label: "Analytics", icon: BarChart2 },
       { href: "/admin/reports", label: "Reports", icon: FileText },
+      { href: "/admin/profile", label: "My Profile", icon: UserCircle },
       { href: "/admin/settings", label: "Settings", icon: Settings },
     ]
   }

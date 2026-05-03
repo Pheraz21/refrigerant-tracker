@@ -22,6 +22,7 @@ interface AuthContextType {
   login: (email: string, role: Role) => Promise<void>;
   switchRole: (newRole: Role) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
   loading: boolean;
 }
 
@@ -171,8 +172,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push("/");
   };
 
+  const refreshUser = async () => {
+    if (!user?.id) return;
+    try {
+      const { db } = await import("./db");
+      const dbUser = await db.getUserById(user.id);
+      if (dbUser) {
+        const updated = { ...user, name: dbUser.name, email: dbUser.email, status: dbUser.status, availableRoles: dbUser.availableRoles, role: dbUser.role };
+        setUser(updated);
+        localStorage.setItem("fgas_user", JSON.stringify(updated));
+      }
+    } catch (err) {
+      console.error("refreshUser failed", err);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, switchRole, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, switchRole, logout, refreshUser, loading }}>
       {loading ? (
         <div style={{minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0a0a"}}>
            <div style={{width: "40px", height: "40px", border: "3px solid rgba(255,255,255,0.1)", borderTopColor: "var(--primary)", borderRadius: "50%", animation: "spin 1s linear infinite"}}></div>

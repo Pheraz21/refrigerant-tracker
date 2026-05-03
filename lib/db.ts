@@ -860,6 +860,14 @@ export const db = {
     await supabase.from('users').update({ employer }).eq('id', userId);
   },
 
+  async updateUserName(userId: string, name: string): Promise<void> {
+    await supabase.from('users').update({ name }).eq('id', userId);
+  },
+
+  async updateUserEmail(userId: string, email: string): Promise<void> {
+    await supabase.from('users').update({ email }).eq('id', userId);
+  },
+
   async logDecommission(record: {
     bottleSerial: string;
     jobNumber: string;
