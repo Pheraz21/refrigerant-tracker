@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, PackageSearch, Printer } from "lucide-react";
+import { AlertTriangle, PackageSearch } from "lucide-react";
 import styles from "./page.module.css";
 import Link from "next/link";
 import { db, Bottle } from "@/lib/db";
@@ -99,22 +99,9 @@ export default function InventoryPage() {
   return (
     <div className={styles.container}>
       <header className={styles.header}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", width: "100%" }}>
-          <div>
-            <h1 className={styles.name}>My Van Stock</h1>
-            <p className={styles.greeting}>Currently assigned to {user?.name || "you"}</p>
-          </div>
-          <button 
-            onClick={printReport}
-            style={{
-              background: "rgba(0,229,255,0.1)", border: "1px solid rgba(0,229,255,0.2)", color: "var(--primary)",
-              padding: "0.5rem 1rem", borderRadius: "8px", fontSize: "0.85rem",
-              fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: "0.5rem",
-              marginTop: "0.5rem"
-            }}
-          >
-            <Printer size={18} /> Print Report
-          </button>
+        <div>
+          <h1 className={styles.name}>My Van Stock</h1>
+          <p className={styles.greeting}>Currently assigned to {user?.name || "you"}</p>
         </div>
       </header>
 
