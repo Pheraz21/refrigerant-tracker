@@ -19,7 +19,7 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, role: Role) => Promise<void>;
+  login: (email: string, password: string, role: Role) => Promise<void>;
   switchRole: (newRole: Role) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
@@ -142,14 +142,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   };
 
-  const login = async (email: string, role: Role) => {
+  const login = async (email: string, password: string, role: Role) => {
     setLoading(true);
+    const { supabase } = await import("./supabaseClient");
     const { db } = await import("./db");
-    const dbUser = await db.getUserByEmail(email);
 
+    const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (authError) {
+      setLoading(false);
+      // Check if they exist in the app DB but haven't set a Supabase Auth password yet
+      const existing = await db.getUserByEmail(email);
+      if (existing) {
+        throw new Error("Please use 'Forgot Password' to set your password for the first time.");
+      }
+      throw new Error("Invalid email or password.");
+    }
+
+    const dbUser = await db.getUserByEmail(email);
     if (!dbUser) {
       setLoading(false);
-      throw new Error("User not found. Please register first.");
+      throw new Error("Your account has not been set up yet. Please contact an administrator.");
     }
 
     const userToSet: User = {
@@ -158,7 +171,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       name: dbUser.name,
       role: dbUser.role as Role,
       availableRoles: dbUser.availableRoles as Role[],
-      status: dbUser.status as UserStatus
+      status: dbUser.status as UserStatus,
+      vehicleReg: dbUser.vehicleReg,
+      employer: dbUser.employer,
     };
 
     setUser(userToSet);

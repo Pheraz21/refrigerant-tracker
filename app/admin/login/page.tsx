@@ -20,7 +20,7 @@ export default function AdminLoginPage() {
     setError("");
     setIsLoading(true);
     try {
-      await login(email, "admin");
+      await login(email, password, "admin");
       router.push("/admin");
     } catch (err: any) {
       setError(err.message || "Invalid credentials");

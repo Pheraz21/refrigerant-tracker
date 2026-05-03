@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { UserPlus, Loader2, ArrowLeft, ShieldCheck, UserCircle } from "lucide-react";
 import Link from "next/link";
 import { db, UserRole } from "@/lib/db";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -25,18 +26,22 @@ export default function SignupPage() {
     setError("");
 
     try {
+      const { error: signUpError } = await supabase.auth.signUp({ email, password });
+      if (signUpError && signUpError.message !== "User already registered") {
+        throw signUpError;
+      }
       await db.registerUser({
         email,
         name,
         role,
         vehicleReg: role === "engineer" ? vehicleReg : undefined,
-        employer: role === "engineer" 
+        employer: role === "engineer"
           ? (employmentType === "direct" ? "Direct Staff" : subContractorName)
           : undefined
       });
       setIsSuccess(true);
-    } catch (err) {
-      setError("Registration failed. Please try again.");
+    } catch (err: any) {
+      setError(err.message || "Registration failed. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

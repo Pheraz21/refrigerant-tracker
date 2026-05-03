@@ -10,6 +10,7 @@ export default function LoginPage() {
   const { login } = useAuth();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -20,7 +21,7 @@ export default function LoginPage() {
     // In our mock, role is detected by login function from DB
     // We try 'engineer' first as it's the main portal, but AuthContext handles actual role
     try {
-      await login(email, "engineer");
+      await login(email, password, "engineer");
     } catch (err: any) {
       setError(err.message || "Login failed");
       setLoading(false);
@@ -64,11 +65,13 @@ export default function LoginPage() {
                 Forgot Password?
               </Link>
             </div>
-            <input 
-              type="password" 
-              id="password" 
-              placeholder="••••••••" 
-              required 
+            <input
+              type="password"
+              id="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
             />
           </div>
 
