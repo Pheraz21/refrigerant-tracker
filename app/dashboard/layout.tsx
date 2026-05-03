@@ -1,6 +1,6 @@
 "use client";
 
-import { Home, ScanLine, History, User, PackageSearch, AlertTriangle } from "lucide-react";
+import { Home, ScanLine, History, User, PackageSearch, AlertTriangle, Bell } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -21,10 +21,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className={styles.layout}>
       {missingPhotos > 0 && (
-        <div className="no-print" style={{background: 'var(--error)', color: '#fff', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', fontWeight: 'bold', zIndex: 100, position: 'relative'}}>
-          <AlertTriangle size={18} />
-          <span>Action Required: {missingPhotos} returned bottle{missingPhotos > 1 ? 's are' : ' is'} missing Supplier HWCN photos!</span>
-        </div>
+        <Link href="/dashboard/notifications" className="no-print" style={{textDecoration: 'none', display: 'block'}}>
+          <div style={{background: 'var(--error)', color: '#fff', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', fontWeight: 'bold', zIndex: 100, position: 'relative'}}>
+            <AlertTriangle size={18} />
+            <span>Action Required: {missingPhotos} returned bottle{missingPhotos > 1 ? 's are' : ' is'} missing Supplier HWCN photos!</span>
+            <div style={{marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem', opacity: 0.9}}>
+              View All <Home size={14} />
+            </div>
+          </div>
+        </Link>
       )}
       <main className={styles.mainContent}>
         {children}
@@ -34,6 +39,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <Link href="/dashboard" className={`${styles.navItem} ${pathname === "/dashboard" ? styles.active : ""}`}>
           <ScanLine size={24} />
           <span>Scan</span>
+        </Link>
+        <Link href="/dashboard/notifications" className={`${styles.navItem} ${pathname.includes("/dashboard/notifications") ? styles.active : ""}`}>
+          <div style={{position: 'relative'}}>
+            <Bell size={24} />
+            {missingPhotos > 0 && (
+              <span style={{
+                position: 'absolute', top: '-5px', right: '-5px', background: 'var(--error)', 
+                color: '#fff', borderRadius: '50%', width: '16px', height: '16px', 
+                fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: '2px solid var(--surface-light)'
+              }}>
+                {missingPhotos}
+              </span>
+            )}
+          </div>
+          <span>Alerts</span>
         </Link>
         <Link href="/dashboard/inventory" className={`${styles.navItem} ${pathname.includes("/dashboard/inventory") ? styles.active : ""}`}>
           <div className={styles.scanIconWrapper} style={{background: pathname.includes('/inventory') ? 'var(--primary)' : 'var(--surface-hover)', transform: 'translateY(-10px)'}}>

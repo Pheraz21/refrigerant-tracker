@@ -17,7 +17,7 @@ type SortKey = "id" | "serial" | "engineer" | "destination" | "date" | "hwcnStat
 export default function HWCNQueuePage() {
   const [hwcns, setHwcns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("all");
+  const [activeTab, setActiveTab] = useState("awaiting_consignee");
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");

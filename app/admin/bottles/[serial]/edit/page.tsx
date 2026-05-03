@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db, Bottle } from "@/lib/db";
+import { useAuth } from "@/lib/AuthContext";
 import { ArrowLeft, Save, Trash2, AlertCircle, Package, Calendar } from "lucide-react";
 import Link from "next/link";
 import styles from "../../../dashboard/page.module.css";
@@ -10,12 +11,17 @@ import styles from "../../../dashboard/page.module.css";
 export default function EditBottlePage() {
   const { serial } = useParams();
   const router = useRouter();
+  const { user } = useAuth();
   const [bottle, setBottle] = useState<any | null>(null);
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    if (user && user.role !== "admin" && user.role !== "office") {
+      router.replace("/dashboard");
+      return;
+    }
     if (serial) {
       Promise.all([
         db.getBottle(serial as string),
@@ -26,7 +32,7 @@ export default function EditBottlePage() {
         setLoading(false);
       });
     }
-  }, [serial]);
+  }, [serial, user, router]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,6 +101,27 @@ export default function EditBottlePage() {
               <option value="reclaim">Reclaim / Haz</option>
               <option value="nitrogen">Nitrogen</option>
             </select>
+          </div>
+        </div>
+
+        <div style={{display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem"}}>
+          <div>
+            <label style={{display: "block", fontSize: "0.85rem", color: "rgba(255,255,255,0.5)", marginBottom: "0.5rem"}}>Supplier</label>
+            <input
+              type="text"
+              value={bottle.supplier || ""}
+              onChange={e => handleChange("supplier", e.target.value)}
+              style={{width: "100%", padding: "0.75rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "#fff"}}
+            />
+          </div>
+          <div>
+            <label style={{display: "block", fontSize: "0.85rem", color: "rgba(255,255,255,0.5)", marginBottom: "0.5rem"}}>PO Number</label>
+            <input
+              type="text"
+              value={bottle.poNumber || ""}
+              onChange={e => handleChange("poNumber", e.target.value)}
+              style={{width: "100%", padding: "0.75rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "#fff"}}
+            />
           </div>
         </div>
 

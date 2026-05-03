@@ -63,7 +63,7 @@ export default function AdminLoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@21degrees.co.uk"
+              placeholder="admin@21-degrees.co.uk"
               required
               style={{
                 width: "100%",

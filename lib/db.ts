@@ -1,7 +1,4 @@
-"use client";
-
-// Simple in-memory mock database for testing the logic flows.
-// In production, this will be replaced by Firebase Firestore.
+import { supabase } from "./supabaseClient";
 
 export type BottleCategory = "new" | "reclaim" | "nitrogen";
 export type LocationType = "van" | "site" | "supplier" | "office";
@@ -19,6 +16,71 @@ export interface AppUser {
   employer: string;
   createdAt: string;
 }
+
+// Mapping helpers for Supabase (snake_case) to Frontend (camelCase)
+const mapUser = (u: any): AppUser => ({
+  ...u,
+  availableRoles: u.available_roles || u.availableRoles || [],
+  vehicleReg: u.vehicle_reg || u.vehicleReg,
+  createdAt: u.created_at || u.createdAt
+});
+
+const mapBottle = (b: any): Bottle => ({
+  ...b,
+  gasType: b.gas_type || b.gasType,
+  initialWeight: b.initial_weight || b.initialWeight,
+  currentWeight: b.current_weight || b.currentWeight,
+  locationType: b.location_type || b.locationType,
+  locationId: b.location_id || b.locationId,
+  poNumber: b.po_number || b.poNumber,
+  registeredAt: b.registered_at || b.registeredAt,
+  intendedDestination: b.intended_destination || b.intendedDestination,
+  intendedLocationType: b.intended_location_type || b.intendedLocationType,
+  activeHWCN: b.active_hwcn || b.activeHWCN,
+  supplierHwcnPhotoPending: b.supplier_hwcn_photo_pending ?? b.supplierHwcnPhotoPending,
+  supplierHwcnPhotoUrl: b.supplier_hwcn_photo_url || b.supplierHwcnPhotoUrl,
+  producerSites: b.producer_sites || b.producerSites || [],
+  returnedBy: b.returned_by || b.returnedBy,
+  returnedAt: b.returned_at || b.returnedAt,
+  deliveredAt: b.delivered_at || b.deliveredAt,
+  registeredBy: b.registered_by || b.registeredBy,
+  returnHwcnNumber: b.return_hwcn_number || b.returnHwcnNumber,
+  locationChangedAt: b.location_changed_at || b.locationChangedAt,
+  vehicleReg: b.vehicle_reg || b.vehicleReg,
+  rentalExpiryDate: b.rental_expiry_date || b.rentalExpiryDate
+});
+
+const mapMovement = (m: any): MovementLog => ({
+  ...m,
+  from: m.from_location || m.from,
+  to: m.to_location || m.to,
+  vehicleReg: m.vehicle_reg || m.vehicleReg
+});
+
+const mapUsage = (u: any): UsageLog => ({
+  ...u,
+  jobType: u.job_type || u.jobType,
+  siteRef: u.site_ref || u.siteRef,
+  siteName: u.site_name || u.siteName,
+  siteAddress: u.site_address || u.siteAddress,
+  weightUsed: u.weight_used || u.weightUsed,
+  weightBefore: u.weight_before || u.weightBefore,
+  weightAfter: u.weight_after || u.weightAfter
+});
+
+const mapHWCN = (h: any): any => ({
+  ...h,
+  hwcnStatus: h.hwcn_status || h.hwcnStatus,
+  vehicleReg: h.vehicle_reg || h.vehicleReg,
+  deliveredAt: h.delivered_at || h.deliveredAt,
+  receivedBy: h.received_by || h.receivedBy,
+  receivedSignature: h.received_signature || h.receivedSignature,
+  rejectionDetails: h.rejection_details || h.rejectionDetails,
+  vehicleRegConsignee: h.vehicle_reg_consignee || h.vehicleRegConsignee,
+  partECompletedAt: h.part_e_completed_at || h.partECompletedAt,
+  fillWeight: h.fill_weight || h.fillWeight,
+  gasType: h.gas_type || h.gasType
+});
 
 export interface UsageLog {
   id: string;
@@ -67,6 +129,8 @@ export interface Bottle {
   returnedBy?: string;
   returnedAt?: string;
   deliveredAt?: string;
+  registeredBy?: string;
+  returnHwcnNumber?: string;
   locationChangedAt?: string;
   vehicleReg?: string;
   rentalExpiryDate?: string;
@@ -74,11 +138,12 @@ export interface Bottle {
 
 export interface AppNotification {
   id: string;
-  type: "location_discrepancy" | "new_registration" | "rental_expiry" | "low_gas";
+  type: "location_discrepancy" | "new_registration" | "rental_expiry" | "low_gas" | "new_gas_registration" | "expiry_date_required";
   title: string;
   message: string;
   date: string;
   status: "new" | "acknowledged";
+  targetRole?: UserRole;
   metadata?: any;
 }
 
@@ -177,476 +242,860 @@ const INITIAL_REFRIGERANTS = [
 
 export const db = {
   async getBottle(serial: string): Promise<Bottle | null> {
-    const bottles = getStored("bottles", INITIAL_BOTTLES);
-    return bottles[serial] || null;
+    const { data, error } = await supabase
+      .from('bottles')
+      .select('*')
+      .eq('serial', serial)
+      .single();
+    
+    if (error || !data) return null;
+    return mapBottle(data);
   },
 
-
   async removeBottle(serial: string): Promise<void> {
-    const bottles = getStored("bottles", INITIAL_BOTTLES);
-    delete bottles[serial];
-    setStored("bottles", bottles);
+    await supabase.from('bottles').delete().eq('serial', serial);
+  },
+
+  async returnBottleToSupplier(data: {
+    serials: string[],
+    returnHwcnNumber: string,
+    hwcnPhotoUrl?: string,
+    returnedBy: string,
+    weights: Record<string, number>
+  }): Promise<void> {
+    for (const serial of data.serials) {
+      const weight = data.weights[serial];
+      await supabase.from('bottles').update({
+        status: 'returned',
+        location_type: 'supplier',
+        location_id: 'Supplier (Returned)',
+        current_weight: weight,
+        return_hwcn_number: data.returnHwcnNumber,
+        supplier_hwcn_photo_url: data.hwcnPhotoUrl,
+        returned_by: data.returnedBy,
+        returned_at: new Date().toISOString()
+      }).eq('serial', serial);
+
+      // Log movement
+      await supabase.from('movement_logs').insert({
+        serial,
+        action: 'returned_to_supplier',
+        from_location: 'office',
+        to_location: 'supplier',
+        engineer: data.returnedBy,
+        notes: `Hazardous Waste Return (HWCN: ${data.returnHwcnNumber})`
+      });
+    }
   },
 
   async createHWCN(hwcnData: any): Promise<string> {
     const id = `HWCN-${Math.floor(Math.random() * 100000)}`;
-    const records = getStored("hwcn", [] as any[]);
-    records.push({
+    const { error } = await supabase.from('hwcns').insert({
       id,
-      ...hwcnData,
-      deliveredAt: null,
-      receivedBy: null,
-      receivedSignature: null,
-      hwcnStatus: "draft"
+      serial: hwcnData.serial,
+      destination: hwcnData.destination,
+      sites: hwcnData.sites,
+      vehicle_reg: hwcnData.vehicleReg,
+      engineer: hwcnData.engineer,
+      date: hwcnData.date,
+      gas_type: hwcnData.gasType,
+      fill_weight: hwcnData.fillWeight,
+      hwcn_status: "draft"
     });
-    setStored("hwcn", records);
+    if (error) throw error;
     return id;
   },
 
   async getHWCN(id: string): Promise<any> {
-    const records = getStored("hwcn", [] as any[]);
-    return records.find((h: any) => h.id === id) || null;
+    const { data, error } = await supabase
+      .from('hwcns')
+      .select('*')
+      .eq('id', id)
+      .single();
+    return data ? mapHWCN(data) : null;
   },
 
   async updateHWCN(id: string, updates: any): Promise<void> {
-    const records = getStored("hwcn", [] as any[]);
-    const record = records.find((h: any) => h.id === id);
-    if (record) {
-      Object.assign(record, updates);
-      setStored("hwcn", records);
-    }
+    const dbUpdates: any = {};
+    if (updates.hwcnStatus) dbUpdates.hwcn_status = updates.hwcnStatus;
+    if (updates.deliveredAt) dbUpdates.delivered_at = updates.deliveredAt;
+    // ... add more if needed, but for now map basic ones
+    await supabase.from('hwcns').update(dbUpdates).eq('id', id);
   },
 
   async getHWCNsForBottle(serial: string): Promise<any[]> {
-    const records = getStored("hwcn", [] as any[]);
-    return records.filter((h: any) => h.serial === serial);
+    const { data } = await supabase
+      .from('hwcns')
+      .select('*')
+      .eq('serial', serial);
+    return data ? data.map(mapHWCN) : [];
   },
 
   async registerBottle(data: Omit<Bottle, "status">): Promise<void> {
-    const bottles = getStored("bottles", INITIAL_BOTTLES);
-    const notifications = getStored("notifications", INITIAL_NOTIFICATIONS);
-    const movements = getStored("movements", [] as any[]);
-    
-    bottles[data.serial] = { ...data, status: "active", locationChangedAt: new Date().toISOString() };
-    
-    movements.push({
-      id: `MOV-${Math.floor(Math.random() * 100000)}`,
+    console.log('Registering bottle:', data.serial);
+    const { error: bottleError } = await supabase.from('bottles').insert({
       serial: data.serial,
-      date: new Date().toISOString(),
+      category: data.category,
+      gas_type: data.gasType,
+      initial_weight: data.initialWeight,
+      current_weight: data.currentWeight,
+      location_type: data.locationType,
+      location_id: data.locationId,
+      po_number: data.poNumber,
+      supplier: data.supplier,
+      registered_at: data.registeredAt,
+      rental_expiry_date: data.rentalExpiryDate,
+      status: "active",
+      location_changed_at: new Date().toISOString()
+    });
+    if (bottleError) {
+      console.error('Error registering bottle:', bottleError);
+      throw bottleError;
+    }
+
+    const { error: logError } = await supabase.from('movement_logs').insert({
+      serial: data.serial,
       action: "registered",
-      from: "\u2014",
-      to: data.locationId,
+      from_location: "\u2014",
+      to_location: data.locationId,
       engineer: "admin",
       notes: "Initial registration"
     });
+    if (logError) console.error('Error logging registration:', logError);
 
-    setStored("bottles", bottles);
-    setStored("movements", movements);
-    setStored("notifications", notifications);
+    await this.createNotification({
+      type: "expiry_date_required",
+      title: "Set Rental Expiry Date",
+      message: `Bottle ${data.serial} (${data.gasType}) has been registered. Please set the rental expiry date.`,
+      targetRole: "office",
+      metadata: { serial: data.serial, gasType: data.gasType, supplier: data.supplier || "Unknown" }
+    });
   },
 
   async updateBottleLocation(serial: string, locationType: LocationType, locationId: string, intendedDestination?: string, intendedLocationType?: LocationType, activeHWCN?: string): Promise<void> {
-    const bottles = getStored("bottles", INITIAL_BOTTLES);
-    const movements = getStored("movements", [] as any[]);
+    console.log(`Updating bottle ${serial} location to ${locationId} (${locationType})`);
+    const { data: bottle, error: fetchError } = await supabase.from('bottles').select('*').eq('serial', serial).single();
     
-    const bottle = bottles[serial];
+    if (fetchError) {
+      console.error(`Error fetching bottle ${serial} for move:`, fetchError);
+      throw fetchError;
+    }
+
     if (bottle) {
-      const from = bottle.locationId;
-      bottle.locationType = locationType;
-      bottle.locationId = locationId;
-      bottle.locationChangedAt = new Date().toISOString();
-      if (intendedDestination !== undefined) bottle.intendedDestination = intendedDestination;
-      if (intendedLocationType !== undefined) bottle.intendedLocationType = intendedLocationType;
-      if (activeHWCN !== undefined) bottle.activeHWCN = activeHWCN;
+      const from = bottle.location_id || bottle.locationId;
+      const updates: any = {
+        location_type: locationType,
+        location_id: locationId,
+        location_changed_at: new Date().toISOString()
+      };
+      if (intendedDestination !== undefined) updates.intended_destination = intendedDestination;
+      if (intendedLocationType !== undefined) updates.intended_location_type = intendedLocationType;
+      if (activeHWCN !== undefined) updates.active_hwcn = activeHWCN;
+      
+      const { error: updateError } = await supabase.from('bottles').update(updates).eq('serial', serial);
+      if (updateError) {
+        console.error(`Error updating bottle ${serial}:`, updateError);
+        throw updateError;
+      }
       
       let action = "moved";
-      if (locationId.includes(" - Van") && from.includes(" - Van") && locationId !== from) {
+      if (locationId.includes(" - Van") && from && from.includes(" - Van") && locationId !== from) {
         action = "handover";
       }
 
-      movements.push({
-        id: `MOV-${Math.floor(Math.random() * 100000)}`,
+      const { error: logError } = await supabase.from('movement_logs').insert({
         serial,
-        date: new Date().toISOString(),
         action: action as any,
-        from,
-        to: locationId,
+        from_location: from || "Unknown",
+        to_location: locationId,
         notes: activeHWCN 
           ? `Consignment ${activeHWCN} generated. Destination: ${intendedDestination}.` 
-          : (action === "handover" ? "Cylinder handed over to another engineer." : undefined)
+          : (action === "handover" ? "Cylinder handed over to another engineer." : (intendedDestination ? `In Transit to ${intendedDestination}` : undefined))
       });
-
-      setStored("bottles", bottles);
-      setStored("movements", movements);
+      if (logError) console.error(`Error logging movement for ${serial}:`, logError);
     }
   },
 
   async clearTransitState(serial: string): Promise<void> {
-    const bottles = getStored("bottles", INITIAL_BOTTLES);
-    if (bottles[serial]) {
-      delete bottles[serial].intendedDestination;
-      delete bottles[serial].intendedLocationType;
-      delete bottles[serial].activeHWCN;
-      setStored("bottles", bottles);
-    }
+    await supabase.from('bottles').update({
+      intended_destination: null,
+      intended_location_type: null,
+      active_hwcn: null
+    }).eq('serial', serial);
   },
 
-  async logUsage(serial: string, jobType: string, weightChange: number, isWaste: boolean = false, producerSite?: { name: string, address: string, postcode: string }): Promise<void> {
-    const bottles = getStored("bottles", INITIAL_BOTTLES);
-    const bottle = bottles[serial];
+  async logUsage(serial: string, jobType: string, weightChange: number, isWaste: boolean = false, producerSite?: { name: string, address: string, postcode: string }, gasType?: string): Promise<void> {
+    const { data: bottle } = await supabase.from('bottles').select('*').eq('serial', serial).single();
     if (!bottle) return;
 
+    let newWeight = parseFloat(bottle.current_weight || bottle.currentWeight || 0);
+    let newStatus = bottle.status;
+    let newLocType = bottle.location_type || bottle.locationType;
+    let newLocId = bottle.location_id || bottle.locationId;
+
+    const bottleUpdatePayload: any = {};
+
     if (jobType === "service" || jobType === "install") {
-      bottle.currentWeight = Math.max(0, bottle.currentWeight - weightChange);
-      if (bottle.currentWeight === 0 && bottle.category === "new") {
-        bottle.status = "empty";
+      newWeight = Math.max(0, newWeight - weightChange);
+      if (newWeight === 0 && (bottle.category === "new" || bottle.category === "nitrogen")) {
+        newStatus = "empty";
       }
-    } else if (jobType === "recovery" && bottle.category === "reclaim") {
-      bottle.currentWeight += weightChange;
-      if (producerSite) {
-        if (!bottle.producerSites) bottle.producerSites = [];
-        const exists = bottle.producerSites.find(s => s.name === producerSite.name);
-        if (!exists) bottle.producerSites.push(producerSite);
+    } else if (jobType === "recovery" || jobType === "retrofit" || jobType === "waste") {
+      // Adding gas to bottle
+      newWeight += weightChange;
+
+      if (jobType === "recovery") {
+        // Handle producer sites (JSONB)
+        const sites = bottle.producer_sites || bottle.producerSites || [];
+        if (producerSite) {
+          const exists = sites.find((s: any) => s.name === producerSite.name);
+          if (!exists) sites.push(producerSite);
+        }
+        const { error: siteErr } = await supabase.from('bottles').update({ producer_sites: sites }).eq('serial', serial);
+        if (siteErr) console.error("Error updating producer sites:", siteErr);
+
+        // Update gas type based on what was recovered
+        if (gasType && bottle.category === "reclaim") {
+          const currentGasType = bottle.gas_type || "Mixed/Recovery";
+          const currentWeight = parseFloat(bottle.current_weight || 0);
+          let resolvedGasType: string;
+
+          if (currentWeight === 0 || currentGasType === "Mixed/Recovery" || currentGasType === "Unknown") {
+            resolvedGasType = gasType;
+          } else if (currentGasType === gasType) {
+            resolvedGasType = currentGasType;
+          } else {
+            resolvedGasType = "Mixed/Recovery";
+          }
+
+          bottleUpdatePayload.gas_type = resolvedGasType;
+        }
       }
     }
 
     if (isWaste || jobType === "waste") {
-      bottle.status = "returned";
-      bottle.locationType = "supplier";
-      bottle.locationId = "Supplier-Return";
+      newStatus = "returned";
+      newLocType = "supplier";
+      newLocId = "Supplier-Return";
     }
-    setStored("bottles", bottles);
+
+    bottleUpdatePayload.current_weight = newWeight;
+    bottleUpdatePayload.status = newStatus;
+    bottleUpdatePayload.location_type = newLocType;
+    bottleUpdatePayload.location_id = newLocId;
+
+    const { error: updateErr } = await supabase.from('bottles').update(bottleUpdatePayload).eq('serial', serial);
+    
+    if (updateErr) {
+      console.error("Error updating bottle weight:", updateErr);
+      throw updateErr;
+    }
+    
+    const { error: logErr } = await supabase.from('usage_logs').insert({
+      serial,
+      job_type: jobType,
+      site_name: producerSite?.name || null,
+      site_address: producerSite?.address || null,
+      site_ref: producerSite?.name || null,
+      weight_used: weightChange || 0,
+      weight_before: parseFloat(bottle.current_weight || bottle.currentWeight || 0),
+      weight_after: newWeight,
+      engineer: "System" // Should be passed in
+    });
+    
+    if (logErr) console.error("Error inserting usage log:", logErr);
   },
 
-  async completeTransit(serial: string, supplierPhotoUrl?: string, engineerName?: string): Promise<void> {
-    const bottles = getStored("bottles", INITIAL_BOTTLES);
-    const bottle = bottles[serial];
-    if (bottle && bottle.intendedDestination && bottle.intendedLocationType) {
-      const deliveredAt = new Date().toISOString();
-      const finalDest = bottle.intendedDestination;
-      const finalLocType = bottle.intendedLocationType;
-      const hwcnId = bottle.activeHWCN;
+  async completeTransit(serial: string, supplierPhotoUrl?: string, engineerName?: string, altDestination?: string): Promise<void> {
+    console.log(`Completing transit for bottle ${serial}`);
+    const { data: bottle, error: fetchError } = await supabase.from('bottles').select('*').eq('serial', serial).single();
+    
+    if (fetchError) {
+      console.error(`Error fetching bottle ${serial} for transit completion:`, fetchError);
+      throw fetchError;
+    }
 
-      bottle.locationType = finalLocType;
-      bottle.locationId = finalDest;
-      bottle.deliveredAt = deliveredAt;
-      bottle.locationChangedAt = deliveredAt;
-      if (engineerName) bottle.returnedBy = engineerName;
+    if (bottle && (bottle.intended_destination || bottle.intendedDestination)) {
+      const deliveredAt = new Date().toISOString();
+      const finalDest = altDestination || bottle.intended_destination || bottle.intendedDestination;
+      const finalLocType = bottle.intended_location_type || bottle.intendedLocationType;
+      const hwcnId = bottle.active_hwcn || bottle.activeHWCN;
+
+      const updates: any = {
+        location_type: finalLocType,
+        location_id: finalDest,
+        delivered_at: deliveredAt,
+        location_changed_at: deliveredAt,
+        intended_destination: null,
+        intended_location_type: null,
+        active_hwcn: null
+      };
+      
+      if (engineerName) updates.returned_by = engineerName;
       
       if (hwcnId) {
-        const records = getStored("hwcn", [] as any[]);
-        const hwcn = records.find((h: any) => h.id === hwcnId);
-        if (hwcn) {
-          hwcn.deliveredAt = deliveredAt;
-          hwcn.hwcnStatus = "awaiting_consignee";
-          setStored("hwcn", records);
-        }
+        await supabase.from('hwcns').update({
+          delivered_at: deliveredAt,
+          hwcn_status: "awaiting_consignee"
+        }).eq('id', hwcnId);
       }
 
       if (finalLocType === "supplier") {
-        bottle.status = "returned";
+        updates.status = "returned";
         if (supplierPhotoUrl) {
-          bottle.supplierHwcnPhotoUrl = supplierPhotoUrl;
-          bottle.supplierHwcnPhotoPending = false;
+          updates.supplier_hwcn_photo_url = supplierPhotoUrl;
+          updates.supplier_hwcn_photo_pending = false;
         } else {
-          bottle.supplierHwcnPhotoPending = true;
+          updates.supplier_hwcn_photo_pending = true;
         }
+      } else if (finalLocType === "office") {
+        updates.status = "active"; // Reactivate when back in stores
+      } else {
+        updates.status = "active";
       }
       
-      const movements = getStored("movements", [] as any[]);
-      movements.push({
-        id: `MOV-${Math.floor(Math.random() * 100000)}`,
+      const { error: updateError } = await supabase.from('bottles').update(updates).eq('serial', serial);
+      if (updateError) {
+        console.error(`Error updating bottle ${serial} on transit completion:`, updateError);
+        throw updateError;
+      }
+      
+      const { error: logError } = await supabase.from('movement_logs').insert({
         serial,
         date: deliveredAt,
-        action: "received" as any,
-        from: "In Transit",
-        to: finalDest,
+        action: "received",
+        from_location: "In Transit",
+        to_location: finalDest || "Stores",
         engineer: engineerName || "System",
-        notes: hwcnId ? `Received and delivered. Linked to ${hwcnId}.` : "Received and delivered."
+        notes: hwcnId ? `Received and delivered. Linked to ${hwcnId}.` : `Received at ${finalDest}.`
       });
-      setStored("movements", movements);
-      
-      delete bottle.intendedDestination;
-      delete bottle.intendedLocationType;
-      delete bottle.activeHWCN;
-      setStored("bottles", bottles);
+      if (logError) console.error(`Error logging receipt for ${serial}:`, logError);
     }
   },
   
   async getAllBottles(): Promise<Bottle[]> {
-    const bottles = getStored("bottles", INITIAL_BOTTLES);
-    return Object.values(bottles);
+    const { data } = await supabase.from('bottles').select('*');
+    return data ? data.map(mapBottle) : [];
   },
 
   async signOutFromStores(serial: string, engineerName: string): Promise<void> {
-    const bottles = getStored("bottles", INITIAL_BOTTLES);
-    const bottle = bottles[serial];
-    if (!bottle) return;
-    bottle.locationType = "van";
-    bottle.locationId = `${engineerName} - Van`;
-    bottle.locationChangedAt = new Date().toISOString();
-    bottle.status = "active";
-    delete bottle.intendedDestination;
-    delete bottle.intendedLocationType;
-    delete bottle.activeHWCN;
-    delete bottle.deliveredAt;
-    delete bottle.returnedBy;
-    bottle.producerSites = [];
-    setStored("bottles", bottles);
+    await supabase.from('bottles').update({
+      location_type: "van",
+      location_id: `${engineerName} - Van`,
+      location_changed_at: new Date().toISOString(),
+      status: "active",
+      intended_destination: null,
+      intended_location_type: null,
+      active_hwcn: null,
+      delivered_at: null,
+      returned_by: null,
+      producer_sites: []
+    }).eq('serial', serial);
   },
 
   async getAllHWCNs(): Promise<any[]> {
-    return getStored("hwcn", [] as any[]);
+    const { data } = await supabase.from('hwcns').select('*');
+    return data ? data.map(mapHWCN) : [];
   },
 
   async getHWCNsByStatus(status: string): Promise<any[]> {
-    const records = getStored("hwcn", [] as any[]);
-    return records.filter((h: any) => h.hwcnStatus === status);
+    const { data } = await supabase.from('hwcns').select('*').eq('hwcn_status', status);
+    return data ? data.map(mapHWCN) : [];
   },
 
   async completePartE(hwcnId: string, data: any): Promise<void> {
-    const records = getStored("hwcn", [] as any[]);
-    const hwcn = records.find((h: any) => h.id === hwcnId);
-    if (!hwcn) return;
-    hwcn.receivedBy = data.receivedBy;
-    hwcn.receivedSignature = data.receivedSignature || data.receivedBy;
-    hwcn.accepted = data.accepted;
-    hwcn.rejectionDetails = data.rejectionDetails;
-    if (data.vehicleReg) hwcn.vehicleRegConsignee = data.vehicleReg;
-    hwcn.partECompletedAt = new Date().toISOString();
-    hwcn.hwcnStatus = "complete";
-    setStored("hwcn", records);
+    const updates: any = {
+      received_by: data.receivedBy,
+      received_signature: data.receivedSignature || data.receivedBy,
+      accepted: data.accepted,
+      rejection_details: data.rejectionDetails,
+      part_e_completed_at: new Date().toISOString(),
+      hwcn_status: "complete"
+    };
+    if (data.vehicleReg) updates.vehicle_reg_consignee = data.vehicleReg;
+    await supabase.from('hwcns').update(updates).eq('id', hwcnId);
   },
 
   async getBottlesByLocation(locationType: LocationType): Promise<Bottle[]> {
-    const bottles = getStored("bottles", INITIAL_BOTTLES);
-    return Object.values(bottles).filter((b: any) => b.locationType === locationType);
+    const { data } = await supabase.from('bottles').select('*')
+      .eq('location_type', locationType)
+      .neq('status', 'returned');
+    return data ? data.map(mapBottle) : [];
   },
 
   async getBottlesByVan(engineerId: string): Promise<Bottle[]> {
-    const bottles = getStored("bottles", INITIAL_BOTTLES);
-    return Object.values(bottles).filter((b: any) => 
-      b.locationType === "van" && 
-      (b.locationId === engineerId || b.locationId?.includes(engineerId))
-    );
+    const { data } = await supabase.from('bottles')
+      .select('*')
+      .eq('location_type', 'van')
+      .neq('status', 'returned')
+      .or(`location_id.eq.${engineerId},location_id.ilike.%${engineerId}%`);
+    return data ? data.map(mapBottle) : [];
+  },
+
+  async getBottlesByVanId(vanId: string): Promise<Bottle[]> {
+     const { data } = await supabase.from('bottles')
+      .select('*')
+      .eq('location_type', 'van')
+      .eq('location_id', vanId);
+    return data ? data.map(mapBottle) : [];
   },
 
   async getBottlesByCategory(category: BottleCategory): Promise<Bottle[]> {
-    const bottles = getStored("bottles", INITIAL_BOTTLES);
-    return Object.values(bottles).filter((b: any) => b.category === category);
+    const { data } = await supabase.from('bottles').select('*').eq('category', category);
+    return data ? data.map(mapBottle) : [];
   },
 
   async getUsageLogs(serial: string): Promise<UsageLog[]> {
-    const logs = getStored("usage", [] as any[]);
-    return logs.filter((l: any) => l.serial === serial).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const { data } = await supabase.from('usage_logs')
+      .select('*')
+      .eq('serial', serial)
+      .order('date', { ascending: false });
+    return data ? data.map(mapUsage) : [];
   },
 
   async getMovementLogs(serial?: string): Promise<MovementLog[]> {
-    const logs = getStored("movements", [] as any[]);
-    if (serial) {
-      return logs.filter((l: any) => l.serial === serial).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }
-    return [...logs].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    let query = supabase.from('movement_logs').select('*');
+    if (serial) query = query.eq('serial', serial);
+    const { data } = await query.order('date', { ascending: false });
+    return data ? data.map(mapMovement) : [];
   },
 
   async getAllMovementLogs(): Promise<MovementLog[]> {
-    const logs = getStored("movements", [] as any[]);
-    return [...logs].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const { data } = await supabase.from('movement_logs').select('*').order('date', { ascending: false });
+    return data ? data.map(mapMovement) : [];
   },
 
   async getAllUsageLogs(): Promise<UsageLog[]> {
-    const logs = getStored("usage", [] as any[]);
-    return [...logs].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const { data } = await supabase.from('usage_logs').select('*').order('date', { ascending: false });
+    return data ? data.map(mapUsage) : [];
   },
 
   async getEngineers(): Promise<string[]> {
-    const users = getStored("users", INITIAL_USERS);
-    return Object.values(users).filter((u: any) => u.role === "engineer").map((u: any) => u.id);
+    const { data } = await supabase.from('users').select('id').eq('role', 'engineer');
+    return data?.map(u => u.id) || [];
   },
   
   async getEngineerProfiles(): Promise<any[]> {
-    const users = getStored("users", INITIAL_USERS);
-    return Object.values(users).filter((u: any) => u.role === "engineer");
+    const { data } = await supabase.from('users').select('*').eq('role', 'engineer');
+    return data ? data.map(mapUser) : [];
   },
 
   async getAllUsers(): Promise<any[]> {
-    const users = getStored("users", INITIAL_USERS);
-    return Object.values(users);
+    const { data } = await supabase.from('users').select('*');
+    return data ? data.map(mapUser) : [];
   },
 
   async getEngineerById(id: string): Promise<any | null> {
-    const users = getStored("users", INITIAL_USERS);
-    return users[id] || null;
+    const { data } = await supabase.from('users').select('*').eq('id', id).single();
+    return data ? mapUser(data) : null;
   },
 
   async getUserById(id: string): Promise<any | null> {
-    const users = getStored("users", INITIAL_USERS);
-    return users[id] || null;
+    const { data } = await supabase.from('users').select('*').eq('id', id).single();
+    return data ? mapUser(data) : null;
   },
 
   async getUserByEmail(email: string): Promise<any | null> {
-    const users = getStored("users", INITIAL_USERS);
-    return Object.values(users).find((u: any) => u.email.toLowerCase() === email.toLowerCase()) || null;
+    const { data } = await supabase.from('users').select('*').ilike('email', email).single();
+    return data ? mapUser(data) : null;
   },
 
   async registerUser(data: any): Promise<void> {
     const id = `user_${Math.random().toString(36).substr(2, 9)}`;
-    const users = getStored("users", INITIAL_USERS);
-    users[id] = { id, ...data, availableRoles: [data.role], status: "pending", createdAt: new Date().toISOString() };
-    setStored("users", users);
+    await supabase.from('users').insert({
+      id,
+      email: data.email,
+      name: data.name,
+      role: data.role,
+      available_roles: [data.role],
+      status: "pending",
+      employer: data.employer
+    });
+
+    await this.createNotification({
+      type: "new_user_registration",
+      title: "New User Signup",
+      message: `${data.name} (${data.role}) has registered and is awaiting approval.`,
+      targetRole: "admin",
+      metadata: { userId: id, email: data.email }
+    });
   },
 
   async getSuppliers(): Promise<any[]> {
-    return getStored("suppliers", INITIAL_SUPPLIERS);
+    const { data } = await supabase.from('suppliers').select('*');
+    return data || [];
   },
 
   async addSupplier(name: string): Promise<void> {
-    const suppliers = getStored("suppliers", INITIAL_SUPPLIERS);
-    suppliers.push({ id: `sup_${Date.now()}`, name });
-    setStored("suppliers", suppliers);
+    const id = `sup_${Date.now()}`;
+    await supabase.from('suppliers').insert({ id, name });
   },
 
   async getRefrigerants(): Promise<any[]> {
-    return getStored("refrigerants", INITIAL_REFRIGERANTS);
+    const { data } = await supabase.from('gases').select('*').order('name');
+    return data || [];
   },
 
   async addRefrigerant(ref: any): Promise<void> {
-    const refs = getStored("refrigerants", INITIAL_REFRIGERANTS);
-    refs.push({ id: `ref_${Date.now()}`, ...ref });
-    setStored("refrigerants", refs);
+    await supabase.from('gases').insert({ 
+      name: ref.name,
+      type: ref.type || 'HFC',
+      un_number: ref.un_number || ref.un,
+      gwp: ref.gwp,
+      can_be_bought_new: ref.canBeBoughtNew !== undefined ? ref.canBeBoughtNew : true
+    });
   },
 
   async updateRefrigerant(id: string, updates: any): Promise<void> {
-    const refs = getStored("refrigerants", INITIAL_REFRIGERANTS);
-    const ref = refs.find((r: any) => r.id === id);
-    if (ref) {
-      Object.assign(ref, updates);
-      setStored("refrigerants", refs);
-    }
+    const dbUpdates: any = {};
+    if (updates.name) dbUpdates.name = updates.name;
+    if (updates.type) dbUpdates.type = updates.type;
+    if (updates.un_number) dbUpdates.un_number = updates.un_number;
+    if (updates.un) dbUpdates.un_number = updates.un;
+    if (updates.gwp !== undefined) dbUpdates.gwp = updates.gwp;
+    if (updates.hazard_class) dbUpdates.hazard_class = updates.hazard_class;
+    if (updates.can_be_bought_new !== undefined) dbUpdates.can_be_bought_new = updates.can_be_bought_new;
+    
+    await supabase.from('gases').update(dbUpdates).eq('id', id);
   },
 
   async removeRefrigerant(id: string): Promise<void> {
-    const refs = getStored("refrigerants", INITIAL_REFRIGERANTS);
-    setStored("refrigerants", refs.filter((r: any) => r.id !== id));
+    await supabase.from('gases').delete().eq('id', id);
   },
 
   async removeSupplier(id: string): Promise<void> {
-    const suppliers = getStored("suppliers", INITIAL_SUPPLIERS);
-    setStored("suppliers", suppliers.filter((s: any) => s.id !== id));
+    await supabase.from('suppliers').delete().eq('id', id);
   },
 
   async switchUserRole(userId: string, newRole: any): Promise<void> {
-    const users = getStored("users", INITIAL_USERS);
-    const user = users[userId];
-    if (user && user.availableRoles.includes(newRole)) {
-      user.role = newRole;
-      setStored("users", users);
-    }
+    await supabase.from('users').update({ role: newRole }).eq('id', userId);
   },
 
   async approveUser(id: string): Promise<void> {
-    const users = getStored("users", INITIAL_USERS);
-    if (users[id]) {
-      users[id].status = "approved";
-      setStored("users", users);
-    }
+    await supabase.from('users').update({ status: "approved" }).eq('id', id);
   },
 
   async setUserStatus(id: string, status: any): Promise<void> {
-    const users = getStored("users", INITIAL_USERS);
-    if (users[id]) {
-      users[id].status = status;
-      setStored("users", users);
-    }
+    await supabase.from('users').update({ status }).eq('id', id);
   },
 
   async updateUserRoles(id: string, roles: any[]): Promise<void> {
-    const users = getStored("users", INITIAL_USERS);
-    if (users[id]) {
-      users[id].availableRoles = roles;
-      setStored("users", users);
-    }
+    await supabase.from('users').update({ available_roles: roles }).eq('id', id);
   },
 
   async getNotifications(): Promise<any[]> {
-    return getStored("notifications", INITIAL_NOTIFICATIONS);
+    const { data } = await supabase.from('notifications').select('*').order('date', { ascending: false });
+    return data || [];
   },
 
   async createNotification(notif: any): Promise<void> {
-    const notifications = getStored("notifications", INITIAL_NOTIFICATIONS);
-    notifications.unshift({ id: `NOT-${Math.floor(Math.random() * 100000)}`, status: "new", date: new Date().toISOString(), ...notif });
-    setStored("notifications", notifications);
+    const id = `NOT-${Math.floor(Math.random() * 100000)}`;
+    await supabase.from('notifications').insert({
+      id,
+      status: "new",
+      type: notif.type,
+      title: notif.title,
+      message: notif.message,
+      target_role: notif.targetRole,
+      metadata: notif.metadata
+    });
   },
 
   async acknowledgeNotification(id: string): Promise<void> {
-    const notifications = getStored("notifications", INITIAL_NOTIFICATIONS);
-    const notif = notifications.find((n: any) => n.id === id);
-    if (notif) {
-      notif.status = "acknowledged";
-      setStored("notifications", notifications);
-    }
+    await supabase.from('notifications').update({ status: "acknowledged" }).eq('id', id);
   },
 
   async acknowledgeAllNotifications(): Promise<void> {
-    const notifications = getStored("notifications", INITIAL_NOTIFICATIONS);
-    notifications.forEach((n: any) => n.status = "acknowledged");
-    setStored("notifications", notifications);
+    await supabase.from('notifications').update({ status: "acknowledged" });
   },
 
   async updateBottle(serial: string, updates: any): Promise<void> {
-    const bottles = getStored("bottles", INITIAL_BOTTLES);
-    if (bottles[serial]) {
-      bottles[serial] = { ...bottles[serial], ...updates };
-      setStored("bottles", bottles);
-    }
+    const dbUpdates: any = {};
+    if (updates.currentWeight !== undefined) dbUpdates.current_weight = updates.currentWeight;
+    if (updates.status) dbUpdates.status = updates.status;
+    if (updates.locationType) dbUpdates.location_type = updates.locationType;
+    if (updates.locationId) dbUpdates.location_id = updates.locationId;
+    if (updates.gasType) dbUpdates.gas_type = updates.gasType;
+    if (updates.category) dbUpdates.category = updates.category;
+    if (updates.initialWeight !== undefined) dbUpdates.initial_weight = updates.initialWeight;
+    if ("rentalExpiryDate" in updates) dbUpdates.rental_expiry_date = updates.rentalExpiryDate || null;
+    if (updates.supplier !== undefined) dbUpdates.supplier = updates.supplier;
+    if (updates.poNumber !== undefined) dbUpdates.po_number = updates.poNumber;
+
+    await supabase.from('bottles').update(dbUpdates).eq('serial', serial);
   },
 
   async updateUserVehicle(userId: string, newReg: string): Promise<void> {
-    const users = getStored("users", INITIAL_USERS);
-    const bottles = getStored("bottles", INITIAL_BOTTLES);
-    const movements = getStored("movements", [] as any[]);
-    
-    const user = users[userId];
+    const { data: user } = await supabase.from('users').select('*').eq('id', userId).single();
     if (!user) return;
     
-    const oldReg = user.vehicleReg || "Unassigned";
-    user.vehicleReg = newReg;
-    setStored("users", users);
+    const oldReg = user.vehicle_reg || user.vehicleReg || "Unassigned";
+    await supabase.from('users').update({ vehicle_reg: newReg }).eq('id', userId);
     
-    // Move all bottles on this user's van
-    // Note: b.locationId typically looks like "Name - Van" or the userId
-    const userBottles = Object.values(bottles).filter((b: any) => 
-      b.locationType === "van" && 
-      (b.locationId === userId || b.locationId?.includes(user.name))
-    );
+    const { data: userBottles } = await supabase.from('bottles')
+      .select('serial')
+      .eq('location_type', 'van')
+      .or(`location_id.eq.${userId},location_id.ilike.%${user.name}%`);
     
-    userBottles.forEach((b: any) => {
-      b.vehicleReg = newReg; 
-      b.locationChangedAt = new Date().toISOString();
-      
-      movements.push({
-        id: `MOV-${Math.floor(Math.random() * 100000)}`,
-        serial: b.serial,
-        date: new Date().toISOString(),
-        action: "vehicle_transfer",
-        from: `Van (${oldReg})`,
-        to: `Van (${newReg})`,
-        engineer: user.name,
-        notes: `Cylinder transferred to new vehicle ${newReg}.`
-      });
-    });
-    
-    setStored("bottles", bottles);
-    setStored("movements", movements);
-    setStored("users", users);
-  },
-
-  async updateUserEmployer(userId: string, employer: string): Promise<void> {
-    const users = getStored("users", INITIAL_USERS);
-    if (users[userId]) {
-      users[userId].employer = employer;
-      setStored("users", users);
+    if (userBottles) {
+      for (const b of userBottles) {
+        await supabase.from('bottles').update({ 
+          vehicle_reg: newReg,
+          location_changed_at: new Date().toISOString()
+        }).eq('serial', b.serial);
+        
+        await supabase.from('movement_logs').insert({
+          serial: b.serial,
+          action: "vehicle_transfer",
+          from_location: `Van (${oldReg})`,
+          to_location: `Van (${newReg})`,
+          engineer: user.name,
+          notes: `Cylinder transferred to new vehicle ${newReg}.`
+        });
+      }
     }
   },
 
+  async updateUserEmployer(userId: string, employer: string): Promise<void> {
+    await supabase.from('users').update({ employer }).eq('id', userId);
+  },
+
+  async logDecommission(record: {
+    bottleSerial: string;
+    jobNumber: string;
+    siteName: string;
+    siteAddress: string;
+    sitePostcode: string;
+    engineer: string;
+    equipment: Array<{
+      manufacturer: string;
+      model: string;
+      serial: string;
+      weightRecovered: number;
+    }>;
+    gasType: string;
+    totalWeightRecovered: number;
+  }): Promise<string> {
+    const id = `DECOM-${Math.floor(Math.random() * 100000)}`;
+    const { error } = await supabase.from('decommissioned_equipment').insert({
+      id,
+      bottle_serial: record.bottleSerial,
+      job_number: record.jobNumber,
+      site_name: record.siteName,
+      site_address: record.siteAddress,
+      site_postcode: record.sitePostcode,
+      engineer: record.engineer,
+      equipment: record.equipment,
+      gas_type: record.gasType,
+      total_weight_recovered: record.totalWeightRecovered,
+      date: new Date().toISOString()
+    });
+    if (error) {
+      console.error('Error logging decommission:', error);
+      throw error;
+    }
+    return id;
+  },
+
+  async getAllDecommissions(): Promise<any[]> {
+    const { data } = await supabase
+      .from('decommissioned_equipment')
+      .select('*')
+      .order('date', { ascending: false });
+    return data ? data.map((d: any) => ({
+      ...d,
+      bottleSerial: d.bottle_serial || d.bottleSerial,
+      jobNumber: d.job_number || d.jobNumber,
+      siteName: d.site_name || d.siteName,
+      siteAddress: d.site_address || d.siteAddress,
+      sitePostcode: d.site_postcode || d.sitePostcode,
+      gasType: d.gas_type || d.gasType,
+      totalWeightRecovered: d.total_weight_recovered || d.totalWeightRecovered,
+    })) : [];
+  },
+  async ensureGas(name: string) {
+    if (!name) return;
+    const cleanName = name.trim().toUpperCase();
+    
+    // Check if exists
+    const { data } = await supabase
+      .from("gases")
+      .select("name")
+      .eq("name", cleanName)
+      .single();
+
+    if (!data) {
+      await supabase.from("gases").insert({ name: cleanName });
+    }
+  },
+
+  async getGases() {
+    const { data } = await supabase
+      .from("gases")
+      .select("*")
+      .order("name", { ascending: true });
+    return data || [];
+  },
+
+  async getCompanySettings(): Promise<any> {
+    const { data } = await supabase
+      .from("company_settings")
+      .select("*")
+      .eq("id", "main")
+      .single();
+    if (!data) return { carrierReg: "CBDU368286", exemptionNo: "31Z 3725 34", companyName: "21 Degrees Ltd", companyAddress: "Unit 10, Apollo Court, Monkton Business Park, Hebburn", companyPostcode: "NE31 2ES", companyTel: "0191 5450545" };
+    return {
+      companyName: data.company_name,
+      companyAddress: data.company_address,
+      companyPostcode: data.company_postcode,
+      companyTel: data.company_tel,
+      carrierReg: data.carrier_reg,
+      exemptionNo: data.exemption_no
+    };
+  },
+
+  async saveCompanySettings(settings: {
+    companyName?: string;
+    companyAddress?: string;
+    companyPostcode?: string;
+    companyTel?: string;
+    carrierReg?: string;
+    exemptionNo?: string;
+  }): Promise<void> {
+    await supabase.from("company_settings").upsert({
+      id: "main",
+      company_name: settings.companyName,
+      company_address: settings.companyAddress,
+      company_postcode: settings.companyPostcode,
+      company_tel: settings.companyTel,
+      carrier_reg: settings.carrierReg,
+      exemption_no: settings.exemptionNo,
+      updated_at: new Date().toISOString()
+    });
+  },
+
+  async getAllCrmJobs(): Promise<CrmJob[]> {
+    const { data } = await supabase
+      .from("crm_jobs")
+      .select("*")
+      .order("imported_at", { ascending: false });
+    return data ? data.map((r: any) => ({
+      id: r.id,
+      jobNumber: r.job_number,
+      prefix: r.prefix ?? "",
+      customer: r.customer ?? "",
+      siteTitle: r.site_title ?? "",
+      siteAddress: r.site_address ?? "",
+      sitePostcode: r.site_postcode ?? "",
+      uprn: r.uprn ?? null,
+      rawData: r.raw_data ?? {},
+      importedAt: r.imported_at,
+      startDate: r.start_date ?? "",
+      category: r.category ?? "",
+      faultCode: r.fault_code ?? "",
+      jobTitle: r.job_title ?? ""
+    })) : [];
+  },
+
+  async upsertCrmJobs(jobs: Omit<CrmJob, "id" | "importedAt">[]): Promise<void> {
+    const rows = jobs.map(j => ({
+      job_number: j.jobNumber,
+      prefix: j.prefix ?? null,
+      customer: j.customer,
+      site_title: j.siteTitle,
+      site_address: j.siteAddress,
+      site_postcode: j.sitePostcode,
+      uprn: j.uprn ?? null,
+      raw_data: j.rawData,
+      start_date: j.startDate ?? null,
+      category: j.category ?? null,
+      fault_code: j.faultCode ?? null,
+      job_title: j.jobTitle ?? null
+    }));
+    const { error } = await supabase
+      .from("crm_jobs")
+      // ignoreDuplicates: existing job numbers are never overwritten on import
+      .upsert(rows, { onConflict: "job_number", ignoreDuplicates: true });
+    if (error) throw error;
+  },
+
+  async updateCrmJobUprn(id: string, uprn: string): Promise<void> {
+    await supabase.from("crm_jobs").update({ uprn }).eq("id", id);
+  },
+
+  async updateCrmJob(id: string, updates: Partial<Omit<CrmJob, "id" | "importedAt" | "rawData">>): Promise<void> {
+    const d: any = {};
+    if (updates.prefix       !== undefined) d.prefix        = updates.prefix;
+    if (updates.customer     !== undefined) d.customer      = updates.customer;
+    if (updates.siteTitle    !== undefined) d.site_title    = updates.siteTitle;
+    if (updates.siteAddress  !== undefined) d.site_address  = updates.siteAddress;
+    if (updates.sitePostcode !== undefined) d.site_postcode = updates.sitePostcode;
+    if (updates.startDate    !== undefined) d.start_date    = updates.startDate;
+    if (updates.category     !== undefined) d.category      = updates.category;
+    if (updates.faultCode    !== undefined) d.fault_code    = updates.faultCode;
+    if (updates.jobTitle     !== undefined) d.job_title     = updates.jobTitle;
+    if (updates.uprn         !== undefined) d.uprn          = updates.uprn;
+    if (updates.jobNumber    !== undefined) d.job_number    = updates.jobNumber;
+    await supabase.from("crm_jobs").update(d).eq("id", id);
+  },
+
+  async getCrmJobByNumber(jobNumber: string): Promise<CrmJob | null> {
+    const { data } = await supabase
+      .from("crm_jobs").select("*").eq("job_number", jobNumber).limit(1).single();
+    if (!data) return null;
+    return {
+      id: data.id, jobNumber: data.job_number, prefix: data.prefix ?? "",
+      customer: data.customer ?? "", siteTitle: data.site_title ?? "",
+      siteAddress: data.site_address ?? "", sitePostcode: data.site_postcode ?? "",
+      uprn: data.uprn ?? null, rawData: data.raw_data ?? {}, importedAt: data.imported_at,
+      startDate: data.start_date ?? "", category: data.category ?? "",
+      faultCode: data.fault_code ?? "", jobTitle: data.job_title ?? ""
+    };
+  },
+
+  async getUsageLogsBySiteRef(siteRef: string): Promise<UsageLog[]> {
+    const { data } = await supabase
+      .from("usage_logs").select("*").eq("site_ref", siteRef).order("date", { ascending: true });
+    return data ? data.map(mapUsage) : [];
+  },
+
+  async getDecommissionsByJobNumber(jobNumber: string): Promise<any[]> {
+    const { data } = await supabase
+      .from("decommissioned_equipment").select("*").eq("job_number", jobNumber).order("date", { ascending: false });
+    return data ? data.map((d: any) => ({
+      ...d,
+      bottleSerial: d.bottle_serial, jobNumber: d.job_number, siteName: d.site_name,
+      siteAddress: d.site_address, sitePostcode: d.site_postcode,
+      gasType: d.gas_type, totalWeightRecovered: d.total_weight_recovered
+    })) : [];
+  },
+
+  async getHWCNsBySerials(serials: string[]): Promise<any[]> {
+    if (!serials.length) return [];
+    const { data } = await supabase.from("hwcns").select("*").in("serial", serials);
+    return data ? data.map(mapHWCN) : [];
+  },
+
+  async getBottlesBySerials(serials: string[]): Promise<Bottle[]> {
+    if (!serials.length) return [];
+    const { data } = await supabase.from("bottles").select("*").in("serial", serials);
+    return data ? data.map(mapBottle) : [];
+  }
 };
+
+export interface CrmJob {
+  id: string;
+  jobNumber: string;
+  prefix: string;
+  customer: string;
+  siteTitle: string;
+  siteAddress: string;
+  sitePostcode: string;
+  uprn: string | null;
+  rawData: Record<string, any>;
+  importedAt: string;
+  startDate: string;
+  category: string;
+  faultCode: string;
+  jobTitle: string;
+}

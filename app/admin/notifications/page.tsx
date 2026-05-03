@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { db, AppNotification } from "@/lib/db";
-import { Bell, CheckCircle, Clock, AlertTriangle, ShieldCheck, Trash2, ExternalLink } from "lucide-react";
+import { Bell, CheckCircle, Clock, AlertTriangle, ShieldCheck, Trash2, ExternalLink, Calendar } from "lucide-react";
 import Link from "next/link";
 import styles from "../../dashboard/page.module.css";
 
@@ -84,11 +84,11 @@ export default function NotificationsPage() {
               <div style={{display: "flex", gap: "1rem"}}>
                 <div style={{
                   width: "40px", height: "40px", borderRadius: "50%",
-                  background: n.type === "location_discrepancy" ? "rgba(255, 187, 0, 0.1)" : "rgba(0, 229, 255, 0.1)",
+                  background: n.type === "location_discrepancy" ? "rgba(255, 187, 0, 0.1)" : n.type === "expiry_date_required" ? "rgba(255, 51, 102, 0.1)" : "rgba(0, 229, 255, 0.1)",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  color: n.type === "location_discrepancy" ? "#ffbb00" : "var(--primary)"
+                  color: n.type === "location_discrepancy" ? "#ffbb00" : n.type === "expiry_date_required" ? "#ff3366" : "var(--primary)"
                 }}>
-                  {n.type === "location_discrepancy" ? <AlertTriangle size={20} /> : <Bell size={20} />}
+                  {n.type === "location_discrepancy" ? <AlertTriangle size={20} /> : n.type === "expiry_date_required" ? <Calendar size={20} /> : <Bell size={20} />}
                 </div>
                 <div>
                   <div style={{display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.25rem"}}>
@@ -127,12 +127,50 @@ export default function NotificationsPage() {
                     ) : n.message}
                   </p>
                   {n.metadata && (
-                    <div style={{marginTop: "0.75rem", display: "flex", gap: "0.5rem", flexWrap: "wrap"}}>
+                    <div style={{marginTop: "0.75rem", display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center"}}>
                       {Object.entries(n.metadata).map(([key, val]) => (
                         <span key={key} style={{fontSize: "0.7rem", padding: "0.2rem 0.5rem", background: "rgba(255,255,255,0.05)", borderRadius: "4px", color: "rgba(255,255,255,0.5)"}}>
                           <strong>{key}:</strong> {String(val)}
                         </span>
                       ))}
+                      {n.type === "new_gas_registration" && (
+                        <Link
+                          href="/admin/settings"
+                          style={{
+                            fontSize: "0.7rem",
+                            padding: "0.2rem 0.6rem",
+                            background: "rgba(0, 229, 255, 0.15)",
+                            borderRadius: "4px",
+                            color: "var(--primary)",
+                            textDecoration: "none",
+                            fontWeight: 700,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.25rem"
+                          }}
+                        >
+                          <ExternalLink size={10} /> Complete Details
+                        </Link>
+                      )}
+                      {n.type === "expiry_date_required" && n.metadata?.serial && (
+                        <Link
+                          href={`/admin/bottles/${n.metadata.serial}/edit`}
+                          style={{
+                            fontSize: "0.7rem",
+                            padding: "0.2rem 0.6rem",
+                            background: "rgba(255, 51, 102, 0.15)",
+                            borderRadius: "4px",
+                            color: "#ff3366",
+                            textDecoration: "none",
+                            fontWeight: 700,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.25rem"
+                          }}
+                        >
+                          <Calendar size={10} /> Set Expiry Date
+                        </Link>
+                      )}
                     </div>
                   )}
                 </div>

@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { db, Bottle } from "@/lib/db";
-import { FileText, Droplets, MapPin, ClipboardList } from "lucide-react";
+import { FileText, Droplets, MapPin, ClipboardList, ShieldAlert } from "lucide-react";
 
-type ReportView = "usage" | "locations" | "hwcn";
+type ReportView = "usage" | "locations" | "hwcn" | "waste";
 
 export default function ReportsPage() {
   const [bottles, setBottles] = useState<Bottle[]>([]);
@@ -23,6 +23,7 @@ export default function ReportsPage() {
   const reports = [
     { key: "usage" as ReportView, label: "Refrigerant Usage Log", icon: Droplets, desc: "Where new refrigerant has been used" },
     { key: "locations" as ReportView, label: "Current Bottle Locations", icon: MapPin, desc: "Where all bottles are right now" },
+    { key: "waste" as ReportView, label: "Full Waste Audit", icon: ShieldAlert, desc: "Consolidated haz-waste exposure" },
     { key: "hwcn" as ReportView, label: "Completed HWCNs", icon: ClipboardList, desc: "All completed consignment notes" },
   ];
 
@@ -158,6 +159,46 @@ export default function ReportsPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          </>
+        )}
+
+        {/* WASTE AUDIT */}
+        {activeReport === "waste" && (
+          <>
+            <div style={{padding: "1rem 1.25rem", background: "rgba(255,51,102,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)"}}>
+              <h3 style={{margin: 0, fontSize: "1rem", color: "#ff3366"}}>Hazardous Waste Audit</h3>
+              <p style={{margin: "0.25rem 0 0", fontSize: "0.82rem", color: "var(--text-muted)"}}>Full summary of reclaim cylinders currently held by company</p>
+            </div>
+            <div style={{padding: "1rem"}}>
+              {Object.entries(locGroups).map(([loc, bots]) => {
+                const wasteBots = bots.filter(b => b.category === "reclaim");
+                if (wasteBots.length === 0) return null;
+                const totalWeight = wasteBots.reduce((sum, b) => sum + b.currentWeight, 0);
+
+                return (
+                  <div key={loc} style={{marginBottom: "1.5rem", padding: "1rem", background: "rgba(255,255,255,0.02)", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.05)"}}>
+                    <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem"}}>
+                      <span style={{fontWeight: 700, fontSize: "1rem"}}>{loc}</span>
+                      <div style={{textAlign: "right"}}>
+                        <div style={{fontSize: "1.1rem", fontWeight: 800, color: "#fff"}}>{totalWeight.toFixed(2)} kg</div>
+                        <div style={{fontSize: "0.7rem", color: "rgba(255,255,255,0.3)", fontWeight: 700}}>{wasteBots.length} BOTTLES</div>
+                      </div>
+                    </div>
+                    <div style={{display: "flex", flexDirection: "column", gap: "0.5rem"}}>
+                      {wasteBots.map(b => (
+                        <div key={b.serial} style={{display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.85rem", padding: "0.5rem", background: "rgba(0,0,0,0.2)", borderRadius: "6px"}}>
+                          <div style={{display: "flex", alignItems: "center", gap: "1rem"}}>
+                            <span style={{fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "var(--primary)"}}>{b.serial}</span>
+                            <span style={{color: "rgba(255,255,255,0.6)"}}>{b.gasType}</span>
+                          </div>
+                          <span style={{fontWeight: 600}}>{b.currentWeight.toFixed(2)} kg</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </>
         )}

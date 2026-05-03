@@ -15,7 +15,7 @@ export default function MoveBottlePage() {
   const serialParam = searchParams.get("serial") || "UNKNOWN";
   const isDiscrepancy = searchParams.get("discrepancy") === "true";
   
-  const [destination, setDestination] = useState("site");
+  const [destination, setDestination] = useState(searchParams.get("dest") || "site");
   const [locationId, setLocationId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -24,23 +24,42 @@ export default function MoveBottlePage() {
   const [engineers, setEngineers] = useState<any[]>([]);
   const [selectedEngineer, setSelectedEngineer] = useState("");
   const [supplierPhoto, setSupplierPhoto] = useState<string | null>(null);
+  const [carrierRegNo, setCarrierRegNo] = useState("CBDU368286");
   
   const [bottle, setBottle] = useState<any>(null);
-  const [reclaimFlowStep, setReclaimFlowStep] = useState<"loading" | "in_transit" | "intercept_supplier_photo" | "ask_supplier" | "confirm_supplier_hwcn" | "supplier_start_transit" | "standard">("loading");
+  const [reclaimFlowStep, setReclaimFlowStep] = useState<"loading" | "in_transit" | "intercept_supplier_photo" | "ask_supplier" | "confirm_supplier_hwcn" | "supplier_start_transit" | "standard" | "divert_supplier_branch" | "divert_destination" | "divert_to_site" | "divert_to_office">("loading");
   const [supplierHwcnConfirmed, setSupplierHwcnConfirmed] = useState(false);
   const [reclaimFlowPath, setReclaimFlowPath] = useState<"normal" | "supplier_direct" | "alternative">("normal");
+  const [intendedBranch, setIntendedBranch] = useState("");
+  const [divertedBranch, setDivertedBranch] = useState("");
+  const [divertSiteJobNo, setDivertSiteJobNo] = useState("");
   
   // HWCN Form State
   const [vehicleReg, setVehicleReg] = useState("");
+  const [carrierName, setCarrierName] = useState("");
+  const [intendedDest, setIntendedDest] = useState("");
+  const [hwcnSites, setHwcnSites] = useState<any[]>([]);
 
   const { user } = useAuth();
 
   useEffect(() => {
+    db.getCompanySettings().then(s => { if (s?.carrierReg) setCarrierRegNo(s.carrierReg); });
+
     db.getBottle(serialParam).then(b => {
       setBottle(b);
+      if (b?.producerSites && b.producerSites.length > 0) {
+        setHwcnSites(b.producerSites);
+      } else {
+        setHwcnSites([{ name: "", address: "", postcode: "" }]);
+      }
+      
+      const action = searchParams.get("action");
+      
       if (isDiscrepancy) {
         setReclaimFlowStep("standard");
         setReclaimFlowPath("normal");
+      } else if (action === "divert") {
+        setReclaimFlowStep("divert_destination");
       } else {
         if (b?.locationType === 'van' && b?.intendedDestination) {
           setReclaimFlowStep("in_transit");
@@ -58,49 +77,76 @@ export default function MoveBottlePage() {
     });
 
     if (user?.id) {
+      if (user?.name) setCarrierName(user.name);
       db.getEngineerProfiles().then(profiles => {
         // Filter out current user
         setEngineers(profiles.filter(p => p.id !== user.id));
-      });
-      db.getEngineerById(user.id).then(profile => {
-        if (profile?.defaultVehicleReg) {
-          setVehicleReg(profile.defaultVehicleReg);
+        
+        const myProfile = profiles.find(p => p.id === user.id);
+        if (myProfile?.vehicleReg) {
+          setVehicleReg(myProfile.vehicleReg);
+        }
+        if (myProfile?.name) {
+          setCarrierName(myProfile.name);
         }
       });
     }
   }, [serialParam, user]);
 
-  const requiresHWCN = bottle?.category === "reclaim" && (bottle?.currentWeight > 0) && (destination === "office" || destination === "other");
+  const requiresHWCN = bottle?.category === "reclaim" && (bottle?.currentWeight > 0) && destination !== "supplier";
 
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     
-    if (destination === "van" || destination === "site" || destination === "engineer") {
+    const isReclaimWithGas = bottle?.category === "reclaim" && (bottle?.currentWeight > 0);
+    const requiresInternalHWCN = isReclaimWithGas && destination !== "supplier";
+    const requiresSupplierHWCN = isReclaimWithGas && (destination === "supplier");
+    const needsTransit = requiresInternalHWCN || requiresSupplierHWCN;
+
+    if (!needsTransit) {
       const finalDest = destination === "engineer" ? "van" : destination;
-      const targetUser = engineers.find(e => e.id === selectedEngineer);
-      const finalLocationId = destination === "engineer" 
-        ? `${targetUser?.name || "Engineer"} - Van` 
-        : locationId || `${user?.name} - Van`;
+      let finalLocationId = "";
+      
+      if (destination === "engineer") {
+        const targetUser = engineers.find(e => e.id === selectedEngineer);
+        finalLocationId = `${targetUser?.name || "Engineer"} - Van`;
+      } else if (destination === "van") {
+        finalLocationId = `${user?.name} - Van`;
+      } else if (destination === "office") {
+        finalLocationId = "Office / Stores";
+      } else if (destination === "other") {
+        finalLocationId = `${customDestination.name}, ${customDestination.address}, ${customDestination.postcode}`;
+      } else {
+        finalLocationId = locationId || (destination === "supplier" ? "Supplier" : `${user?.name} - Van`);
+      }
         
       await db.updateBottleLocation(serialParam, finalDest as any, finalLocationId);
+      
+      // If returning directly to supplier or office, also update status
+      if (destination === "supplier" || destination === "office") {
+        const updates: any = { status: destination === "supplier" ? "returned" : "active" };
+        if (destination === "supplier") {
+          updates.supplier_hwcn_photo_pending = false; // Non-reclaim doesn't need a photo
+        }
+        await db.updateBottle(serialParam, updates);
+      }
     } else {
-      // In transit
-      const finalLocationId = destination === "office" ? "Office / Stores" : destination === "other" ? customDestination.name : locationId || "Supplier";
+      // In transit (Requires HWCN or Supplier Document)
+      let finalLocationId = destination === "office" ? "Office / Stores" : destination === "other" ? customDestination.name : locationId || "Supplier";
+      if (destination === "van") {
+         finalLocationId = intendedDest; // If they clicked 'Transfer to Van', the actual destination is their chosen intendedDest
+      }
       const fullDestinationString = destination === "other" ? `${customDestination.name}, ${customDestination.address}, ${customDestination.postcode}` : finalLocationId;
       
       let hwcnId = undefined;
-      if (requiresHWCN) {
-        const allSites = bottle?.producerSites && bottle.producerSites.length > 0
-          ? bottle.producerSites
-          : [{name: "Unknown Site", address: "See recovery logs", postcode: ""}];
-
+      if (requiresInternalHWCN) {
         hwcnId = await db.createHWCN({
           serial: serialParam,
-          destination: fullDestinationString,
-          sites: allSites,
+          destination: intendedDest || fullDestinationString,
+          sites: hwcnSites,
           vehicleReg,
-          engineer: user?.name,
+          engineer: carrierName || user?.name,
           date: new Date().toISOString(),
           gasType: bottle?.gasType || "Unknown",
           fillWeight: bottle?.currentWeight
@@ -108,7 +154,12 @@ export default function MoveBottlePage() {
         setGeneratedHWCN(hwcnId);
       }
       
-      await db.updateBottleLocation(serialParam, "van", `${user?.name} - Van`, fullDestinationString, destination as any, hwcnId);
+      let intendedLocType = destination;
+      if (destination === "van") {
+        intendedLocType = intendedDest === "Office/Stores" ? "office" : "site";
+      }
+
+      await db.updateBottleLocation(serialParam, "van", `${user?.name} - Van`, intendedDest || fullDestinationString, intendedLocType as any, hwcnId);
     }
 
     if (isDiscrepancy) {
@@ -121,7 +172,13 @@ export default function MoveBottlePage() {
     }
 
     setIsSubmitting(false);
-    setIsSuccess(true);
+    
+    // Redirect immediately if no HWCN was generated, otherwise show success screen with HWCN link
+    if (needsTransit && isReclaimWithGas && (destination === "office" || destination === "other")) {
+      setIsSuccess(true);
+    } else {
+      router.push("/dashboard");
+    }
   };
 
   if (isSuccess) {
@@ -143,7 +200,7 @@ export default function MoveBottlePage() {
                 View / Download Digital HWCN
               </button>
             </Link>
-            <button onClick={() => router.push("/dashboard")} className={styles.secondaryBtn}>
+            <button onClick={() => router.push("/dashboard")} className={styles.primaryBtn} style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', border: '1px solid var(--border)', marginTop: '0' }}>
               Return to Dashboard
             </button>
           </div>
@@ -175,8 +232,92 @@ export default function MoveBottlePage() {
               ? "Select where this bottle is actually located" 
               : (bottle?.locationType === "office" ? "Picking up from Office / Stores" : `Bottle ${serialParam}`)}
           </p>
+          {bottle?.intendedDestination && (
+            <div style={{marginTop: '0.5rem', padding: '0.5rem 0.75rem', background: 'rgba(255, 187, 0, 0.1)', borderLeft: '3px solid var(--warning)', borderRadius: '4px'}}>
+              <span style={{fontSize: '0.75rem', color: 'var(--warning)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em'}}>Intended Destination</span>
+              <div style={{fontSize: '0.9rem', color: '#fff', fontWeight: 600}}>{bottle.intendedDestination}</div>
+            </div>
+          )}
         </div>
       </header>
+      
+      {bottle && (
+        <div 
+          className={`${styles.bottleInfoCard} glass-panel`}
+          style={{ 
+            marginBottom: '1.5rem',
+            borderLeft: '4px solid',
+            borderLeftColor: 
+              bottle.category === "reclaim" ? "var(--warning)" : 
+              bottle.category === "nitrogen" ? "#22c55e" : "var(--primary)",
+            background: 
+              bottle.category === "reclaim" ? "rgba(255, 170, 0, 0.03)" : 
+              bottle.category === "nitrogen" ? "rgba(34, 197, 94, 0.03)" : "rgba(0, 229, 255, 0.03)"
+          }}
+        >
+          <div className={styles.bottleHeader}>
+            <div className={styles.bottleType}>
+              {bottle.category === "reclaim" ? (
+                <AlertTriangle size={20} color="var(--warning)" />
+              ) : (
+                <div 
+                  className={styles.dot} 
+                  style={{ 
+                    background: bottle.category === "nitrogen" ? "#22c55e" : "var(--primary)" 
+                  }} 
+                />
+              )}
+              <span style={{ 
+                color: 
+                  bottle.category === "reclaim" ? "var(--warning)" : 
+                  bottle.category === "nitrogen" ? "#22c55e" : "var(--primary)" 
+              }}>
+                {bottle.category === "new" ? "New Refrigerant" : 
+                 bottle.category === "nitrogen" ? "Nitrogen" : "Reclaim / Haz"}
+              </span>
+            </div>
+            <span className={styles.serial}>{bottle.serial}</span>
+          </div>
+
+          <div className={styles.bottleStats} style={{display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'start', gap: '1rem'}}>
+            {/* Left Column: Info */}
+            <div style={{display: 'flex', flexDirection: 'column', gap: '0.4rem', overflow: 'hidden'}}>
+              <div style={{fontSize: '0.85rem', wordBreak: 'break-word'}}>
+                <span style={{color: 'var(--text-muted)'}}>Gas Type: </span>
+                <strong style={{color: '#fff'}}>{bottle.gasType}</strong>
+              </div>
+              <div style={{fontSize: '0.85rem', wordBreak: 'break-word'}}>
+                <span style={{color: 'var(--text-muted)'}}>Current Location: </span>
+                <strong style={{color: '#fff', textTransform: 'capitalize'}}>{bottle.locationId || bottle.locationType}</strong>
+              </div>
+              {((destination === "supplier" && locationId) || (intendedDest) || bottle.intendedDestination) && (
+                <div style={{fontSize: '0.85rem', wordBreak: 'break-word', marginTop: '0.2rem'}}>
+                  <span style={{color: 'var(--text-muted)'}}>Intended Destination: </span>
+                  <strong style={{color: 'var(--warning)'}}>
+                    {destination === "supplier" && locationId && bottle.supplier
+                      ? `${bottle.supplier} - ${locationId}`
+                      : (intendedDest || (bottle.intendedLocationType === 'supplier' && bottle.supplier && bottle.intendedDestination
+                        ? `${bottle.supplier} - ${bottle.intendedDestination}`
+                        : bottle.intendedDestination))}
+                  </strong>
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: Weights */}
+            <div style={{display: 'flex', flexDirection: 'column', gap: '0.4rem', textAlign: 'right', minWidth: '120px'}}>
+              <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem'}}>
+                <span style={{color: 'var(--text-muted)'}}>Filled:</span>
+                <strong style={{color: bottle.category === 'reclaim' ? 'var(--warning)' : 'var(--success)'}}>{(bottle.currentWeight || 0).toFixed(2)} kg</strong>
+              </div>
+              <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem'}}>
+                <span style={{color: 'var(--text-muted)'}}>{bottle.category === 'reclaim' ? 'Capacity:' : 'Initial:'}</span>
+                <strong style={{color: '#fff'}}>{(bottle.initialWeight || 0).toFixed(2)} kg</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {reclaimFlowStep === "loading" && (
         <div style={{padding: '2rem', textAlign: 'center'}}>
@@ -194,35 +335,227 @@ export default function MoveBottlePage() {
             This bottle is currently in transit to <strong>{bottle?.intendedDestination}</strong>.
           </p>
           <p style={{marginBottom: '1.5rem', fontSize: '0.9rem', color: 'var(--text-muted)'}}>
-            Have you arrived at the destination and dropped off the bottle?
+            Have you arrived at the intended destination?
           </p>
+          <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
+
+            {/* §3.1 — Supplier Intended Destination */}
+            {bottle?.intendedLocationType === "supplier" && (
+              <>
+                <button 
+                  type="button"
+                  className={styles.primaryBtn} 
+                  style={{background: 'var(--warning)', color: '#000'}}
+                  onClick={() => setReclaimFlowStep("intercept_supplier_photo")}
+                >
+                  <CheckCircle2 size={18} /> Yes, Arrived at Intended Destination
+                </button>
+                <button 
+                  type="button"
+                  className={styles.primaryBtn} 
+                  style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', border: '1px solid var(--border)' }}
+                  onClick={() => setReclaimFlowStep("divert_supplier_branch")}
+                >
+                  Arrived at a DIFFERENT Supplier Branch
+                </button>
+                <button 
+                  type="button"
+                  className={styles.primaryBtn} 
+                  style={{ background: 'transparent', color: 'var(--text-main)', border: '1px solid var(--border)' }}
+                  onClick={() => setReclaimFlowStep("divert_destination")}
+                >
+                  No, Changing Bottle Route
+                </button>
+              </>
+            )}
+
+            {/* §3.2 — Office/Stores Intended Destination */}
+            {bottle?.intendedLocationType !== "supplier" && (
+              <>
+                <button 
+                  type="button"
+                  className={styles.primaryBtn} 
+                  style={{background: 'var(--warning)', color: '#000'}}
+                  onClick={async () => {
+                    await db.completeTransit(serialParam, undefined, user?.name);
+                    router.push("/dashboard");
+                  }}
+                >
+                  <CheckCircle2 size={18} /> Complete Transfer to Office/Stores
+                </button>
+                <button 
+                  type="button"
+                  className={styles.primaryBtn} 
+                  style={{ background: 'transparent', color: 'var(--text-main)', border: '1px solid var(--border)' }}
+                  onClick={() => setReclaimFlowStep("divert_destination")}
+                >
+                  No, Transfer to Alternative Location
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* §4.1 — Destination Changed: Where instead? */}
+      {reclaimFlowStep === "divert_destination" && (
+        <div className={`${styles.dynamicSection} glass-panel`} style={{borderColor: 'var(--warning)', marginTop: '2rem'}}>
+          <h3 style={{color: 'var(--warning)', marginBottom: '1rem'}}>Where are you transferring the bottle instead?</h3>
           <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
             <button 
               type="button"
-              className={styles.primaryBtn} 
-              onClick={async () => {
-                if (bottle?.intendedLocationType === "supplier") {
-                  setReclaimFlowStep("intercept_supplier_photo");
-                } else {
-                  setIsSubmitting(true);
-                  await db.completeTransit(serialParam, undefined, user?.name);
-                  setIsSubmitting(false);
-                  setIsSuccess(true);
-                }
-              }}
+              className={styles.primaryBtn}
+              onClick={() => setReclaimFlowStep("divert_to_site")}
             >
-              <CheckCircle2 size={18} /> Yes, Complete Transfer
+              <MapPin size={18} /> To a Job Site
             </button>
             <button 
               type="button"
               className={styles.primaryBtn} 
+              style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', border: '1px solid var(--border)' }}
+              onClick={() => setReclaimFlowStep("divert_to_office")}
+            >
+              <Building2 size={18} /> To Office / Stores
+            </button>
+            <button 
+              type="button"
+              style={{ background: 'transparent', color: 'var(--text-muted)', border: 'none', cursor: 'pointer', fontSize: '0.85rem', padding: '0.5rem' }}
+              onClick={() => setReclaimFlowStep("in_transit")}
+            >
+              Back
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* §4.2 — Divert to Job Site */}
+      {reclaimFlowStep === "divert_to_site" && (
+        <div className={`${styles.dynamicSection} glass-panel`} style={{borderColor: 'var(--primary)', marginTop: '2rem'}}>
+          <h3 style={{color: 'var(--primary)', marginBottom: '1rem'}}>Transfer to Job Site</h3>
+          <div className={styles.inputGroup} style={{marginBottom: '1.5rem'}}>
+            <label>Job Number</label>
+            <input 
+              type="text" 
+              placeholder="e.g. JOB-88219" 
+              value={divertSiteJobNo} 
+              onChange={(e) => setDivertSiteJobNo(e.target.value)}
+              required
+            />
+          </div>
+          <div style={{display: 'flex', gap: '1rem'}}>
+            <button 
+              type="button"
+              className={styles.primaryBtn} 
+              style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', border: '1px solid var(--border)' }}
+              onClick={() => setReclaimFlowStep("divert_destination")}
+            >
+              Back
+            </button>
+            <button 
+              type="button"
+              className={styles.primaryBtn} 
+              disabled={!divertSiteJobNo || isSubmitting}
               onClick={async () => {
                 setIsSubmitting(true);
                 await db.clearTransitState(serialParam);
-                window.location.reload();
+                await db.updateBottleLocation(serialParam, "site", divertSiteJobNo);
+                setIsSubmitting(false);
+                router.push("/dashboard");
               }}
+              style={{flex: 1}}
             >
-              No, Divert Route / Cancel Trip
+              {isSubmitting ? "Transferring..." : "Confirm Transfer to Site"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* §4.3 — Divert to Office (auto-generate Internal HWCN) */}
+      {reclaimFlowStep === "divert_to_office" && (
+        <div className={`${styles.dynamicSection} glass-panel`} style={{borderColor: 'var(--warning)', marginTop: '2rem'}}>
+          <h3 style={{color: 'var(--warning)', marginBottom: '1rem'}}>Change Destination to Office / Stores</h3>
+          {bottle?.intendedLocationType === "supplier" && (
+            <div style={{background: 'rgba(255, 187, 0, 0.1)', border: '1px solid var(--warning)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem'}}>
+              <p style={{fontSize: '0.85rem', color: 'var(--warning)', margin: 0, lineHeight: 1.5}}>
+                The physical Supplier HWCN is no longer applicable. An Internal Digital HWCN will be generated instead.
+              </p>
+            </div>
+          )}
+          <p style={{fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '1.5rem'}}>
+            The Intended Destination will be changed to <strong>Office / Stores</strong> and an Internal HWCN will be generated for this movement.
+          </p>
+          <div style={{display: 'flex', gap: '1rem'}}>
+            <button 
+              type="button"
+              className={styles.primaryBtn} 
+              style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', border: '1px solid var(--border)' }}
+              onClick={() => setReclaimFlowStep("divert_destination")}
+            >
+              Back
+            </button>
+            <button 
+              type="button"
+              className={styles.primaryBtn} 
+              disabled={isSubmitting}
+              onClick={async () => {
+                setIsSubmitting(true);
+                // Clear old transit, generate internal HWCN, set new intended dest
+                const sites = bottle?.producerSites?.length > 0 
+                  ? bottle.producerSites 
+                  : [{name: "Unknown Site", address: "See recovery logs", postcode: ""}];
+                const hwcnId = await db.createHWCN({
+                  serial: serialParam,
+                  destination: "Office/Stores",
+                  sites: sites,
+                  vehicleReg: vehicleReg,
+                  engineer: user?.name,
+                  date: new Date().toISOString(),
+                  gasType: bottle?.gasType || "Unknown",
+                  fillWeight: bottle?.currentWeight
+                });
+                await db.updateBottleLocation(serialParam, "van", `${user?.name} - Van`, "Office/Stores", "office" as any, hwcnId);
+                setIsSubmitting(false);
+                setGeneratedHWCN(hwcnId);
+                setIsSuccess(true);
+              }}
+              style={{flex: 1}}
+            >
+              {isSubmitting ? "Generating..." : "Confirm — Generate Internal HWCN"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {reclaimFlowStep === "divert_supplier_branch" && (
+        <div className={`${styles.dynamicSection} glass-panel`} style={{borderColor: 'var(--warning)', marginTop: '2rem'}}>
+          <h3 style={{color: 'var(--warning)', marginBottom: '1rem'}}>Divert to Different Branch</h3>
+          <div className={styles.inputGroup} style={{marginBottom: '1.5rem'}}>
+            <label>New Branch Name</label>
+            <input 
+              type="text" 
+              placeholder="e.g. A-Gas Bristol" 
+              value={divertedBranch} 
+              onChange={(e) => setDivertedBranch(e.target.value)}
+              required
+            />
+          </div>
+          <div style={{display: 'flex', gap: '1rem'}}>
+            <button 
+              type="button"
+              className={styles.primaryBtn} 
+              style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', border: '1px solid var(--border)' }}
+              onClick={() => setReclaimFlowStep("in_transit")}
+            >
+              Back
+            </button>
+            <button 
+              type="button"
+              className={styles.primaryBtn} 
+              disabled={!divertedBranch}
+              onClick={() => setReclaimFlowStep("intercept_supplier_photo")}
+              style={{flex: 1}}
+            >
+              Proceed to Photo Upload
             </button>
           </div>
         </div>
@@ -249,32 +582,21 @@ export default function MoveBottlePage() {
             />
           </div>
           <div style={{display: 'flex', gap: '1rem'}}>
-            <button 
-              type="button"
-              className={styles.secondaryBtn} 
-              onClick={async () => {
-                // Skipped photo
-                setIsSubmitting(true);
-                await db.completeTransit(serialParam, undefined, user?.name);
-                setIsSubmitting(false);
-                setIsSuccess(true);
-              }}
-            >
-              Skip (I will do it later)
-            </button>
+
             <button 
               type="button"
               className={styles.primaryBtn} 
               disabled={!supplierPhoto && !isSubmitting}
               onClick={async () => {
                 setIsSubmitting(true);
-                await db.completeTransit(serialParam, supplierPhoto || "/mock-url.jpg", user?.name);
-                setIsSubmitting(false);
-                setIsSuccess(true);
+                // Use divertedBranch if set, otherwise original intended destination
+                const finalLocId = divertedBranch || bottle?.intendedDestination || "Supplier";
+                await db.completeTransit(serialParam, supplierPhoto || "/mock-url.jpg", user?.name, finalLocId);
+                router.push("/dashboard");
               }}
               style={{flex: 1, opacity: (!supplierPhoto && !isSubmitting) ? 0.5 : 1}}
             >
-              {isSubmitting ? "Uploading..." : "Upload & Complete"}
+              {isSubmitting ? "Uploading..." : "Upload & Complete Return"}
             </button>
           </div>
         </div>
@@ -283,32 +605,67 @@ export default function MoveBottlePage() {
       {reclaimFlowStep === "ask_supplier" && (
         <div className={`${styles.dynamicSection} glass-panel`} style={{borderColor: 'var(--warning)', marginTop: '2rem'}}>
           <h3 style={{color: 'var(--warning)', marginBottom: '1rem'}}>Hazardous Waste Transfer</h3>
-          <p style={{marginBottom: '1.5rem', fontSize: '0.9rem'}}>This bottle contains reclaimed gas. Are you returning this directly to the Supplier?</p>
-          <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-            <button 
-              type="button"
-              className={styles.primaryBtn} 
-              onClick={() => setReclaimFlowStep("confirm_supplier_hwcn")}
-            >
-              Yes, Return to Supplier
-            </button>
-            <button 
-              type="button"
-              className={styles.secondaryBtn} 
-              onClick={() => {
-                setReclaimFlowPath("normal");
-                setReclaimFlowStep("standard");
-              }}
-            >
-              No, Transfer to Alternative Location
-            </button>
-          </div>
+          {(bottle?.producerSites?.length || 0) <= 1 ? (
+            <>
+              <p style={{marginBottom: '1.5rem', fontSize: '0.9rem'}}>This bottle contains reclaimed gas. Is it being returned Direct to Supplier or to Office/Stores?</p>
+              <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
+                <button 
+                  type="button"
+                  className={styles.primaryBtn} 
+                  onClick={() => setReclaimFlowStep("confirm_supplier_hwcn")}
+                >
+                  Direct to Supplier
+                </button>
+                <button 
+                  type="button"
+                  className={styles.primaryBtn} 
+                  style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', border: '1px solid var(--border)' }}
+                  onClick={() => {
+                    setIntendedDest("Office/Stores");
+                    setReclaimFlowPath("alternative");
+                    setDestination("van");
+                    setReclaimFlowStep("standard");
+                  }}
+                >
+                  To Office / Stores
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{background: 'rgba(255, 187, 0, 0.1)', border: '1px solid var(--warning)', padding: '1rem', borderRadius: '8px', marginBottom: '1rem'}}>
+                <p style={{fontSize: '0.85rem', color: 'var(--warning)', margin: 0, lineHeight: 1.5}}>
+                  <strong style={{display: 'block', marginBottom: '0.25rem'}}>Multiple Producer Sites Detected</strong>
+                  This bottle contains waste from multiple locations. Suppliers only accept waste from a single producer per HWCN. This bottle must be returned to the <strong>Office / Stores</strong> for internal consolidation.
+                </p>
+              </div>
+              <button 
+                type="button"
+                className={styles.primaryBtn} 
+                onClick={() => {
+                  setIntendedDest("Office/Stores");
+                  setReclaimFlowPath("alternative");
+                  setDestination("van");
+                  setReclaimFlowStep("standard");
+                }}
+              >
+                Transfer to Office / Stores
+              </button>
+            </>
+          )}
         </div>
       )}
 
       {reclaimFlowStep === "confirm_supplier_hwcn" && (
         <div className={`${styles.dynamicSection} glass-panel`} style={{borderColor: 'var(--warning)', marginTop: '2rem'}}>
           <h3 style={{color: 'var(--warning)', marginBottom: '1rem'}}>Supplier Paperwork</h3>
+
+          <div style={{background: 'rgba(255, 170, 0, 0.08)', border: '1px solid rgba(255, 170, 0, 0.4)', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem'}}>
+            <p style={{fontSize: '0.7rem', color: 'var(--warning)', fontWeight: 700, margin: '0 0 0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em'}}>Write this on the supplier's paperwork</p>
+            <p style={{fontSize: '0.8rem', color: 'rgba(255,255,255,0.5)', margin: '0 0 0.5rem'}}>Carrier Registration Number (CBDU):</p>
+            <p style={{fontSize: '1.4rem', fontWeight: 700, color: '#fff', fontFamily: 'var(--font-geist-mono)', margin: 0, letterSpacing: '0.1em'}}>{carrierRegNo}</p>
+          </div>
+
           <label style={{display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer', marginBottom: '1.5rem', background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px'}}>
             <input 
               type="checkbox" 
@@ -318,10 +675,25 @@ export default function MoveBottlePage() {
             />
             <span style={{fontSize: '0.9rem', lineHeight: '1.4'}}>I confirm I have completed the Supplier's physical HWCN paperwork for this return.</span>
           </label>
+
+          <div className={styles.inputGroup} style={{marginBottom: '1.5rem'}}>
+            <label style={{color: 'var(--warning)'}}>Intended Destination Branch</label>
+            <input 
+              type="text" 
+              placeholder="e.g. A-Gas Portbury" 
+              value={intendedBranch} 
+              onChange={(e) => setIntendedBranch(e.target.value)} 
+              required
+              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--warning)' }}
+            />
+            <p style={{fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem'}}>Specify which supplier branch this waste is being returned to.</p>
+          </div>
+
           <div style={{display: 'flex', gap: '1rem'}}>
             <button 
               type="button"
-              className={styles.secondaryBtn} 
+              className={styles.primaryBtn} 
+              style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', border: '1px solid var(--border)', flex: '0 0 auto', padding: '0 1.5rem' }}
               onClick={() => setReclaimFlowStep("ask_supplier")}
             >
               Back
@@ -329,7 +701,7 @@ export default function MoveBottlePage() {
             <button 
               type="button"
               className={styles.primaryBtn} 
-              disabled={!supplierHwcnConfirmed}
+              disabled={!supplierHwcnConfirmed || !intendedBranch}
               onClick={() => {
                 setDestination("supplier");
                 setReclaimFlowStep("supplier_start_transit");
@@ -354,7 +726,8 @@ export default function MoveBottlePage() {
           <div style={{display: 'flex', gap: '1rem'}}>
             <button
               type="button"
-              className={styles.secondaryBtn}
+              className={styles.primaryBtn}
+              style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', border: '1px solid var(--border)', flex: '0 0 auto', padding: '0 1.5rem' }}
               onClick={() => setReclaimFlowStep("confirm_supplier_hwcn")}
             >
               Back
@@ -369,7 +742,7 @@ export default function MoveBottlePage() {
                   serialParam,
                   "van",
                   `${user?.name} - Van`,
-                  "Supplier",
+                  intendedBranch,
                   "supplier" as any,
                   undefined
                 );
@@ -496,7 +869,7 @@ export default function MoveBottlePage() {
                     }}
                   >
                     <Users size={32} />
-                    <span style={{fontSize: "0.9rem", fontWeight: 600}}>Engineer Handover</span>
+                    <span style={{fontSize: "0.9rem", fontWeight: 600, textAlign: "center"}}>Handover to another Engineer</span>
                   </button>
                 )}
               </div>
@@ -625,37 +998,76 @@ export default function MoveBottlePage() {
               </p>
 
               <div style={{borderLeft: '2px solid var(--warning)', paddingLeft: '1rem', marginBottom: '1.5rem'}}>
+                <h4 style={{fontSize: '0.9rem', marginBottom: '0.75rem'}}>Intended Final Destination</h4>
+                <div style={{display: 'flex', gap: '0.5rem', marginTop: '0.5rem'}}>
+                  <button 
+                    type="button"
+                    onClick={() => setIntendedDest("Office/Stores")}
+                    style={{
+                      flex: 1, padding: '0.75rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 500, fontSize: '0.85rem', transition: 'all 0.2s',
+                      background: intendedDest === "Office/Stores" ? 'rgba(255, 187, 0, 0.15)' : 'rgba(255,255,255,0.03)',
+                      border: intendedDest === "Office/Stores" ? '1px solid var(--warning)' : '1px solid var(--border)',
+                      color: intendedDest === "Office/Stores" ? 'var(--warning)' : 'var(--text-main)'
+                    }}
+                  >
+                    Office / Stores
+                  </button>
+                  {reclaimFlowPath !== "alternative" && (
+                    <button 
+                      type="button"
+                      onClick={() => setIntendedDest("Another Job Site")}
+                      style={{
+                        flex: 1, padding: '0.75rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 500, fontSize: '0.85rem', transition: 'all 0.2s',
+                        background: intendedDest === "Another Job Site" ? 'rgba(255, 187, 0, 0.15)' : 'rgba(255,255,255,0.03)',
+                        border: intendedDest === "Another Job Site" ? '1px solid var(--warning)' : '1px solid var(--border)',
+                        color: intendedDest === "Another Job Site" ? 'var(--warning)' : 'var(--text-main)'
+                      }}
+                    >
+                      Another Job Site
+                    </button>
+                  )}
+                </div>
+                <p style={{fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem'}}>
+                  Where is this hazardous waste eventually being delivered to? This is legally required for the HWCN.
+                </p>
+              </div>
+
+              <div style={{borderLeft: '2px solid var(--warning)', paddingLeft: '1rem', marginBottom: '1.5rem'}}>
                 <h4 style={{fontSize: '0.9rem', marginBottom: '0.75rem'}}>Part A: Producer / Removal Sites</h4>
                 <p style={{fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem'}}>
-                  Sites are automatically populated from your Gas Recovery logs for this bottle.
+                  Sites are populated from your Gas Recovery logs. You can edit them if they are incomplete.
                 </p>
 
                 <div style={{background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.75rem'}}>
-                  {bottle?.producerSites && bottle.producerSites.length > 0 ? (
-                    <ul style={{margin: 0, paddingLeft: '1.2rem', fontSize: '0.85rem', color: 'var(--warning)'}}>
-                      {bottle.producerSites.map((s: any, i: number) => (
-                        <li key={i} style={{marginBottom: '0.4rem'}}>
-                          <strong>Site {i + 1}:</strong> {s.name} — {s.address}, {s.postcode}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p style={{margin: 0, fontSize: '0.85rem', color: 'var(--error)'}}>
-                      ⚠ No recovery sites logged yet. Please log the gas recovery first before transferring.
-                    </p>
-                  )}
+                  {hwcnSites.map((s: any, i: number) => (
+                    <div key={i} style={{marginBottom: '1rem'}}>
+                      <strong style={{color: 'var(--warning)', fontSize: '0.85rem'}}>Site {i + 1}</strong>
+                      <div className={styles.inputGroup} style={{marginTop: '0.5rem'}}>
+                        <input type="text" placeholder="Site Name" value={s.name} onChange={(e) => { const newSites = [...hwcnSites]; newSites[i].name = e.target.value; setHwcnSites(newSites); }} required={requiresHWCN} />
+                      </div>
+                      <div className={styles.inputGroup} style={{marginTop: '0.5rem'}}>
+                        <input type="text" placeholder="Address & Postcode" value={s.address} onChange={(e) => { const newSites = [...hwcnSites]; newSites[i].address = e.target.value; setHwcnSites(newSites); }} required={requiresHWCN} />
+                      </div>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setHwcnSites([...hwcnSites, {name: "", address: "", postcode: ""}])} style={{background: 'transparent', border: '1px dashed var(--warning)', color: 'var(--warning)', padding: '0.5rem', width: '100%', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem'}}>
+                    + Add Another Site
+                  </button>
                 </div>
               </div>
 
               <div style={{borderLeft: '2px solid var(--warning)', paddingLeft: '1rem', marginBottom: '1.5rem'}}>
                 <h4 style={{fontSize: '0.9rem', marginBottom: '0.75rem'}}>Part C: Carrier Certificate</h4>
-                <div className={styles.inputGroup}>
-                  <label>Vehicle Registration Number</label>
-                  <input type="text" value={vehicleReg} onChange={(e) => setVehicleReg(e.target.value)} placeholder="e.g. AB12 CDE" required={requiresHWCN} />
+                <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
+                  <div className={styles.inputGroup}>
+                    <label>Vehicle Registration Number</label>
+                    <input type="text" value={vehicleReg} onChange={(e) => setVehicleReg(e.target.value)} placeholder="e.g. AB12 CDE" required={requiresHWCN} />
+                  </div>
+                  <div className={styles.inputGroup}>
+                    <label>Carrier Name</label>
+                    <input type="text" value={carrierName} onChange={(e) => setCarrierName(e.target.value)} placeholder="e.g. John Doe" required={requiresHWCN} />
+                  </div>
                 </div>
-                <p style={{fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem'}}>
-                  Carrier Name: {user?.name || "Engineer"}
-                </p>
               </div>
               
               <p style={{fontSize: '0.8rem', color: 'var(--warning)', fontStyle: 'italic'}}>

@@ -187,25 +187,7 @@ export default function ProfilePage() {
           }}>VERIFIED</span>
         </div>
       </div>
-      <div style={{marginTop: '2rem', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.02)', marginBottom: '1.5rem'}}>
-        <h3 style={{fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '1rem'}}>Developer Test Tools</h3>
-        <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem'}}>
-          <button 
-            id="simulate-existing-btn"
-            onClick={() => router.push('/dashboard?simulate=existing')}
-            style={{padding: '0.75rem', borderRadius: '8px', background: 'rgba(0, 229, 255, 0.1)', border: '1px solid var(--primary)', color: 'var(--primary)', fontWeight: 600, cursor: 'pointer'}}
-          >
-            Simulate Existing Bottle Scan
-          </button>
-          <button 
-            id="simulate-reclaim-btn"
-            onClick={() => router.push('/dashboard?simulate=reclaim')}
-            style={{padding: '0.75rem', borderRadius: '8px', background: 'rgba(255, 170, 0, 0.1)', border: '1px solid var(--warning)', color: 'var(--warning)', fontWeight: 600, cursor: 'pointer'}}
-          >
-            Simulate Reclaim Bottle Scan
-          </button>
-        </div>
-      </div>
+
       <div style={{marginTop: "2rem"}}>
         {showLogoutConfirm ? (
           <div className="glass-panel" style={{padding: "1.5rem", border: "1px solid rgba(255, 51, 102, 0.3)", background: "rgba(255, 51, 102, 0.05)"}}>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { db, Bottle, MovementLog } from "@/lib/db";
+import { db, Bottle, MovementLog, UsageLog } from "@/lib/db";
 import { ArrowLeft, Edit3, History, ArrowRight, User, Package, Calendar, MapPin, Truck, Building2, FileText, FileSpreadsheet } from "lucide-react";
 import Link from "next/link";
 import styles from "../../page.module.css";
@@ -12,6 +12,7 @@ export default function ViewBottlePage() {
   const router = useRouter();
   const [bottle, setBottle] = useState<Bottle | null>(null);
   const [logs, setLogs] = useState<MovementLog[]>([]);
+  const [usageLogs, setUsageLogs] = useState<UsageLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -22,6 +23,7 @@ export default function ViewBottlePage() {
         db.getUsageLogs(serial as string)
       ]).then(([bottleData, moveLogs, useLogs]) => {
         setBottle(bottleData);
+        setUsageLogs(useLogs);
 
         // 1. Combine all logs
         const combined = [
@@ -76,6 +78,127 @@ export default function ViewBottlePage() {
       });
     }
   }, [serial]);
+
+  const printRefrigerantLog = () => {
+    if (!bottle) return;
+    const reportDate = new Date().toLocaleDateString("en-GB");
+    const sorted = [...usageLogs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const totalUsed = sorted.reduce((sum, l) => sum + (l.weightUsed || 0), 0);
+
+    const rows = sorted.map(log => `
+      <tr>
+        <td style="white-space: nowrap">${new Date(log.date).toLocaleDateString("en-GB")}</td>
+        <td style="font-family: monospace; font-weight: 600">${log.siteRef || "—"}</td>
+        <td>${log.siteName || "—"}</td>
+        <td>${log.engineer || "—"}</td>
+        <td style="text-align: right; font-weight: 600; color: #e53e3e">${log.weightUsed?.toFixed(2) || "—"} kg</td>
+        <td style="text-align: right">${log.weightBefore?.toFixed(2) || "—"} kg</td>
+        <td style="text-align: right">${log.weightAfter?.toFixed(2) || "—"} kg</td>
+      </tr>
+    `).join("");
+
+    const html = `
+      <html>
+        <head>
+          <style>
+            @page { margin: 10mm; size: A4 landscape; }
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; color: #333; line-height: 1.4; }
+            .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
+            .logo-section { display: flex; gap: 15px; align-items: flex-end; }
+            .company-info { font-size: 10px; line-height: 1.4; color: #555; }
+            .report-info { text-align: right; }
+            .report-title { font-size: 22px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; color: #1a202c; }
+            .report-meta { font-size: 11px; color: #666; }
+            .summary-table { width: 100%; margin-bottom: 20px; border-collapse: separate; border-spacing: 0; background: #f9fafb; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+            .summary-cell { padding: 12px 15px; border-right: 1px solid #e2e8f0; vertical-align: top; }
+            .summary-cell:last-child { border-right: none; }
+            .summary-label { font-size: 8px; color: #718096; text-transform: uppercase; margin-bottom: 4px; font-weight: 700; letter-spacing: 0.1em; }
+            .summary-value { font-size: 14px; font-weight: bold; color: #1a202c; white-space: nowrap; }
+            table.log { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            table.log th, table.log td { border: 1px solid #e2e8f0; padding: 8px 10px; text-align: left; vertical-align: middle; font-size: 10px; }
+            table.log th { background: #f8f9fa; font-weight: bold; text-transform: uppercase; color: #4a5568; font-size: 8px; letter-spacing: 0.05em; border-bottom: 2px solid #cbd5e0; }
+            .total-row { font-weight: 700; background: #f9fafb; }
+            .footer { margin-top: 20px; font-size: 8px; color: #a0aec0; text-align: center; border-top: 1px solid #edf2f7; padding-top: 10px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="logo-section">
+              <img src="/21-degrees-logo-reports.png" style="width: 100px; height: auto;" />
+              <div class="company-info">
+                <strong>21 Degrees Ltd</strong><br />
+                Unit 10, Apollo Court, Monkton Business Park<br />
+                Hebburn, Tyne & Wear, NE31 2ES<br />
+                Tel: 0191 495 7224
+              </div>
+            </div>
+            <div class="report-info">
+              <div class="report-title">Used Refrigerant Log</div>
+              <div class="report-meta">
+                <div>Generated: ${reportDate}</div>
+                <div>Cylinder: ${bottle.serial}</div>
+              </div>
+            </div>
+          </div>
+
+          <table class="summary-table">
+            <tr>
+              <td class="summary-cell">
+                <div class="summary-label">Cylinder Serial</div>
+                <div class="summary-value">${bottle.serial}</div>
+              </td>
+              <td class="summary-cell">
+                <div class="summary-label">Refrigerant</div>
+                <div class="summary-value">${bottle.gasType}</div>
+              </td>
+              <td class="summary-cell">
+                <div class="summary-label">Cylinder Capacity</div>
+                <div class="summary-value">${bottle.initialWeight.toFixed(2)} kg</div>
+              </td>
+              <td class="summary-cell">
+                <div class="summary-label">Current Balance</div>
+                <div class="summary-value">${bottle.currentWeight.toFixed(2)} kg</div>
+              </td>
+              <td class="summary-cell">
+                <div class="summary-label">Total Used</div>
+                <div class="summary-value">${totalUsed.toFixed(2)} kg</div>
+              </td>
+            </tr>
+          </table>
+
+          <table class="log">
+            <thead>
+              <tr>
+                <th style="width: 80px">Date</th>
+                <th style="width: 100px">Job Ref</th>
+                <th>Site</th>
+                <th style="width: 130px">Engineer</th>
+                <th style="width: 80px; text-align: right">Qty Used</th>
+                <th style="width: 90px; text-align: right">Wt. Before</th>
+                <th style="width: 90px; text-align: right">Wt. After</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+              <tr class="total-row">
+                <td colspan="4" style="text-align: right">Total Gas Used</td>
+                <td style="text-align: right; color: #e53e3e">${totalUsed.toFixed(2)} kg</td>
+                <td colspan="2"></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="footer">
+            Used Refrigerant Log | F-Gas Tracker Pro | &copy; 2024 21 Degrees Ltd
+          </div>
+        </body>
+      </html>
+    `;
+    const win = window.open("", "_blank");
+    win?.document.write(html);
+    win?.document.close();
+    setTimeout(() => { win?.print(); }, 500);
+  };
 
   const exportCSV = () => {
     if (!bottle) return;
@@ -252,6 +375,16 @@ export default function ViewBottlePage() {
           }}>
             <FileText size={18} /> Print Audit PDF
           </button>
+          {bottle.category === "new" && (
+            <button onClick={printRefrigerantLog} style={{
+              background: "rgba(255, 170, 0, 0.08)", border: "1px solid rgba(255,170,0,0.3)",
+              color: "#ffaa00", padding: "0.6rem 1rem", borderRadius: "8px",
+              cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, display: "flex",
+              alignItems: "center", gap: "0.4rem"
+            }}>
+              <FileText size={18} /> Refrigerant Log PDF
+            </button>
+          )}
           <Link href={`/admin/bottles/${serial}/edit`} style={{ textDecoration: "none" }}>
             <button style={{
               background: "rgba(0, 229, 255, 0.1)", border: "1px solid var(--primary)",
@@ -285,14 +418,21 @@ export default function ViewBottlePage() {
                 <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>Inventory Level</div>
                 <div style={{ color: "var(--warning)", fontWeight: 700 }}>{bottle.currentWeight.toFixed(2)} / {bottle.initialWeight.toFixed(2)} kg</div>
               </div>
-              {bottle.rentalExpiryDate && (
-                <div>
-                  <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>Rental Expiry</div>
-                  <div style={{ color: "#ff3366", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                    <Calendar size={14} /> {new Date(bottle.rentalExpiryDate).toLocaleDateString()}
+              <div>
+                <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>Rental Expiry</div>
+                {bottle.rentalExpiryDate ? (
+                  <div style={{ color: new Date(bottle.rentalExpiryDate) < new Date() ? "#ff3366" : "#ffaa00", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                    <Calendar size={14} /> {new Date(bottle.rentalExpiryDate).toLocaleDateString("en-GB")}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <Link href={`/admin/bottles/${serial}/edit`} style={{ textDecoration: "none" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.3rem 0.6rem", background: "rgba(255,51,102,0.1)", border: "1px solid rgba(255,51,102,0.3)", borderRadius: "6px", cursor: "pointer" }}>
+                      <Calendar size={13} color="#ff3366" />
+                      <span style={{ fontSize: "0.78rem", color: "#ff3366", fontWeight: 700 }}>Not set — click to add</span>
+                    </div>
+                  </Link>
+                )}
+              </div>
             </div>
           </div>
         </div>

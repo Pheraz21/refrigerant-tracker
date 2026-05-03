@@ -10,7 +10,7 @@ export default function SettingsPage() {
   const [newSupplier, setNewSupplier] = useState("");
   const [refrigerants, setRefrigerants] = useState<any[]>([]);
   const [editingRefId, setEditingRefId] = useState<string | null>(null);
-  const [newRef, setNewRef] = useState({ name: "", ewc: "140601", un: "", gwp: 0 });
+  const [newRef, setNewRef] = useState({ name: "", type: "HFC", un_number: "", gwp: 0, canBeBoughtNew: true });
 
   // Company settings — these would be persisted to DB in production
   const [companyName, setCompanyName] = useState("21 Degrees Ltd");
@@ -23,10 +23,18 @@ export default function SettingsPage() {
   useEffect(() => {
     db.getSuppliers().then(setSuppliers);
     db.getRefrigerants().then(setRefrigerants);
+    db.getCompanySettings().then(s => {
+      if (s.companyName) setCompanyName(s.companyName);
+      if (s.companyAddress) setCompanyAddress(s.companyAddress);
+      if (s.companyPostcode) setCompanyPostcode(s.companyPostcode);
+      if (s.companyTel) setCompanyTel(s.companyTel);
+      if (s.carrierReg) setCarrierReg(s.carrierReg);
+      if (s.exemptionNo) setExemptionNo(s.exemptionNo);
+    });
   }, []);
 
-  const handleSave = () => {
-    // In production: db.saveCompanySettings(...)
+  const handleSave = async () => {
+    await db.saveCompanySettings({ companyName, companyAddress, companyPostcode, companyTel, carrierReg, exemptionNo });
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
@@ -48,7 +56,7 @@ export default function SettingsPage() {
   const handleAddRef = async () => {
     if (!newRef.name.trim()) return;
     await db.addRefrigerant(newRef);
-    setNewRef({ name: "", ewc: "140601", un: "", gwp: 0 });
+    setNewRef({ name: "", type: "HFC", un_number: "", gwp: 0, canBeBoughtNew: true });
     const updated = await db.getRefrigerants();
     setRefrigerants(updated);
   };
@@ -198,7 +206,7 @@ export default function SettingsPage() {
             <table style={{width: "100%", borderCollapse: "collapse"}}>
               <thead>
                 <tr style={{background: "rgba(255,255,255,0.04)"}}>
-                  {["Gas Name", "EWC Code", "UN Number", "GWP", "Actions"].map(h => (
+                  {["Gas Name", "Type", "UN Number", "GWP", "Buy New", "Actions"].map(h => (
                     <th key={h} style={{padding: "0.75rem", textAlign: "left", fontSize: "0.7rem", color: "rgba(255,255,255,0.5)", fontWeight: 600, textTransform: "uppercase", borderBottom: "1px solid rgba(255,255,255,0.06)"}}>
                       {h}
                     </th>
@@ -215,18 +223,31 @@ export default function SettingsPage() {
                     </td>
                     <td style={{padding: "0.75rem"}}>
                       {editingRefId === ref.id ? (
-                        <input type="text" value={ref.ewc} onChange={e => handleUpdateRef(ref.id, { ewc: e.target.value })} style={{...inputStyle, padding: "0.3rem"}} />
-                      ) : <span style={{fontFamily: "var(--font-geist-mono)", fontSize: "0.8rem", color: "var(--text-muted)"}}>{ref.ewc}</span>}
+                        <input type="text" value={ref.type} onChange={e => handleUpdateRef(ref.id, { type: e.target.value })} style={{...inputStyle, padding: "0.3rem"}} />
+                      ) : <span style={{fontSize: "0.8rem", color: "rgba(255,255,255,0.6)"}}>{ref.type}</span>}
                     </td>
                     <td style={{padding: "0.75rem"}}>
                       {editingRefId === ref.id ? (
-                        <input type="text" value={ref.un} onChange={e => handleUpdateRef(ref.id, { un: e.target.value })} style={{...inputStyle, padding: "0.3rem"}} />
-                      ) : <span style={{fontFamily: "var(--font-geist-mono)", fontSize: "0.8rem", color: "var(--text-muted)"}}>{ref.un}</span>}
+                        <input type="text" value={ref.un_number || ""} onChange={e => handleUpdateRef(ref.id, { un_number: e.target.value })} style={{...inputStyle, padding: "0.3rem"}} />
+                      ) : <span style={{fontFamily: "var(--font-geist-mono)", fontSize: "0.8rem", color: "var(--text-muted)"}}>{ref.un_number || "—"}</span>}
                     </td>
                     <td style={{padding: "0.75rem"}}>
                       {editingRefId === ref.id ? (
                         <input type="number" value={ref.gwp} onChange={e => handleUpdateRef(ref.id, { gwp: parseInt(e.target.value) })} style={{...inputStyle, padding: "0.3rem"}} />
                       ) : <span style={{fontSize: "0.8rem", color: "var(--primary)", fontWeight: 600}}>{ref.gwp}</span>}
+                    </td>
+                    <td style={{padding: "0.75rem"}}>
+                      {editingRefId === ref.id ? (
+                        <input type="checkbox" checked={ref.can_be_bought_new !== false} onChange={e => handleUpdateRef(ref.id, { can_be_bought_new: e.target.checked })} />
+                      ) : (
+                        <span style={{
+                          padding: "0.2rem 0.5rem", borderRadius: "4px", fontSize: "0.7rem", fontWeight: 700,
+                          background: ref.can_be_bought_new !== false ? "rgba(34,197,94,0.1)" : "rgba(255,51,102,0.1)",
+                          color: ref.can_be_bought_new !== false ? "#22c55e" : "#ff3366"
+                        }}>
+                          {ref.can_be_bought_new !== false ? "YES" : "NO"}
+                        </span>
+                      )}
                     </td>
                     <td style={{padding: "0.75rem", textAlign: "right"}}>
                       <div style={{display: "flex", gap: "0.5rem", justifyContent: "flex-end"}}>
@@ -243,12 +264,13 @@ export default function SettingsPage() {
                 {/* Add New Row */}
                 <tr style={{background: "rgba(0, 229, 255, 0.02)"}}>
                   <td style={{padding: "0.75rem"}}><input placeholder="R..." value={newRef.name} onChange={e => setNewRef({...newRef, name: e.target.value.toUpperCase()})} style={{...inputStyle, padding: "0.3rem", fontSize: "0.8rem"}} /></td>
-                  <td style={{padding: "0.75rem"}}><input value={newRef.ewc} onChange={e => setNewRef({...newRef, ewc: e.target.value})} style={{...inputStyle, padding: "0.3rem", fontSize: "0.8rem"}} /></td>
-                  <td style={{padding: "0.75rem"}}><input placeholder="UN..." value={newRef.un} onChange={e => setNewRef({...newRef, un: e.target.value})} style={{...inputStyle, padding: "0.3rem", fontSize: "0.8rem"}} /></td>
-                  <td style={{padding: "0.75rem"}}><input type="number" placeholder="GWP..." value={newRef.gwp} onChange={e => setNewRef({...newRef, gwp: parseInt(e.target.value)})} style={{...inputStyle, padding: "0.3rem", fontSize: "0.8rem"}} /></td>
+                  <td style={{padding: "0.75rem"}}><input placeholder="Type" value={newRef.type} onChange={e => setNewRef({...newRef, type: e.target.value})} style={{...inputStyle, padding: "0.3rem", fontSize: "0.8rem"}} /></td>
+                  <td style={{padding: "0.75rem"}}><input placeholder="UN..." value={newRef.un_number} onChange={e => setNewRef({...newRef, un_number: e.target.value})} style={{...inputStyle, padding: "0.3rem", fontSize: "0.8rem"}} /></td>
+                  <td style={{padding: "0.75rem"}}><input type="number" placeholder="GWP" value={newRef.gwp} onChange={e => setNewRef({...newRef, gwp: parseInt(e.target.value)})} style={{...inputStyle, padding: "0.3rem", fontSize: "0.8rem"}} /></td>
+                  <td style={{padding: "0.75rem"}}><input type="checkbox" checked={newRef.canBeBoughtNew} onChange={e => setNewRef({...newRef, canBeBoughtNew: e.target.checked})} /></td>
                   <td style={{padding: "0.75rem", textAlign: "right"}}>
                     <button onClick={handleAddRef} style={{background: "var(--primary)", border: "none", borderRadius: "4px", padding: "0.4rem 0.6rem", cursor: "pointer", color: "#000", fontWeight: 700, fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "0.3rem"}}>
-                      <Plus size={14} /> Add Gas
+                      <Plus size={14} /> Add
                     </button>
                   </td>
                 </tr>

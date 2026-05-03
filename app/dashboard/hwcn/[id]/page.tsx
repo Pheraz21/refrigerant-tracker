@@ -69,8 +69,8 @@ export default function HWCNViewPage() {
 
   const formattedDate = new Date(hwcn.date).toLocaleDateString("en-GB");
   const formattedTime = new Date(hwcn.date).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-  const deliveredDate = hwcn.deliveredAt ? new Date(hwcn.deliveredAt).toLocaleDateString("en-GB") : "";
-  const deliveredTime = hwcn.deliveredAt ? new Date(hwcn.deliveredAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
+  const deliveredDate = (hwcn.hwcnStatus === "complete" && hwcn.deliveredAt) ? new Date(hwcn.deliveredAt).toLocaleDateString("en-GB") : "";
+  const deliveredTime = (hwcn.hwcnStatus === "complete" && hwcn.deliveredAt) ? new Date(hwcn.deliveredAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
 
   const primarySite = hwcn.sites?.[0];
   const isOffice = hwcn.destination === "Office / Stores";
@@ -228,25 +228,48 @@ export default function HWCNViewPage() {
               </tr>
             </thead>
             <tbody>
-              {hwcn.sites?.map((site: any, i: number) => {
-                // Find the weight for this specific site from usage logs
-                const siteLog = usageLogs.find(l => l.siteName.trim() === site.name.trim());
-                const weight = siteLog ? siteLog.weightUsed : (hwcn.fillWeight / hwcn.sites.length);
+              {(() => {
+                // Pre-compute: get all recovery logs sorted chronologically (oldest first)
+                const recoveryLogs = usageLogs
+                  .filter(l => l.jobType === 'recovery')
+                  .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
                 
-                return (
-                  <tr key={i}>
-                    {cell(`Site ${i + 1}`)}
-                    {cell("14 06 01")}
-                    {cell("HCFC / HFC / CFC — Up to 100%")}
-                    {cell("Liquid")}
-                    {cell("HP14")}
-                    {cell(refrigerantType)}
-                    {cell(`${weight.toFixed(2)} kg`)}
-                    {cell(capacity)}
-                    {cell(<strong style={{ fontFamily: "monospace", fontSize: "0.7rem" }}>{hwcn.serial}</strong>)}
-                  </tr>
-                );
-              }) || (
+                if (!hwcn.sites || hwcn.sites.length === 0) return null;
+
+                return hwcn.sites.map((site: any, i: number) => {
+                  // Strategy 1: Match by site name
+                  const siteLogs = recoveryLogs.filter(l => 
+                    (l.siteName || '').trim().toLowerCase() === (site.name || '').trim().toLowerCase() ||
+                    (l.siteRef || '').trim().toLowerCase() === (site.name || '').trim().toLowerCase()
+                  );
+                  
+                  let weight: number;
+                  if (siteLogs.length > 0) {
+                    // Matched by name — sum all recovery weights for this site
+                    weight = siteLogs.reduce((sum, l) => sum + Number(l.weightUsed || 0), 0);
+                  } else if (recoveryLogs[i]) {
+                    // Strategy 2: Fall back to chronological order (Site 1 = 1st log, etc.)
+                    weight = Number(recoveryLogs[i].weightUsed || 0);
+                  } else {
+                    // Strategy 3: Last resort — divide total equally
+                    weight = Number(hwcn.fillWeight || 0) / (hwcn.sites?.length || 1);
+                  }
+                
+                  return (
+                    <tr key={i}>
+                      {cell(`Site ${i + 1}`)}
+                      {cell("14 06 01")}
+                      {cell("HCFC / HFC / CFC — Up to 100%")}
+                      {cell("Liquid")}
+                      {cell("HP14")}
+                      {cell(refrigerantType)}
+                      {cell(`${weight.toFixed(2)} kg`)}
+                      {cell(capacity)}
+                      {cell(<strong style={{ fontFamily: "monospace", fontSize: "0.7rem" }}>{hwcn.serial}</strong>)}
+                    </tr>
+                  );
+                });
+              })() || (
                 <tr>
                   {cell("Site 1")}
                   {cell("14 06 01")}
@@ -254,7 +277,7 @@ export default function HWCNViewPage() {
                   {cell("Liquid")}
                   {cell("HP14")}
                   {cell(refrigerantType)}
-                  {cell(hwcn.fillWeight ? `${hwcn.fillWeight.toFixed(2)} kg` : "—")}
+                  {cell(hwcn.fillWeight ? `${Number(hwcn.fillWeight).toFixed(2)} kg` : "—")}
                   {cell(capacity)}
                   {cell(<strong style={{ fontFamily: "monospace", fontSize: "0.7rem" }}>{hwcn.serial}</strong>)}
                 </tr>
@@ -331,8 +354,8 @@ export default function HWCNViewPage() {
           {/* Top row: EWC / Qty / Accepted / Operation */}
           <div style={{ display: "flex", gap: "1rem", marginBottom: "0.4rem", alignItems: "center", flexWrap: "wrap" }}>
             <div><span style={{ fontSize: "0.68rem", color: "#555" }}>EWC Code: </span><strong>14 06 01</strong></div>
-            <div style={{ flex: 1 }}>{field("Quantity kg (as above)", hwcn.fillWeight ? `${hwcn.fillWeight.toFixed(2)} kg` : "")}</div>
-            <div>{field("Accepted / Rejected", hwcn.accepted !== undefined ? (hwcn.accepted ? "Accepted" : "Rejected") : "")}</div>
+            <div style={{ flex: 1 }}>{field("Quantity kg (as above)", hwcn.fillWeight ? `${Number(hwcn.fillWeight).toFixed(2)} kg` : "")}</div>
+            <div>{field("Accepted / Rejected", (hwcn.hwcnStatus === "complete" && hwcn.accepted !== undefined) ? (hwcn.accepted ? "Accepted" : "Rejected") : "")}</div>
             <div><span style={{ fontSize: "0.68rem", color: "#555" }}>Op: </span><strong>R13</strong></div>
           </div>
 
@@ -346,7 +369,7 @@ export default function HWCNViewPage() {
                 {field("1. Date received", deliveredDate)}
                 {field("Time", deliveredTime)}
               </div>
-              {field("2. Vehicle reg no.", hwcn.vehicleRegConsignee || hwcn.vehicleReg || "")}
+              {field("2. Vehicle reg no.", hwcn.hwcnStatus === "complete" ? (hwcn.vehicleRegConsignee || hwcn.vehicleReg || "") : "")}
               <div style={{ fontSize: "0.68rem", marginTop: "0.2rem", marginBottom: "0.15rem" }}>3. Where waste is rejected please provide details:</div>
               <div style={{ border: "1px solid #bbb", minHeight: "1.2rem", padding: "0.15rem", fontSize: "0.72rem" }}>
                 {hwcn.rejectionDetails || ""}
@@ -357,10 +380,10 @@ export default function HWCNViewPage() {
               <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.3rem" }}>
                 <span style={{ fontSize: "0.68rem", whiteSpace: "nowrap" }}>Signature:</span>
                 <div className="sig-box signature" style={{ flex: 1, minHeight: "2rem", padding: "0.15rem 0.5rem" }}>
-                  {hwcn.receivedSignature || ""}
+                  {hwcn.hwcnStatus === "complete" ? (hwcn.receivedSignature || "") : ""}
                 </div>
               </div>
-              {field("Name", hwcn.receivedBy || "")}
+              {field("Name", hwcn.hwcnStatus === "complete" ? (hwcn.receivedBy || "") : "")}
               <div style={{ display: "flex", gap: "0.8rem", marginTop: "0.3rem" }}>
                 {field("Date", deliveredDate)}
                 {field("Time", deliveredTime)}

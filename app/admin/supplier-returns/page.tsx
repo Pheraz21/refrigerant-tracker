@@ -1,306 +1,267 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { db, Bottle } from "@/lib/db";
+import { useAuth } from "@/lib/AuthContext";
+import { Truck, Search, Plus, Trash2, Camera, AlertCircle, CheckCircle2, Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { Building2, Search, CheckCircle2, Package, FileText, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Filter, Download, Printer } from "lucide-react";
 
-export default function SupplierReturnsPage() {
-  const [bottles, setBottles] = useState<Bottle[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [sortField, setSortField] = useState<keyof Bottle | "">("returnedAt");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+export default function SupplierReturnPage() {
+  const { user } = useAuth();
+  const router = useRouter();
+  const [hwcnNumber, setHwcnNumber] = useState("");
+  const [inputSerial, setInputSerial] = useState("");
+  const [selectedBottles, setSelectedBottles] = useState<Bottle[]>([]);
+  const [weights, setWeights] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [isSuccess, setIsSuccess] = useState(false);
 
-  useEffect(() => {
-    db.getAllBottles().then(allBottles => {
-      const returnedReclaim = allBottles.filter(b => b.category === "reclaim" && b.status === "returned");
-      setBottles(returnedReclaim);
-      setLoading(false);
-    });
-  }, []);
-
-  const handleExportCSV = () => {
-    const headers = ["Serial", "Gas", "Weight (kg)", "Supplier", "Returned By", "Return Date", "HWCN"];
-    const rows = filteredBottles.map(b => [
-      b.serial,
-      b.gasType,
-      b.currentWeight,
-      b.supplier || "",
-      b.returnedBy || "",
-      b.returnedAt ? new Date(b.returnedAt).toLocaleDateString("en-GB") : "",
-      b.activeHWCN || ""
-    ]);
-
-    const csvContent = [headers, ...rows].map(e => e.map(cell => `"${cell}"`).join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `waste_returns_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const handlePrint = () => {
-    const reportDate = new Date().toLocaleDateString("en-GB");
-    const dateRange = dateFrom ? `From: ${new Date(dateFrom).toLocaleDateString("en-GB")} To: Present` : "Full History";
+  const handleAddBottle = async () => {
+    if (!inputSerial.trim()) return;
     
-    const rows = filteredBottles.map(b => `
-      <tr>
-        <td>${b.serial}</td>
-        <td>${b.gasType}</td>
-        <td>${(b.currentWeight || 0).toFixed(2)} kg</td>
-        <td>${b.supplier || '—'}</td>
-        <td>${b.returnedBy || '—'}</td>
-        <td>${b.returnedAt ? new Date(b.returnedAt).toLocaleDateString("en-GB") : '—'}</td>
-        <td>${b.activeHWCN || '—'}</td>
-      </tr>
-    `).join("");
+    // Check if already added
+    if (selectedBottles.find(b => b.serial === inputSerial.toUpperCase())) {
+      setError("Bottle already in list");
+      return;
+    }
 
-    const html = `
-      <html>
-        <head>
-          <style>
-            body { font-family: sans-serif; padding: 20px; color: #333; }
-            .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
-            .logo-section { display: flex; gap: 15px; align-items: flex-end; }
-            .company-info { font-size: 10px; line-height: 1.4; color: #555; }
-            .report-info { text-align: right; }
-            .report-title { font-size: 20px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; }
-            .report-meta { font-size: 11px; color: #666; }
-            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-            th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; font-size: 10px; }
-            th { background: #f8f9fa; font-weight: bold; text-transform: uppercase; color: #555; }
-            .footer { margin-top: 20px; font-size: 9px; color: #999; text-align: center; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="logo-section">
-              <img src="/21-degrees-logo-reports.png" style="width: 100px; height: auto;" />
-              <div class="company-info">
-                <strong>21 Degrees Ltd</strong><br />
-                Unit 10, Apollo Court, Monkton Business Park<br />
-                Hebburn, Tyne & Wear, NE31 2ES<br />
-                Tel: 0191 495 7224
-              </div>
-            </div>
-            <div class="report-info">
-              <div class="report-title">Waste Return Report</div>
-              <div class="report-meta">
-                <div>Generated: ${reportDate}</div>
-                <div>Coverage: ${dateRange}</div>
-                <div>Results: ${filteredBottles.length} Records</div>
-              </div>
-            </div>
-          </div>
+    try {
+      const bottle = await db.getBottle(inputSerial.toUpperCase());
+      if (!bottle) {
+        setError("Bottle serial not found in system");
+        return;
+      }
+      if (bottle.status === "returned") {
+        setError("This bottle has already been returned to a supplier");
+        return;
+      }
 
-          <table>
-            <thead>
-              <tr>
-                <th>Serial</th><th>Gas</th><th>Weight</th><th>Supplier</th><th>Returned By</th><th>Return Date</th><th>HWCN</th>
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
-          
-          <div class="footer">
-            Printed from F-Gas Tracker Pro | &copy; 21 Degrees Ltd
-          </div>
-        </body>
-      </html>
-    `;
-    const win = window.open("", "_blank");
-    win?.document.write(html);
-    win?.document.close();
-    setTimeout(() => { win?.print(); }, 500);
-  };
-
-  const handleSort = (field: keyof Bottle) => {
-    if (sortField === field) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortOrder("asc");
+      setSelectedBottles([...selectedBottles, bottle]);
+      setWeights({ ...weights, [bottle.serial]: bottle.currentWeight });
+      setInputSerial("");
+      setError("");
+    } catch (err) {
+      setError("Error finding bottle");
     }
   };
 
-  const getSortIcon = (field: keyof Bottle) => {
-    if (sortField !== field) return <ArrowUpDown size={14} style={{ opacity: 0.3 }} />;
-    return sortOrder === "asc" ? <ArrowUp size={14} /> : <ArrowDown size={14} />;
+  const removeBottle = (serial: string) => {
+    setSelectedBottles(selectedBottles.filter(b => b.serial !== serial));
+    const newWeights = { ...weights };
+    delete newWeights[serial];
+    setWeights(newWeights);
   };
 
-  const filteredBottles = bottles
-    .filter(b => {
-      if (search) {
-        const s = search.toLowerCase();
-        const matchesSearch = b.serial.toLowerCase().includes(s) || 
-                              b.supplier?.toLowerCase().includes(s) || 
-                              b.returnedBy?.toLowerCase().includes(s) ||
-                              b.activeHWCN?.toLowerCase().includes(s);
-        if (!matchesSearch) return false;
-      }
-      if (dateFrom && b.returnedAt) {
-        const returnDate = new Date(b.returnedAt);
-        const filterDate = new Date(dateFrom);
-        const today = new Date();
-        today.setHours(23, 59, 59, 999);
-        if (returnDate < filterDate || returnDate > today) return false;
-      }
-      return true;
-    })
-    .sort((a, b) => {
-      if (!sortField) return 0;
-      const valA = a[sortField] || "";
-      const valB = b[sortField] || "";
-      if (valA < valB) return sortOrder === "asc" ? -1 : 1;
-      if (valA > valB) return sortOrder === "asc" ? 1 : -1;
-      return 0;
-    });
+  const handleWeightChange = (serial: string, val: string) => {
+    const num = parseFloat(val);
+    setWeights({ ...weights, [serial]: isNaN(num) ? 0 : num });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!hwcnNumber) {
+      setError("Please enter the Supplier's HWCN number");
+      return;
+    }
+    if (selectedBottles.length === 0) {
+      setError("Please add at least one bottle");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await db.returnBottleToSupplier({
+        serials: selectedBottles.map(b => b.serial),
+        returnHwcnNumber: hwcnNumber,
+        returnedBy: user?.name || "Office Admin",
+        weights: weights,
+        hwcnPhotoUrl: "https://vfpismkhdxcnioblynvk.supabase.co/storage/v1/object/public/hwcn-photos/supplier-return-mock.jpg"
+      });
+      setIsSuccess(true);
+      setTimeout(() => router.push("/admin"), 3000);
+    } catch (err) {
+      setError("Failed to process return. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (isSuccess) {
+    return (
+      <div style={{ padding: "4rem 2rem", textAlign: "center" }}>
+        <CheckCircle2 size={64} color="#22c55e" style={{ margin: "0 auto 1.5rem" }} />
+        <h1 className="text-gradient" style={{ fontSize: "2rem", marginBottom: "1rem" }}>Return Logged Successfully</h1>
+        <p style={{ color: "var(--text-muted)", marginBottom: "2rem" }}>
+          {selectedBottles.length} bottles have been marked as returned to supplier.<br />
+          The HWCN reference <strong>{hwcnNumber}</strong> has been archived.
+        </p>
+        <p style={{ fontSize: "0.9rem", color: "rgba(255,255,255,0.4)" }}>Redirecting to dashboard...</p>
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <div className="no-print" style={{marginBottom: "2rem"}}>
-        <h1 style={{fontSize: "1.8rem", fontWeight: 700, marginBottom: "0.25rem", display: "flex", alignItems: "center", gap: "0.5rem"}}>
-          <Building2 size={28} /> Completed Waste Returns
+    <div style={{ maxWidth: "1000px" }}>
+      <div style={{ marginBottom: "2rem" }}>
+        <Link href="/admin" style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--text-muted)", textDecoration: "none", fontSize: "0.9rem", marginBottom: "1rem" }}>
+          <ArrowLeft size={16} /> Back to Dashboard
+        </Link>
+        <h1 style={{ fontSize: "1.8rem", fontWeight: 700, marginBottom: "0.25rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          <Truck size={28} color="var(--primary)" /> Waste Return from Office to Supplier
         </h1>
-        <p style={{color: "var(--text-muted)", fontSize: "0.9rem"}}>Processed reclaim bottles and their associated HWCN paperwork</p>
+        <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>Hazardous Waste Transfer — Office to Supplier</p>
       </div>
 
-      {/* Filters & Tools Bar */}
-      <div className="no-print" style={{
-        display: "flex", 
-        gap: "1rem", 
-        marginBottom: "2rem", 
-        background: "rgba(255,255,255,0.03)", 
-        padding: "1rem", 
-        borderRadius: "12px", 
-        border: "1px solid rgba(255,255,255,0.08)",
-        alignItems: "center",
-        flexWrap: "wrap"
-      }}>
-        {/* Search */}
-        <div style={{position: "relative", flex: "1", minWidth: "250px"}}>
-          <Search size={16} style={{position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)"}} />
-          <input
-            type="text"
-            placeholder="Search serial, supplier, HWCN..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{
-              width: "100%", padding: "0.6rem 0.75rem 0.6rem 2.25rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "#fff", fontSize: "0.85rem", outline: "none", boxSizing: "border-box"
-            }}
-          />
-        </div>
+      <form onSubmit={handleSubmit} style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: "2rem", alignItems: "start" }}>
+        
+        {/* Left Column: Bottles List */}
+        <div className="glass-panel" style={{ padding: "1.5rem" }}>
+          <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "1.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            Cylinders for Return ({selectedBottles.length})
+          </h3>
 
-        {/* Date Filter */}
-        <div style={{display: "flex", alignItems: "center", gap: "0.75rem"}}>
-          <span style={{fontSize: "0.85rem", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "0.4rem"}}>
-            <Filter size={14} /> Since:
-          </span>
-          <div style={{position: "relative"}}>
-            <Calendar size={14} style={{position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "var(--primary)", pointerEvents: "none"}} />
-            <input 
-              type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+          <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.5rem" }}>
+            <div style={{ position: "relative", flex: 1 }}>
+              <Search size={18} style={{ position: "absolute", left: "1rem", top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)" }} />
+              <input 
+                type="text" 
+                placeholder="Enter serial number..." 
+                value={inputSerial}
+                onChange={e => setInputSerial(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && (e.preventDefault(), handleAddBottle())}
+                style={{
+                  width: "100%", padding: "0.85rem 1rem 0.85rem 3rem", background: "rgba(255,255,255,0.05)", 
+                  border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", color: "#fff", outline: "none"
+                }}
+              />
+            </div>
+            <button 
+              type="button" 
+              onClick={handleAddBottle}
               style={{
-                padding: "0.5rem 0.75rem 0.5rem 2.2rem", background: "rgba(0, 229, 255, 0.05)", border: "1px solid rgba(0, 229, 255, 0.2)", borderRadius: "8px", color: "#fff", fontSize: "0.85rem", colorScheme: "dark", outline: "none"
+                background: "var(--primary)", border: "none", borderRadius: "10px", padding: "0 1.5rem",
+                color: "#000", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "0.5rem"
               }}
-            />
-          </div>
-        </div>
-
-        <div style={{display: "flex", gap: "0.5rem", marginLeft: "auto"}}>
-          <button 
-            onClick={handleExportCSV}
-            style={{
-              display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 1rem", background: "rgba(34, 197, 94, 0.1)", border: "1px solid rgba(34, 197, 94, 0.2)", borderRadius: "8px", color: "#22c55e", fontSize: "0.85rem", fontWeight: 600, cursor: "pointer"
-            }}
-          >
-            <Download size={16} /> Export Excel
-          </button>
-          <button 
-            onClick={handlePrint}
-            style={{
-              display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 1rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "#fff", fontSize: "0.85rem", fontWeight: 600, cursor: "pointer"
-            }}
-          >
-            <Printer size={16} /> Print PDF
-          </button>
-        </div>
-      </div>
-
-      {loading ? (
-        <p style={{color: "var(--text-muted)"}}>Loading...</p>
-      ) : (
-        <div className="printable-content">
-          <div className="no-print" style={{display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "1rem"}}>
-            <h2 style={{fontSize: "1.2rem", fontWeight: 700, color: "var(--primary)", display: "flex", alignItems: "center", gap: "0.5rem"}}>
-               Returned Reclaim Bottles
-            </h2>
-            <span style={{fontSize: "0.85rem", color: "var(--text-muted)"}}>Showing {filteredBottles.length} records</span>
+            >
+              <Plus size={20} /> Add
+            </button>
           </div>
 
-          <div style={{borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden", background: "rgba(255,255,255,0.02)"}}>
-            <table style={{width: "100%", borderCollapse: "collapse"}}>
-              <thead>
-                <tr style={{background: "rgba(255,255,255,0.04)"}}>
-                  {[
-                    { key: "serial", label: "Serial" },
-                    { key: "gasType", label: "Gas" },
-                    { key: "currentWeight", label: "Weight" },
-                    { key: "supplier", label: "Supplier" },
-                    { key: "returnedBy", label: "Returned By" },
-                    { key: "returnedAt", label: "Return Date" },
-                    { key: "activeHWCN", label: "HWCN" }
-                  ].map(col => (
-                    <th key={col.key} onClick={() => col.key !== "activeHWCN" && handleSort(col.key as keyof Bottle)}
-                      style={{
-                        padding: "1rem", textAlign: "left", fontSize: "0.75rem", color: "rgba(255,255,255,0.4)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid rgba(255,255,255,0.06)", cursor: col.key !== "activeHWCN" ? "pointer" : "default", userSelect: "none"
-                      }}
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            {selectedBottles.length === 0 ? (
+              <div style={{ padding: "3rem", textAlign: "center", color: "rgba(255,255,255,0.2)", border: "2px dashed rgba(255,255,255,0.05)", borderRadius: "12px" }}>
+                <Truck size={40} style={{ marginBottom: "1rem", opacity: 0.1 }} />
+                <p>No bottles added yet. Scan or type serials above.</p>
+              </div>
+            ) : (
+              selectedBottles.map(b => (
+                <div key={b.serial} style={{
+                  padding: "1rem 1.25rem", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: "10px", display: "flex", justifyContent: "space-between", alignItems: "center"
+                }}>
+                  <div>
+                    <div style={{ fontWeight: 700, color: "var(--primary)", fontSize: "1rem" }}>{b.serial}</div>
+                    <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.5)" }}>{b.gasType} • Current: {b.currentWeight}kg</div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                      <label style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>Return Weight (kg)</label>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        value={weights[b.serial]}
+                        onChange={e => handleWeightChange(b.serial, e.target.value)}
+                        style={{
+                          width: "100px", padding: "0.4rem 0.6rem", background: "rgba(0,0,0,0.3)", 
+                          border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px", color: "#fff", fontWeight: 700
+                        }}
+                      />
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => removeBottle(b.serial)}
+                      style={{ background: "rgba(255,51,102,0.1)", border: "none", borderRadius: "50%", padding: "0.5rem", color: "#ff3366", cursor: "pointer" }}
                     >
-                      <div style={{display: "flex", alignItems: "center", gap: "0.5rem"}}>
-                        {col.label}
-                        {col.key !== "activeHWCN" && getSortIcon(col.key as keyof Bottle)}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredBottles.map(b => (
-                  <tr key={b.serial} style={{borderBottom: "1px solid rgba(255,255,255,0.04)", transition: "background 0.2s", cursor: "pointer"}}
-                    onClick={() => window.location.href = `/admin/bottles/${b.serial}`}
-                  >
-                    <td style={{padding: "1rem", fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "var(--primary)", fontSize: "0.9rem"}}>{b.serial}</td>
-                    <td style={{padding: "1rem"}}><span style={{background: "rgba(0, 229, 255, 0.1)", color: "var(--primary)", padding: "0.2rem 0.5rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 700}}>{b.gasType}</span></td>
-                    <td style={{padding: "1rem", fontSize: "0.9rem"}}>{b.currentWeight.toFixed(2)} kg</td>
-                    <td style={{padding: "1rem", fontSize: "0.85rem", color: "var(--text-muted)"}}>{b.supplier}</td>
-                    <td style={{padding: "1rem", fontSize: "0.9rem"}}>{b.returnedBy}</td>
-                    <td style={{padding: "1rem", fontSize: "0.85rem", color: "var(--text-muted)"}}>{b.returnedAt ? new Date(b.returnedAt).toLocaleDateString("en-GB") : "—"}</td>
-                    <td style={{padding: "1rem", textAlign: "left"}}>
-                      {b.activeHWCN ? (
-                        <div style={{display: "flex", alignItems: "center", gap: "0.4rem"}}>
-                          <FileText size={16} color="var(--primary)" />
-                          <span style={{fontSize: "0.8rem", fontWeight: 600, color: "var(--primary)"}}>{b.activeHWCN}</span>
-                        </div>
-                      ) : (
-                        <span style={{color: "rgba(255,255,255,0.1)"}}><FileText size={16} /></span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {filteredBottles.length === 0 && (
-                  <tr><td colSpan={7} style={{padding: "3rem", textAlign: "center", color: "var(--text-muted)"}}>No records found</td></tr>
-                )}
-              </tbody>
-            </table>
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
-      )}
+
+        {/* Right Column: Transfer Info */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+          <div className="glass-panel" style={{ padding: "1.5rem" }}>
+            <h3 style={{ fontSize: "1rem", fontWeight: 700, marginBottom: "1.25rem", color: "#fff" }}>Transfer Details</h3>
+            
+            <div style={{ marginBottom: "1.5rem" }}>
+              <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.5rem", fontWeight: 600 }}>
+                Supplier's HWCN Number
+              </label>
+              <input 
+                type="text" 
+                required
+                placeholder="e.g. BJJ-123456" 
+                value={hwcnNumber}
+                onChange={e => setHwcnNumber(e.target.value.toUpperCase())}
+                style={{
+                  width: "100%", padding: "0.85rem 1rem", background: "rgba(255,255,255,0.05)", 
+                  border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", color: "#fff", outline: "none", fontSize: "1rem", fontWeight: 700
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: "1.5rem" }}>
+              <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.5rem", fontWeight: 600 }}>
+                Photo of Supplier Note
+              </label>
+              <div style={{ 
+                height: "120px", border: "2px dashed rgba(255,255,255,0.1)", borderRadius: "10px", 
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.5rem",
+                background: "rgba(255,255,255,0.02)", cursor: "pointer"
+              }}>
+                <Camera size={24} color="rgba(255,255,255,0.3)" />
+                <span style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.4)" }}>Click to upload HWCN</span>
+              </div>
+            </div>
+
+            {error && (
+              <div style={{ 
+                padding: "0.75rem 1rem", background: "rgba(255,51,102,0.1)", border: "1px solid rgba(255,51,102,0.2)", 
+                borderRadius: "8px", color: "#ff3366", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1.5rem"
+              }}>
+                <AlertCircle size={16} /> {error}
+              </div>
+            )}
+
+            <button 
+              type="submit" 
+              disabled={loading || selectedBottles.length === 0}
+              style={{
+                width: "100%", padding: "1rem", background: "linear-gradient(135deg, #00e5ff 0%, #0088ff 100%)",
+                border: "none", borderRadius: "10px", color: "#000", fontWeight: 800, fontSize: "1rem",
+                cursor: (loading || selectedBottles.length === 0) ? "not-allowed" : "pointer", opacity: (loading || selectedBottles.length === 0) ? 0.6 : 1,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem"
+              }}
+            >
+              {loading ? <Loader2 size={20} className="spinner" /> : "Complete Supplier Return"}
+            </button>
+          </div>
+
+          <div style={{ padding: "1.25rem", background: "rgba(255,187,0,0.05)", border: "1px solid rgba(255,187,0,0.15)", borderRadius: "12px" }}>
+            <h4 style={{ fontSize: "0.85rem", color: "#ffbb00", fontWeight: 700, marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+              <AlertCircle size={16} /> Compliance Notice
+            </h4>
+            <p style={{ fontSize: "0.75rem", color: "rgba(255,187,0,0.8)", lineHeight: 1.5, margin: 0 }}>
+              Marking these cylinders as returned will remove them from your active inventory. This action is permanent and logs a movement log for regulatory auditing.
+            </p>
+          </div>
+        </div>
+      </form>
     </div>
   );
 }

@@ -7,11 +7,11 @@ import { db, Bottle } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import styles from "./page.module.css";
 
-type Tab = "van" | "onsite" | "returned";
+type Tab = "live" | "returned";
 
 export default function HistoryPage() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<Tab>("van");
+  const [activeTab, setActiveTab] = useState<Tab>("live");
   const [allBottles, setAllBottles] = useState<Bottle[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -40,13 +40,9 @@ export default function HistoryPage() {
 
   const engineerName = user?.name?.toLowerCase() || "";
 
-  const vanBottles = allBottles.filter(b =>
-    b.locationType === "van" &&
-    b.locationId?.toLowerCase().includes(engineerName)
-  );
-
-  const onsiteBottles = allBottles.filter(b =>
-    b.locationType === "site"
+  const liveBottles = allBottles.filter(b =>
+    (b.locationType === "van" && b.locationId?.toLowerCase().includes(engineerName)) ||
+    (b.locationType === "site")
   );
 
   const returnedBottles = allBottles.filter(b =>
@@ -54,10 +50,12 @@ export default function HistoryPage() {
     b.returnedBy?.toLowerCase() === engineerName
   );
 
+  const officeReturned = returnedBottles.filter(b => b.locationType === "office");
+  const supplierReturned = returnedBottles.filter(b => b.locationType === "supplier" || b.status === "returned");
+
   const tabs: { id: Tab; label: string; icon: React.ReactNode; count: number }[] = [
-    { id: "van", label: "Van Stock", icon: <Truck size={16} />, count: vanBottles.length },
-    { id: "onsite", label: "On Site", icon: <MapPin size={16} />, count: onsiteBottles.length },
-    { id: "returned", label: "Returned", icon: <RotateCcw size={16} />, count: returnedBottles.length },
+    { id: "live", label: "Live Bottles", icon: <Truck size={16} />, count: liveBottles.length },
+    { id: "returned", label: "Returned Bottles", icon: <RotateCcw size={16} />, count: returnedBottles.length },
   ];
 
   const getCategoryLabel = (b: Bottle) => {
@@ -99,18 +97,24 @@ export default function HistoryPage() {
         <div className={styles.cardBody}>
           <div className={styles.stat}>
             <span>Weight</span>
-            <strong>{b.currentWeight.toFixed(2)} kg</strong>
+            <strong>{(b.currentWeight || 0).toFixed(2)} kg</strong>
           </div>
           <div className={styles.stat}>
             <span>Location</span>
             <strong>{b.locationId || b.locationType}</strong>
-            {b.category === "reclaim" && (b.currentWeight || 0) > 0 && b.intendedDestination && b.activeHWCN && (
+            {b.category === "reclaim" && (b.currentWeight || 0) > 0 && b.intendedDestination && (
               <div style={{fontSize: '0.85rem', wordBreak: 'break-word', marginTop: '0.2rem'}}>
                 <span style={{color: 'var(--text-muted)'}}>Intended Destination: </span>
-                <strong style={{color: 'var(--warning)'}}>{b.intendedDestination}</strong>
-                <div style={{marginTop: '0.2rem', fontSize: '0.75rem', color: 'var(--primary)', textDecoration: 'underline'}}>
-                  Digital HWCN Active
-                </div>
+                <strong style={{color: 'var(--warning)'}}>
+                  {b.intendedLocationType === 'supplier' && b.supplier && b.intendedDestination
+                    ? `${b.supplier} - ${b.intendedDestination}`
+                    : b.intendedDestination}
+                </strong>
+                {b.activeHWCN && (
+                  <div style={{marginTop: '0.2rem', fontSize: '0.75rem', color: 'var(--primary)', textDecoration: 'underline'}}>
+                    Digital HWCN Active
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -131,16 +135,8 @@ export default function HistoryPage() {
     </div>
   );
 
-  const activeBottles =
-    activeTab === "van" ? vanBottles :
-    activeTab === "onsite" ? onsiteBottles :
-    returnedBottles;
-
-  const emptyMessages: Record<Tab, string> = {
-    van: "No bottles currently in your van.",
-    onsite: "No bottles currently logged as on-site.",
-    returned: "No returned bottles found.",
-  };
+  const vanBottles = liveBottles.filter(b => b.locationType === "van");
+  const siteBottles = liveBottles.filter(b => b.locationType === "site");
 
   return (
     <div className={styles.container}>
@@ -166,12 +162,57 @@ export default function HistoryPage() {
       </div>
 
       <div className={styles.list}>
-        {loading
-          ? <p className={styles.loadingText}>Loading…</p>
-          : activeBottles.length === 0
-            ? renderEmpty(emptyMessages[activeTab])
-            : activeBottles.map(renderBottle)
-        }
+        {loading ? (
+          <p className={styles.loadingText}>Loading…</p>
+        ) : activeTab === "live" ? (
+          <div style={{display: 'flex', flexDirection: 'column', gap: '2rem'}}>
+            {/* VAN BOTTLES */}
+            <div>
+              <h3 style={{fontSize: '1rem', color: 'var(--text-muted)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+                <Truck size={18} /> Bottles in Van
+              </h3>
+              {vanBottles.length === 0 
+                ? <p style={{fontSize: '0.85rem', color: 'var(--text-muted)', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px'}}>No bottles currently in your van.</p>
+                : vanBottles.map(renderBottle)
+              }
+            </div>
+
+            {/* SITE BOTTLES */}
+            <div>
+              <h3 style={{fontSize: '1rem', color: 'var(--text-muted)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+                <MapPin size={18} /> Bottles on Sites
+              </h3>
+              {siteBottles.length === 0 
+                ? <p style={{fontSize: '0.85rem', color: 'var(--text-muted)', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px'}}>No bottles currently logged as on-site.</p>
+                : siteBottles.map(renderBottle)
+              }
+            </div>
+          </div>
+        ) : (
+          <div style={{display: 'flex', flexDirection: 'column', gap: '2rem'}}>
+            {/* OFFICE RETURNS */}
+            <div>
+              <h3 style={{fontSize: '1rem', color: 'var(--text-muted)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+                <Building2 size={18} /> Returned to Stores / Office
+              </h3>
+              {officeReturned.length === 0 
+                ? <p style={{fontSize: '0.85rem', color: 'var(--text-muted)', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px'}}>No bottles returned to stores.</p>
+                : officeReturned.map(renderBottle)
+              }
+            </div>
+
+            {/* SUPPLIER RETURNS */}
+            <div>
+              <h3 style={{fontSize: '1rem', color: 'var(--text-muted)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+                <RotateCcw size={18} /> Returned to Suppliers
+              </h3>
+              {supplierReturned.length === 0 
+                ? <p style={{fontSize: '0.85rem', color: 'var(--text-muted)', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px'}}>No bottles returned to suppliers.</p>
+                : supplierReturned.map(renderBottle)
+              }
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

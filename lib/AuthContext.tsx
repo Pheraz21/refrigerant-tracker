@@ -83,11 +83,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const isEngineerLogin = pathname === "/";
       
       if (!user) {
-        // Not logged in — allow signup and logins
+        // Not logged in — allow signup, logins, and forgot password
         const isSignup = pathname === "/signup";
+        const isForgotPassword = pathname === "/forgot-password";
         if (isAdminRoute && !isAdminLogin) {
           router.push("/admin/login");
-        } else if (!isEngineerLogin && !isAdminLogin && !isSignup) {
+        } else if (!isEngineerLogin && !isAdminLogin && !isSignup && !isForgotPassword) {
           router.push("/");
         }
       } else {

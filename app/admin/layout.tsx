@@ -23,7 +23,11 @@ import {
   RefreshCw,
   Bell,
   CalendarClock,
-  History
+  History,
+  Trash2,
+  ShieldAlert,
+  BarChart2,
+  Briefcase
 } from "lucide-react";
 
 const navGroups = [
@@ -41,7 +45,9 @@ const navGroups = [
       { href: "/admin/stores", label: "Stores Inventory", icon: Warehouse },
       { href: "/admin/vans", label: "Van Inventory", icon: Truck },
       { href: "/admin/onsite", label: "Bottles on Site", icon: MapPin },
-      { href: "/admin/suppliers", label: "Supplier Inventory", icon: Building2 },
+      { href: "/admin/suppliers", label: "Bottles By Supplier", icon: Building2 },
+      { href: "/admin/jobs", label: "Refrigerant Jobs", icon: Briefcase },
+      { href: "/admin/all-jobs", label: "All Jobs", icon: ClipboardList },
       { href: "/admin/returned-to-supplier", label: "Returned to Supplier", icon: RotateCcw },
       { href: "/admin/expiry", label: "Upcoming Expiry", icon: CalendarClock },
     ]
@@ -50,13 +56,16 @@ const navGroups = [
     title: "Hazardous Waste",
     items: [
       { href: "/admin/hwcn", label: "HWCN Queue", icon: ClipboardList },
-      { href: "/admin/supplier-returns", label: "Completed Waste Returns", icon: Building2 },
+      { href: "/admin/haz-waste-summary", label: "Haz Waste In Company", icon: ShieldAlert },
+      { href: "/admin/supplier-returns", label: "Waste Return from Office to Supplier", icon: Building2 },
+      { href: "/admin/decommissioned", label: "Decommissioned Equipment", icon: Trash2 },
     ]
   },
   {
     title: "Other",
     items: [
       { href: "/admin/users", label: "User Management", icon: Users },
+      { href: "/admin/analytics", label: "Analytics", icon: BarChart2 },
       { href: "/admin/reports", label: "Reports", icon: FileText },
       { href: "/admin/settings", label: "Settings", icon: Settings },
     ]

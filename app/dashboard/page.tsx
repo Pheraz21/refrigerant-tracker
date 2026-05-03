@@ -252,51 +252,21 @@ export default function DashboardScannerPage() {
             </div>
           </div>
 
-          <Link href="/dashboard/bulk" style={{textDecoration: 'none', display: 'block', marginTop: '1.5rem'}}>
-            <div className={styles.bulkLinkCard}>
-              <div className={styles.bulkIcon}>
-                <PackageSearch size={24} color="var(--primary)" />
+          {user?.availableRoles?.includes("office") && (
+            <Link href="/dashboard/bulk" style={{textDecoration: 'none', display: 'block', marginTop: '1.5rem'}}>
+              <div className={styles.bulkLinkCard}>
+                <div className={styles.bulkIcon}>
+                  <PackageSearch size={24} color="var(--primary)" />
+                </div>
+                <div className={styles.bulkText}>
+                  <h3>Bulk Receive Delivery</h3>
+                  <p>Use to bulk register pallets from a single PO</p>
+                </div>
+                <ArrowRight size={20} color="var(--primary)" />
               </div>
-              <div className={styles.bulkText}>
-                <h3>Bulk Receive Delivery</h3>
-                <p>Use to bulk register pallets from a single PO</p>
-              </div>
-              <ArrowRight size={20} color="var(--primary)" />
-            </div>
-          </Link>
+            </Link>
+          )}
 
-          <div className={styles.testButtonsContainer} style={{maxWidth: '100%'}}>
-            <p className={styles.manualEntryText} style={{marginBottom: '0.5rem', opacity: 0.5, textAlign: 'left'}}>Developer Test Tools</p>
-            <button 
-              className={styles.simulateBtn} 
-              onClick={() => {
-                const timestamp = new Date().toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
-                setScanResult({ barcode: "8849201A", timestamp, location: null });
-              }}
-            >
-              Test Existing Bottle Scan
-            </button>
-            <button 
-              className={styles.simulateBtn} 
-              onClick={() => {
-                const timestamp = new Date().toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
-                setScanResult({ barcode: "NEW-" + Math.floor(Math.random()*1000), timestamp, location: null });
-              }}
-              style={{marginTop: '0.5rem'}}
-            >
-              Test Brand New Bottle Scan
-            </button>
-            <button 
-              className={styles.simulateBtn} 
-              onClick={() => {
-                const timestamp = new Date().toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
-                setScanResult({ barcode: "REC-402", timestamp, location: null });
-              }}
-              style={{marginTop: '0.5rem', borderColor: 'var(--warning)', color: 'var(--warning)'}}
-            >
-              Test Reclaim Bottle Scan
-            </button>
-          </div>
         </>
       )}
 

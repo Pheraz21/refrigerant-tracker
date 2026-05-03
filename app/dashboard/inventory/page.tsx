@@ -189,13 +189,19 @@ export default function InventoryPage() {
                       <span style={{color: 'var(--text-muted)'}}>Current Location: </span>
                       <strong style={{color: '#fff', textTransform: 'capitalize'}}>{bottle.locationId || bottle.locationType}</strong>
                     </div>
-                    {bottle.category === "reclaim" && (bottle.currentWeight || 0) > 0 && bottle.intendedDestination && bottle.activeHWCN && (
+                    {bottle.intendedDestination && (
                       <div style={{fontSize: '0.85rem', wordBreak: 'break-word', marginTop: '0.2rem'}}>
                         <span style={{color: 'var(--text-muted)'}}>Intended Destination: </span>
-                        <strong style={{color: 'var(--warning)'}}>{bottle.intendedDestination}</strong>
-                        <div style={{marginTop: '0.2rem', fontSize: '0.75rem', color: 'var(--primary)'}}>
-                          Digital HWCN Active
-                        </div>
+                        <strong style={{color: 'var(--warning)'}}>
+                          {bottle.intendedLocationType === 'supplier' && bottle.supplier && bottle.intendedDestination
+                            ? `${bottle.supplier} - ${bottle.intendedDestination}`
+                            : bottle.intendedDestination}
+                        </strong>
+                        {bottle.category === "reclaim" && bottle.activeHWCN && (
+                          <div style={{marginTop: '0.2rem', fontSize: '0.75rem', color: 'var(--primary)'}}>
+                            Digital HWCN Active
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
