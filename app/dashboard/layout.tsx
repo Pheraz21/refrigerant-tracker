@@ -36,10 +36,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </main>
 
       <nav className={`${styles.bottomNav} glass-panel no-print`}>
-        <Link href="/dashboard/history" className={`${styles.navItem} ${pathname.includes("/dashboard/history") ? styles.active : ""}`}>
-          <History size={24} />
-          <span>My Bottles</span>
-        </Link>
         <Link href="/dashboard/notifications" className={`${styles.navItem} ${pathname.includes("/dashboard/notifications") ? styles.active : ""}`}>
           <div style={{position: 'relative'}}>
             <Bell size={24} />
@@ -55,6 +51,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             )}
           </div>
           <span>Alerts</span>
+        </Link>
+        <Link href="/dashboard/history" className={`${styles.navItem} ${pathname.includes("/dashboard/history") ? styles.active : ""}`}>
+          <History size={24} />
+          <span>My Bottles</span>
         </Link>
         <Link href="/dashboard" className={`${styles.navItem} ${pathname === "/dashboard" ? styles.active : ""}`}>
           <div className={styles.scanIconWrapper} style={{background: pathname === '/dashboard' ? 'var(--primary)' : 'var(--surface-hover)', transform: 'translateY(-10px)'}}>

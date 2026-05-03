@@ -146,7 +146,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className={styles.container}>
+    <div className={styles.container} style={{height: "auto", minHeight: "auto"}}>
       <header className={styles.header}>
         <Link href="/dashboard" className={styles.backBtn}>
           <ArrowLeft size={20} />
