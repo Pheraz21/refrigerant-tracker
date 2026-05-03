@@ -16,16 +16,18 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "F-Gas Tracker | Pro",
   description: "Smart refrigerant and bottle tracking for HVAC engineers.",
-  manifest: "/manifest.json",
+  icons: {
+    apple: "/21-degrees-official-transparent.png",
+  },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
     title: "F-Gas Tracker",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f1115",
+  themeColor: "#0a0e14",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
