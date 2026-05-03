@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
 import { db } from "@/lib/db";
-import { User, Truck, ArrowLeft, Save, CheckCircle2, AlertCircle, LogOut, Pencil, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { User, Truck, Building2, ArrowLeft, Save, CheckCircle2, AlertCircle, LogOut, Pencil, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import styles from "../page.module.css";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
@@ -16,6 +16,12 @@ export default function ProfilePage() {
   const [vehicleReg, setVehicleReg] = useState("");
   const [newReg, setNewReg] = useState("");
   const [mode, setMode] = useState<"view" | "edit">("view");
+
+  // Employer editing
+  const [employer, setEmployer] = useState("");
+  const [editEmployer, setEditEmployer] = useState("");
+  const [employerMode, setEmployerMode] = useState<"view" | "edit">("view");
+  const [employerSaving, setEmployerSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -45,9 +51,8 @@ export default function ProfilePage() {
   useEffect(() => {
     if (user?.id) {
       db.getUserById(user.id).then(u => {
-        if (u?.vehicleReg) {
-          setVehicleReg(u.vehicleReg);
-        }
+        if (u?.vehicleReg) setVehicleReg(u.vehicleReg);
+        if (u?.employer) setEmployer(u.employer);
       });
     }
   }, [user]);
@@ -61,6 +66,19 @@ export default function ProfilePage() {
       setNameMode("view");
     } finally {
       setNameSaving(false);
+    }
+  };
+
+  const handleEmployerSave = async () => {
+    if (!user?.id || !editEmployer.trim()) return;
+    setEmployerSaving(true);
+    try {
+      await db.updateUserEmployer(user.id, editEmployer.trim());
+      setEmployer(editEmployer.trim());
+      await refreshUser();
+      setEmployerMode("view");
+    } finally {
+      setEmployerSaving(false);
     }
   };
 
@@ -252,6 +270,33 @@ export default function ProfilePage() {
         </div>
       )}
 
+      {/* Employer */}
+      <div className="glass-panel" style={{padding: "1.5rem", marginBottom: "1.5rem"}}>
+        <h3 style={{fontSize: "1rem", marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem"}}>
+          <Building2 size={16} /> Employer / Company
+        </h3>
+        {employerMode === "view" ? (
+          <div style={{display: "flex", justifyContent: "space-between", alignItems: "center"}}>
+            <span style={{fontSize: "1rem", color: "#fff", fontWeight: 600}}>{employer || "Not set"}</span>
+            <button onClick={() => { setEditEmployer(employer); setEmployerMode("edit"); }} className={styles.secondaryBtn} style={{padding: "0.5rem 1rem", height: "auto"}}>
+              Edit
+            </button>
+          </div>
+        ) : (
+          <div style={{display: "flex", gap: "0.75rem"}}>
+            <input
+              type="text" value={editEmployer} onChange={e => setEditEmployer(e.target.value)}
+              autoFocus
+              style={{flex: 1, padding: "0.75rem 1rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "#fff", fontSize: "0.95rem"}}
+            />
+            <button onClick={() => setEmployerMode("view")} className={styles.secondaryBtn} style={{padding: "0.5rem 0.9rem", height: "auto"}}>Cancel</button>
+            <button onClick={handleEmployerSave} disabled={employerSaving || !editEmployer.trim()} className={styles.primaryBtn} style={{padding: "0.5rem 1rem", height: "auto", display: "flex", alignItems: "center", gap: "0.4rem"}}>
+              <Save size={15} /> {employerSaving ? "Saving…" : "Save"}
+            </button>
+          </div>
+        )}
+      </div>
+
       <div className="glass-panel" style={{padding: "1.5rem", background: "rgba(255,255,255,0.02)", marginBottom: "1.5rem"}}>
         <h3 style={{fontSize: "1rem", marginBottom: "1rem"}}>Account Status</h3>
         <div style={{display: "flex", justifyContent: "space-between", alignItems: "center"}}>
@@ -354,7 +399,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      <div style={{marginTop: "2rem"}}>
+      <div style={{marginTop: "2rem", paddingBottom: "env(safe-area-inset-bottom, 1rem)"}}>
         {showLogoutConfirm ? (
           <div className="glass-panel" style={{padding: "1.5rem", border: "1px solid rgba(255, 51, 102, 0.3)", background: "rgba(255, 51, 102, 0.05)"}}>
             <p style={{textAlign: "center", marginBottom: "1rem", fontWeight: 600, color: "#fff"}}>Are you sure you want to logout?</p>
