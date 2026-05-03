@@ -36,17 +36,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </main>
 
       <nav className={`${styles.bottomNav} glass-panel no-print`}>
-        <Link href="/dashboard" className={`${styles.navItem} ${pathname === "/dashboard" ? styles.active : ""}`}>
-          <ScanLine size={24} />
-          <span>Scan</span>
+        <Link href="/dashboard/history" className={`${styles.navItem} ${pathname.includes("/dashboard/history") ? styles.active : ""}`}>
+          <History size={24} />
+          <span>My Bottles</span>
         </Link>
         <Link href="/dashboard/notifications" className={`${styles.navItem} ${pathname.includes("/dashboard/notifications") ? styles.active : ""}`}>
           <div style={{position: 'relative'}}>
             <Bell size={24} />
             {missingPhotos > 0 && (
               <span style={{
-                position: 'absolute', top: '-5px', right: '-5px', background: 'var(--error)', 
-                color: '#fff', borderRadius: '50%', width: '16px', height: '16px', 
+                position: 'absolute', top: '-5px', right: '-5px', background: 'var(--error)',
+                color: '#fff', borderRadius: '50%', width: '16px', height: '16px',
                 fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 border: '2px solid var(--surface-light)'
               }}>
@@ -56,15 +56,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
           <span>Alerts</span>
         </Link>
-        <Link href="/dashboard/inventory" className={`${styles.navItem} ${pathname.includes("/dashboard/inventory") ? styles.active : ""}`}>
-          <div className={styles.scanIconWrapper} style={{background: pathname.includes('/inventory') ? 'var(--primary)' : 'var(--surface-hover)', transform: 'translateY(-10px)'}}>
-            <PackageSearch size={28} color={pathname.includes('/inventory') ? '#000' : 'var(--primary)'} />
+        <Link href="/dashboard" className={`${styles.navItem} ${pathname === "/dashboard" ? styles.active : ""}`}>
+          <div className={styles.scanIconWrapper} style={{background: pathname === '/dashboard' ? 'var(--primary)' : 'var(--surface-hover)', transform: 'translateY(-10px)'}}>
+            <ScanLine size={28} color={pathname === '/dashboard' ? '#000' : 'var(--primary)'} />
           </div>
-          <span style={{marginTop: '-5px'}}>My Van</span>
+          <span style={{marginTop: '-5px'}}>Scan</span>
         </Link>
-        <Link href="/dashboard/history" className={`${styles.navItem} ${pathname.includes("/dashboard/history") ? styles.active : ""}`}>
-          <History size={24} />
-          <span>My Bottles</span>
+        <Link href="/dashboard/inventory" className={`${styles.navItem} ${pathname.includes("/dashboard/inventory") ? styles.active : ""}`}>
+          <PackageSearch size={24} />
+          <span>My Van</span>
         </Link>
         <Link href="/dashboard/profile" className={`${styles.navItem} ${pathname === "/dashboard/profile" ? styles.active : ""}`}>
           <User size={24} />
