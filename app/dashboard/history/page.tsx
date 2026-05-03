@@ -45,10 +45,20 @@ export default function HistoryPage() {
     (b.locationType === "site")
   );
 
-  const returnedBottles = allBottles.filter(b =>
-    (b.locationType === "office" || b.locationType === "supplier" || b.status === "returned") &&
-    b.returnedBy?.toLowerCase() === engineerName
-  );
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 30);
+
+  const returnedBottles = allBottles
+    .filter(b =>
+      (b.locationType === "office" || b.locationType === "supplier" || b.status === "returned") &&
+      b.returnedBy?.toLowerCase() === engineerName &&
+      (b.locationChangedAt ? new Date(b.locationChangedAt) >= cutoff : false)
+    )
+    .sort((a, b) => {
+      const da = a.locationChangedAt ? new Date(a.locationChangedAt).getTime() : 0;
+      const db_ = b.locationChangedAt ? new Date(b.locationChangedAt).getTime() : 0;
+      return db_ - da;
+    });
 
   const officeReturned = returnedBottles.filter(b => b.locationType === "office");
   const supplierReturned = returnedBottles.filter(b => b.locationType === "supplier" || b.status === "returned");
@@ -190,6 +200,9 @@ export default function HistoryPage() {
           </div>
         ) : (
           <div style={{display: 'flex', flexDirection: 'column', gap: '2rem'}}>
+            <p style={{fontSize: '0.8rem', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '8px', padding: '0.65rem 0.9rem', margin: 0}}>
+              Showing returns from the last 30 days, most recent first.
+            </p>
             {/* OFFICE RETURNS */}
             <div>
               <h3 style={{fontSize: '1rem', color: 'var(--text-muted)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
