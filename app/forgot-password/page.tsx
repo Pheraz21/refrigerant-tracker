@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Mail, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 import styles from "../page.module.css";
 import Link from "next/link";
-import { db } from "@/lib/db";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -18,18 +18,13 @@ export default function ForgotPasswordPage() {
     setError("");
 
     try {
-      const user = await db.getUserByEmail(email);
-      if (!user) {
-        // For security, we usually don't reveal if an email exists
-        // but for this mock, let's be helpful or just pretend it sent.
-        // In a real app: "If this email exists, a reset link has been sent."
-      }
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (resetError) throw resetError;
       setSuccess(true);
-    } catch (err) {
-      setError("An error occurred. Please try again.");
+    } catch (err: any) {
+      setError(err.message || "An error occurred. Please try again.");
     } finally {
       setLoading(false);
     }

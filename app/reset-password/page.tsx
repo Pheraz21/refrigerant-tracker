@@ -5,11 +5,12 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Lock, ArrowLeft, Loader2, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import styles from "../page.module.css";
 import Link from "next/link";
+import { supabase } from "@/lib/supabaseClient";
 
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const token = searchParams.get("token");
+  const code = searchParams.get("code");
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -17,12 +18,18 @@ function ResetPasswordContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (!token) {
-      setError("Invalid or expired reset token.");
+    if (!code) {
+      setError("Invalid or expired reset link. Please request a new one.");
+      return;
     }
-  }, [token]);
+    supabase.auth.exchangeCodeForSession(code).then(({ error: exchErr }) => {
+      if (exchErr) setError("This reset link is invalid or has expired. Please request a new one.");
+      else setReady(true);
+    });
+  }, [code]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,16 +46,12 @@ function ResetPasswordContent() {
     setError("");
 
     try {
-      // Simulate API call to reset password in mock DB
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const { error: updateErr } = await supabase.auth.updateUser({ password });
+      if (updateErr) throw updateErr;
       setSuccess(true);
-      
-      // Auto-redirect to login after 3 seconds
-      setTimeout(() => {
-        router.push("/");
-      }, 3000);
-    } catch (err) {
-      setError("Failed to reset password. Please try again.");
+      setTimeout(() => router.push("/"), 3000);
+    } catch (err: any) {
+      setError(err.message || "Failed to reset password. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -140,7 +143,7 @@ function ResetPasswordContent() {
 
         {error && <p style={{color: "#ff4444", fontSize: "0.85rem", margin: "0.5rem 0 0"}}>{error}</p>}
 
-        <button type="submit" className={styles.loginButton} disabled={loading || !token}>
+        <button type="submit" className={styles.loginButton} disabled={loading || !ready}>
           {loading ? (
             <Loader2 size={20} className="spinner" />
           ) : (
