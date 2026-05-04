@@ -3,23 +3,26 @@
 import { useEffect, useState } from "react";
 import { db, Bottle } from "@/lib/db";
 import Link from "next/link";
-import { Warehouse, Package, Truck, AlertTriangle, CheckCircle2, Clock, MapPin, Bell, ExternalLink, CalendarClock } from "lucide-react";
+import { Warehouse, Package, Truck, AlertTriangle, CheckCircle2, Clock, MapPin, Bell, CalendarClock, UserCheck } from "lucide-react";
 
 export default function AdminDashboard() {
   const [bottles, setBottles] = useState<Bottle[]>([]);
   const [hwcns, setHwcns] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [pendingUsersCount, setPendingUsersCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
-      db.getAllBottles(), 
+      db.getAllBottles(),
       db.getAllHWCNs(),
-      db.getNotifications()
-    ]).then(([b, h, n]) => {
+      db.getNotifications(),
+      db.getAllUsers()
+    ]).then(([b, h, n, u]) => {
       setBottles(b);
       setHwcns(h);
       setNotifications(n);
+      setPendingUsersCount(u.filter((user: any) => user.status === "pending").length);
       setLoading(false);
     });
   }, []);
@@ -63,6 +66,12 @@ export default function AdminDashboard() {
     { label: "Total Active", value: totalActive, icon: Package, color: "#22c55e", bg: "rgba(34,197,94,0.06)", border: "rgba(34,197,94,0.2)", href: "/admin/bottles", desc: "All active assets" },
   ];
 
+  const getDaysSince = (dateStr?: string) => {
+    if (!dateStr) return null;
+    return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+  };
+  const daysColor = (days: number) => days > 28 ? "#ff3366" : days > 14 ? "#ffaa00" : "rgba(255,255,255,0.45)";
+
   const topCards = [
     { label: "New Alerts", value: newNotifications.length, icon: Bell, color: "#ff3366", bg: "rgba(255,51,102,0.08)", border: "rgba(255,51,102,0.3)", href: "/admin/notifications", desc: "Active system notifications" },
     { label: "Pending HWCNs", value: pendingHWCNs.length, icon: Clock, color: "#ffc107", bg: "rgba(255,193,7,0.08)", border: "rgba(255,193,7,0.3)", href: "/admin/hwcn", desc: "Awaiting Part E completion" },
@@ -81,6 +90,28 @@ export default function AdminDashboard() {
         <h1 style={{fontSize: "1.8rem", fontWeight: 700, marginBottom: "0.25rem"}}>Dashboard</h1>
         <p style={{color: "var(--text-muted)", fontSize: "0.9rem"}}>Office overview — HWCN compliance &amp; inventory status</p>
       </div>
+
+      {/* Pending Approvals Banner */}
+      {pendingUsersCount > 0 && (
+        <Link href="/admin/users" style={{textDecoration: "none", display: "block", marginBottom: "1.5rem"}}>
+          <div style={{
+            background: "rgba(255,170,0,0.08)", border: "1px solid rgba(255,170,0,0.35)",
+            borderRadius: "10px", padding: "0.9rem 1.25rem",
+            display: "flex", alignItems: "center", justifyContent: "space-between"
+          }}>
+            <div style={{display: "flex", alignItems: "center", gap: "0.75rem"}}>
+              <UserCheck size={20} color="#ffaa00" />
+              <span style={{fontWeight: 700, color: "#ffaa00", fontSize: "0.95rem"}}>
+                {pendingUsersCount} user{pendingUsersCount > 1 ? "s" : ""} awaiting approval
+              </span>
+              <span style={{fontSize: "0.82rem", color: "rgba(255,255,255,0.45)"}}>
+                Engineers cannot log in until approved
+              </span>
+            </div>
+            <span style={{color: "#ffaa00", fontSize: "0.82rem", fontWeight: 600}}>Review →</span>
+          </div>
+        </Link>
+      )}
 
       {/* Row 1: Compliance & Alerts */}
       <div style={{display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem", marginBottom: "1rem"}}>
@@ -228,7 +259,14 @@ export default function AdminDashboard() {
                     <span style={{color: "var(--text-muted)", fontSize: "0.85rem"}}>{h.engineer}</span>
                   </div>
                   <div style={{display: "flex", alignItems: "center", gap: "1rem"}}>
-                    <span style={{fontSize: "0.8rem", color: "var(--text-muted)"}}>{new Date(h.deliveredAt || h.date).toLocaleDateString("en-GB")}</span>
+                    {(() => {
+                      const days = getDaysSince(h.deliveredAt || h.date);
+                      return days !== null ? (
+                        <span style={{fontSize: "0.8rem", fontWeight: 700, color: daysColor(days)}}>
+                          {days === 0 ? "today" : `${days}d pending`}
+                        </span>
+                      ) : null;
+                    })()}
                     <span style={{background: "rgba(255,193,7,0.15)", color: "#ffc107", padding: "0.25rem 0.75rem", borderRadius: "20px", fontSize: "0.75rem", fontWeight: 600}}>
                       Awaiting Part E
                     </span>

@@ -192,9 +192,26 @@ export default function DashboardScannerPage() {
         </div>
       </header>
 
+      {!user?.vehicleReg && (
+        <Link href="/dashboard/profile" style={{textDecoration: "none", display: "block", marginBottom: "1.25rem"}}>
+          <div style={{
+            background: "rgba(255,170,0,0.08)", border: "1px solid rgba(255,170,0,0.3)",
+            borderRadius: "10px", padding: "0.85rem 1.1rem",
+            display: "flex", alignItems: "center", gap: "0.75rem"
+          }}>
+            <span style={{fontSize: "1rem"}}>🚐</span>
+            <div>
+              <span style={{fontWeight: 700, color: "#ffaa00", fontSize: "0.9rem"}}>Van registration not set</span>
+              <span style={{color: "rgba(255,255,255,0.5)", fontSize: "0.82rem", marginLeft: "0.5rem"}}>Required before making transfers</span>
+            </div>
+            <span style={{marginLeft: "auto", color: "#ffaa00", fontSize: "0.8rem", fontWeight: 600}}>Set now →</span>
+          </div>
+        </Link>
+      )}
+
       {!scanResult && !isCameraOpen && !isProcessingScan && (
         <>
-          <button 
+          <button
             onClick={startCamera}
             style={{
               width: '100%',

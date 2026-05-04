@@ -80,6 +80,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter();
 
   const [notifCount, setNotifCount] = useState(0);
+  const [pendingUsersCount, setPendingUsersCount] = useState(0);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   useEffect(() => {
     if (!loading && (!user || (user.role !== "admin" && user.role !== "office"))) {
@@ -88,14 +90,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
     }
 
-    if (user?.role === "admin") {
-      const loadCount = async () => {
-        const notifs = await db.getNotifications();
-        setNotifCount(notifs.filter(n => n.status === "new").length);
+    if (user?.role === "admin" || user?.role === "office") {
+      const loadCounts = async () => {
+        const [notifs, users] = await Promise.all([db.getNotifications(), db.getAllUsers()]);
+        setNotifCount(notifs.filter((n: any) => n.status === "new").length);
+        setPendingUsersCount(users.filter((u: any) => u.status === "pending").length);
       };
-      loadCount();
-      // Polling for mock real-time feel
-      const interval = setInterval(loadCount, 5000);
+      loadCounts();
+      const interval = setInterval(loadCounts, 5000);
       return () => clearInterval(interval);
     }
   }, [user, loading, pathname, router]);
@@ -175,16 +177,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     <span style={{flex: 1}}>{item.label}</span>
                     {item.label === "Notifications" && notifCount > 0 && (
                       <span style={{
-                        background: "var(--primary)",
-                        color: "#000",
-                        fontSize: "0.7rem",
-                        fontWeight: "700",
-                        padding: "0.1rem 0.4rem",
-                        borderRadius: "10px",
-                        minWidth: "1.2rem",
-                        textAlign: "center"
+                        background: "var(--primary)", color: "#000",
+                        fontSize: "0.7rem", fontWeight: "700",
+                        padding: "0.1rem 0.4rem", borderRadius: "10px",
+                        minWidth: "1.2rem", textAlign: "center"
                       }}>
                         {notifCount}
+                      </span>
+                    )}
+                    {item.label === "User Management" && pendingUsersCount > 0 && (
+                      <span style={{
+                        background: "#ffaa00", color: "#000",
+                        fontSize: "0.7rem", fontWeight: "700",
+                        padding: "0.1rem 0.4rem", borderRadius: "10px",
+                        minWidth: "1.2rem", textAlign: "center"
+                      }}>
+                        {pendingUsersCount}
                       </span>
                     )}
                   </Link>
@@ -244,25 +252,41 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <LogOut size={16} /> Sign Out
           </button>
 
-          <button
-            onClick={() => {
-              // Clear all fgas related keys
-              Object.keys(localStorage).forEach(key => {
-                if (key.startsWith("fgas_")) {
-                  localStorage.removeItem(key);
-                }
-              });
-              // Force a hard redirect to login
-              window.location.assign("/");
-            }}
-            style={{
-              width: "100%", marginTop: "0.75rem", padding: "0.5rem", background: "rgba(255, 68, 68, 0.1)", border: "1px solid rgba(255, 68, 68, 0.3)",
-              borderRadius: "6px", color: "#ff4444", fontSize: "0.7rem", fontWeight: 700, cursor: "pointer",
-              display: "flex", alignItems: "center", gap: "0.4rem", transition: "all 0.15s", justifyContent: "center"
-            }}
-          >
-            <RefreshCw size={12} /> Force Reset System Data
-          </button>
+          {showResetConfirm ? (
+            <div style={{marginTop: "0.75rem", background: "rgba(255,68,68,0.08)", border: "1px solid rgba(255,68,68,0.3)", borderRadius: "6px", padding: "0.75rem"}}>
+              <p style={{fontSize: "0.72rem", color: "#ff4444", fontWeight: 700, margin: "0 0 0.5rem", textAlign: "center"}}>
+                This will clear your local session. Are you sure?
+              </p>
+              <div style={{display: "flex", gap: "0.4rem"}}>
+                <button
+                  onClick={() => setShowResetConfirm(false)}
+                  style={{flex: 1, padding: "0.4rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "4px", color: "rgba(255,255,255,0.5)", fontSize: "0.72rem", cursor: "pointer"}}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    Object.keys(localStorage).forEach(key => { if (key.startsWith("fgas_")) localStorage.removeItem(key); });
+                    window.location.assign("/");
+                  }}
+                  style={{flex: 1, padding: "0.4rem", background: "rgba(255,68,68,0.15)", border: "1px solid rgba(255,68,68,0.4)", borderRadius: "4px", color: "#ff4444", fontSize: "0.72rem", fontWeight: 700, cursor: "pointer"}}
+                >
+                  Confirm
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowResetConfirm(true)}
+              style={{
+                width: "100%", marginTop: "0.75rem", padding: "0.5rem", background: "rgba(255,68,68,0.1)", border: "1px solid rgba(255,68,68,0.3)",
+                borderRadius: "6px", color: "#ff4444", fontSize: "0.7rem", fontWeight: 700, cursor: "pointer",
+                display: "flex", alignItems: "center", gap: "0.4rem", transition: "all 0.15s", justifyContent: "center"
+              }}
+            >
+              <RefreshCw size={12} /> Force Reset System Data
+            </button>
+          )}
         </div>
       </aside>
 

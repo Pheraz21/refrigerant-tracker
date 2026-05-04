@@ -127,23 +127,38 @@ export default function HazWasteSummaryPage() {
                 No high-weight cylinders detected.
               </div>
             ) : (
-              bottles.filter(b => b.currentWeight > 10).map(b => (
-                <Link key={b.serial} href={`/admin/bottles/${b.serial}`} style={{ textDecoration: "none" }}>
-                  <div style={{ 
-                    padding: "1rem", background: "rgba(255,187,0,0.08)", border: "1px solid rgba(255,187,0,0.2)",
-                    borderRadius: "8px", display: "flex", justifyContent: "space-between", alignItems: "center"
-                  }}>
-                    <div>
-                      <div style={{ fontWeight: 700, color: "#fff" }}>{b.serial}</div>
-                      <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.5)" }}>Held at {b.locationId} • {b.gasType}</div>
+              bottles.filter(b => b.currentWeight > 10).map(b => {
+                const daysHeld = b.locationChangedAt
+                  ? Math.floor((Date.now() - new Date(b.locationChangedAt).getTime()) / 86400000)
+                  : null;
+                const heldColor = daysHeld === null ? "rgba(255,255,255,0.4)"
+                  : daysHeld > 28 ? "#ff3366"
+                  : daysHeld > 14 ? "#ffaa00"
+                  : "#22c55e";
+                return (
+                  <Link key={b.serial} href={`/admin/bottles/${b.serial}`} style={{ textDecoration: "none" }}>
+                    <div style={{
+                      padding: "1rem", background: "rgba(255,187,0,0.08)", border: "1px solid rgba(255,187,0,0.2)",
+                      borderRadius: "8px", display: "flex", justifyContent: "space-between", alignItems: "center"
+                    }}>
+                      <div>
+                        <div style={{ fontWeight: 700, color: "#fff" }}>{b.serial}</div>
+                        <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.5)" }}>
+                          {b.locationId} • {b.gasType}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.25rem" }}>
+                        <div style={{ fontSize: "1.1rem", fontWeight: 800, color: "#ffbb00" }}>{b.currentWeight.toFixed(2)} kg</div>
+                        {daysHeld !== null && (
+                          <div style={{ fontSize: "0.72rem", fontWeight: 700, color: heldColor }}>
+                            {daysHeld === 0 ? "Arrived today" : `${daysHeld} days held`}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: "1.1rem", fontWeight: 800, color: "#ffbb00" }}>{b.currentWeight.toFixed(2)} kg</div>
-                      <div style={{ fontSize: "0.7rem", color: "rgba(255,187,0,0.6)", fontWeight: 700 }}>OVERWEIGHT</div>
-                    </div>
-                  </div>
-                </Link>
-              ))
+                  </Link>
+                );
+              })
             )}
           </div>
         </div>
