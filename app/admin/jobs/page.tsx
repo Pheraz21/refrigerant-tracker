@@ -438,7 +438,7 @@ export default function RefrigerantJobsPage() {
                 {job.hwcns.map(h => (
                   <Link
                     key={h.id}
-                    href={`/dashboard/hwcn/${h.id}`}
+                    href={`/admin/hwcn/${h.id}`}
                     onClick={e => e.stopPropagation()}
                     title={`Internal HWCN: ${h.id}`}
                     style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.2)", color: "#00e5ff", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600, textDecoration: "none" }}
@@ -642,7 +642,7 @@ export default function RefrigerantJobsPage() {
                                       <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
                                         {logHwcn && (
                                           <Link
-                                            href={`/dashboard/hwcn/${logHwcn.id}`}
+                                            href={`/admin/hwcn/${logHwcn.id}`}
                                             title="Internal HWCN (job → office)"
                                             style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.2)", color: "#00e5ff", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600, textDecoration: "none" }}
                                           >

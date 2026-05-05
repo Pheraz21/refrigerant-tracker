@@ -80,9 +80,9 @@ export default function AdminHWCNDetailPage() {
       {/* Header */}
       <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem"}}>
         <div style={{display: "flex", alignItems: "center", gap: "1rem"}}>
-          <Link href="/admin/hwcn" style={{color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "0.4rem", textDecoration: "none", fontSize: "0.9rem"}}>
-            <ArrowLeft size={18} /> Back to Queue
-          </Link>
+          <button onClick={() => router.back()} style={{background: "none", border: "none", padding: 0, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer", fontSize: "0.9rem"}}>
+            <ArrowLeft size={18} /> Back
+          </button>
           <span style={{fontFamily: "var(--font-geist-mono)", fontSize: "1.3rem", fontWeight: 800, color: "#00e5ff"}}>{hwcn.id}</span>
           {(() => {
             const s = hwcn.hwcnStatus;

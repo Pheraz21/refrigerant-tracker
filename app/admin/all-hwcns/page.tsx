@@ -222,7 +222,7 @@ export default function AllHWCNsPage() {
                       style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", cursor: "pointer" }}
                       onClick={() => {
                         if (row.isSupplierReturn) window.location.href = `/admin/supplier-hwcn/${encodeURIComponent(row.id)}`;
-                        else window.location.href = `/dashboard/hwcn/${row.id}`;
+                        else window.location.href = `/admin/hwcn/${row.id}`;
                       }}
                     >
                       <td style={{ padding: "0.85rem 1rem", fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "#00e5ff", fontSize: "0.88rem" }}>{row.id}</td>
@@ -256,7 +256,7 @@ export default function AllHWCNsPage() {
                           </Link>
                         ) : (
                           <Link
-                            href={`/dashboard/hwcn/${row.id}`}
+                            href={`/admin/hwcn/${row.id}`}
                             style={{ color: "#00e5ff", fontSize: "0.85rem", textDecoration: "none" }}
                             onClick={e => e.stopPropagation()}
                           >
