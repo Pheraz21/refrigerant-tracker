@@ -47,27 +47,32 @@ const navGroups = [
       { href: "/admin/vans", label: "Van Inventory", icon: Truck },
       { href: "/admin/onsite", label: "Bottles on Site", icon: MapPin },
       { href: "/admin/suppliers", label: "Bottles By Supplier", icon: Building2 },
-      { href: "/admin/jobs", label: "Refrigerant Jobs", icon: Briefcase },
-      { href: "/admin/all-jobs", label: "All Jobs", icon: ClipboardList },
       { href: "/admin/returned-to-supplier", label: "Returned to Supplier", icon: RotateCcw },
       { href: "/admin/expiry", label: "Upcoming Expiry", icon: CalendarClock },
+      { href: "/admin/decommissioned", label: "Decommissioned Equipment", icon: Trash2 },
+    ]
+  },
+  {
+    title: "Jobs",
+    items: [
+      { href: "/admin/jobs", label: "Refrigerant Jobs", icon: Briefcase },
+      { href: "/admin/all-jobs", label: "All Jobs", icon: ClipboardList },
     ]
   },
   {
     title: "Hazardous Waste",
     items: [
-      { href: "/admin/hwcn", label: "HWCN Queue", icon: ClipboardList },
+      { href: "/admin/hwcn", label: "HWCN Await Part E Queue", icon: ClipboardList },
+      { href: "/admin/all-hwcns", label: "All HWCNs", icon: FileText },
       { href: "/admin/haz-waste-summary", label: "Haz Waste In Company", icon: ShieldAlert },
       { href: "/admin/supplier-returns", label: "Waste Return from Office to Supplier", icon: Building2 },
-      { href: "/admin/decommissioned", label: "Decommissioned Equipment", icon: Trash2 },
     ]
   },
   {
-    title: "Other",
+    title: "Administration",
     items: [
       { href: "/admin/users", label: "User Management", icon: Users },
       { href: "/admin/analytics", label: "Analytics", icon: BarChart2 },
-      { href: "/admin/reports", label: "Reports", icon: FileText },
       { href: "/admin/profile", label: "My Profile", icon: UserCircle },
       { href: "/admin/settings", label: "Settings", icon: Settings },
     ]
