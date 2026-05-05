@@ -19,7 +19,6 @@ import {
   Building2,
   Truck,
   RotateCcw,
-  Repeat,
   Bell,
   CalendarClock,
   History,
@@ -77,7 +76,7 @@ const navGroups = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { user, switchRole, logout, loading } = useAuth();
+  const { user, logout, loading } = useAuth();
   const router = useRouter();
 
   const [notifCount, setNotifCount] = useState(0);
@@ -91,13 +90,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [collapsed]);
 
   useEffect(() => {
-    if (!loading && (!user || (user.role !== "admin" && user.role !== "office"))) {
+    const canAccessAdmin =
+      user?.availableRoles?.includes("admin") || user?.availableRoles?.includes("office") ||
+      user?.role === "admin" || user?.role === "office";
+    if (!loading && (!user || !canAccessAdmin)) {
       if (pathname !== "/admin/login") {
         router.push("/admin/login");
       }
     }
 
-    if (user?.role === "admin" || user?.role === "office") {
+    if (canAccessAdmin) {
       const loadCounts = async () => {
         const [notifs, users] = await Promise.all([db.getNotifications(), db.getAllUsers()]);
         setNotifCount(notifs.filter((n: any) => n.status === "new").length);
@@ -255,30 +257,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {!collapsed && <div style={{fontSize: "0.85rem", color: "#fff", fontWeight: 600, marginBottom: "0.25rem"}}>{user.name}</div>}
           {!collapsed && <div style={{fontSize: "0.75rem", color: "rgba(255,255,255,0.4)", marginBottom: "0.75rem"}}>{user.email}</div>}
           
-          {!collapsed && user.availableRoles && user.availableRoles.length > 1 && (
-            <div style={{marginBottom: "0.75rem"}}>
-              <p style={{fontSize: "0.65rem", color: "rgba(255,255,255,0.3)", fontWeight: 700, textTransform: "uppercase", marginBottom: "0.4rem", letterSpacing: "0.05em"}}>Switch Role</p>
-              <div style={{display: "flex", flexDirection: "column", gap: "0.3rem"}}>
-                {user.availableRoles.filter(r => r !== user.role).map(role => (
-                  <button
-                    key={role}
-                    onClick={() => switchRole(role)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.4rem 0.6rem",
-                      background: "rgba(0, 229, 255, 0.05)", border: "1px solid rgba(0, 229, 255, 0.15)",
-                      borderRadius: "6px", color: "#00e5ff", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer",
-                      width: "100%", transition: "all 0.15s"
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = "rgba(0, 229, 255, 0.1)"}
-                    onMouseLeave={(e) => e.currentTarget.style.background = "rgba(0, 229, 255, 0.05)"}
-                  >
-                    <Repeat size={12} />
-                    Switch to {role === "engineer" ? "Field Mode" : role === "admin" ? "Admin Mode" : "Office Mode"}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
           <button
             onClick={logout}
             title="Sign Out"

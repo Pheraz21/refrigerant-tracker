@@ -14,11 +14,12 @@ export default function InventoryPage() {
 
   useEffect(() => {
     db.getAllBottles().then(all => {
-      // Only show bottles physically in this engineer's van
+      // Match by vehicleReg (preferred) or name-in-locationId (fallback for older bottles)
       const vanBottles = all.filter(b =>
-        b.locationType === "van" &&
-        !!user?.vehicleReg &&
-        b.vehicleReg === user.vehicleReg
+        b.locationType === "van" && (
+          (user?.vehicleReg && b.vehicleReg === user.vehicleReg) ||
+          b.locationId?.toLowerCase().includes((user?.name || "").toLowerCase())
+        )
       );
       setBottles(vanBottles);
       setLoading(false);

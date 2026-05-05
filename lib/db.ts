@@ -578,8 +578,13 @@ export const db = {
     return data ? data.map(mapBottle) : [];
   },
 
-  async signOutFromStores(serial: string, engineerName: string): Promise<void> {
-    await supabase.from('bottles').update({
+  async signOutFromStores(serial: string, engineerName: string, engineerId?: string): Promise<void> {
+    let vehicleReg: string | null = null;
+    if (engineerId) {
+      const eng = await this.getEngineerById(engineerId);
+      vehicleReg = eng?.vehicleReg || null;
+    }
+    const updates: any = {
       location_type: "van",
       location_id: `${engineerName} - Van`,
       location_changed_at: new Date().toISOString(),
@@ -590,7 +595,9 @@ export const db = {
       delivered_at: null,
       returned_by: null,
       producer_sites: []
-    }).eq('serial', serial);
+    };
+    if (vehicleReg) updates.vehicle_reg = vehicleReg;
+    await supabase.from('bottles').update(updates).eq('serial', serial);
   },
 
   async getAllHWCNs(): Promise<any[]> {
@@ -631,11 +638,16 @@ export const db = {
         .neq('status', 'returned');
       return data ? data.map(mapBottle) : [];
     }
+    const eng = await this.getEngineerById(engineerId);
+    const orParts: string[] = [];
+    if (eng?.vehicleReg) orParts.push(`vehicle_reg.eq.${eng.vehicleReg}`);
+    if (eng?.name) orParts.push(`location_id.ilike.%${eng.name}%`);
+    orParts.push(`location_id.eq.${engineerId}`);
     const { data } = await supabase.from('bottles')
       .select('*')
       .eq('location_type', 'van')
       .neq('status', 'returned')
-      .or(`location_id.eq.${engineerId},location_id.ilike.%${engineerId}%`);
+      .or(orParts.join(','));
     return data ? data.map(mapBottle) : [];
   },
 

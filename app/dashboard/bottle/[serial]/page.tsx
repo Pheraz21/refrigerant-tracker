@@ -531,7 +531,7 @@ export default function BottleActionHub() {
                   disabled={signingOut}
                   onClick={async () => {
                     setSigningOut(true);
-                    await db.signOutFromStores(serial, user?.name || 'Engineer');
+                    await db.signOutFromStores(serial, user?.name || 'Engineer', user?.id);
                     router.push('/dashboard');
                   }}
                 >

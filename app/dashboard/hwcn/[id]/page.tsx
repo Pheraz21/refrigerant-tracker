@@ -73,7 +73,7 @@ export default function HWCNViewPage() {
   const deliveredTime = hwcn.deliveredAt ? new Date(hwcn.deliveredAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
 
   const primarySite = hwcn.sites?.[0];
-  const isOffice = hwcn.destination === "Office / Stores";
+  const isOffice = hwcn.destination === "Office/Stores" || hwcn.destination === "Office / Stores";
 
   return (
     <div className="hwcn-container" style={{ maxWidth: "820px", margin: "0 auto", padding: "0.4rem", background: "#fff", color: "#000", minHeight: "100vh", fontFamily: "Arial, sans-serif" }}>
@@ -299,10 +299,11 @@ export default function HWCNViewPage() {
       </div>
 
       {/* ─────────── PARTS C & D side by side ─────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.5rem" }}>
+      <div style={{ overflowX: "auto", marginBottom: "0.5rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", minWidth: "520px" }}>
 
         {/* PART C */}
-        <div className="hwcn-section" style={{ margin: 0 }}>
+        <div className="hwcn-section" style={{ margin: 0, minWidth: "240px" }}>
           <div className="hwcn-header">Part C: Carrier's Certificate</div>
           <div style={{ padding: "0.4rem 0.6rem", fontSize: "0.78rem" }}>
             <p style={{ fontSize: "0.68rem", color: "#444", marginBottom: "0.3rem", lineHeight: 1.2 }}>
@@ -325,7 +326,7 @@ export default function HWCNViewPage() {
         </div>
 
         {/* PART D */}
-        <div className="hwcn-section" style={{ margin: 0 }}>
+        <div className="hwcn-section" style={{ margin: 0, minWidth: "240px" }}>
           <div className="hwcn-header">Part D: Consignor's Certificate</div>
           <div style={{ padding: "0.4rem 0.6rem", fontSize: "0.78rem" }}>
             <p style={{ fontSize: "0.68rem", color: "#444", marginBottom: "0.3rem", lineHeight: 1.2 }}>
@@ -346,6 +347,7 @@ export default function HWCNViewPage() {
           </div>
         </div>
       </div>
+      </div>
 
       {/* ─────────── PART E ─────────── */}
       <div className="hwcn-section">
@@ -365,8 +367,9 @@ export default function HWCNViewPage() {
             I received this waste at the address given in A3, authorises the management of the waste described in B at the address given in A3.
           </p>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.2rem" }}>
-            <div>
+          <div style={{ overflowX: "auto" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.2rem", minWidth: "360px" }}>
+            <div style={{ minWidth: "160px" }}>
               <div style={{ display: "flex", gap: "0.8rem" }}>
                 {field("1. Date received", deliveredDate)}
                 {field("Time", deliveredTime)}
@@ -378,7 +381,7 @@ export default function HWCNViewPage() {
               </div>
               {field("4. Waste exemption no.", "31Z 3725 34")}
             </div>
-            <div>
+            <div style={{ minWidth: "160px" }}>
               <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.3rem" }}>
                 <span style={{ fontSize: "0.68rem", whiteSpace: "nowrap" }}>Signature:</span>
                 <div className="sig-box signature" style={{ flex: 1, minHeight: "2rem", padding: "0.15rem 0.5rem" }}>
@@ -391,6 +394,7 @@ export default function HWCNViewPage() {
                 {field("Time", deliveredTime)}
               </div>
             </div>
+          </div>
           </div>
         </div>
       </div>

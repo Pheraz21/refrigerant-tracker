@@ -107,16 +107,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        if ((user.role === "admin" || user.role === "office") && (isAdminLogin || pathname === "/")) {
+        const canAccessAdmin =
+          user.availableRoles?.includes("admin") || user.availableRoles?.includes("office") ||
+          user.role === "admin" || user.role === "office";
+        const canAccessDashboard =
+          user.availableRoles?.includes("engineer") || user.role === "engineer";
+
+        if (canAccessAdmin && (isAdminLogin || pathname === "/")) {
           router.push("/admin");
           return;
-        } else if (user.role === "engineer" && (isEngineerLogin || pathname.startsWith("/admin"))) {
-          // If engineer tries to access admin routes, redirect to dashboard
-          if (pathname.startsWith("/admin") && !isAdminLogin) {
-            router.push("/dashboard");
-          } else if (isEngineerLogin) {
-            router.push("/dashboard");
-          }
+        } else if (!canAccessAdmin && isAdminRoute && !isAdminLogin) {
+          router.push("/dashboard");
+          return;
+        } else if (canAccessDashboard && isEngineerLogin) {
+          router.push("/dashboard");
+          return;
+        } else if (!canAccessDashboard && pathname.startsWith("/dashboard") && canAccessAdmin) {
+          router.push("/admin");
+          return;
         }
       }
     }
@@ -193,7 +201,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { db } = await import("./db");
       const dbUser = await db.getUserById(user.id);
       if (dbUser) {
-        const updated = { ...user, name: dbUser.name, email: dbUser.email, status: dbUser.status, availableRoles: dbUser.availableRoles, role: dbUser.role };
+        const updated = { ...user, name: dbUser.name, email: dbUser.email, status: dbUser.status, availableRoles: dbUser.availableRoles, role: dbUser.role, vehicleReg: dbUser.vehicleReg, employer: dbUser.employer };
         setUser(updated);
         localStorage.setItem("fgas_user", JSON.stringify(updated));
       }
