@@ -94,10 +94,8 @@ export default function AdminHWCNDetailPage() {
             return <span style={{background: badge.bg, color: badge.color, padding: "0.3rem 0.85rem", borderRadius: "20px", fontSize: "0.8rem", fontWeight: 600}}>{badge.label}</span>;
           })()}
         </div>
-        <button onClick={() => {
-          const w = window.open(`/dashboard/hwcn/${hwcn.id}`, "_blank");
-        }} style={{padding: "0.6rem 1.25rem", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "#fff", cursor: "pointer", fontSize: "0.85rem"}}>
-          View Printable HWCN ↗
+        <button onClick={() => router.push(`/admin/hwcn/${hwcn.id}/print`)} style={{padding: "0.6rem 1.25rem", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "#fff", cursor: "pointer", fontSize: "0.85rem"}}>
+          View Printable HWCN →
         </button>
       </div>
 
