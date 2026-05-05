@@ -18,9 +18,14 @@ export default function EditBottlePage() {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (user && user.role !== "admin" && user.role !== "office") {
-      router.replace("/dashboard");
-      return;
+    if (user) {
+      const canAccess =
+        user.availableRoles?.includes("admin") || user.availableRoles?.includes("office") ||
+        user.role === "admin" || user.role === "office";
+      if (!canAccess) {
+        router.replace("/dashboard");
+        return;
+      }
     }
     if (serial) {
       Promise.all([
