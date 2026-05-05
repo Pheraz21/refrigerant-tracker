@@ -95,7 +95,7 @@ export default function StoresInventoryPage() {
 
   const exportCSV = () => {
     const header = "Serial,Category,Gas Type,Capacity,Current,Supplier,Registered,Returned By,Date Received\n";
-    const rows = filtered.map(b => `${b.serial},${b.category},${b.gasType},${b.initialWeight},${b.currentWeight},${b.supplier},${b.registeredAt},${b.returnedBy},${b.locationChangedAt}`).join("\n");
+    const rows = filtered.map(b => `${b.serial},${b.category},${b.gasType},${b.initialWeight ?? 0},${b.currentWeight ?? 0},${b.supplier},${b.registeredAt},${b.returnedBy},${b.locationChangedAt}`).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -171,8 +171,10 @@ export default function StoresInventoryPage() {
     const badge = getCatBadge(b.category);
     const isReclaim = b.category === "reclaim";
     const isNitrogen = b.category === "nitrogen";
-    const balance = b.initialWeight - b.currentWeight;
-    const percent = Math.min(100, Math.max(0, (b.currentWeight / b.initialWeight) * 100));
+    const iw = b.initialWeight ?? 0;
+    const cw = b.currentWeight ?? 0;
+    const balance = iw - cw;
+    const percent = iw > 0 ? Math.min(100, Math.max(0, (cw / iw) * 100)) : 0;
 
     switch (key) {
       case "serial":
@@ -190,7 +192,7 @@ export default function StoresInventoryPage() {
       case "capacity":
         return (
           <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.9rem"}}>
-            <div style={{fontWeight: 600}}>{b.initialWeight.toFixed(2)} kg</div>
+            <div style={{fontWeight: 600}}>{iw.toFixed(2)} kg</div>
             <div style={{fontSize: "0.72rem", color: "var(--text-muted)"}}>
               {isReclaim ? "Max Capacity" : isNitrogen ? "Full Weight" : "Full Charge"}
             </div>
@@ -203,7 +205,7 @@ export default function StoresInventoryPage() {
               <span style={{color: "var(--text-muted)"}}>N/A</span>
             ) : (
               <>
-                <div style={{fontWeight: 700, color: isReclaim ? "#ffaa00" : "#22c55e"}}>{b.currentWeight.toFixed(2)} kg</div>
+                <div style={{fontWeight: 700, color: isReclaim ? "#ffaa00" : "#22c55e"}}>{cw.toFixed(2)} kg</div>
                 <div style={{fontSize: "0.72rem", color: "var(--text-muted)"}}>{isReclaim ? "Recovered" : "Remaining"}</div>
                 <div style={{width: "60px", height: "4px", background: "rgba(255,255,255,0.1)", borderRadius: "2px", marginTop: "4px", overflow: "hidden"}}>
                   <div style={{width: `${percent}%`, height: "100%", background: isReclaim ? "#ffaa00" : "#22c55e", transition: "width 0.3s"}} />

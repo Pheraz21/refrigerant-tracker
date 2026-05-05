@@ -28,8 +28,8 @@ const mapUser = (u: any): AppUser => ({
 const mapBottle = (b: any): Bottle => ({
   ...b,
   gasType: b.gas_type || b.gasType,
-  initialWeight: b.initial_weight || b.initialWeight,
-  currentWeight: b.current_weight || b.currentWeight,
+  initialWeight: b.initial_weight ?? b.initialWeight,
+  currentWeight: b.current_weight ?? b.currentWeight,
   locationType: b.location_type || b.locationType,
   locationId: b.location_id || b.locationId,
   poNumber: b.po_number || b.poNumber,
