@@ -25,6 +25,7 @@ const COLUMN_DEFS = [
 export default function StoresInventoryPage() {
   const router = useRouter();
   const [bottles, setBottles] = useState<Bottle[]>([]);
+  const [engineers, setEngineers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [sinceDate, setSinceDate] = useState("");
@@ -36,8 +37,12 @@ export default function StoresInventoryPage() {
     useTablePrefs("stores", COLUMN_DEFS.map(c => c.key));
 
   useEffect(() => {
-    db.getBottlesByLocation("office").then(b => {
+    Promise.all([
+      db.getBottlesByLocation("office"),
+      db.getEngineerProfiles(),
+    ]).then(([b, e]) => {
       setBottles(b);
+      setEngineers(e);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -228,7 +233,24 @@ export default function StoresInventoryPage() {
           </td>
         );
       case "returnedBy":
-        return <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.9rem"}}>{b.returnedBy || "—"}</td>;
+        return (
+          <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.9rem"}}>
+            {b.returnedBy ? (
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const eng = engineers.find((u: any) => u.name === b.returnedBy);
+                  router.push(`/admin/vans?engineer=${eng ? eng.id : b.returnedBy}`);
+                }}
+                style={{cursor: "pointer", color: "#00e5ff", fontWeight: 500}}
+                onMouseEnter={(e) => e.currentTarget.style.textDecoration = "underline"}
+                onMouseLeave={(e) => e.currentTarget.style.textDecoration = "none"}
+              >
+                {b.returnedBy}
+              </span>
+            ) : "—"}
+          </td>
+        );
       case "dateReceived":
         return <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.82rem", color: "var(--text-muted)"}}>{b.locationChangedAt ? new Date(b.locationChangedAt).toLocaleDateString("en-GB") : "—"}</td>;
       case "supplier":

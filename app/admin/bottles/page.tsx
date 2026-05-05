@@ -290,10 +290,14 @@ export default function AllBottlesPage() {
                   router.push(`/admin/vans?engineer=${user ? user.id : idOrName}`);
                 } else if (b.locationType === "supplier") {
                   router.push(`/admin/suppliers?supplier=${b.locationId}`);
+                } else if (b.locationType === "office") {
+                  router.push("/admin/stores");
+                } else if (b.locationType === "site") {
+                  router.push("/admin/onsite");
                 }
               }}
-              style={{display: "inline-flex", alignItems: "center", gap: "0.4rem", cursor: (b.locationType === "van" || b.locationType === "supplier") ? "pointer" : "default"}}
-              onMouseEnter={(e) => { if (b.locationType === "van" || b.locationType === "supplier") e.currentTarget.style.textDecoration = "underline"; }}
+              style={{display: "inline-flex", alignItems: "center", gap: "0.4rem", cursor: (b.locationType === "van" || b.locationType === "supplier" || b.locationType === "office" || b.locationType === "site") ? "pointer" : "default"}}
+              onMouseEnter={(e) => { if (b.locationType === "van" || b.locationType === "supplier" || b.locationType === "office" || b.locationType === "site") e.currentTarget.style.textDecoration = "underline"; }}
               onMouseLeave={(e) => e.currentTarget.style.textDecoration = "none"}
             >
               {getLocIcon(b.locationType)}
