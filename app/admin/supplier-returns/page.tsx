@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { db, Bottle } from "@/lib/db";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/lib/AuthContext";
-import { Truck, Search, Plus, Trash2, Camera, AlertCircle, CheckCircle2, Loader2, ArrowLeft, X } from "lucide-react";
+import { Truck, Search, Plus, Trash2, Camera, AlertCircle, CheckCircle2, Loader2, ArrowLeft, X, Lock } from "lucide-react";
 import Link from "next/link";
 
 export default function SupplierReturnPage() {
@@ -14,6 +14,7 @@ export default function SupplierReturnPage() {
   const [hwcnNumber, setHwcnNumber] = useState("");
   const [returnSupplier, setReturnSupplier] = useState("");
   const [returnSupplierBranch, setReturnSupplierBranch] = useState("");
+  const [supplierLock, setSupplierLock] = useState("");
   const [inputSerial, setInputSerial] = useState("");
   const [selectedBottles, setSelectedBottles] = useState<Bottle[]>([]);
   const [weights, setWeights] = useState<Record<string, number>>({});
@@ -50,6 +51,25 @@ export default function SupplierReturnPage() {
         return;
       }
 
+      const bottleSupplier = bottle.supplier || "";
+
+      if (selectedBottles.length === 0) {
+        // First bottle — auto-populate supplier from bottle data
+        if (bottleSupplier) {
+          setReturnSupplier(bottleSupplier);
+          setSupplierLock(bottleSupplier);
+        }
+      } else {
+        // Subsequent bottles — enforce same supplier
+        const expected = supplierLock || returnSupplier;
+        if (bottleSupplier && expected && bottleSupplier.toLowerCase() !== expected.toLowerCase()) {
+          setError(
+            `Supplier mismatch: ${bottle.serial} belongs to "${bottleSupplier}" but you are returning to "${expected}". All bottles on one return note must be from the same supplier.`
+          );
+          return;
+        }
+      }
+
       setSelectedBottles([...selectedBottles, bottle]);
       setWeights({ ...weights, [bottle.serial]: bottle.currentWeight });
       setInputSerial("");
@@ -60,10 +80,15 @@ export default function SupplierReturnPage() {
   };
 
   const removeBottle = (serial: string) => {
-    setSelectedBottles(selectedBottles.filter(b => b.serial !== serial));
+    const remaining = selectedBottles.filter(b => b.serial !== serial);
+    setSelectedBottles(remaining);
     const newWeights = { ...weights };
     delete newWeights[serial];
     setWeights(newWeights);
+    if (remaining.length === 0) {
+      setSupplierLock("");
+      setReturnSupplier("");
+    }
   };
 
   const handleWeightChange = (serial: string, val: string) => {
@@ -196,7 +221,7 @@ export default function SupplierReturnPage() {
                 }}>
                   <div>
                     <div style={{ fontWeight: 700, color: "var(--primary)", fontSize: "1rem" }}>{b.serial}</div>
-                    <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.5)" }}>{b.gasType} • Current: {b.currentWeight}kg</div>
+                    <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.5)" }}>{b.gasType} • Current: {b.currentWeight}kg{b.supplier ? ` • ${b.supplier}` : ""}</div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
@@ -232,18 +257,26 @@ export default function SupplierReturnPage() {
             <h3 style={{ fontSize: "1rem", fontWeight: 700, marginBottom: "1.25rem", color: "#fff" }}>Transfer Details</h3>
             
             <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.5rem", fontWeight: 600 }}>
-                Supplier Name <span style={{ color: "#ff3366" }}>*</span>
+              <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.5rem", fontWeight: 600 }}>
+                <span>Supplier Name <span style={{ color: "#ff3366" }}>*</span></span>
+                {supplierLock && (
+                  <span style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", color: "#22c55e", fontWeight: 600 }}>
+                    <Lock size={11} /> Auto-filled from bottle
+                  </span>
+                )}
               </label>
               <input
                 type="text"
                 required
-                placeholder="e.g. Refcool, Cool-Kit"
+                placeholder="Add a bottle first — supplier will auto-fill"
                 value={returnSupplier}
-                onChange={e => setReturnSupplier(e.target.value)}
+                onChange={e => !supplierLock && setReturnSupplier(e.target.value)}
+                readOnly={!!supplierLock}
                 style={{
-                  width: "100%", padding: "0.85rem 1rem", background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", color: "#fff", outline: "none"
+                  width: "100%", padding: "0.85rem 1rem", background: supplierLock ? "rgba(34,197,94,0.06)" : "rgba(255,255,255,0.05)",
+                  border: `1px solid ${supplierLock ? "rgba(34,197,94,0.25)" : "rgba(255,255,255,0.12)"}`,
+                  borderRadius: "10px", color: "#fff", outline: "none",
+                  cursor: supplierLock ? "default" : "text"
                 }}
               />
             </div>
