@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { db, UsageLog } from "@/lib/db";
+import { db, UsageLog, SupplierReturnGroup } from "@/lib/db";
 import {
   Briefcase, Search, ChevronDown, ChevronRight, Calendar, X,
   ExternalLink, Settings2, ArrowUpDown, ArrowUp, ArrowDown, Printer
@@ -22,6 +22,7 @@ interface JobSummary {
   reclaimKg: number;
   bottleCount: number;
   hwcns: any[];
+  returnNotes: SupplierReturnGroup[];
 }
 
 const COLUMN_DEFS = [
@@ -42,6 +43,7 @@ export default function RefrigerantJobsPage() {
   const [usageLogs, setUsageLogs] = useState<UsageLog[]>([]);
   const [hwcns, setHwcns] = useState<any[]>([]);
   const [decommissions, setDecommissions] = useState<any[]>([]);
+  const [supplierReturnGroups, setSupplierReturnGroups] = useState<SupplierReturnGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -56,11 +58,12 @@ export default function RefrigerantJobsPage() {
     useTablePrefs("jobs", COLUMN_DEFS.map(c => c.key));
 
   useEffect(() => {
-    Promise.all([db.getAllUsageLogs(), db.getAllHWCNs(), db.getAllDecommissions()])
-      .then(([logs, h, decom]) => {
+    Promise.all([db.getAllUsageLogs(), db.getAllHWCNs(), db.getAllDecommissions(), db.getSupplierReturnGroups()])
+      .then(([logs, h, decom, returnGroups]) => {
         setUsageLogs(logs);
         setHwcns(h);
         setDecommissions(decom);
+        setSupplierReturnGroups(returnGroups);
         setLoading(false);
       });
   }, []);
@@ -68,14 +71,12 @@ export default function RefrigerantJobsPage() {
   const jobs = useMemo<JobSummary[]>(() => {
     const grouped = new Map<string, UsageLog[]>();
 
-    // Seed from usage logs
     usageLogs.forEach(log => {
       const key = log.siteRef || "No Job Ref";
       if (!grouped.has(key)) grouped.set(key, []);
       grouped.get(key)!.push(log);
     });
 
-    // Also include jobs that only appear in decommissioned equipment (no usage logs)
     decommissions.forEach(d => {
       if (d.jobNumber && !grouped.has(d.jobNumber)) {
         grouped.set(d.jobNumber, []);
@@ -85,12 +86,12 @@ export default function RefrigerantJobsPage() {
     return Array.from(grouped.entries()).map(([siteRef, logs]) => {
       const sortedByDate = [...logs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       const first = sortedByDate[0];
-
-      // For decom-only jobs, fall back to metadata from the decommission record
       const firstDecom = decommissions.find(d => d.jobNumber === siteRef);
-
       const jobSerials = new Set(logs.map(l => l.serial));
       const relatedHwcns = hwcns.filter(h => jobSerials.has(h.serial));
+      const relatedReturnNotes = supplierReturnGroups.filter(g =>
+        g.serials.some(s => jobSerials.has(s))
+      );
       const newGasKg = logs.filter(l => !RECOVERY_TYPES.has((l.jobType || "").toLowerCase())).reduce((s, l) => s + (l.weightUsed || 0), 0);
       const reclaimKg = logs.filter(l => RECOVERY_TYPES.has((l.jobType || "").toLowerCase())).reduce((s, l) => s + (l.weightUsed || 0), 0);
       return {
@@ -104,9 +105,10 @@ export default function RefrigerantJobsPage() {
         reclaimKg,
         bottleCount: jobSerials.size,
         hwcns: relatedHwcns,
+        returnNotes: relatedReturnNotes,
       };
     });
-  }, [usageLogs, hwcns, decommissions]);
+  }, [usageLogs, hwcns, decommissions, supplierReturnGroups]);
 
   const filtered = useMemo(() => {
     return jobs.filter(job => {
@@ -427,25 +429,51 @@ export default function RefrigerantJobsPage() {
             ) : <span style={{ color: "var(--text-muted)" }}>—</span>}
           </td>
         );
-      case "hwcn":
+      case "hwcn": {
+        const hasAny = job.hwcns.length > 0 || job.returnNotes.length > 0;
         return (
           <td key={key} style={tdBase}>
-            {job.hwcns.length > 0 ? (
+            {hasAny ? (
               <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
                 {job.hwcns.map(h => (
                   <Link
                     key={h.id}
-                    href="/admin/hwcn"
+                    href={`/dashboard/hwcn/${h.id}`}
                     onClick={e => e.stopPropagation()}
+                    title={`Internal HWCN: ${h.id}`}
                     style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.2)", color: "#00e5ff", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600, textDecoration: "none" }}
                   >
                     <ExternalLink size={11} /> {h.id?.slice(0, 8) || "HWCN"}
                   </Link>
                 ))}
+                {job.returnNotes.map(g => (
+                  g.photoUrl ? (
+                    <a
+                      key={g.hwcnNumber}
+                      href={g.photoUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={e => e.stopPropagation()}
+                      title={`Supplier Return Note: ${g.hwcnNumber}`}
+                      style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.25)", color: "#a855f7", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600, textDecoration: "none" }}
+                    >
+                      <ExternalLink size={11} /> {g.hwcnNumber}
+                    </a>
+                  ) : (
+                    <span
+                      key={g.hwcnNumber}
+                      title={`Supplier Return Note: ${g.hwcnNumber}`}
+                      style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.25)", color: "#a855f7", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600 }}
+                    >
+                      {g.hwcnNumber}
+                    </span>
+                  )
+                ))}
               </div>
             ) : <span style={{ color: "var(--text-muted)" }}>—</span>}
           </td>
         );
+      }
       default:
         return null;
     }
@@ -593,12 +621,13 @@ export default function RefrigerantJobsPage() {
                                 <th style={{ ...thBase, fontSize: "0.65rem" }}>Job Type</th>
                                 <th style={{ ...thBase, fontSize: "0.65rem", textAlign: "right" }}>Qty Used</th>
                                 <th style={{ ...thBase, fontSize: "0.65rem" }}>Before → After</th>
-                                <th style={{ ...thBase, fontSize: "0.65rem" }}>HWCN</th>
+                                <th style={{ ...thBase, fontSize: "0.65rem" }}>HWCNs</th>
                               </tr>
                             </thead>
                             <tbody>
                               {job.logs.map(log => {
                                 const logHwcn = hwcns.find(h => h.serial === log.serial);
+                                const logReturnNote = supplierReturnGroups.find(g => g.serials.includes(log.serial));
                                 const isRecovery = RECOVERY_TYPES.has((log.jobType || "").toLowerCase());
                                 return (
                                   <tr key={log.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
@@ -622,14 +651,40 @@ export default function RefrigerantJobsPage() {
                                       {log.weightBefore?.toFixed(2) ?? "?"} → {log.weightAfter?.toFixed(2) ?? "?"}
                                     </td>
                                     <td style={{ padding: "0.5rem 1rem" }}>
-                                      {logHwcn ? (
-                                        <Link
-                                          href="/admin/hwcn"
-                                          style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.2)", color: "#00e5ff", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600, textDecoration: "none" }}
-                                        >
-                                          <ExternalLink size={11} /> {logHwcn.id?.slice(0, 8) || "HWCN"}
-                                        </Link>
-                                      ) : <span style={{ color: "var(--text-muted)" }}>—</span>}
+                                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
+                                        {logHwcn && (
+                                          <Link
+                                            href={`/dashboard/hwcn/${logHwcn.id}`}
+                                            title="Internal HWCN (job → office)"
+                                            style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.2)", color: "#00e5ff", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600, textDecoration: "none" }}
+                                          >
+                                            <ExternalLink size={11} /> {logHwcn.id?.slice(0, 8) || "HWCN"}
+                                          </Link>
+                                        )}
+                                        {logReturnNote && (
+                                          logReturnNote.photoUrl ? (
+                                            <a
+                                              href={logReturnNote.photoUrl}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              title={`Return note (office → supplier): ${logReturnNote.hwcnNumber}`}
+                                              style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.25)", color: "#a855f7", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600, textDecoration: "none" }}
+                                            >
+                                              <ExternalLink size={11} /> {logReturnNote.hwcnNumber}
+                                            </a>
+                                          ) : (
+                                            <span
+                                              title={`Return note (office → supplier): ${logReturnNote.hwcnNumber}`}
+                                              style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.25)", color: "#a855f7", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600 }}
+                                            >
+                                              {logReturnNote.hwcnNumber}
+                                            </span>
+                                          )
+                                        )}
+                                        {!logHwcn && !logReturnNote && (
+                                          <span style={{ color: "var(--text-muted)" }}>—</span>
+                                        )}
+                                      </div>
                                     </td>
                                   </tr>
                                 );

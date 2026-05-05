@@ -136,6 +136,16 @@ export interface Bottle {
   rentalExpiryDate?: string;
 }
 
+export interface SupplierReturnGroup {
+  hwcnNumber: string;
+  serials: string[];
+  gasTypes: string[];
+  totalWeight: number;
+  returnedBy: string;
+  returnedAt: string;
+  photoUrl?: string;
+}
+
 export interface AppNotification {
   id: string;
   type: "location_discrepancy" | "new_registration" | "rental_expiry" | "low_gas" | "new_gas_registration" | "expiry_date_required";
@@ -603,6 +613,34 @@ export const db = {
   async getAllHWCNs(): Promise<any[]> {
     const { data } = await supabase.from('hwcns').select('*');
     return data ? data.map(mapHWCN) : [];
+  },
+
+  async getSupplierReturnGroups(): Promise<SupplierReturnGroup[]> {
+    const { data } = await supabase
+      .from('bottles')
+      .select('serial, return_hwcn_number, supplier_hwcn_photo_url, current_weight, gas_type, returned_by, returned_at')
+      .not('return_hwcn_number', 'is', null);
+    if (!data) return [];
+    const map = new Map<string, any[]>();
+    data.forEach(b => {
+      const key = b.return_hwcn_number as string;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(b);
+    });
+    return Array.from(map.entries()).map(([hwcnNumber, bottles]) => {
+      const sorted = [...bottles].sort((a, b) =>
+        new Date(a.returned_at || 0).getTime() - new Date(b.returned_at || 0).getTime()
+      );
+      return {
+        hwcnNumber,
+        serials: bottles.map(b => b.serial as string),
+        gasTypes: [...new Set(bottles.map(b => b.gas_type as string).filter(Boolean))],
+        totalWeight: bottles.reduce((s, b) => s + Number(b.current_weight || 0), 0),
+        returnedBy: sorted[0]?.returned_by || "",
+        returnedAt: sorted[0]?.returned_at || "",
+        photoUrl: bottles.find(b => b.supplier_hwcn_photo_url)?.supplier_hwcn_photo_url as string | undefined,
+      };
+    });
   },
 
   async getHWCNsByStatus(status: string): Promise<any[]> {
