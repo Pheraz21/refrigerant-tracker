@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { db, Bottle } from "@/lib/db";
-import { FileText, Droplets, MapPin, ClipboardList, ShieldAlert } from "lucide-react";
+import { FileText, Droplets, MapPin, ClipboardList, ShieldAlert, FileSpreadsheet, Calendar } from "lucide-react";
 
 type ReportView = "usage" | "locations" | "hwcn" | "waste";
 
@@ -11,6 +11,17 @@ export default function ReportsPage() {
   const [hwcns, setHwcns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeReport, setActiveReport] = useState<ReportView>("usage");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  const exportCSV = (rows: string[][], filename: string) => {
+    const content = rows.map(r => r.map(c => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([content], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; a.click();
+    URL.revokeObjectURL(url);
+  };
 
   useEffect(() => {
     Promise.all([db.getAllBottles(), db.getAllHWCNs()]).then(([b, h]) => {
@@ -27,8 +38,14 @@ export default function ReportsPage() {
     { key: "hwcn" as ReportView, label: "Completed HWCNs", icon: ClipboardList, desc: "All completed consignment notes" },
   ];
 
-  const newBottles = bottles.filter(b => b.category === "new");
-  const completedHWCNs = hwcns.filter(h => h.hwcnStatus === "complete");
+  const inRange = (dateStr: string) => {
+    const d = dateStr?.slice(0, 10) || "";
+    return (!dateFrom || d >= dateFrom) && (!dateTo || d <= dateTo);
+  };
+
+  const newBottles = bottles.filter(b => b.category === "new" && (!dateFrom && !dateTo || inRange(b.registeredAt)));
+  const completedHWCNs = hwcns.filter(h => h.hwcnStatus === "complete" && (!dateFrom && !dateTo || inRange(h.date)));
+  const today = new Date().toISOString().split("T")[0];
 
   const locGroups: Record<string, Bottle[]> = {};
   bottles.forEach(b => {
@@ -72,15 +89,45 @@ export default function ReportsPage() {
         ))}
       </div>
 
+      {/* Date Range Filter */}
+      <div style={{display: "flex", gap: "0.75rem", alignItems: "center", marginBottom: "1.5rem", flexWrap: "wrap"}}>
+        <div style={{display: "flex", alignItems: "center", gap: "0.5rem"}}>
+          <Calendar size={15} color="var(--primary)" />
+          <span style={{fontSize: "0.8rem", color: "rgba(255,255,255,0.5)", fontWeight: 600}}>Date Range:</span>
+        </div>
+        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+          style={{padding: "0.45rem 0.75rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "#fff", outline: "none", colorScheme: "dark", fontSize: "0.85rem"}} />
+        <span style={{color: "rgba(255,255,255,0.3)", fontSize: "0.85rem"}}>to</span>
+        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+          style={{padding: "0.45rem 0.75rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "#fff", outline: "none", colorScheme: "dark", fontSize: "0.85rem"}} />
+        {(dateFrom || dateTo) && (
+          <button onClick={() => { setDateFrom(""); setDateTo(""); }} style={{background: "none", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px", padding: "0.4rem 0.75rem", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: "0.8rem"}}>
+            Clear filter
+          </button>
+        )}
+        <span style={{fontSize: "0.75rem", color: "rgba(255,255,255,0.3)", marginLeft: "auto"}}>Applies to Usage &amp; HWCN tabs</span>
+      </div>
+
       {/* Report Content */}
       <div style={{borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden"}}>
 
         {/* USAGE LOG */}
         {activeReport === "usage" && (
           <>
-            <div style={{padding: "1rem 1.25rem", background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)"}}>
-              <h3 style={{margin: 0, fontSize: "1rem"}}>New Refrigerant Usage Log</h3>
-              <p style={{margin: "0.25rem 0 0", fontSize: "0.82rem", color: "var(--text-muted)"}}>Showing all new refrigerant bottles and weight used</p>
+            <div style={{padding: "1rem 1.25rem", background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center"}}>
+              <div>
+                <h3 style={{margin: 0, fontSize: "1rem"}}>New Refrigerant Usage Log</h3>
+                <p style={{margin: "0.25rem 0 0", fontSize: "0.82rem", color: "var(--text-muted)"}}>
+                  {newBottles.length} bottle{newBottles.length !== 1 ? "s" : ""}{(dateFrom || dateTo) ? " (filtered)" : ""}
+                </p>
+              </div>
+              <button onClick={() => exportCSV(
+                [["Serial","Gas Type","Full Weight (kg)","Current Weight (kg)","Weight Used (kg)","Location"],
+                 ...newBottles.map(b => [b.serial, b.gasType, b.initialWeight.toFixed(2), b.currentWeight.toFixed(2), (b.initialWeight - b.currentWeight).toFixed(2), b.locationId || b.locationType])],
+                `refrigerant_usage_${today}.csv`
+              )} style={{display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.45rem 0.9rem", background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.2)", borderRadius: "7px", color: "#00e5ff", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer"}}>
+                <FileSpreadsheet size={14} /> Export CSV
+              </button>
             </div>
             <table style={{width: "100%", borderCollapse: "collapse"}}>
               <thead>
@@ -120,9 +167,17 @@ export default function ReportsPage() {
         {/* LOCATIONS */}
         {activeReport === "locations" && (
           <>
-            <div style={{padding: "1rem 1.25rem", background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)"}}>
-              <h3 style={{margin: 0, fontSize: "1rem"}}>Current Bottle Locations</h3>
-              <p style={{margin: "0.25rem 0 0", fontSize: "0.82rem", color: "var(--text-muted)"}}>{bottles.length} bottles across {Object.keys(locGroups).length} locations</p>
+            <div style={{padding: "1rem 1.25rem", background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center"}}>
+              <div>
+                <h3 style={{margin: 0, fontSize: "1rem"}}>Current Bottle Locations</h3>
+                <p style={{margin: "0.25rem 0 0", fontSize: "0.82rem", color: "var(--text-muted)"}}>{bottles.length} bottles across {Object.keys(locGroups).length} locations</p>
+              </div>
+              <button onClick={() => {
+                const rows = Object.entries(locGroups).flatMap(([loc, bots]) => bots.map(b => [b.serial, b.gasType, b.category, b.currentWeight.toFixed(2), loc]));
+                exportCSV([["Serial","Gas Type","Category","Current Weight (kg)","Location"], ...rows], `bottle_locations_${today}.csv`);
+              }} style={{display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.45rem 0.9rem", background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.2)", borderRadius: "7px", color: "#00e5ff", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer"}}>
+                <FileSpreadsheet size={14} /> Export CSV
+              </button>
             </div>
             <div style={{padding: "1rem"}}>
               {Object.entries(locGroups).map(([loc, bots]) => (
@@ -166,9 +221,17 @@ export default function ReportsPage() {
         {/* WASTE AUDIT */}
         {activeReport === "waste" && (
           <>
-            <div style={{padding: "1rem 1.25rem", background: "rgba(255,51,102,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)"}}>
-              <h3 style={{margin: 0, fontSize: "1rem", color: "#ff3366"}}>Hazardous Waste Audit</h3>
-              <p style={{margin: "0.25rem 0 0", fontSize: "0.82rem", color: "var(--text-muted)"}}>Full summary of reclaim cylinders currently held by company</p>
+            <div style={{padding: "1rem 1.25rem", background: "rgba(255,51,102,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center"}}>
+              <div>
+                <h3 style={{margin: 0, fontSize: "1rem", color: "#ff3366"}}>Hazardous Waste Audit</h3>
+                <p style={{margin: "0.25rem 0 0", fontSize: "0.82rem", color: "var(--text-muted)"}}>Full summary of reclaim cylinders currently held by company</p>
+              </div>
+              <button onClick={() => {
+                const rows = Object.entries(locGroups).flatMap(([loc, bots]) => bots.filter(b => b.category === "reclaim").map(b => [b.serial, b.gasType, b.currentWeight.toFixed(2), b.initialWeight.toFixed(2), loc]));
+                exportCSV([["Serial","Gas Type","Current Weight (kg)","Max Weight (kg)","Location"], ...rows], `haz_waste_audit_${today}.csv`);
+              }} style={{display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.45rem 0.9rem", background: "rgba(255,51,102,0.08)", border: "1px solid rgba(255,51,102,0.2)", borderRadius: "7px", color: "#ff3366", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer"}}>
+                <FileSpreadsheet size={14} /> Export CSV
+              </button>
             </div>
             <div style={{padding: "1rem"}}>
               {Object.entries(locGroups).map(([loc, bots]) => {
@@ -206,9 +269,20 @@ export default function ReportsPage() {
         {/* COMPLETED HWCNs */}
         {activeReport === "hwcn" && (
           <>
-            <div style={{padding: "1rem 1.25rem", background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)"}}>
-              <h3 style={{margin: 0, fontSize: "1rem"}}>Completed Consignment Notes</h3>
-              <p style={{margin: "0.25rem 0 0", fontSize: "0.82rem", color: "var(--text-muted)"}}>{completedHWCNs.length} completed HWCNs — both office returns and supplier returns</p>
+            <div style={{padding: "1rem 1.25rem", background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center"}}>
+              <div>
+                <h3 style={{margin: 0, fontSize: "1rem"}}>Completed Consignment Notes</h3>
+                <p style={{margin: "0.25rem 0 0", fontSize: "0.82rem", color: "var(--text-muted)"}}>
+                  {completedHWCNs.length} completed HWCNs{(dateFrom || dateTo) ? " (filtered)" : ""}
+                </p>
+              </div>
+              <button onClick={() => exportCSV(
+                [["HWCN Code","Serial","Engineer","Destination","Date","Received By","Completed"],
+                 ...completedHWCNs.map(h => [h.id, h.serial, h.engineer, h.destination || "", new Date(h.date).toLocaleDateString("en-GB"), h.receivedBy || "", h.partECompletedAt ? new Date(h.partECompletedAt).toLocaleDateString("en-GB") : ""])],
+                `hwcn_completed_${today}.csv`
+              )} style={{display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.45rem 0.9rem", background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.2)", borderRadius: "7px", color: "#00e5ff", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer"}}>
+                <FileSpreadsheet size={14} /> Export CSV
+              </button>
             </div>
             {completedHWCNs.length === 0 ? (
               <div style={{padding: "3rem", textAlign: "center", color: "var(--text-muted)"}}>

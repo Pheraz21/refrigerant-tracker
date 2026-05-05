@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { db, AppUser, UserStatus, UserRole } from "@/lib/db";
-import { Users, ShieldCheck, ShieldAlert, UserX, Truck, Mail, Calendar, Search, Filter, Save, X, Settings2, Building } from "lucide-react";
+import { supabase } from "@/lib/supabaseClient";
+import { Users, ShieldCheck, ShieldAlert, UserX, Truck, Mail, Calendar, Search, Filter, Save, X, Settings2, Building, KeyRound } from "lucide-react";
 
 export default function UserManagementPage() {
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -13,6 +14,15 @@ export default function UserManagementPage() {
   const [employerEditingId, setEmployerEditingId] = useState<string | null>(null);
   const [tempEmployer, setTempEmployer] = useState("");
   const [roleEditingId, setRoleEditingId] = useState<string | null>(null);
+  const [resetEmailSent, setResetEmailSent] = useState<Record<string, boolean>>({});
+
+  const handleSendReset = async (email: string, userId: string) => {
+    await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/dashboard/reset-password`
+    });
+    setResetEmailSent(prev => ({ ...prev, [userId]: true }));
+    setTimeout(() => setResetEmailSent(prev => ({ ...prev, [userId]: false })), 5000);
+  };
 
   useEffect(() => {
     loadUsers();
@@ -209,6 +219,20 @@ export default function UserManagementPage() {
                       <span style={{fontSize: "0.75rem", color: "var(--text-muted)", fontStyle: "italic"}}>System Admin</span>
                     ) : (
                       <>
+                        <button
+                          onClick={() => handleSendReset(u.email, u.id)}
+                          title="Send password reset email"
+                          style={{
+                            display: "flex", alignItems: "center", gap: "0.3rem", padding: "0.4rem 0.75rem",
+                            background: resetEmailSent[u.id] ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.05)",
+                            border: resetEmailSent[u.id] ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(255,255,255,0.1)",
+                            borderRadius: "6px",
+                            color: resetEmailSent[u.id] ? "#22c55e" : "rgba(255,255,255,0.5)",
+                            fontSize: "0.75rem", fontWeight: 600, cursor: "pointer"
+                          }}
+                        >
+                          <KeyRound size={13} /> {resetEmailSent[u.id] ? "Sent!" : "Reset Email"}
+                        </button>
                         {u.status === "pending" && (
                           <div style={{display: "flex", gap: "0.5rem"}}>
                             <button 

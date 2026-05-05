@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { db, Bottle } from "@/lib/db";
 import Link from "next/link";
-import { Warehouse, Package, Truck, AlertTriangle, CheckCircle2, Clock, MapPin, Bell, CalendarClock, UserCheck } from "lucide-react";
+import { Warehouse, Package, Truck, AlertTriangle, CheckCircle2, Clock, MapPin, Bell, CalendarClock, UserCheck, ListTodo, ArrowRight } from "lucide-react";
 
 export default function AdminDashboard() {
   const [bottles, setBottles] = useState<Bottle[]>([]);
@@ -58,6 +58,24 @@ export default function AdminDashboard() {
     .filter(b => b.statusInfo !== null)
     .sort((a, b) => a.daysLeft - b.daysLeft);
 
+  const getDaysSince = (dateStr?: string) => {
+    if (!dateStr) return null;
+    return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+  };
+  const daysColor = (days: number) => days > 28 ? "#ff3366" : days > 14 ? "#ffaa00" : "rgba(255,255,255,0.45)";
+
+  const idleBottles60 = bottles.filter(b =>
+    b.status === "active" && b.locationChangedAt &&
+    (Date.now() - new Date(b.locationChangedAt).getTime()) > 60 * 86400000
+  );
+  const expiringIn14 = expiringBottles.filter(b => b.daysLeft >= 0 && b.daysLeft <= 14);
+  const pendingHWCNsSorted = [...pendingHWCNs].sort((a, b) => {
+    const da = new Date(a.deliveredAt || a.date).getTime();
+    const db2 = new Date(b.deliveredAt || b.date).getTime();
+    return da - db2;
+  });
+  const oldestHWCNDays = pendingHWCNsSorted.length > 0 ? getDaysSince(pendingHWCNsSorted[0].deliveredAt || pendingHWCNsSorted[0].date) : null;
+
   const cards = [
     { label: "New Alerts", value: newNotifications.length, icon: Bell, color: "#ff3366", bg: "rgba(255,51,102,0.08)", border: "rgba(255,51,102,0.3)", href: "/admin/notifications", desc: "Active system notifications" },
     { label: "Pending HWCNs", value: pendingHWCNs.length, icon: Clock, color: "#ffc107", bg: "rgba(255,193,7,0.08)", border: "rgba(255,193,7,0.3)", href: "/admin/hwcn", desc: "Awaiting Part E completion" },
@@ -65,12 +83,6 @@ export default function AdminDashboard() {
     { label: "On Site", value: onsiteBottles.length, icon: MapPin, color: "#a855f7", bg: "rgba(168,85,247,0.06)", border: "rgba(168,85,247,0.2)", href: "/admin/onsite", desc: "Bottles currently on site" },
     { label: "Total Active", value: totalActive, icon: Package, color: "#22c55e", bg: "rgba(34,197,94,0.06)", border: "rgba(34,197,94,0.2)", href: "/admin/bottles", desc: "All active assets" },
   ];
-
-  const getDaysSince = (dateStr?: string) => {
-    if (!dateStr) return null;
-    return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
-  };
-  const daysColor = (days: number) => days > 28 ? "#ff3366" : days > 14 ? "#ffaa00" : "rgba(255,255,255,0.45)";
 
   const topCards = [
     { label: "New Alerts", value: newNotifications.length, icon: Bell, color: "#ff3366", bg: "rgba(255,51,102,0.08)", border: "rgba(255,51,102,0.3)", href: "/admin/notifications", desc: "Active system notifications" },
@@ -159,6 +171,51 @@ export default function AdminDashboard() {
             </div>
           </Link>
         ))}
+      </div>
+
+      {/* Today's Actions */}
+      <div className="glass-panel" style={{marginBottom: "2.5rem", padding: "1.25rem 1.5rem"}}>
+        <h2 style={{fontSize: "1rem", fontWeight: 700, marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem", color: "rgba(255,255,255,0.9)"}}>
+          <ListTodo size={18} color="var(--primary)" /> Today&apos;s Actions
+        </h2>
+        <div style={{display: "flex", flexDirection: "column", gap: "0.6rem"}}>
+          {/* Pending HWCNs */}
+          <Link href="/admin/hwcn" style={{textDecoration: "none"}}>
+            <div style={{display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem 1rem", borderRadius: "8px", background: pendingHWCNs.length > 0 ? "rgba(255,193,7,0.06)" : "rgba(34,197,94,0.04)", border: `1px solid ${pendingHWCNs.length > 0 ? "rgba(255,193,7,0.2)" : "rgba(34,197,94,0.12)"}`, transition: "all 0.15s"}}>
+              <Clock size={16} color={pendingHWCNs.length > 0 ? "#ffc107" : "#22c55e"} style={{flexShrink: 0}} />
+              <span style={{flex: 1, fontSize: "0.875rem", color: pendingHWCNs.length > 0 ? "#fff" : "rgba(255,255,255,0.5)"}}>
+                {pendingHWCNs.length > 0
+                  ? <><strong style={{color: "#ffc107"}}>{pendingHWCNs.length}</strong> HWCN{pendingHWCNs.length !== 1 ? "s" : ""} awaiting Part E{oldestHWCNDays !== null && <span style={{color: daysColor(oldestHWCNDays), marginLeft: "0.4rem", fontSize: "0.8rem"}}>— oldest {oldestHWCNDays}d</span>}</>
+                  : "All HWCNs up to date"}
+              </span>
+              <ArrowRight size={14} color="rgba(255,255,255,0.25)" />
+            </div>
+          </Link>
+          {/* Expiring Rentals */}
+          <Link href="/admin/expiry" style={{textDecoration: "none"}}>
+            <div style={{display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem 1rem", borderRadius: "8px", background: expiringIn14.length > 0 ? "rgba(255,51,102,0.06)" : "rgba(34,197,94,0.04)", border: `1px solid ${expiringIn14.length > 0 ? "rgba(255,51,102,0.2)" : "rgba(34,197,94,0.12)"}`, transition: "all 0.15s"}}>
+              <CalendarClock size={16} color={expiringIn14.length > 0 ? "#ff3366" : "#22c55e"} style={{flexShrink: 0}} />
+              <span style={{flex: 1, fontSize: "0.875rem", color: expiringIn14.length > 0 ? "#fff" : "rgba(255,255,255,0.5)"}}>
+                {expiringIn14.length > 0
+                  ? <><strong style={{color: "#ff3366"}}>{expiringIn14.length}</strong> rental bottle{expiringIn14.length !== 1 ? "s" : ""} expiring within 14 days</>
+                  : "No rentals expiring soon"}
+              </span>
+              <ArrowRight size={14} color="rgba(255,255,255,0.25)" />
+            </div>
+          </Link>
+          {/* Idle Bottles */}
+          <Link href="/admin/bottles" style={{textDecoration: "none"}}>
+            <div style={{display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem 1rem", borderRadius: "8px", background: idleBottles60.length > 0 ? "rgba(255,170,0,0.06)" : "rgba(34,197,94,0.04)", border: `1px solid ${idleBottles60.length > 0 ? "rgba(255,170,0,0.2)" : "rgba(34,197,94,0.12)"}`, transition: "all 0.15s"}}>
+              <Package size={16} color={idleBottles60.length > 0 ? "#ffaa00" : "#22c55e"} style={{flexShrink: 0}} />
+              <span style={{flex: 1, fontSize: "0.875rem", color: idleBottles60.length > 0 ? "#fff" : "rgba(255,255,255,0.5)"}}>
+                {idleBottles60.length > 0
+                  ? <><strong style={{color: "#ffaa00"}}>{idleBottles60.length}</strong> bottle{idleBottles60.length !== 1 ? "s" : ""} with no movement in 60+ days</>
+                  : "No bottles idle for 60+ days"}
+              </span>
+              <ArrowRight size={14} color="rgba(255,255,255,0.25)" />
+            </div>
+          </Link>
+        </div>
       </div>
 
       {/* Recent Notifications */}

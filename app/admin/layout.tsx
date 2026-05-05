@@ -28,7 +28,9 @@ import {
   ShieldAlert,
   BarChart2,
   Briefcase,
-  UserCircle
+  UserCircle,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 
 const navGroups = [
@@ -82,6 +84,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [notifCount, setNotifCount] = useState(0);
   const [pendingUsersCount, setPendingUsersCount] = useState(0);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem("adminSidebarCollapsed") === "true"; } catch { return false; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem("adminSidebarCollapsed", String(collapsed)); } catch {}
+  }, [collapsed]);
 
   useEffect(() => {
     if (!loading && (!user || (user.role !== "admin" && user.role !== "office"))) {
@@ -113,7 +122,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div style={{display: "flex", minHeight: "100vh", background: "var(--bg-main)"}}>
       {/* Sidebar */}
       <aside className="no-print" style={{
-        width: "260px",
+        width: collapsed ? "60px" : "260px",
         background: "rgba(10, 14, 20, 0.95)",
         borderRight: "1px solid rgba(255,255,255,0.06)",
         display: "flex",
@@ -122,22 +131,32 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         top: 0,
         left: 0,
         bottom: 0,
-        zIndex: 50
+        zIndex: 50,
+        transition: "width 0.2s ease",
+        overflow: "hidden"
       }}>
         {/* Logo */}
-        <div style={{padding: "1.5rem 1.25rem", borderBottom: "1px solid rgba(255,255,255,0.06)"}}>
-          <img src="/21-degrees-official-transparent.png" alt="21 Degrees" style={{width: "110px", height: "auto", display: "block", marginBottom: "0.5rem"}} />
-          <div style={{display: "flex", alignItems: "center", gap: "0.4rem"}}>
-            <Shield size={14} color="#00e5ff" />
-            <span style={{fontSize: "0.75rem", color: "rgba(255,255,255,0.5)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em"}}>Office Portal</span>
-          </div>
+        <div style={{padding: collapsed ? "1.25rem 0" : "1.5rem 1.25rem", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "flex-start", minHeight: "72px"}}>
+          {collapsed ? (
+            <Shield size={22} color="#00e5ff" />
+          ) : (
+            <>
+              <div>
+                <img src="/21-degrees-official-transparent.png" alt="21 Degrees" style={{width: "110px", height: "auto", display: "block", marginBottom: "0.5rem"}} />
+                <div style={{display: "flex", alignItems: "center", gap: "0.4rem"}}>
+                  <Shield size={14} color="#00e5ff" />
+                  <span style={{fontSize: "0.75rem", color: "rgba(255,255,255,0.5)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em"}}>Office Portal</span>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Nav */}
-        <nav style={{flex: 1, padding: "1rem 0.75rem", display: "flex", flexDirection: "column", gap: "0.2rem", overflowY: "auto"}}>
+        <nav style={{flex: 1, padding: collapsed ? "0.75rem 0.5rem" : "1rem 0.75rem", display: "flex", flexDirection: "column", gap: "0.2rem", overflowY: "auto", overflowX: "hidden"}}>
           {navGroups.map((group, idx) => (
             <div key={idx} style={{marginBottom: group.title ? "0.5rem" : "0"}}>
-              {group.title && (
+              {group.title && !collapsed && (
                 <div style={{
                   padding: "0 1rem",
                   marginTop: idx === 0 ? 0 : "1.25rem",
@@ -151,48 +170,58 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   {group.title}
                 </div>
               )}
+              {collapsed && idx > 0 && (
+                <div style={{height: "1px", background: "rgba(255,255,255,0.06)", margin: "0.5rem 0.5rem"}} />
+              )}
               {group.items.map(item => {
                 const isActive = ('exact' in item && item.exact)
                   ? pathname === item.href
                   : pathname.startsWith(item.href);
+                const badge = item.label === "Notifications" && notifCount > 0 ? notifCount
+                  : item.label === "User Management" && pendingUsersCount > 0 ? pendingUsersCount
+                  : 0;
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
+                    title={collapsed ? item.label : undefined}
                     style={{
                       display: "flex",
                       alignItems: "center",
                       gap: "0.75rem",
-                      padding: "0.7rem 1rem",
+                      padding: collapsed ? "0.65rem" : "0.7rem 1rem",
                       borderRadius: "8px",
                       textDecoration: "none",
                       fontSize: "0.9rem",
                       fontWeight: isActive ? 600 : 400,
                       color: isActive ? "#00e5ff" : "rgba(255,255,255,0.6)",
                       background: isActive ? "rgba(0,229,255,0.08)" : "transparent",
-                      transition: "all 0.15s"
+                      transition: "all 0.15s",
+                      justifyContent: collapsed ? "center" : "flex-start",
+                      position: "relative"
                     }}
                   >
                     <item.icon size={20} />
-                    <span style={{flex: 1}}>{item.label}</span>
-                    {item.label === "Notifications" && notifCount > 0 && (
+                    {!collapsed && <span style={{flex: 1}}>{item.label}</span>}
+                    {!collapsed && badge > 0 && (
                       <span style={{
-                        background: "var(--primary)", color: "#000",
-                        fontSize: "0.7rem", fontWeight: "700",
+                        background: item.label === "Notifications" ? "var(--primary)" : "#ffaa00",
+                        color: "#000", fontSize: "0.7rem", fontWeight: "700",
                         padding: "0.1rem 0.4rem", borderRadius: "10px",
                         minWidth: "1.2rem", textAlign: "center"
                       }}>
-                        {notifCount}
+                        {badge}
                       </span>
                     )}
-                    {item.label === "User Management" && pendingUsersCount > 0 && (
+                    {collapsed && badge > 0 && (
                       <span style={{
-                        background: "#ffaa00", color: "#000",
-                        fontSize: "0.7rem", fontWeight: "700",
-                        padding: "0.1rem 0.4rem", borderRadius: "10px",
-                        minWidth: "1.2rem", textAlign: "center"
+                        position: "absolute", top: "4px", right: "4px",
+                        background: item.label === "Notifications" ? "var(--primary)" : "#ffaa00",
+                        color: "#000", fontSize: "0.6rem", fontWeight: "700",
+                        width: "14px", height: "14px", borderRadius: "50%",
+                        display: "flex", alignItems: "center", justifyContent: "center"
                       }}>
-                        {pendingUsersCount}
+                        {badge > 9 ? "9+" : badge}
                       </span>
                     )}
                   </Link>
@@ -200,14 +229,34 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               })}
             </div>
           ))}
+
+          {/* Toggle button at bottom of nav */}
+          <div style={{marginTop: "auto", paddingTop: "1rem"}}>
+            <button
+              onClick={() => setCollapsed(c => !c)}
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              style={{
+                width: "100%", display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "flex-end",
+                padding: collapsed ? "0.6rem" : "0.6rem 1rem",
+                background: "none", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer",
+                borderRadius: "8px", transition: "all 0.15s",
+                gap: "0.5rem", fontSize: "0.75rem"
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "rgba(255,255,255,0.25)"; }}
+            >
+              {!collapsed && <span>Collapse</span>}
+              {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            </button>
+          </div>
         </nav>
 
         {/* User / Logout */}
-        <div style={{padding: "1rem 1.25rem", borderTop: "1px solid rgba(255,255,255,0.06)"}}>
-          <div style={{fontSize: "0.85rem", color: "#fff", fontWeight: 600, marginBottom: "0.25rem"}}>{user.name}</div>
-          <div style={{fontSize: "0.75rem", color: "rgba(255,255,255,0.4)", marginBottom: "0.75rem"}}>{user.email}</div>
+        <div style={{padding: collapsed ? "0.75rem 0.5rem" : "1rem 1.25rem", borderTop: "1px solid rgba(255,255,255,0.06)"}}>
+          {!collapsed && <div style={{fontSize: "0.85rem", color: "#fff", fontWeight: 600, marginBottom: "0.25rem"}}>{user.name}</div>}
+          {!collapsed && <div style={{fontSize: "0.75rem", color: "rgba(255,255,255,0.4)", marginBottom: "0.75rem"}}>{user.email}</div>}
           
-          {user.availableRoles && user.availableRoles.length > 1 && (
+          {!collapsed && user.availableRoles && user.availableRoles.length > 1 && (
             <div style={{marginBottom: "0.75rem"}}>
               <p style={{fontSize: "0.65rem", color: "rgba(255,255,255,0.3)", fontWeight: 700, textTransform: "uppercase", marginBottom: "0.4rem", letterSpacing: "0.05em"}}>Switch Role</p>
               <div style={{display: "flex", flexDirection: "column", gap: "0.3rem"}}>
@@ -233,6 +282,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           )}
           <button
             onClick={logout}
+            title="Sign Out"
             style={{
               display: "flex",
               alignItems: "center",
@@ -249,10 +299,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               transition: "all 0.15s"
             }}
           >
-            <LogOut size={16} /> Sign Out
+            <LogOut size={16} /> {!collapsed && "Sign Out"}
           </button>
 
-          {showResetConfirm ? (
+          {!collapsed && showResetConfirm ? (
             <div style={{marginTop: "0.75rem", background: "rgba(255,68,68,0.08)", border: "1px solid rgba(255,68,68,0.3)", borderRadius: "6px", padding: "0.75rem"}}>
               <p style={{fontSize: "0.72rem", color: "#ff4444", fontWeight: 700, margin: "0 0 0.5rem", textAlign: "center"}}>
                 This will clear your local session. Are you sure?
@@ -275,7 +325,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </button>
               </div>
             </div>
-          ) : (
+          ) : !collapsed ? (
             <button
               onClick={() => setShowResetConfirm(true)}
               style={{
@@ -286,17 +336,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             >
               <RefreshCw size={12} /> Force Reset System Data
             </button>
-          )}
+          ) : null}
         </div>
       </aside>
 
       {/* Main Content */}
       <main style={{
-        marginLeft: "260px",
+        marginLeft: collapsed ? "60px" : "260px",
         flex: 1,
         padding: "2rem 2.5rem",
         minHeight: "100vh",
-        overflow: "auto"
+        overflow: "auto",
+        transition: "margin-left 0.2s ease"
       }}>
         {children}
       </main>

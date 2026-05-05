@@ -55,7 +55,8 @@ export default function AnalyticsPage() {
         const vanBottles = bottles.filter(
           (b: any) =>
             b.locationType === "van" &&
-            (b.locationId || "").toLowerCase().includes(eng.name.toLowerCase())
+            !!eng.vehicleReg &&
+            b.vehicleReg === eng.vehicleReg
         );
         const newB = vanBottles.filter((b: any) => b.category === "new");
         const nitroB = vanBottles.filter((b: any) => b.category === "nitrogen");

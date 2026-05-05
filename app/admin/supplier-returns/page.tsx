@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { db, Bottle } from "@/lib/db";
+import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/lib/AuthContext";
-import { Truck, Search, Plus, Trash2, Camera, AlertCircle, CheckCircle2, Loader2, ArrowLeft } from "lucide-react";
+import { Truck, Search, Plus, Trash2, Camera, AlertCircle, CheckCircle2, Loader2, ArrowLeft, X } from "lucide-react";
 import Link from "next/link";
 
 export default function SupplierReturnPage() {
@@ -17,6 +18,15 @@ export default function SupplierReturnPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoFile(file);
+    setPhotoPreviewUrl(URL.createObjectURL(file));
+  };
 
   const handleAddBottle = async () => {
     if (!inputSerial.trim()) return;
@@ -72,12 +82,23 @@ export default function SupplierReturnPage() {
 
     setLoading(true);
     try {
+      let hwcnPhotoUrl = "";
+      if (photoFile) {
+        const ext = photoFile.name.split(".").pop() || "jpg";
+        const path = `supplier-returns/${hwcnNumber}-${Date.now()}.${ext}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("hwcn-photos")
+          .upload(path, photoFile, { upsert: true });
+        if (uploadError) throw new Error(`Photo upload failed: ${uploadError.message}`);
+        const { data: urlData } = supabase.storage.from("hwcn-photos").getPublicUrl(path);
+        hwcnPhotoUrl = urlData.publicUrl;
+      }
       await db.returnBottleToSupplier({
         serials: selectedBottles.map(b => b.serial),
         returnHwcnNumber: hwcnNumber,
         returnedBy: user?.name || "Office Admin",
         weights: weights,
-        hwcnPhotoUrl: "https://vfpismkhdxcnioblynvk.supabase.co/storage/v1/object/public/hwcn-photos/supplier-return-mock.jpg"
+        hwcnPhotoUrl
       });
       setIsSuccess(true);
       setTimeout(() => router.push("/admin"), 3000);
@@ -219,14 +240,31 @@ export default function SupplierReturnPage() {
               <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.5rem", fontWeight: 600 }}>
                 Photo of Supplier Note
               </label>
-              <div style={{ 
-                height: "120px", border: "2px dashed rgba(255,255,255,0.1)", borderRadius: "10px", 
-                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.5rem",
-                background: "rgba(255,255,255,0.02)", cursor: "pointer"
-              }}>
-                <Camera size={24} color="rgba(255,255,255,0.3)" />
-                <span style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.4)" }}>Click to upload HWCN</span>
-              </div>
+              <label style={{ display: "block", cursor: "pointer" }}>
+                <input type="file" accept="image/*,application/pdf" onChange={handlePhotoSelect} style={{ display: "none" }} />
+                {photoPreviewUrl ? (
+                  <div style={{ position: "relative", borderRadius: "10px", overflow: "hidden", border: "1px solid rgba(34,197,94,0.3)" }}>
+                    <img src={photoPreviewUrl} alt="HWCN preview" style={{ width: "100%", maxHeight: "180px", objectFit: "cover", display: "block" }} />
+                    <button
+                      type="button"
+                      onClick={e => { e.preventDefault(); setPhotoFile(null); setPhotoPreviewUrl(null); }}
+                      style={{ position: "absolute", top: "0.5rem", right: "0.5rem", background: "rgba(0,0,0,0.6)", border: "none", borderRadius: "50%", padding: "0.3rem", color: "#fff", cursor: "pointer", display: "flex" }}
+                    ><X size={14} /></button>
+                    <div style={{ padding: "0.4rem 0.75rem", background: "rgba(34,197,94,0.1)", fontSize: "0.75rem", color: "#22c55e", fontWeight: 600 }}>
+                      ✓ Photo ready — will upload on submit
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{
+                    height: "120px", border: "2px dashed rgba(255,255,255,0.1)", borderRadius: "10px",
+                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.5rem",
+                    background: "rgba(255,255,255,0.02)"
+                  }}>
+                    <Camera size={24} color="rgba(255,255,255,0.3)" />
+                    <span style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.4)" }}>Click to upload HWCN photo</span>
+                  </div>
+                )}
+              </label>
             </div>
 
             {error && (

@@ -105,6 +105,7 @@ export default function AllJobsPage() {
   const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] = useState<SortKey>("startDate");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [jobSearch, setJobSearch] = useState("");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<PreviewState | null>(null);
@@ -266,6 +267,16 @@ export default function AllJobsPage() {
   const withUprn = jobs.filter(j => j.uprn).length;
   const withoutUprn = jobs.filter(j => !j.uprn && (j.siteAddress || j.sitePostcode)).length;
 
+  const filteredJobs = jobSearch.trim()
+    ? sorted.filter(j => {
+        const q = jobSearch.toLowerCase();
+        return (j.jobNumber || "").toLowerCase().includes(q) ||
+          (j.customer || "").toLowerCase().includes(q) ||
+          (j.siteTitle || "").toLowerCase().includes(q) ||
+          (j.jobTitle || "").toLowerCase().includes(q);
+      })
+    : sorted;
+
   // ── Styles ──────────────────────────────────────────────────────────────────
   const thBase: React.CSSProperties = {
     padding: "0.6rem 0.75rem", textAlign: "left", fontWeight: 600, fontSize: "0.75rem",
@@ -351,6 +362,23 @@ export default function AllJobsPage() {
           }}>
             <X size={14} /> Stop
           </button>
+        )}
+
+        {jobs.length > 0 && (
+          <div style={{ position: "relative", flex: "0 1 280px" }}>
+            <Search size={15} style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)", pointerEvents: "none" }} />
+            <input
+              type="text"
+              placeholder="Search job no., customer, site…"
+              value={jobSearch}
+              onChange={e => setJobSearch(e.target.value)}
+              style={{
+                width: "100%", padding: "0.5rem 0.75rem 0.5rem 2.25rem",
+                background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: "8px", color: "#fff", fontSize: "0.85rem", outline: "none"
+              }}
+            />
+          </div>
         )}
 
         <button onClick={load} style={{
@@ -570,6 +598,12 @@ export default function AllJobsPage() {
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
+            {filteredJobs.length === 0 && jobSearch && (
+              <div style={{ padding: "2.5rem", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: "0.9rem" }}>
+                No jobs match &ldquo;{jobSearch}&rdquo;
+              </div>
+            )}
+            {filteredJobs.length > 0 && (
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
@@ -587,7 +621,7 @@ export default function AllJobsPage() {
                 </tr>
               </thead>
               <tbody>
-                {sorted.map(job => (
+                {filteredJobs.map(job => (
                   <tr key={job.id}
                     style={{ transition: "background 0.1s" }}
                     onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.02)")}
@@ -642,6 +676,7 @@ export default function AllJobsPage() {
                 ))}
               </tbody>
             </table>
+            )}
           </div>
         )}
       </div>

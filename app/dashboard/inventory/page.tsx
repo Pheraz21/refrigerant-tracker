@@ -17,7 +17,8 @@ export default function InventoryPage() {
       // Only show bottles physically in this engineer's van
       const vanBottles = all.filter(b =>
         b.locationType === "van" &&
-        b.locationId?.toLowerCase().includes(user?.name?.toLowerCase() || "")
+        !!user?.vehicleReg &&
+        b.vehicleReg === user.vehicleReg
       );
       setBottles(vanBottles);
       setLoading(false);

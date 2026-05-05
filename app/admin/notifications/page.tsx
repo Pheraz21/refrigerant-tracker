@@ -6,9 +6,12 @@ import { Bell, CheckCircle, Clock, AlertTriangle, ShieldCheck, Trash2, ExternalL
 import Link from "next/link";
 import styles from "../../dashboard/page.module.css";
 
+type FilterChip = "all" | "location_discrepancy" | "new_registration" | "expiry" | "unread";
+
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeChip, setActiveChip] = useState<FilterChip>("all");
 
   useEffect(() => {
     loadNotifications();
@@ -36,6 +39,22 @@ export default function NotificationsPage() {
 
   const newCount = notifications.filter(n => n.status === "new").length;
 
+  const chips: { key: FilterChip; label: string; count?: number }[] = [
+    { key: "all", label: "All", count: notifications.length },
+    { key: "unread", label: "Unread Only", count: newCount },
+    { key: "location_discrepancy", label: "Location Discrepancy", count: notifications.filter(n => n.type === "location_discrepancy").length },
+    { key: "new_registration", label: "New Registration", count: notifications.filter(n => n.type === "new_registration" || n.type === "new_gas_registration").length },
+    { key: "expiry", label: "Expiry", count: notifications.filter(n => n.type === "expiry_date_required" || n.type === "rental_expiry").length },
+  ];
+
+  const displayed = notifications.filter(n => {
+    if (activeChip === "unread") return n.status === "new";
+    if (activeChip === "location_discrepancy") return n.type === "location_discrepancy";
+    if (activeChip === "new_registration") return n.type === "new_registration" || n.type === "new_gas_registration";
+    if (activeChip === "expiry") return n.type === "expiry_date_required" || n.type === "rental_expiry";
+    return true;
+  });
+
   return (
     <div style={{maxWidth: "1000px"}}>
       <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem"}}>
@@ -58,14 +77,36 @@ export default function NotificationsPage() {
         )}
       </div>
 
+      {/* Filter Chips */}
+      <div style={{display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1.5rem"}}>
+        {chips.map(chip => (
+          <button
+            key={chip.key}
+            onClick={() => setActiveChip(chip.key)}
+            style={{
+              padding: "0.35rem 0.85rem", borderRadius: "20px", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600,
+              background: activeChip === chip.key ? "rgba(0,229,255,0.15)" : "rgba(255,255,255,0.05)",
+              border: activeChip === chip.key ? "1px solid rgba(0,229,255,0.4)" : "1px solid rgba(255,255,255,0.1)",
+              color: activeChip === chip.key ? "#00e5ff" : "rgba(255,255,255,0.55)",
+              transition: "all 0.15s"
+            }}
+          >
+            {chip.label}
+            {chip.count !== undefined && chip.count > 0 && (
+              <span style={{marginLeft: "0.35rem", fontSize: "0.72rem", opacity: 0.7}}>({chip.count})</span>
+            )}
+          </button>
+        ))}
+      </div>
+
       <div style={{display: "flex", flexDirection: "column", gap: "1rem"}}>
-        {notifications.length === 0 ? (
+        {displayed.length === 0 ? (
           <div className="glass-panel" style={{padding: "3rem", textAlign: "center", color: "rgba(255,255,255,0.3)"}}>
             <Bell size={48} style={{marginBottom: "1rem", opacity: 0.2}} />
-            <p>No notifications yet.</p>
+            <p>{activeChip === "all" ? "No notifications yet." : "No notifications match this filter."}</p>
           </div>
         ) : (
-          notifications.map((n) => (
+          displayed.map((n) => (
             <div 
               key={n.id} 
               className="glass-panel" 

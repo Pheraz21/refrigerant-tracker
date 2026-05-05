@@ -9,7 +9,8 @@ export default function DailyActionsPage() {
   const [logs, setLogs] = useState<MovementLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [filterDate, setFilterDate] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   useEffect(() => {
     db.getMovementLogs().then(data => {
@@ -26,7 +27,8 @@ export default function DailyActionsPage() {
       log.to.toLowerCase().includes(search.toLowerCase()) ||
       log.from.toLowerCase().includes(search.toLowerCase());
     
-    const matchesDate = !filterDate || log.date.startsWith(filterDate);
+    const logDate = log.date.slice(0, 10);
+    const matchesDate = (!dateFrom || logDate >= dateFrom) && (!dateTo || logDate <= dateTo);
     
     return matchesSearch && matchesDate;
   });
@@ -98,14 +100,31 @@ export default function DailyActionsPage() {
             style={{width: "100%", padding: "0.75rem 0.75rem 0.75rem 2.5rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", color: "#fff", outline: "none"}}
           />
         </div>
-        <div style={{position: "relative"}}>
-          <Calendar size={18} style={{position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "var(--primary)"}} />
-          <input 
-            type="date" 
-            value={filterDate}
-            onChange={(e) => setFilterDate(e.target.value)}
-            style={{padding: "0.75rem 0.75rem 0.75rem 2.5rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", color: "#fff", outline: "none", colorScheme: "dark"}}
-          />
+        <div style={{display: "flex", gap: "0.5rem", alignItems: "center"}}>
+          <div style={{position: "relative"}}>
+            <Calendar size={18} style={{position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "var(--primary)"}} />
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              style={{padding: "0.75rem 0.75rem 0.75rem 2.5rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", color: "#fff", outline: "none", colorScheme: "dark"}}
+            />
+          </div>
+          <span style={{color: "rgba(255,255,255,0.3)", fontSize: "0.85rem", flexShrink: 0}}>to</span>
+          <div style={{position: "relative"}}>
+            <Calendar size={18} style={{position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "var(--primary)"}} />
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              style={{padding: "0.75rem 0.75rem 0.75rem 2.5rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", color: "#fff", outline: "none", colorScheme: "dark"}}
+            />
+          </div>
+          {(dateFrom || dateTo) && (
+            <button onClick={() => { setDateFrom(""); setDateTo(""); }} style={{background: "none", border: "none", color: "rgba(255,255,255,0.3)", cursor: "pointer", fontSize: "0.8rem", padding: "0.4rem"}}>
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
