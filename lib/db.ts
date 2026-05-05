@@ -45,6 +45,8 @@ const mapBottle = (b: any): Bottle => ({
   deliveredAt: b.delivered_at || b.deliveredAt,
   registeredBy: b.registered_by || b.registeredBy,
   returnHwcnNumber: b.return_hwcn_number || b.returnHwcnNumber,
+  returnSupplier: b.return_supplier || b.returnSupplier,
+  returnSupplierBranch: b.return_supplier_branch || b.returnSupplierBranch,
   locationChangedAt: b.location_changed_at || b.locationChangedAt,
   vehicleReg: b.vehicle_reg || b.vehicleReg,
   rentalExpiryDate: b.rental_expiry_date || b.rentalExpiryDate
@@ -131,6 +133,8 @@ export interface Bottle {
   deliveredAt?: string;
   registeredBy?: string;
   returnHwcnNumber?: string;
+  returnSupplier?: string;
+  returnSupplierBranch?: string;
   locationChangedAt?: string;
   vehicleReg?: string;
   rentalExpiryDate?: string;
@@ -144,6 +148,8 @@ export interface SupplierReturnGroup {
   returnedBy: string;
   returnedAt: string;
   photoUrl?: string;
+  supplier?: string;
+  supplierBranch?: string;
 }
 
 export interface AppNotification {
@@ -271,19 +277,26 @@ export const db = {
     returnHwcnNumber: string,
     hwcnPhotoUrl?: string,
     returnedBy: string,
-    weights: Record<string, number>
+    weights: Record<string, number>,
+    returnSupplier?: string,
+    returnSupplierBranch?: string,
   }): Promise<void> {
+    const locationId = data.returnSupplier && data.returnSupplierBranch
+      ? `${data.returnSupplier} - ${data.returnSupplierBranch}`
+      : 'Supplier (Returned)';
     for (const serial of data.serials) {
       const weight = data.weights[serial];
       await supabase.from('bottles').update({
         status: 'returned',
         location_type: 'supplier',
-        location_id: 'Supplier (Returned)',
+        location_id: locationId,
         current_weight: weight,
         return_hwcn_number: data.returnHwcnNumber,
         supplier_hwcn_photo_url: data.hwcnPhotoUrl,
         returned_by: data.returnedBy,
-        returned_at: new Date().toISOString()
+        returned_at: new Date().toISOString(),
+        return_supplier: data.returnSupplier || null,
+        return_supplier_branch: data.returnSupplierBranch || null,
       }).eq('serial', serial);
 
       // Log movement
@@ -618,7 +631,7 @@ export const db = {
   async getSupplierReturnGroups(): Promise<SupplierReturnGroup[]> {
     const { data } = await supabase
       .from('bottles')
-      .select('serial, return_hwcn_number, supplier_hwcn_photo_url, current_weight, gas_type, returned_by, returned_at')
+      .select('serial, return_hwcn_number, supplier_hwcn_photo_url, current_weight, gas_type, returned_by, returned_at, return_supplier, return_supplier_branch')
       .not('return_hwcn_number', 'is', null);
     if (!data) return [];
     const map = new Map<string, any[]>();
@@ -631,14 +644,17 @@ export const db = {
       const sorted = [...bottles].sort((a, b) =>
         new Date(a.returned_at || 0).getTime() - new Date(b.returned_at || 0).getTime()
       );
+      const first = sorted[0];
       return {
         hwcnNumber,
         serials: bottles.map(b => b.serial as string),
         gasTypes: [...new Set(bottles.map(b => b.gas_type as string).filter(Boolean))],
         totalWeight: bottles.reduce((s, b) => s + Number(b.current_weight || 0), 0),
-        returnedBy: sorted[0]?.returned_by || "",
-        returnedAt: sorted[0]?.returned_at || "",
+        returnedBy: first?.returned_by || "",
+        returnedAt: first?.returned_at || "",
         photoUrl: bottles.find(b => b.supplier_hwcn_photo_url)?.supplier_hwcn_photo_url as string | undefined,
+        supplier: first?.return_supplier || undefined,
+        supplierBranch: first?.return_supplier_branch || undefined,
       };
     });
   },

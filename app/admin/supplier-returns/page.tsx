@@ -12,6 +12,8 @@ export default function SupplierReturnPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [hwcnNumber, setHwcnNumber] = useState("");
+  const [returnSupplier, setReturnSupplier] = useState("");
+  const [returnSupplierBranch, setReturnSupplierBranch] = useState("");
   const [inputSerial, setInputSerial] = useState("");
   const [selectedBottles, setSelectedBottles] = useState<Bottle[]>([]);
   const [weights, setWeights] = useState<Record<string, number>>({});
@@ -71,6 +73,14 @@ export default function SupplierReturnPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!returnSupplier.trim()) {
+      setError("Please enter the supplier name");
+      return;
+    }
+    if (!returnSupplierBranch.trim()) {
+      setError("Please enter the supplier branch");
+      return;
+    }
     if (!hwcnNumber) {
       setError("Please enter the Supplier's HWCN number");
       return;
@@ -98,7 +108,9 @@ export default function SupplierReturnPage() {
         returnHwcnNumber: hwcnNumber,
         returnedBy: user?.name || "Office Admin",
         weights: weights,
-        hwcnPhotoUrl
+        hwcnPhotoUrl,
+        returnSupplier: returnSupplier.trim(),
+        returnSupplierBranch: returnSupplierBranch.trim(),
       });
       setIsSuccess(true);
       setTimeout(() => router.push("/admin"), 3000);
@@ -219,18 +231,52 @@ export default function SupplierReturnPage() {
           <div className="glass-panel" style={{ padding: "1.5rem" }}>
             <h3 style={{ fontSize: "1rem", fontWeight: 700, marginBottom: "1.25rem", color: "#fff" }}>Transfer Details</h3>
             
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.5rem", fontWeight: 600 }}>
+                Supplier Name <span style={{ color: "#ff3366" }}>*</span>
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Refcool, Cool-Kit"
+                value={returnSupplier}
+                onChange={e => setReturnSupplier(e.target.value)}
+                style={{
+                  width: "100%", padding: "0.85rem 1rem", background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", color: "#fff", outline: "none"
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.5rem", fontWeight: 600 }}>
+                Supplier Branch <span style={{ color: "#ff3366" }}>*</span>
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Newcastle, Leeds"
+                value={returnSupplierBranch}
+                onChange={e => setReturnSupplierBranch(e.target.value)}
+                style={{
+                  width: "100%", padding: "0.85rem 1rem", background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", color: "#fff", outline: "none"
+                }}
+              />
+            </div>
+
             <div style={{ marginBottom: "1.5rem" }}>
               <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.5rem", fontWeight: 600 }}>
                 Supplier's HWCN Number
               </label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 required
-                placeholder="e.g. BJJ-123456" 
+                placeholder="e.g. BJJ-123456"
                 value={hwcnNumber}
                 onChange={e => setHwcnNumber(e.target.value.toUpperCase())}
                 style={{
-                  width: "100%", padding: "0.85rem 1rem", background: "rgba(255,255,255,0.05)", 
+                  width: "100%", padding: "0.85rem 1rem", background: "rgba(255,255,255,0.05)",
                   border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", color: "#fff", outline: "none", fontSize: "1rem", fontWeight: 700
                 }}
               />

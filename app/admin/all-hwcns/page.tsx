@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { db, SupplierReturnGroup } from "@/lib/db";
 import Link from "next/link";
-import { FileText, Search, ArrowUpDown, ArrowUp, ArrowDown, Camera } from "lucide-react";
+import { FileText, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 
 const statusTabs = [
   { key: "all",                label: "All" },
@@ -219,10 +219,10 @@ export default function AllHWCNsPage() {
                   return (
                     <tr
                       key={`${row.id}-${i}`}
-                      style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", cursor: row.isSupplierReturn && row.photoUrl ? "pointer" : row.isSupplierReturn ? "default" : "pointer" }}
+                      style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", cursor: "pointer" }}
                       onClick={() => {
-                        if (!row.isSupplierReturn) window.location.href = `/dashboard/hwcn/${row.id}`;
-                        else if (row.photoUrl) window.open(row.photoUrl, "_blank");
+                        if (row.isSupplierReturn) window.location.href = `/admin/supplier-hwcn/${encodeURIComponent(row.id)}`;
+                        else window.location.href = `/dashboard/hwcn/${row.id}`;
                       }}
                     >
                       <td style={{ padding: "0.85rem 1rem", fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "#00e5ff", fontSize: "0.88rem" }}>{row.id}</td>
@@ -247,19 +247,13 @@ export default function AllHWCNsPage() {
                       </td>
                       <td style={{ padding: "0.85rem 1rem" }}>
                         {row.isSupplierReturn ? (
-                          row.photoUrl ? (
-                            <a
-                              href={row.photoUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              onClick={e => e.stopPropagation()}
-                              style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", color: "#a855f7", fontSize: "0.85rem", textDecoration: "none" }}
-                            >
-                              <Camera size={14} /> Photo →
-                            </a>
-                          ) : (
-                            <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>No photo</span>
-                          )
+                          <Link
+                            href={`/admin/supplier-hwcn/${encodeURIComponent(row.id)}`}
+                            style={{ color: "#a855f7", fontSize: "0.85rem", textDecoration: "none" }}
+                            onClick={e => e.stopPropagation()}
+                          >
+                            View →
+                          </Link>
                         ) : (
                           <Link
                             href={`/dashboard/hwcn/${row.id}`}

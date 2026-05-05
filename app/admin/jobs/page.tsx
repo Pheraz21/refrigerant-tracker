@@ -447,27 +447,15 @@ export default function RefrigerantJobsPage() {
                   </Link>
                 ))}
                 {job.returnNotes.map(g => (
-                  g.photoUrl ? (
-                    <a
-                      key={g.hwcnNumber}
-                      href={g.photoUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={e => e.stopPropagation()}
-                      title={`Supplier Return Note: ${g.hwcnNumber}`}
-                      style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.25)", color: "#a855f7", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600, textDecoration: "none" }}
-                    >
-                      <ExternalLink size={11} /> {g.hwcnNumber}
-                    </a>
-                  ) : (
-                    <span
-                      key={g.hwcnNumber}
-                      title={`Supplier Return Note: ${g.hwcnNumber}`}
-                      style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.25)", color: "#a855f7", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600 }}
-                    >
-                      {g.hwcnNumber}
-                    </span>
-                  )
+                  <Link
+                    key={g.hwcnNumber}
+                    href={`/admin/supplier-hwcn/${encodeURIComponent(g.hwcnNumber)}`}
+                    onClick={e => e.stopPropagation()}
+                    title={`Supplier Return Note: ${g.hwcnNumber}`}
+                    style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.25)", color: "#a855f7", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600, textDecoration: "none" }}
+                  >
+                    <ExternalLink size={11} /> {g.hwcnNumber}
+                  </Link>
                 ))}
               </div>
             ) : <span style={{ color: "var(--text-muted)" }}>—</span>}
@@ -662,24 +650,13 @@ export default function RefrigerantJobsPage() {
                                           </Link>
                                         )}
                                         {logReturnNote && (
-                                          logReturnNote.photoUrl ? (
-                                            <a
-                                              href={logReturnNote.photoUrl}
-                                              target="_blank"
-                                              rel="noreferrer"
-                                              title={`Return note (office → supplier): ${logReturnNote.hwcnNumber}`}
-                                              style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.25)", color: "#a855f7", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600, textDecoration: "none" }}
-                                            >
-                                              <ExternalLink size={11} /> {logReturnNote.hwcnNumber}
-                                            </a>
-                                          ) : (
-                                            <span
-                                              title={`Return note (office → supplier): ${logReturnNote.hwcnNumber}`}
-                                              style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.25)", color: "#a855f7", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600 }}
-                                            >
-                                              {logReturnNote.hwcnNumber}
-                                            </span>
-                                          )
+                                          <Link
+                                            href={`/admin/supplier-hwcn/${encodeURIComponent(logReturnNote.hwcnNumber)}`}
+                                            title={`Return note (office → supplier): ${logReturnNote.hwcnNumber}`}
+                                            style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.25)", color: "#a855f7", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600, textDecoration: "none" }}
+                                          >
+                                            <ExternalLink size={11} /> {logReturnNote.hwcnNumber}
+                                          </Link>
                                         )}
                                         {!logHwcn && !logReturnNote && (
                                           <span style={{ color: "var(--text-muted)" }}>—</span>
