@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { Html5QrcodeScanner, Html5QrcodeScanType } from "html5-qrcode";
-import { CheckCircle2, ScanLine, ArrowRight, PackageSearch, Camera, Repeat, User } from "lucide-react";
+import { CheckCircle2, ScanLine, ArrowRight, PackageSearch, Camera, User } from "lucide-react";
 import styles from "./page.module.css";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -18,7 +18,7 @@ interface ScanData {
 export default function DashboardScannerPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, switchRole } = useAuth();
+  const { user } = useAuth();
   const [scanResult, setScanResult] = useState<ScanData | null>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -85,37 +85,13 @@ export default function DashboardScannerPage() {
     setIsCameraOpen(false);
     setIsProcessingScan(true);
 
-    // Get current time
     const timestamp = new Date().toLocaleString("en-GB", {
       dateStyle: "medium",
       timeStyle: "short"
     });
 
-    // Try to get GPS Location
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setScanResult({
-            barcode: decodedText,
-            timestamp,
-            location: {
-              lat: position.coords.latitude,
-              lng: position.coords.longitude
-            }
-          });
-          setIsProcessingScan(false);
-        },
-        (error) => {
-          console.warn("Location error:", error);
-          setScanResult({ barcode: decodedText, timestamp, location: null });
-          setIsProcessingScan(false);
-        },
-        { enableHighAccuracy: false, timeout: 2000 }
-      );
-    } else {
-      setScanResult({ barcode: decodedText, timestamp, location: null });
-      setIsProcessingScan(false);
-    }
+    setScanResult({ barcode: decodedText, timestamp, location: null });
+    setIsProcessingScan(false);
   };
 
   const onScanFailure = (error: any) => {
@@ -170,25 +146,8 @@ export default function DashboardScannerPage() {
             </div>
           </div>
         </div>
-        <div style={{display: "flex", alignItems: "center", gap: "0.75rem"}}>
-          {user?.availableRoles && user.availableRoles.length > 1 && (
-            <button 
-              onClick={() => {
-                const nextRole = user.availableRoles.find(r => r !== "engineer") || "office";
-                switchRole(nextRole);
-              }}
-              style={{
-                background: "rgba(0, 229, 255, 0.1)", border: "1px solid rgba(0, 229, 255, 0.2)", borderRadius: "8px", 
-                padding: "0.5rem 0.75rem", color: "var(--primary)", fontSize: "0.75rem", fontWeight: 700,
-                display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer"
-              }}
-            >
-              <Repeat size={14} /> Switch to Office
-            </button>
-          )}
-          <div style={{width: '40px', height: '40px', borderRadius: '50%', background: 'var(--surface-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)', color: 'var(--primary)', fontWeight: '600'}}>
-            {user?.name ? user.name.substring(0, 2).toUpperCase() : "EN"}
-          </div>
+        <div style={{width: '40px', height: '40px', borderRadius: '50%', background: 'var(--surface-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)', color: 'var(--primary)', fontWeight: '600'}}>
+          {user?.name ? user.name.substring(0, 2).toUpperCase() : "EN"}
         </div>
       </header>
 
@@ -330,7 +289,7 @@ export default function DashboardScannerPage() {
       {isProcessingScan && (
         <div className={styles.loadingState} style={{marginTop: '4rem'}}>
           <div className={styles.spinner}></div>
-          <p>Acquiring Location Data...</p>
+          <p>Processing scan...</p>
         </div>
       )}
     </div>

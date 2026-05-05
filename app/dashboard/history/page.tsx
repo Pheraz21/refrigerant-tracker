@@ -134,6 +134,14 @@ export default function HistoryPage() {
           {getStatusPill(b)}
           <span className={styles.viewLink}>View →</span>
         </div>
+        {(b.returnedAt || b.locationChangedAt) && (
+          <div style={{fontSize: '0.72rem', color: 'var(--text-muted)', paddingTop: '0.4rem', marginTop: '0.2rem', borderTop: '1px solid rgba(255,255,255,0.05)'}}>
+            {b.returnedAt
+              ? `Returned: ${new Date(b.returnedAt).toLocaleDateString("en-GB")}`
+              : `Last moved: ${new Date(b.locationChangedAt!).toLocaleDateString("en-GB")}`
+            }
+          </div>
+        )}
       </div>
     </Link>
   );

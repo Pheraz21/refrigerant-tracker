@@ -229,6 +229,14 @@ export default function InventoryPage() {
                     )}
                   </div>
                 </div>
+                {(bottle.returnedAt || bottle.locationChangedAt) && (
+                  <div style={{marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: '0.75rem', color: 'var(--text-muted)'}}>
+                    {bottle.returnedAt
+                      ? `Returned: ${new Date(bottle.returnedAt).toLocaleDateString("en-GB")}`
+                      : `Last moved: ${new Date(bottle.locationChangedAt!).toLocaleDateString("en-GB")}`
+                    }
+                  </div>
+                )}
               </div>
             </Link>
           ))}

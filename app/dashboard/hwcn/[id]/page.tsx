@@ -69,8 +69,8 @@ export default function HWCNViewPage() {
 
   const formattedDate = new Date(hwcn.date).toLocaleDateString("en-GB");
   const formattedTime = new Date(hwcn.date).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-  const deliveredDate = (hwcn.hwcnStatus === "complete" && hwcn.deliveredAt) ? new Date(hwcn.deliveredAt).toLocaleDateString("en-GB") : "";
-  const deliveredTime = (hwcn.hwcnStatus === "complete" && hwcn.deliveredAt) ? new Date(hwcn.deliveredAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
+  const deliveredDate = hwcn.deliveredAt ? new Date(hwcn.deliveredAt).toLocaleDateString("en-GB") : "";
+  const deliveredTime = hwcn.deliveredAt ? new Date(hwcn.deliveredAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
 
   const primarySite = hwcn.sites?.[0];
   const isOffice = hwcn.destination === "Office / Stores";
@@ -213,7 +213,8 @@ export default function HWCNViewPage() {
             <span><strong>2. SIC code:</strong> 33 12/0</span>
           </div>
           <div style={{ fontSize: "0.68rem", marginBottom: "0.2rem", color: "#555" }}>3. Waste details:</div>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.72rem" }}>
+          <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.72rem", minWidth: "600px" }}>
             <thead>
               <tr style={{ background: "#eee" }}>
                 {cell("Waste Location", { fontWeight: "bold", width: "80px" })}
@@ -290,6 +291,7 @@ export default function HWCNViewPage() {
               ))}
             </tbody>
           </table>
+          </div>
           <div style={{ fontSize: "0.72rem", color: "#555", marginTop: "0.4rem" }}>
             Packing Group: None quoted on ADR 2017, UN 1078 (refrigerant gas N.O.S) UN 3161 (Liquefied Gas, Flammable, N.O.S)
           </div>

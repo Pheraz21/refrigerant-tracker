@@ -36,13 +36,13 @@ export default function LogBottlePage() {
   const { user } = useAuth();
 
   const [equipmentList, setEquipmentList] = useState([
-    { id: 1, manufacturer: "", model: "", serial: "", freeIssue: "no", weight: "", decommissioned: false }
+    { id: 1, manufacturer: "", model: "", serial: "", weight: "", decommissioned: false }
   ]);
 
   const totalWeight = equipmentList.reduce((sum, eq) => sum + (parseFloat(eq.weight) || 0), 0);
 
   const addEquipment = () => {
-    setEquipmentList([...equipmentList, { id: Date.now(), manufacturer: "", model: "", serial: "", freeIssue: "no", weight: "", decommissioned: false }]);
+    setEquipmentList([...equipmentList, { id: Date.now(), manufacturer: "", model: "", serial: "", weight: "", decommissioned: false }]);
   };
 
   const updateEquipment = (id: number, field: string, value: string) => {
@@ -165,7 +165,7 @@ export default function LogBottlePage() {
         vehicleReg: vehicleReg,
         engineer: user?.name,
         date: new Date().toISOString(),
-        gasType: bottleData.gasType || "Unknown",
+        gasType: finalRefrigerant || bottleData.gasType || "Unknown",
         fillWeight: (bottleData.currentWeight || 0) + totalWeight
       });
       // Update bottle with new intended destination
@@ -330,16 +330,37 @@ export default function LogBottlePage() {
         <div className={styles.row}>
           <div className={styles.inputGroup} style={{flex: 1}}>
             <label>{jobType === "recovery" ? "Gas Type Being Recovered" : "Refrigerant Type"}</label>
-            <select value={refrigerantType} onChange={(e) => setRefrigerantType(e.target.value)} required>
-              <option value="Mixed/Recovery">Mixed / Recovery (Unknown)</option>
-              <option value="R410A">R410A</option>
-              <option value="R32">R32</option>
-              <option value="R134a">R134a</option>
-              <option value="R404A">R404A</option>
-              <option value="R407C">R407C</option>
-              <option value="R22">R22</option>
-              <option value="other">Other (Specify)</option>
-            </select>
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginTop: '0.25rem'}}>
+              {["R410A", "R32", "R134a", "R404A", "R407C", "R22", "other"].map(gas => (
+                <button
+                  key={gas}
+                  type="button"
+                  onClick={() => setRefrigerantType(gas)}
+                  style={{
+                    padding: '0.6rem 0.5rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600,
+                    cursor: 'pointer', border: refrigerantType === gas ? 'none' : '1px solid rgba(255,255,255,0.12)',
+                    background: refrigerantType === gas ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
+                    color: refrigerantType === gas ? '#000' : 'rgba(255,255,255,0.7)',
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  {gas === "other" ? "Other" : gas}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setRefrigerantType("Mixed/Recovery")}
+              style={{
+                marginTop: '0.5rem', width: '100%', padding: '0.6rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600,
+                cursor: 'pointer', border: refrigerantType === "Mixed/Recovery" ? 'none' : '1px solid rgba(255,255,255,0.12)',
+                background: refrigerantType === "Mixed/Recovery" ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
+                color: refrigerantType === "Mixed/Recovery" ? '#000' : 'rgba(255,255,255,0.7)',
+                transition: 'all 0.15s'
+              }}
+            >
+              Mixed / Recovery
+            </button>
             {refrigerantType === "other" && (
               <input
                 type="text"
@@ -370,53 +391,17 @@ export default function LogBottlePage() {
         {/* Dynamic Fields based on REFCOM Requirements */}
         {(jobType === "service" || jobType === "install" || jobType === "retrofit" || jobType === "recovery") && (
           <div className={`${styles.dynamicSection} glass-panel`} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3>Equipment Details</h3>
-              <button type="button" onClick={addEquipment} style={{ background: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '0.25rem 0.75rem', borderRadius: '4px', fontSize: '0.85rem' }}>+ Add Asset</button>
-            </div>
-            
+            <h3>Equipment Details</h3>
+
             {equipmentList.map((eq, index) => (
               <div key={eq.id} style={{ position: 'relative', borderLeft: '2px solid var(--primary)', paddingLeft: '1rem' }}>
                 {equipmentList.length > 1 && (
                   <button type="button" onClick={() => removeEquipment(eq.id)} style={{ position: 'absolute', top: '0', right: '0', background: 'transparent', border: 'none', color: '#ff3366', cursor: 'pointer' }}>Remove</button>
                 )}
-                <h4 style={{ fontSize: '0.9rem', marginBottom: '0.5rem', color: 'var(--text-muted)' }}>Asset {index + 1}</h4>
-                <div className={styles.inputGroup}>
-                  <label>Manufacturer</label>
-                  <input type="text" placeholder="e.g. Daikin, Mitsubishi" value={eq.manufacturer} onChange={(e) => updateEquipment(eq.id, 'manufacturer', e.target.value)} required />
-                </div>
-                <div className={styles.inputGroup} style={{marginTop: '0.5rem'}}>
-                  <label>Model Number</label>
-                  <input type="text" placeholder="e.g. FDTC50VF" value={eq.model} onChange={(e) => updateEquipment(eq.id, 'model', e.target.value)} required />
-                </div>
-                <div className={styles.inputGroup} style={{marginTop: '0.5rem'}}>
-                  <label>Serial Number</label>
-                  <input type="text" placeholder="e.g. 9948201B" value={eq.serial} onChange={(e) => updateEquipment(eq.id, 'serial', e.target.value)} required />
-                </div>
-                <div className={styles.row} style={{marginTop: '0.5rem'}}>
-                  <div className={styles.inputGroup}>
-                    <label>Free Issue (Client)?</label>
-                    <select value={eq.freeIssue} onChange={(e) => updateEquipment(eq.id, 'freeIssue', e.target.value)}>
-                      <option value="no">No</option>
-                      <option value="yes">Yes</option>
-                    </select>
-                  </div>
-                  <div className={styles.inputGroup}>
-                    <label>Weight Logged (kg)</label>
-                    <input 
-                      type="number" 
-                      step="0.01" 
-                      placeholder="e.g. 1.5" 
-                      value={eq.weight} 
-                      onChange={(e) => updateEquipment(eq.id, 'weight', e.target.value)} 
-                      required 
-                      style={{ borderColor: 'var(--primary)', background: 'rgba(0, 229, 255, 0.02)' }}
-                    />
-                  </div>
-                </div>
+                <h4 style={{ fontSize: '0.9rem', marginBottom: '0.75rem', color: 'var(--text-muted)' }}>Asset {index + 1}</h4>
                 {jobType === "recovery" && (
                   <div style={{
-                    marginTop: '0.75rem', padding: '0.75rem', borderRadius: '8px',
+                    marginBottom: '0.75rem', padding: '0.75rem', borderRadius: '8px',
                     background: eq.decommissioned ? 'rgba(255, 68, 68, 0.08)' : 'rgba(255,255,255,0.02)',
                     border: eq.decommissioned ? '1px solid rgba(255, 68, 68, 0.3)' : '1px solid rgba(255,255,255,0.06)',
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem',
@@ -444,8 +429,34 @@ export default function LogBottlePage() {
                     </button>
                   </div>
                 )}
+                <div className={styles.inputGroup}>
+                  <label>Manufacturer</label>
+                  <input type="text" placeholder="e.g. Daikin, Mitsubishi" value={eq.manufacturer} onChange={(e) => updateEquipment(eq.id, 'manufacturer', e.target.value)} required />
+                </div>
+                <div className={styles.inputGroup} style={{marginTop: '0.5rem'}}>
+                  <label>Model Number</label>
+                  <input type="text" placeholder="e.g. FDTC50VF" value={eq.model} onChange={(e) => updateEquipment(eq.id, 'model', e.target.value)} required />
+                </div>
+                <div className={styles.inputGroup} style={{marginTop: '0.5rem'}}>
+                  <label>Serial Number</label>
+                  <input type="text" placeholder="e.g. 9948201B" value={eq.serial} onChange={(e) => updateEquipment(eq.id, 'serial', e.target.value)} required />
+                </div>
+                <div className={styles.inputGroup} style={{marginTop: '0.5rem'}}>
+                  <label>Weight Logged (kg)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="e.g. 1.5"
+                    value={eq.weight}
+                    onChange={(e) => updateEquipment(eq.id, 'weight', e.target.value)}
+                    required
+                    style={{ borderColor: 'var(--primary)', background: 'rgba(0, 229, 255, 0.02)' }}
+                  />
+                </div>
               </div>
             ))}
+
+            <button type="button" onClick={addEquipment} style={{ background: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '0.6rem 1rem', borderRadius: '8px', fontSize: '0.9rem', fontWeight: 600, width: '100%', cursor: 'pointer' }}>+ Add Another Asset</button>
           </div>
         )}
 

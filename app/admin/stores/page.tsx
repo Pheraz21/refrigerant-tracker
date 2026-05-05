@@ -39,7 +39,7 @@ export default function StoresInventoryPage() {
     db.getBottlesByLocation("office").then(b => {
       setBottles(b);
       setLoading(false);
-    });
+    }).catch(() => setLoading(false));
   }, []);
 
   const handleSort = (key: SortKey) => {

@@ -20,7 +20,6 @@ import {
   Truck,
   RotateCcw,
   Repeat,
-  RefreshCw,
   Bell,
   CalendarClock,
   History,
@@ -83,7 +82,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const [notifCount, setNotifCount] = useState(0);
   const [pendingUsersCount, setPendingUsersCount] = useState(0);
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem("adminSidebarCollapsed") === "true"; } catch { return false; }
   });
@@ -230,26 +228,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
           ))}
 
-          {/* Toggle button at bottom of nav */}
-          <div style={{marginTop: "auto", paddingTop: "1rem"}}>
-            <button
-              onClick={() => setCollapsed(c => !c)}
-              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-              style={{
-                width: "100%", display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "flex-end",
-                padding: collapsed ? "0.6rem" : "0.6rem 1rem",
-                background: "none", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer",
-                borderRadius: "8px", transition: "all 0.15s",
-                gap: "0.5rem", fontSize: "0.75rem"
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}
-              onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "rgba(255,255,255,0.25)"; }}
-            >
-              {!collapsed && <span>Collapse</span>}
-              {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-            </button>
-          </div>
         </nav>
+
+        {/* Sidebar toggle — always visible, outside scrollable nav */}
+        <div style={{padding: collapsed ? "0.5rem" : "0.5rem 0.75rem", borderTop: "1px solid rgba(255,255,255,0.06)", flexShrink: 0}}>
+          <button
+            onClick={() => setCollapsed(c => !c)}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            style={{
+              width: "100%", display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "flex-end",
+              padding: collapsed ? "0.6rem" : "0.5rem 0.75rem",
+              background: "none", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)", cursor: "pointer",
+              borderRadius: "8px", transition: "all 0.15s",
+              gap: "0.5rem", fontSize: "0.75rem"
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.05)"; e.currentTarget.style.color = "rgba(255,255,255,0.7)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "rgba(255,255,255,0.4)"; }}
+          >
+            {!collapsed && <span>Collapse</span>}
+            {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          </button>
+        </div>
 
         {/* User / Logout */}
         <div style={{padding: collapsed ? "0.75rem 0.5rem" : "1rem 1.25rem", borderTop: "1px solid rgba(255,255,255,0.06)"}}>
@@ -302,41 +301,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <LogOut size={16} /> {!collapsed && "Sign Out"}
           </button>
 
-          {!collapsed && showResetConfirm ? (
-            <div style={{marginTop: "0.75rem", background: "rgba(255,68,68,0.08)", border: "1px solid rgba(255,68,68,0.3)", borderRadius: "6px", padding: "0.75rem"}}>
-              <p style={{fontSize: "0.72rem", color: "#ff4444", fontWeight: 700, margin: "0 0 0.5rem", textAlign: "center"}}>
-                This will clear your local session. Are you sure?
-              </p>
-              <div style={{display: "flex", gap: "0.4rem"}}>
-                <button
-                  onClick={() => setShowResetConfirm(false)}
-                  style={{flex: 1, padding: "0.4rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "4px", color: "rgba(255,255,255,0.5)", fontSize: "0.72rem", cursor: "pointer"}}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    Object.keys(localStorage).forEach(key => { if (key.startsWith("fgas_")) localStorage.removeItem(key); });
-                    window.location.assign("/");
-                  }}
-                  style={{flex: 1, padding: "0.4rem", background: "rgba(255,68,68,0.15)", border: "1px solid rgba(255,68,68,0.4)", borderRadius: "4px", color: "#ff4444", fontSize: "0.72rem", fontWeight: 700, cursor: "pointer"}}
-                >
-                  Confirm
-                </button>
-              </div>
-            </div>
-          ) : !collapsed ? (
-            <button
-              onClick={() => setShowResetConfirm(true)}
-              style={{
-                width: "100%", marginTop: "0.75rem", padding: "0.5rem", background: "rgba(255,68,68,0.1)", border: "1px solid rgba(255,68,68,0.3)",
-                borderRadius: "6px", color: "#ff4444", fontSize: "0.7rem", fontWeight: 700, cursor: "pointer",
-                display: "flex", alignItems: "center", gap: "0.4rem", transition: "all 0.15s", justifyContent: "center"
-              }}
-            >
-              <RefreshCw size={12} /> Force Reset System Data
-            </button>
-          ) : null}
         </div>
       </aside>
 

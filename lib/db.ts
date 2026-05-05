@@ -624,6 +624,13 @@ export const db = {
   },
 
   async getBottlesByVan(engineerId: string): Promise<Bottle[]> {
+    if (engineerId === "all") {
+      const { data } = await supabase.from('bottles')
+        .select('*')
+        .eq('location_type', 'van')
+        .neq('status', 'returned');
+      return data ? data.map(mapBottle) : [];
+    }
     const { data } = await supabase.from('bottles')
       .select('*')
       .eq('location_type', 'van')
