@@ -3,9 +3,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db, Bottle, MovementLog, UsageLog } from "@/lib/db";
-import { ArrowLeft, Edit3, History, ArrowRight, User, Package, Calendar, MapPin, Truck, Building2, FileText, FileSpreadsheet } from "lucide-react";
+import { ArrowLeft, Edit3, History, ArrowRight, User, Package, Calendar, MapPin, Truck, Building2, FileText, FileSpreadsheet, ClipboardList, Wrench, Tag, CheckCircle, RotateCcw } from "lucide-react";
 import Link from "next/link";
-import styles from "../../page.module.css";
 
 export default function ViewBottlePage() {
   const { serial } = useParams();
@@ -13,19 +12,25 @@ export default function ViewBottlePage() {
   const [bottle, setBottle] = useState<Bottle | null>(null);
   const [logs, setLogs] = useState<MovementLog[]>([]);
   const [usageLogs, setUsageLogs] = useState<UsageLog[]>([]);
+  const [hwcns, setHwcns] = useState<any[]>([]);
+  const [decommissions, setDecommissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("audit");
 
   useEffect(() => {
     if (serial) {
       Promise.all([
         db.getBottle(serial as string),
         db.getMovementLogs(serial as string),
-        db.getUsageLogs(serial as string)
-      ]).then(([bottleData, moveLogs, useLogs]) => {
+        db.getUsageLogs(serial as string),
+        db.getHWCNsForBottle(serial as string),
+        db.getDecommissionsByBottleSerial(serial as string),
+      ]).then(([bottleData, moveLogs, useLogs, hwcnData, decommData]) => {
         setBottle(bottleData);
         setUsageLogs(useLogs);
+        setHwcns(hwcnData);
+        setDecommissions(decommData);
 
-        // 1. Combine all logs
         const combined = [
           ...moveLogs.flatMap(l => {
             const usageMatch = l.notes?.match(/([\d.]+)\s*kg\s*dispensed/i);
@@ -61,7 +66,6 @@ export default function ViewBottlePage() {
           }))
         ];
 
-        // 2. Sort oldest first to calculate running balance
         const chronLogs = combined.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         let currentBalance = bottleData?.initialWeight || 0;
 
@@ -72,7 +76,6 @@ export default function ViewBottlePage() {
           return { ...log, balance: currentBalance };
         });
 
-        // 3. Reverse back to newest first for display
         setLogs(logsWithBalance.reverse() as any);
         setLoading(false);
       });
@@ -98,101 +101,57 @@ export default function ViewBottlePage() {
     `).join("");
 
     const html = `
-      <html>
-        <head>
-          <style>
-            @page { margin: 10mm; size: A4 landscape; }
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; color: #333; line-height: 1.4; }
-            .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
-            .logo-section { display: flex; gap: 15px; align-items: flex-end; }
-            .company-info { font-size: 10px; line-height: 1.4; color: #555; }
-            .report-info { text-align: right; }
-            .report-title { font-size: 22px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; color: #1a202c; }
-            .report-meta { font-size: 11px; color: #666; }
-            .summary-table { width: 100%; margin-bottom: 20px; border-collapse: separate; border-spacing: 0; background: #f9fafb; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
-            .summary-cell { padding: 12px 15px; border-right: 1px solid #e2e8f0; vertical-align: top; }
-            .summary-cell:last-child { border-right: none; }
-            .summary-label { font-size: 8px; color: #718096; text-transform: uppercase; margin-bottom: 4px; font-weight: 700; letter-spacing: 0.1em; }
-            .summary-value { font-size: 14px; font-weight: bold; color: #1a202c; white-space: nowrap; }
-            table.log { width: 100%; border-collapse: collapse; margin-top: 10px; }
-            table.log th, table.log td { border: 1px solid #e2e8f0; padding: 8px 10px; text-align: left; vertical-align: middle; font-size: 10px; }
-            table.log th { background: #f8f9fa; font-weight: bold; text-transform: uppercase; color: #4a5568; font-size: 8px; letter-spacing: 0.05em; border-bottom: 2px solid #cbd5e0; }
-            .total-row { font-weight: 700; background: #f9fafb; }
-            .footer { margin-top: 20px; font-size: 8px; color: #a0aec0; text-align: center; border-top: 1px solid #edf2f7; padding-top: 10px; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="logo-section">
-              <img src="/21-degrees-logo-reports.png" style="width: 100px; height: auto;" />
-              <div class="company-info">
-                <strong>21 Degrees Ltd</strong><br />
-                Unit 10, Apollo Court, Monkton Business Park<br />
-                Hebburn, Tyne & Wear, NE31 2ES<br />
-                Tel: 0191 495 7224
-              </div>
-            </div>
-            <div class="report-info">
-              <div class="report-title">Used Refrigerant Log</div>
-              <div class="report-meta">
-                <div>Generated: ${reportDate}</div>
-                <div>Cylinder: ${bottle.serial}</div>
-              </div>
-            </div>
+      <html><head><style>
+        @page { margin: 10mm; size: A4 landscape; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; color: #333; line-height: 1.4; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
+        .logo-section { display: flex; gap: 15px; align-items: flex-end; }
+        .company-info { font-size: 10px; line-height: 1.4; color: #555; }
+        .report-info { text-align: right; }
+        .report-title { font-size: 22px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; color: #1a202c; }
+        .report-meta { font-size: 11px; color: #666; }
+        .summary-table { width: 100%; margin-bottom: 20px; border-collapse: separate; border-spacing: 0; background: #f9fafb; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+        .summary-cell { padding: 12px 15px; border-right: 1px solid #e2e8f0; vertical-align: top; }
+        .summary-cell:last-child { border-right: none; }
+        .summary-label { font-size: 8px; color: #718096; text-transform: uppercase; margin-bottom: 4px; font-weight: 700; letter-spacing: 0.1em; }
+        .summary-value { font-size: 14px; font-weight: bold; color: #1a202c; white-space: nowrap; }
+        table.log { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        table.log th, table.log td { border: 1px solid #e2e8f0; padding: 8px 10px; text-align: left; vertical-align: middle; font-size: 10px; }
+        table.log th { background: #f8f9fa; font-weight: bold; text-transform: uppercase; color: #4a5568; font-size: 8px; letter-spacing: 0.05em; border-bottom: 2px solid #cbd5e0; }
+        .total-row { font-weight: 700; background: #f9fafb; }
+        .footer { margin-top: 20px; font-size: 8px; color: #a0aec0; text-align: center; border-top: 1px solid #edf2f7; padding-top: 10px; }
+      </style></head><body>
+        <div class="header">
+          <div class="logo-section">
+            <img src="/21-degrees-logo-reports.png" style="width: 100px; height: auto;" />
+            <div class="company-info"><strong>21 Degrees Ltd</strong><br />Unit 10, Apollo Court, Monkton Business Park<br />Hebburn, Tyne &amp; Wear, NE31 2ES<br />Tel: 0191 495 7224</div>
           </div>
-
-          <table class="summary-table">
-            <tr>
-              <td class="summary-cell">
-                <div class="summary-label">Cylinder Serial</div>
-                <div class="summary-value">${bottle.serial}</div>
-              </td>
-              <td class="summary-cell">
-                <div class="summary-label">Refrigerant</div>
-                <div class="summary-value">${bottle.gasType}</div>
-              </td>
-              <td class="summary-cell">
-                <div class="summary-label">Cylinder Capacity</div>
-                <div class="summary-value">${bottle.initialWeight.toFixed(2)} kg</div>
-              </td>
-              <td class="summary-cell">
-                <div class="summary-label">Current Balance</div>
-                <div class="summary-value">${bottle.currentWeight.toFixed(2)} kg</div>
-              </td>
-              <td class="summary-cell">
-                <div class="summary-label">Total Used</div>
-                <div class="summary-value">${totalUsed.toFixed(2)} kg</div>
-              </td>
-            </tr>
-          </table>
-
-          <table class="log">
-            <thead>
-              <tr>
-                <th style="width: 80px">Date</th>
-                <th style="width: 100px">Job Ref</th>
-                <th>Site</th>
-                <th style="width: 130px">Engineer</th>
-                <th style="width: 80px; text-align: right">Qty Used</th>
-                <th style="width: 90px; text-align: right">Wt. Before</th>
-                <th style="width: 90px; text-align: right">Wt. After</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rows}
-              <tr class="total-row">
-                <td colspan="4" style="text-align: right">Total Gas Used</td>
-                <td style="text-align: right; color: #e53e3e">${totalUsed.toFixed(2)} kg</td>
-                <td colspan="2"></td>
-              </tr>
-            </tbody>
-          </table>
-
-          <div class="footer">
-            Used Refrigerant Log | F-Gas Tracker Pro | &copy; 2024 21 Degrees Ltd
+          <div class="report-info">
+            <div class="report-title">Used Refrigerant Log</div>
+            <div class="report-meta"><div>Generated: ${reportDate}</div><div>Cylinder: ${bottle.serial}</div></div>
           </div>
-        </body>
-      </html>
+        </div>
+        <table class="summary-table"><tr>
+          <td class="summary-cell"><div class="summary-label">Cylinder Serial</div><div class="summary-value">${bottle.serial}</div></td>
+          <td class="summary-cell"><div class="summary-label">Refrigerant</div><div class="summary-value">${bottle.gasType}</div></td>
+          <td class="summary-cell"><div class="summary-label">Cylinder Capacity</div><div class="summary-value">${(bottle.initialWeight ?? 0).toFixed(2)} kg</div></td>
+          <td class="summary-cell"><div class="summary-label">Current Balance</div><div class="summary-value">${(bottle.currentWeight ?? 0).toFixed(2)} kg</div></td>
+          <td class="summary-cell"><div class="summary-label">Total Used</div><div class="summary-value">${totalUsed.toFixed(2)} kg</div></td>
+        </tr></table>
+        <table class="log"><thead><tr>
+          <th style="width: 80px">Date</th><th style="width: 100px">Job Ref</th><th>Site</th>
+          <th style="width: 130px">Engineer</th><th style="width: 80px; text-align: right">Qty Used</th>
+          <th style="width: 90px; text-align: right">Wt. Before</th><th style="width: 90px; text-align: right">Wt. After</th>
+        </tr></thead><tbody>
+          ${rows}
+          <tr class="total-row">
+            <td colspan="4" style="text-align: right">Total Gas Used</td>
+            <td style="text-align: right; color: #e53e3e">${totalUsed.toFixed(2)} kg</td>
+            <td colspan="2"></td>
+          </tr>
+        </tbody></table>
+        <div class="footer">Used Refrigerant Log | F-Gas Tracker Pro | &copy; 2024 21 Degrees Ltd</div>
+      </body></html>
     `;
     const win = window.open("", "_blank");
     win?.document.write(html);
@@ -219,12 +178,10 @@ export default function ViewBottlePage() {
   const exportPDF = () => {
     if (!bottle) return;
     const reportDate = new Date().toLocaleDateString("en-GB");
-
     const rows = logs.map(log => {
       const qty = (log as any).qty;
       const balance = (log as any).balance;
       const isUsage = log.action.toLowerCase().includes('usage');
-
       return `
         <tr style="${isUsage ? 'background-color: #f8fafc;' : ''}">
           <td style="white-space: nowrap; font-size: 9px;">${new Date(log.date).toLocaleDateString("en-GB")}</td>
@@ -237,94 +194,51 @@ export default function ViewBottlePage() {
         </tr>
       `;
     }).join("");
-
     const html = `
-      <html>
-        <head>
-          <style>
-            @page { margin: 10mm; size: A4 portrait; }
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; color: #333; line-height: 1.4; }
-            .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
-            .logo-section { display: flex; gap: 15px; align-items: flex-end; }
-            .company-info { font-size: 10px; line-height: 1.4; color: #555; }
-            .report-info { text-align: right; }
-            .report-title { font-size: 22px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; color: #1a202c; }
-            .report-meta { font-size: 11px; color: #666; }
-            
-            .summary-table { width: 100%; margin-bottom: 25px; border-collapse: separate; border-spacing: 0; background: #f9fafb; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
-            .summary-cell { padding: 15px; border-right: 1px solid #e2e8f0; vertical-align: top; width: 25%; }
-            .summary-cell:last-child { border-right: none; }
-            .summary-label { font-size: 8px; color: #718096; text-transform: uppercase; margin-bottom: 4px; font-weight: 700; letter-spacing: 0.1em; }
-            .summary-value { font-size: 14px; font-weight: bold; color: #1a202c; white-space: nowrap; }
-
-            table { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: auto; }
-            th, td { border: 1px solid #e2e8f0; padding: 10px 12px; text-align: left; vertical-align: middle; }
-            th { background: #f8f9fa; font-weight: bold; text-transform: uppercase; color: #4a5568; font-size: 9px; letter-spacing: 0.05em; border-bottom: 2px solid #cbd5e0; }
-            .footer { margin-top: 30px; font-size: 8px; color: #a0aec0; text-align: center; border-top: 1px solid #edf2f7; padding-top: 10px; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="logo-section">
-              <img src="/21-degrees-logo-reports.png" style="width: 120px; height: auto;" />
-              <div class="company-info">
-                <strong>21 Degrees Ltd</strong><br />
-                Unit 10, Apollo Court, Monkton Business Park<br />
-                Hebburn, Tyne & Wear, NE31 2ES<br />
-                Tel: 0191 495 7224
-              </div>
-            </div>
-            <div class="report-info">
-              <div class="report-title">Cylinder Audit Report</div>
-              <div class="report-meta">
-                <div>Generated: ${reportDate}</div>
-                <div>System ID: ${bottle.serial}</div>
-              </div>
-            </div>
+      <html><head><style>
+        @page { margin: 10mm; size: A4 portrait; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; color: #333; line-height: 1.4; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
+        .logo-section { display: flex; gap: 15px; align-items: flex-end; }
+        .company-info { font-size: 10px; line-height: 1.4; color: #555; }
+        .report-info { text-align: right; }
+        .report-title { font-size: 22px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; color: #1a202c; }
+        .report-meta { font-size: 11px; color: #666; }
+        .summary-table { width: 100%; margin-bottom: 25px; border-collapse: separate; border-spacing: 0; background: #f9fafb; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+        .summary-cell { padding: 15px; border-right: 1px solid #e2e8f0; vertical-align: top; width: 25%; }
+        .summary-cell:last-child { border-right: none; }
+        .summary-label { font-size: 8px; color: #718096; text-transform: uppercase; margin-bottom: 4px; font-weight: 700; letter-spacing: 0.1em; }
+        .summary-value { font-size: 14px; font-weight: bold; color: #1a202c; white-space: nowrap; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: auto; }
+        th, td { border: 1px solid #e2e8f0; padding: 10px 12px; text-align: left; vertical-align: middle; }
+        th { background: #f8f9fa; font-weight: bold; text-transform: uppercase; color: #4a5568; font-size: 9px; letter-spacing: 0.05em; border-bottom: 2px solid #cbd5e0; }
+        .footer { margin-top: 30px; font-size: 8px; color: #a0aec0; text-align: center; border-top: 1px solid #edf2f7; padding-top: 10px; }
+      </style></head><body>
+        <div class="header">
+          <div class="logo-section">
+            <img src="/21-degrees-logo-reports.png" style="width: 120px; height: auto;" />
+            <div class="company-info"><strong>21 Degrees Ltd</strong><br />Unit 10, Apollo Court, Monkton Business Park<br />Hebburn, Tyne &amp; Wear, NE31 2ES<br />Tel: 0191 495 7224</div>
           </div>
-
-          <table class="summary-table">
-            <tr>
-              <td class="summary-cell">
-                <div class="summary-label">Serial Number</div>
-                <div class="summary-value">${bottle.serial}</div>
-              </td>
-              <td class="summary-cell">
-                <div class="summary-label">Refrigerant</div>
-                <div class="summary-value">${bottle.gasType}</div>
-              </td>
-              <td class="summary-cell">
-                <div class="summary-label">Weight Balance</div>
-                <div class="summary-value">${bottle.currentWeight.toFixed(2)} / ${bottle.initialWeight.toFixed(2)} kg</div>
-              </td>
-              <td class="summary-cell">
-                <div class="summary-label">Current Location</div>
-                <div class="summary-value">${bottle.locationId}</div>
-              </td>
-            </tr>
-          </table>
-
-          <h3 style="font-size: 14px; margin-bottom: 12px; color: #2d3748; border-left: 5px solid #a3e635; padding-left: 12px;">Full Audit History</h3>
-          <table>
-            <thead>
-              <tr>
-                <th style="width: 85px;">Date</th>
-                <th style="width: 100px;">Action</th>
-                <th style="width: 200px;">From</th>
-                <th style="width: 200px;">To</th>
-                <th style="width: 70px; text-align: center;">Qty (kg)</th>
-                <th style="width: 70px; text-align: center;">Balance</th>
-                <th>User</th>
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
-          
-          <div class="footer">
-            Printed from F-Gas Tracker Pro | Official Audit Document | &copy; 2024 21 Degrees Ltd
+          <div class="report-info">
+            <div class="report-title">Cylinder Audit Report</div>
+            <div class="report-meta"><div>Generated: ${reportDate}</div><div>System ID: ${bottle.serial}</div></div>
           </div>
-        </body>
-      </html>
+        </div>
+        <table class="summary-table"><tr>
+          <td class="summary-cell"><div class="summary-label">Serial Number</div><div class="summary-value">${bottle.serial}</div></td>
+          <td class="summary-cell"><div class="summary-label">Refrigerant</div><div class="summary-value">${bottle.gasType}</div></td>
+          <td class="summary-cell"><div class="summary-label">Weight Balance</div><div class="summary-value">${(bottle.currentWeight ?? 0).toFixed(2)} / ${(bottle.initialWeight ?? 0).toFixed(2)} kg</div></td>
+          <td class="summary-cell"><div class="summary-label">Current Location</div><div class="summary-value">${bottle.locationId}</div></td>
+        </tr></table>
+        <h3 style="font-size: 14px; margin-bottom: 12px; color: #2d3748; border-left: 5px solid #a3e635; padding-left: 12px;">Full Audit History</h3>
+        <table><thead><tr>
+          <th style="width: 85px;">Date</th><th style="width: 100px;">Action</th>
+          <th style="width: 200px;">From</th><th style="width: 200px;">To</th>
+          <th style="width: 70px; text-align: center;">Qty (kg)</th>
+          <th style="width: 70px; text-align: center;">Balance</th><th>User</th>
+        </tr></thead><tbody>${rows}</tbody></table>
+        <div class="footer">Printed from F-Gas Tracker Pro | Official Audit Document | &copy; 2024 21 Degrees Ltd</div>
+      </body></html>
     `;
     const win = window.open("", "_blank");
     win?.document.write(html);
@@ -337,16 +251,75 @@ export default function ViewBottlePage() {
 
   const getLocationIcon = (type: string) => {
     switch (type) {
-      case "van": return <Truck size={20} />;
-      case "site": return <MapPin size={20} />;
+      case "van":      return <Truck size={20} />;
+      case "site":     return <MapPin size={20} />;
       case "supplier": return <Building2 size={20} />;
-      case "office": return <Package size={20} />;
-      default: return <Package size={20} />;
+      default:         return <Package size={20} />;
     }
+  };
+
+  const getCatBadge = () => {
+    switch (bottle.category) {
+      case "new":     return { bg: "rgba(0,229,255,0.1)",   color: "#00e5ff", label: "New Refrigerant" };
+      case "reclaim": return { bg: "rgba(255,170,0,0.12)",  color: "#ffaa00", label: "Reclaim / Haz" };
+      default:        return { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", label: "Nitrogen" };
+    }
+  };
+
+  const getStatusBadge = () => {
+    switch (bottle.status) {
+      case "active":   return { bg: "rgba(34,197,94,0.12)",  color: "#22c55e", label: "Active" };
+      case "returned": return { bg: "rgba(168,85,247,0.12)", color: "#a855f7", label: "Returned" };
+      default:         return { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)", label: "Empty" };
+    }
+  };
+
+  const getHwcnStatusBadge = (status: string) => {
+    switch (status) {
+      case "complete":           return { bg: "rgba(34,197,94,0.12)",   color: "#22c55e", label: "Complete" };
+      case "awaiting_consignee": return { bg: "rgba(255,193,7,0.15)",   color: "#ffc107", label: "Awaiting Part E" };
+      default:                   return { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)", label: "Draft" };
+    }
+  };
+
+  const getHwcnType = (destination: string) =>
+    destination === "Office/Stores" || destination === "Office / Stores" ? "Office Return" : "Supplier Transfer";
+
+  const catBadge = getCatBadge();
+  const statusBadge = getStatusBadge();
+
+  const tabStyle = (key: string): React.CSSProperties => ({
+    padding: "0.5rem 1rem",
+    borderRadius: "6px",
+    border: "none",
+    cursor: "pointer",
+    fontSize: "0.85rem",
+    fontWeight: activeTab === key ? 600 : 400,
+    color: activeTab === key ? "#000" : "rgba(255,255,255,0.6)",
+    background: activeTab === key ? "#00e5ff" : "transparent",
+    transition: "all 0.15s",
+    whiteSpace: "nowrap" as const,
+  });
+
+  const emptyState = (icon: React.ReactNode, msg: string) => (
+    <div style={{ textAlign: "center", padding: "3rem", color: "var(--text-muted)" }}>
+      {icon}
+      <p style={{ marginTop: "0.5rem" }}>{msg}</p>
+    </div>
+  );
+
+  const tableTh: React.CSSProperties = {
+    padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.75rem", color: "rgba(255,255,255,0.5)",
+    fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em",
+    borderBottom: "1px solid rgba(255,255,255,0.06)", whiteSpace: "nowrap",
+  };
+  const tableTd: React.CSSProperties = {
+    padding: "0.75rem 1rem", fontSize: "0.85rem", borderBottom: "1px solid rgba(255,255,255,0.04)",
   };
 
   return (
     <div style={{ maxWidth: "1200px" }}>
+      {/* Header */}
       <div style={{ marginBottom: "2rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
           <button onClick={() => router.push("/admin/bottles")} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer" }}>
@@ -358,66 +331,101 @@ export default function ViewBottlePage() {
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: "0.75rem" }}>
-          <button onClick={exportCSV} style={{
-            background: "rgba(255, 255, 255, 0.05)", border: "1px solid rgba(255,255,255,0.1)",
-            color: "rgba(255,255,255,0.7)", padding: "0.6rem 1rem", borderRadius: "8px",
-            cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, display: "flex",
-            alignItems: "center", gap: "0.4rem"
-          }}>
+        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+          <button onClick={exportCSV} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)", padding: "0.6rem 1rem", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.4rem" }}>
             <FileSpreadsheet size={18} /> Export Excel
           </button>
-          <button onClick={exportPDF} style={{
-            background: "rgba(255, 255, 255, 0.05)", border: "1px solid rgba(255,255,255,0.1)",
-            color: "rgba(255,255,255,0.7)", padding: "0.6rem 1rem", borderRadius: "8px",
-            cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, display: "flex",
-            alignItems: "center", gap: "0.4rem"
-          }}>
+          <button onClick={exportPDF} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)", padding: "0.6rem 1rem", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.4rem" }}>
             <FileText size={18} /> Print Audit PDF
           </button>
           {bottle.category === "new" && (
-            <button onClick={printRefrigerantLog} style={{
-              background: "rgba(255, 170, 0, 0.08)", border: "1px solid rgba(255,170,0,0.3)",
-              color: "#ffaa00", padding: "0.6rem 1rem", borderRadius: "8px",
-              cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, display: "flex",
-              alignItems: "center", gap: "0.4rem"
-            }}>
+            <button onClick={printRefrigerantLog} style={{ background: "rgba(255,170,0,0.08)", border: "1px solid rgba(255,170,0,0.3)", color: "#ffaa00", padding: "0.6rem 1rem", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.4rem" }}>
               <FileText size={18} /> Refrigerant Log PDF
             </button>
           )}
           <Link href={`/admin/bottles/${serial}/edit`} style={{ textDecoration: "none" }}>
-            <button style={{
-              background: "rgba(0, 229, 255, 0.1)", border: "1px solid var(--primary)",
-              color: "var(--primary)", padding: "0.6rem 1.2rem", borderRadius: "8px",
-              cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, display: "flex",
-              alignItems: "center", gap: "0.5rem"
-            }}>
+            <button style={{ background: "rgba(0,229,255,0.1)", border: "1px solid var(--primary)", color: "var(--primary)", padding: "0.6rem 1.2rem", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <Edit3 size={18} /> Edit
             </button>
           </Link>
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "2rem" }}>
-        {/* Quick Stats Sidebar */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: "2rem" }}>
+        {/* Sidebar */}
+        <div>
           <div className="glass-panel" style={{ padding: "1.5rem" }}>
-            <h3 style={{ fontSize: "0.9rem", color: "rgba(255,255,255,0.4)", marginBottom: "1rem", textTransform: "uppercase" }}>Current Status</h3>
+            <h3 style={{ fontSize: "0.9rem", color: "rgba(255,255,255,0.4)", marginBottom: "1rem", textTransform: "uppercase" }}>Bottle Details</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+
+              <div>
+                <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)", marginBottom: "0.3rem" }}>Category</div>
+                <span style={{ background: catBadge.bg, color: catBadge.color, padding: "0.2rem 0.7rem", borderRadius: "20px", fontSize: "0.8rem", fontWeight: 600 }}>
+                  {catBadge.label}
+                </span>
+              </div>
+
+              <div>
+                <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)", marginBottom: "0.3rem" }}>Status</div>
+                <span style={{ background: statusBadge.bg, color: statusBadge.color, padding: "0.2rem 0.7rem", borderRadius: "20px", fontSize: "0.8rem", fontWeight: 600 }}>
+                  {statusBadge.label}
+                </span>
+              </div>
+
               <div>
                 <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>Location</div>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--primary)", fontWeight: 700 }}>
                   {getLocationIcon(bottle.locationType)} {bottle.locationId}
                 </div>
               </div>
+
               <div>
                 <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>Gas Type</div>
                 <div style={{ color: "#fff", fontWeight: 600 }}>{bottle.gasType}</div>
               </div>
+
               <div>
                 <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>Inventory Level</div>
-                <div style={{ color: "var(--warning)", fontWeight: 700 }}>{bottle.currentWeight.toFixed(2)} / {bottle.initialWeight.toFixed(2)} kg</div>
+                <div style={{ color: "var(--warning)", fontWeight: 700 }}>
+                  {(bottle.currentWeight ?? 0).toFixed(2)} / {(bottle.initialWeight ?? 0).toFixed(2)} kg
+                </div>
               </div>
+
+              {bottle.supplier && (
+                <div>
+                  <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>Supplier</div>
+                  <span
+                    onClick={() => router.push(`/admin/suppliers?supplier=${bottle.supplier}`)}
+                    style={{ color: "#00e5ff", fontWeight: 500, cursor: "pointer", fontSize: "0.9rem" }}
+                    onMouseEnter={e => e.currentTarget.style.textDecoration = "underline"}
+                    onMouseLeave={e => e.currentTarget.style.textDecoration = "none"}
+                  >
+                    {bottle.supplier}
+                  </span>
+                </div>
+              )}
+
+              {bottle.poNumber && (
+                <div>
+                  <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>PO Number</div>
+                  <div style={{ color: "#fff", fontSize: "0.9rem" }}>{bottle.poNumber}</div>
+                </div>
+              )}
+
+              <div>
+                <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>Registered</div>
+                <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "0.85rem" }}>
+                  {bottle.registeredAt ? new Date(bottle.registeredAt).toLocaleDateString("en-GB") : "—"}
+                </div>
+              </div>
+
+              {bottle.registeredBy && (
+                <div>
+                  <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>Registered By</div>
+                  <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "0.85rem" }}>{bottle.registeredBy}</div>
+                </div>
+              )}
+
               <div>
                 <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>Rental Expiry</div>
                 {bottle.rentalExpiryDate ? (
@@ -433,46 +441,209 @@ export default function ViewBottlePage() {
                   </Link>
                 )}
               </div>
+
             </div>
           </div>
         </div>
 
-        {/* History Log */}
+        {/* Main tabbed content */}
         <div>
-          <h2 style={{ fontSize: "1.2rem", fontWeight: 700, color: "#fff", display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1.5rem" }}>
-            <History size={20} color="var(--primary)" /> Audit Log / Tracking History
-          </h2>
+          {/* Tab bar */}
+          <div style={{ display: "flex", gap: "0.25rem", background: "rgba(255,255,255,0.04)", borderRadius: "8px", padding: "0.25rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
+            <button style={tabStyle("audit")} onClick={() => setActiveTab("audit")}>
+              <History size={14} style={{ display: "inline", marginRight: "0.35rem" }} />
+              Audit Trail ({logs.length})
+            </button>
+            <button style={tabStyle("hwcns")} onClick={() => setActiveTab("hwcns")}>
+              <ClipboardList size={14} style={{ display: "inline", marginRight: "0.35rem" }} />
+              HWCNs {hwcns.length > 0 ? `(${hwcns.length})` : ""}
+            </button>
+            <button style={tabStyle("usage")} onClick={() => setActiveTab("usage")}>
+              <Tag size={14} style={{ display: "inline", marginRight: "0.35rem" }} />
+              Refrigerant Usage {usageLogs.length > 0 ? `(${usageLogs.length})` : ""}
+            </button>
+            <button style={tabStyle("decommission")} onClick={() => setActiveTab("decommission")}>
+              <Wrench size={14} style={{ display: "inline", marginRight: "0.35rem" }} />
+              Decommission Records {decommissions.length > 0 ? `(${decommissions.length})` : ""}
+            </button>
+          </div>
 
-          {logs.length === 0 ? (
-            <div className="glass-panel" style={{ padding: "2rem", textAlign: "center", color: "rgba(255,255,255,0.3)" }}>
-              No history logs found for this cylinder.
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              {logs.map(log => (
-                <div key={log.id} className="glass-panel" style={{ padding: "1rem 1.5rem", display: "flex", alignItems: "center", gap: "1.5rem" }}>
-                  <div style={{ width: "80px", fontSize: "0.8rem", color: "rgba(255,255,255,0.4)" }}>
-                    {new Date(log.date).toLocaleDateString()}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
-                      <span style={{
-                        fontSize: "0.65rem", fontWeight: 700, padding: "0.15rem 0.4rem", borderRadius: "3px",
-                        background: "rgba(0, 229, 255, 0.1)", color: "var(--primary)", textTransform: "uppercase"
-                      }}>
-                        {log.action.replace(/_/g, " ")}
-                      </span>
-                      <span style={{ fontSize: "0.75rem", color: "#fff", fontWeight: 600 }}>
-                        {log.from} <ArrowRight size={12} style={{ opacity: 0.3 }} /> {log.to}
-                      </span>
+          {/* Audit Trail */}
+          {activeTab === "audit" && (
+            <div>
+              {logs.length === 0 ? (
+                emptyState(<History size={40} style={{ opacity: 0.2 }} />, "No history logs found for this cylinder.")
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  {logs.map(log => (
+                    <div key={log.id} className="glass-panel" style={{ padding: "1rem 1.5rem", display: "flex", alignItems: "center", gap: "1.5rem" }}>
+                      <div style={{ width: "80px", fontSize: "0.8rem", color: "rgba(255,255,255,0.4)" }}>
+                        {new Date(log.date).toLocaleDateString()}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+                          <span style={{ fontSize: "0.65rem", fontWeight: 700, padding: "0.15rem 0.4rem", borderRadius: "3px", background: "rgba(0,229,255,0.1)", color: "var(--primary)", textTransform: "uppercase" }}>
+                            {log.action.replace(/_/g, " ")}
+                          </span>
+                          <span style={{ fontSize: "0.75rem", color: "#fff", fontWeight: 600 }}>
+                            {log.from} <ArrowRight size={12} style={{ opacity: 0.3 }} /> {log.to}
+                          </span>
+                        </div>
+                        {log.notes && <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>{log.notes}</div>}
+                      </div>
+                      <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                        <User size={12} style={{ opacity: 0.5 }} /> {log.engineer}
+                      </div>
                     </div>
-                    {log.notes && <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>{log.notes}</div>}
-                  </div>
-                  <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                    <User size={12} style={{ opacity: 0.5 }} /> {log.engineer}
-                  </div>
+                  ))}
                 </div>
-              ))}
+              )}
+            </div>
+          )}
+
+          {/* HWCNs */}
+          {activeTab === "hwcns" && (
+            <div>
+              {hwcns.length === 0 ? (
+                emptyState(<ClipboardList size={40} style={{ opacity: 0.2 }} />, "No HWCNs recorded for this cylinder.")
+              ) : (
+                <div style={{ borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ background: "rgba(255,255,255,0.04)" }}>
+                        <th style={tableTh}>HWCN ID</th>
+                        <th style={tableTh}>Status</th>
+                        <th style={tableTh}>Type</th>
+                        <th style={tableTh}>Date</th>
+                        <th style={tableTh}>Engineer</th>
+                        <th style={tableTh}>Destination</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {hwcns.map(h => {
+                        const badge = getHwcnStatusBadge(h.hwcnStatus);
+                        const type = getHwcnType(h.destination || "");
+                        return (
+                          <tr key={h.id} style={{ cursor: "pointer" }}
+                            onClick={() => router.push(`/admin/hwcn/${h.id}`)}
+                            onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
+                            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                          >
+                            <td style={{ ...tableTd, fontFamily: "var(--font-geist-mono)", color: "#00e5ff", fontWeight: 700 }}>{h.id}</td>
+                            <td style={tableTd}>
+                              <span style={{ background: badge.bg, color: badge.color, padding: "0.2rem 0.6rem", borderRadius: "20px", fontSize: "0.75rem", fontWeight: 600 }}>
+                                {badge.label}
+                              </span>
+                            </td>
+                            <td style={{ ...tableTd, fontSize: "0.8rem", color: type === "Office Return" ? "#00e5ff" : "#ffaa00" }}>{type}</td>
+                            <td style={{ ...tableTd, color: "var(--text-muted)" }}>{h.date ? new Date(h.date).toLocaleDateString("en-GB") : "—"}</td>
+                            <td style={tableTd}>{h.engineer || "—"}</td>
+                            <td style={{ ...tableTd, color: "var(--text-muted)" }}>{h.destination || "—"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Refrigerant Usage */}
+          {activeTab === "usage" && (
+            <div>
+              {usageLogs.length === 0 ? (
+                emptyState(<Tag size={40} style={{ opacity: 0.2 }} />, "No refrigerant usage recorded for this cylinder.")
+              ) : (
+                <div style={{ borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ background: "rgba(255,255,255,0.04)" }}>
+                        <th style={tableTh}>Date</th>
+                        <th style={tableTh}>Job Ref</th>
+                        <th style={tableTh}>Site</th>
+                        <th style={tableTh}>Engineer</th>
+                        <th style={{ ...tableTh, textAlign: "right" }}>Qty Used</th>
+                        <th style={{ ...tableTh, textAlign: "right" }}>Wt. Before</th>
+                        <th style={{ ...tableTh, textAlign: "right" }}>Wt. After</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...usageLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(l => (
+                        <tr key={l.id}
+                          onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
+                          onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                        >
+                          <td style={{ ...tableTd, color: "var(--text-muted)" }}>{new Date(l.date).toLocaleDateString("en-GB")}</td>
+                          <td style={{ ...tableTd, fontFamily: "var(--font-geist-mono)", color: "#00e5ff" }}>{l.siteRef || "—"}</td>
+                          <td style={tableTd}>{l.siteName || "—"}</td>
+                          <td style={tableTd}>{l.engineer || "—"}</td>
+                          <td style={{ ...tableTd, textAlign: "right", color: "#ff3366", fontWeight: 700 }}>{l.weightUsed != null ? `${l.weightUsed.toFixed(2)} kg` : "—"}</td>
+                          <td style={{ ...tableTd, textAlign: "right", color: "var(--text-muted)" }}>{l.weightBefore != null ? `${l.weightBefore.toFixed(2)} kg` : "—"}</td>
+                          <td style={{ ...tableTd, textAlign: "right", color: "var(--text-muted)" }}>{l.weightAfter != null ? `${l.weightAfter.toFixed(2)} kg` : "—"}</td>
+                        </tr>
+                      ))}
+                      <tr style={{ background: "rgba(255,255,255,0.03)", fontWeight: 700 }}>
+                        <td colSpan={4} style={{ ...tableTd, textAlign: "right", color: "rgba(255,255,255,0.5)", fontSize: "0.8rem" }}>Total used</td>
+                        <td style={{ ...tableTd, textAlign: "right", color: "#ff3366" }}>
+                          {usageLogs.reduce((s, l) => s + (l.weightUsed || 0), 0).toFixed(2)} kg
+                        </td>
+                        <td colSpan={2} />
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Decommission Records */}
+          {activeTab === "decommission" && (
+            <div>
+              {decommissions.length === 0 ? (
+                emptyState(<Wrench size={40} style={{ opacity: 0.2 }} />, "No decommissioning records linked to this cylinder.")
+              ) : (
+                <div style={{ borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ background: "rgba(255,255,255,0.04)" }}>
+                        <th style={tableTh}>Date</th>
+                        <th style={tableTh}>Job No.</th>
+                        <th style={tableTh}>Site</th>
+                        <th style={tableTh}>Engineer</th>
+                        <th style={tableTh}>Equipment</th>
+                        <th style={{ ...tableTh, textAlign: "right" }}>Weight Rec.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {decommissions.map((d: any) => {
+                        const equipList: any[] = Array.isArray(d.equipment) ? d.equipment : [];
+                        return (
+                          <tr key={d.id}
+                            onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
+                            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                          >
+                            <td style={{ ...tableTd, color: "var(--text-muted)" }}>{d.date ? new Date(d.date).toLocaleDateString("en-GB") : "—"}</td>
+                            <td style={{ ...tableTd, fontFamily: "var(--font-geist-mono)", color: "#00e5ff" }}>{d.jobNumber || "—"}</td>
+                            <td style={tableTd}>{d.siteName || "—"}</td>
+                            <td style={tableTd}>{d.engineer || "—"}</td>
+                            <td style={{ ...tableTd, fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                              {equipList.length > 0
+                                ? equipList.map((e: any, i: number) => (
+                                    <div key={i}>{[e.manufacturer, e.model, e.serial].filter(Boolean).join(" / ")}</div>
+                                  ))
+                                : "—"}
+                            </td>
+                            <td style={{ ...tableTd, textAlign: "right", color: "#ffaa00", fontWeight: 700 }}>
+                              {d.totalWeightRecovered != null ? `${Number(d.totalWeightRecovered).toFixed(2)} kg` : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </div>

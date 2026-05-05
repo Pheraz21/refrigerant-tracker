@@ -978,6 +978,24 @@ export const db = {
     return id;
   },
 
+  async getDecommissionsByBottleSerial(serial: string): Promise<any[]> {
+    const { data } = await supabase
+      .from('decommissioned_equipment')
+      .select('*')
+      .eq('bottle_serial', serial)
+      .order('date', { ascending: false });
+    return data ? data.map((d: any) => ({
+      ...d,
+      bottleSerial: d.bottle_serial || d.bottleSerial,
+      jobNumber: d.job_number || d.jobNumber,
+      siteName: d.site_name || d.siteName,
+      siteAddress: d.site_address || d.siteAddress,
+      sitePostcode: d.site_postcode || d.sitePostcode,
+      gasType: d.gas_type || d.gasType,
+      totalWeightRecovered: d.total_weight_recovered || d.totalWeightRecovered,
+    })) : [];
+  },
+
   async getAllDecommissions(): Promise<any[]> {
     const { data } = await supabase
       .from('decommissioned_equipment')
