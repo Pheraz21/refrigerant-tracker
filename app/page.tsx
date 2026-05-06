@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { LogIn, KeyRound } from "lucide-react";
+import { LogIn, Wrench } from "lucide-react";
 import styles from "./page.module.css";
 import { useAuth } from "@/lib/AuthContext";
 import Link from "next/link";
@@ -42,7 +42,10 @@ export default function LoginPage() {
             />
           </div>
           <h1 className="text-gradient">F-Gas Tracker</h1>
-          <p className={styles.subtitle}>Secure Personnel Portal</p>
+          <p className={styles.subtitle}>Engineer Portal</p>
+          <div style={{display: "inline-flex", alignItems: "center", gap: "0.4rem", background: "rgba(0,229,255,0.1)", border: "1px solid rgba(0,229,255,0.25)", borderRadius: "20px", padding: "0.3rem 0.85rem", fontSize: "0.8rem", color: "var(--primary)", fontWeight: 600, marginTop: "0.5rem"}}>
+            <Wrench size={13} /> Engineer Login
+          </div>
         </div>
 
         <form onSubmit={handleLogin} className={styles.form}>
@@ -89,10 +92,16 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div style={{marginTop: "1.5rem", textAlign: "center", fontSize: "0.9rem"}}>
-          <p style={{color: "var(--text-muted)", marginBottom: "0.5rem"}}>Don't have an account?</p>
-          <Link href="/signup" style={{color: "var(--primary)", fontWeight: 600, textDecoration: "none"}}>
-            Register as New User
+        <div style={{marginTop: "1.5rem"}}>
+          <Link href="/signup?role=engineer" style={{display: "block", textDecoration: "none"}}>
+            <button type="button" style={{
+              width: "100%", padding: "0.75rem", background: "transparent",
+              border: "1px solid rgba(0,229,255,0.35)", borderRadius: "8px",
+              color: "var(--primary)", fontWeight: 600, fontSize: "0.9rem",
+              cursor: "pointer", transition: "all 0.2s"
+            }}>
+              Register as New User
+            </button>
           </Link>
         </div>
 

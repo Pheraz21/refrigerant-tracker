@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
-import { Shield, Loader2, Eye, EyeOff } from "lucide-react";
+import { Shield, Loader2, Eye, EyeOff, Building2 } from "lucide-react";
 import Link from "next/link";
 
 export default function AdminLoginPage() {
@@ -51,9 +51,12 @@ export default function AdminLoginPage() {
             <img src="/21-degrees-official-transparent.png" alt="21 Degrees" style={{width: "200px", height: "auto", margin: "0 auto", display: "block"}} />
           </div>
           <h1 style={{fontSize: "1.4rem", fontWeight: 700, color: "#fff", margin: "0 0 0.5rem 0"}}>Office Portal</h1>
-          <p style={{fontSize: "0.85rem", color: "rgba(255,255,255,0.5)", margin: 0}}>
+          <p style={{fontSize: "0.85rem", color: "rgba(255,255,255,0.5)", margin: "0 0 0.75rem 0"}}>
             Sign in to manage HWCN compliance &amp; inventory
           </p>
+          <div style={{display: "inline-flex", alignItems: "center", gap: "0.4rem", background: "rgba(0,229,255,0.1)", border: "1px solid rgba(0,229,255,0.25)", borderRadius: "20px", padding: "0.3rem 0.85rem", fontSize: "0.8rem", color: "#00e5ff", fontWeight: 600}}>
+            <Building2 size={13} /> Office / Admin Login
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} style={{display: "flex", flexDirection: "column", gap: "1.25rem"}}>
@@ -144,11 +147,18 @@ export default function AdminLoginPage() {
           </button>
         </form>
 
-        <div style={{textAlign: "center", marginTop: "1.5rem", display: "flex", flexDirection: "column", gap: "0.75rem"}}>
-          <Link href="/signup" style={{color: "#00e5ff", fontSize: "0.9rem", textDecoration: "none", fontWeight: 600}}>
-            Request New Admin Account
+        <div style={{marginTop: "1.5rem", display: "flex", flexDirection: "column", gap: "0.75rem"}}>
+          <Link href="/signup?role=office" style={{display: "block", textDecoration: "none"}}>
+            <button type="button" style={{
+              width: "100%", padding: "0.75rem", background: "transparent",
+              border: "1px solid rgba(0,229,255,0.35)", borderRadius: "8px",
+              color: "#00e5ff", fontWeight: 600, fontSize: "0.9rem",
+              cursor: "pointer", transition: "all 0.2s"
+            }}>
+              Register as New User
+            </button>
           </Link>
-          <Link href="/" style={{color: "rgba(255,255,255,0.4)", fontSize: "0.8rem", textDecoration: "none"}}>
+          <Link href="/" style={{color: "rgba(255,255,255,0.4)", fontSize: "0.8rem", textDecoration: "none", textAlign: "center"}}>
             ← Engineer login
           </Link>
         </div>
