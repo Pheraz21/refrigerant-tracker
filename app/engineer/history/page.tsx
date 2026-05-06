@@ -42,7 +42,10 @@ export default function HistoryPage() {
 
   const liveBottles = allBottles.filter(b =>
     (b.locationType === "van" && b.locationId?.toLowerCase().includes(engineerName)) ||
-    (b.locationType === "site" && b.lastEngineer?.toLowerCase() === engineerName)
+    (b.locationType === "site" && (
+      b.lastEngineer?.toLowerCase() === engineerName ||
+      (!b.lastEngineer && b.registeredBy === user?.id)
+    ))
   );
 
   const cutoff = new Date();

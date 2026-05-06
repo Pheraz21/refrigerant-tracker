@@ -383,6 +383,8 @@ export const db = {
       supplier: data.supplier,
       registered_at: data.registeredAt,
       rental_expiry_date: data.rentalExpiryDate,
+      last_engineer: data.lastEngineer,
+      registered_by: data.registeredBy,
       status: "active",
       location_changed_at: new Date().toISOString()
     });

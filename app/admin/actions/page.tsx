@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { db, MovementLog } from "@/lib/db";
 import { History, Search, Calendar, FileText, FileSpreadsheet, Clock, User, ArrowRight, ArrowLeft } from "lucide-react";
+import Link from "next/link";
 import styles from "../../engineer/page.module.css";
 
 export default function DailyActionsPage() {
@@ -148,9 +149,11 @@ export default function DailyActionsPage() {
                     <div style={{fontSize: "0.9rem", fontWeight: 700, color: "rgba(255,255,255,0.4)"}}>
                       {new Date(log.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </div>
-                    <div style={{fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "#00e5ff"}}>
-                      {log.serial}
-                    </div>
+                    <Link href={`/admin/bottles/${encodeURIComponent(log.serial)}`} style={{textDecoration: "none"}}>
+                      <div style={{fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "#00e5ff", cursor: "pointer"}}>
+                        {log.serial}
+                      </div>
+                    </Link>
                     <div style={{display: "flex", alignItems: "center", gap: "0.75rem"}}>
                       <span style={{
                         fontSize: "0.75rem", fontWeight: 700, padding: "0.25rem 0.6rem", borderRadius: "4px",
