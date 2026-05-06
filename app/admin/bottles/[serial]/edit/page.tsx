@@ -27,10 +27,11 @@ export default function EditBottlePage() {
         return;
       }
     }
+    const serialStr = decodeURIComponent(serial as string);
     if (serial) {
       Promise.all([
-        db.getBottle(serial as string),
-        db.getMovementLogs(serial as string)
+        db.getBottle(serialStr),
+        db.getMovementLogs(serialStr)
       ]).then(([bottleData, logData]) => {
         setBottle(bottleData);
         setLogs(logData);

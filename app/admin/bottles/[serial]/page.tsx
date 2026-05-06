@@ -17,14 +17,16 @@ export default function ViewBottlePage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("audit");
 
+  const serialStr = decodeURIComponent(serial as string);
+
   useEffect(() => {
     if (serial) {
       Promise.all([
-        db.getBottle(serial as string),
-        db.getMovementLogs(serial as string),
-        db.getUsageLogs(serial as string),
-        db.getHWCNsForBottle(serial as string),
-        db.getDecommissionsByBottleSerial(serial as string),
+        db.getBottle(serialStr),
+        db.getMovementLogs(serialStr),
+        db.getUsageLogs(serialStr),
+        db.getHWCNsForBottle(serialStr),
+        db.getDecommissionsByBottleSerial(serialStr),
       ]).then(([bottleData, moveLogs, useLogs, hwcnData, decommData]) => {
         setBottle(bottleData);
         setUsageLogs(useLogs);
@@ -326,7 +328,7 @@ export default function ViewBottlePage() {
             <ArrowLeft size={24} />
           </button>
           <div>
-            <h1 style={{ fontSize: "1.8rem", fontWeight: 700, margin: 0, color: "#fff" }}>Bottle: {serial}</h1>
+            <h1 style={{ fontSize: "1.8rem", fontWeight: 700, margin: 0, color: "#fff" }}>Bottle: {serialStr}</h1>
             <p style={{ color: "var(--text-muted)", margin: "0.25rem 0 0" }}>Comprehensive tracking and history</p>
           </div>
         </div>
