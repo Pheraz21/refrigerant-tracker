@@ -128,7 +128,7 @@ export default function HWCNQueuePage() {
                 const badge = getStatusBadge(h.hwcnStatus);
                 return (
                   <tr key={h.id} style={{borderBottom: "1px solid rgba(255,255,255,0.04)", cursor: "pointer"}}
-                    onClick={() => window.location.href = `/admin/hwcn/${h.id}`}>
+                    onClick={() => window.location.href = `/admin/hwcn/${encodeURIComponent(h.id)}`}>
                     <td style={{padding: "0.85rem 1rem", fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "#00e5ff", fontSize: "0.9rem"}}>{h.id}</td>
                     <td style={{padding: "0.85rem 1rem", fontFamily: "var(--font-geist-mono)", fontSize: "0.9rem"}}>{h.serial}</td>
                     <td style={{padding: "0.85rem 1rem", fontSize: "0.9rem"}}>{h.engineer}</td>
@@ -138,7 +138,7 @@ export default function HWCNQueuePage() {
                       <span style={{background: badge.bg, color: badge.color, padding: "0.2rem 0.7rem", borderRadius: "20px", fontSize: "0.75rem", fontWeight: 600}}>{badge.label}</span>
                     </td>
                     <td style={{padding: "0.85rem 1rem"}}>
-                      <Link href={`/admin/hwcn/${h.id}`} style={{color: "#00e5ff", fontSize: "0.85rem", textDecoration: "none"}} onClick={e => e.stopPropagation()}>
+                      <Link href={`/admin/hwcn/${encodeURIComponent(h.id)}`} style={{color: "#00e5ff", fontSize: "0.85rem", textDecoration: "none"}} onClick={e => e.stopPropagation()}>
                         {h.hwcnStatus === "awaiting_consignee" ? "Complete →" : "View →"}
                       </Link>
                     </td>

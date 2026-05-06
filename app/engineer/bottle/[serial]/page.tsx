@@ -204,7 +204,7 @@ export default function BottleActionHub() {
                   </strong>
                   {bottle.activeHWCN && (
                     <div style={{marginTop: '0.25rem'}}>
-                      <Link href={`/engineer/hwcn/${bottle.activeHWCN}`} style={{color: 'var(--primary)', textDecoration: 'underline', fontSize: '0.75rem'}}>
+                      <Link href={`/engineer/hwcn/${encodeURIComponent(bottle.activeHWCN)}`} style={{color: 'var(--primary)', textDecoration: 'underline', fontSize: '0.75rem'}}>
                         View Digital HWCN ({bottle.activeHWCN})
                       </Link>
                     </div>
@@ -267,7 +267,7 @@ export default function BottleActionHub() {
                   </div>
                 </div>
                 <Link 
-                  href={`/engineer/hwcn/${hwcn.id}`}
+                  href={`/engineer/hwcn/${encodeURIComponent(hwcn.id)}`}
                   style={{
                     padding: '0.5rem 1rem', borderRadius: '4px', background: 'var(--primary)', color: '#000',
                     fontSize: '0.8rem', fontWeight: 600, textDecoration: 'none'
@@ -573,7 +573,7 @@ export default function BottleActionHub() {
                   </p>
                   <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem'}}>
                     {generatedHWCN && (
-                      <Link href={`/engineer/hwcn/${generatedHWCN}`} style={{textDecoration: 'none'}}>
+                      <Link href={`/engineer/hwcn/${encodeURIComponent(generatedHWCN)}`} style={{textDecoration: 'none'}}>
                         <button className={styles.primaryBtn} style={{width: '100%', background: 'linear-gradient(135deg, var(--warning) 0%, #ff8800 100%)', color: '#000'}}>
                           View Digital HWCN
                         </button>

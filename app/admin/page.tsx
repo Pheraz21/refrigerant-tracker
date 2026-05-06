@@ -296,7 +296,7 @@ export default function AdminDashboard() {
         ) : (
           <div style={{display: "flex", flexDirection: "column", gap: "0.5rem"}}>
             {pendingHWCNs.map(h => (
-              <Link key={h.id} href={`/admin/hwcn/${h.id}`} style={{textDecoration: "none"}}>
+              <Link key={h.id} href={`/admin/hwcn/${encodeURIComponent(h.id)}`} style={{textDecoration: "none"}}>
                 <div style={{
                   background: "rgba(255,193,7,0.04)",
                   border: "1px solid rgba(255,193,7,0.15)",
@@ -396,7 +396,7 @@ export default function AdminDashboard() {
           </h2>
           <div style={{display: "flex", flexDirection: "column", gap: "0.5rem"}}>
             {completedHWCNs.slice(0, 5).map(h => (
-              <Link key={h.id} href={`/admin/hwcn/${h.id}`} style={{textDecoration: "none"}}>
+              <Link key={h.id} href={`/admin/hwcn/${encodeURIComponent(h.id)}`} style={{textDecoration: "none"}}>
                 <div style={{
                   background: "rgba(34,197,94,0.03)",
                   border: "1px solid rgba(34,197,94,0.1)",

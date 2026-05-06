@@ -302,7 +302,7 @@ export default function ReportsPage() {
                 <tbody>
                   {completedHWCNs.map(h => (
                     <tr key={h.id} style={{borderBottom: "1px solid rgba(255,255,255,0.04)", cursor: "pointer"}}
-                      onClick={() => window.location.href = `/admin/hwcn/${h.id}`}
+                      onClick={() => window.location.href = `/admin/hwcn/${encodeURIComponent(h.id)}`}
                     >
                       <td style={{padding: "0.8rem 1rem", fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "#22c55e"}}>{h.id}</td>
                       <td style={{padding: "0.8rem 1rem", fontFamily: "var(--font-geist-mono)"}}>{h.serial}</td>

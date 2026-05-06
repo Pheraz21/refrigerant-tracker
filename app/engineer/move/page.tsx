@@ -195,7 +195,7 @@ export default function MoveBottlePage() {
         {generatedHWCN ? (
           <div style={{marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem'}}>
             <p style={{color: 'var(--warning)', fontWeight: '600'}}>A Digital HWCN was generated for this movement.</p>
-            <Link href={`/engineer/hwcn/${generatedHWCN}`} style={{textDecoration: 'none'}}>
+            <Link href={`/engineer/hwcn/${encodeURIComponent(generatedHWCN)}`} style={{textDecoration: 'none'}}>
               <button className={styles.primaryBtn} style={{width: '100%', background: 'linear-gradient(135deg, var(--warning) 0%, #ff8800 100%)', color: '#000'}}>
                 View / Download Digital HWCN
               </button>

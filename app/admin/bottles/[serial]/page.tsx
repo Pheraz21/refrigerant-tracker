@@ -525,7 +525,7 @@ export default function ViewBottlePage() {
                         const type = getHwcnType(h.destination || "");
                         return (
                           <tr key={h.id} style={{ cursor: "pointer" }}
-                            onClick={() => router.push(`/admin/hwcn/${h.id}`)}
+                            onClick={() => router.push(`/admin/hwcn/${encodeURIComponent(h.id)}`)}
                             onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
                             onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                           >
