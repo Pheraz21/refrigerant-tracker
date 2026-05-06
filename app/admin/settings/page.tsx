@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { db } from "@/lib/db";
-import { Settings, Save, CheckCircle2, Users, Truck, Building2, Trash2, Plus, Edit2, ShieldCheck, Clock } from "lucide-react";
+import { Settings, Save, CheckCircle2, Users, Truck, Building2, Trash2, Plus, Edit2, ShieldCheck, Clock, ChevronUp, ChevronDown } from "lucide-react";
 
 export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
@@ -75,6 +75,15 @@ export default function SettingsPage() {
     await db.removeSupplier(id);
     const updated = await db.getSuppliers();
     setSuppliers(updated);
+  };
+
+  const handleMoveSupplier = async (index: number, direction: "up" | "down") => {
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= suppliers.length) return;
+    const reordered = [...suppliers];
+    [reordered[index], reordered[swapIndex]] = [reordered[swapIndex], reordered[index]];
+    setSuppliers(reordered);
+    await db.reorderSuppliers(reordered);
   };
 
   const handleAddRef = async () => {
@@ -202,18 +211,34 @@ export default function SettingsPage() {
           </div>
 
           <div style={{display: "flex", flexDirection: "column", gap: "0.75rem"}}>
-            {suppliers.map(sup => (
+            {suppliers.map((sup, i) => (
               <div key={sup.id} style={{
                 display: "flex", justifyContent: "space-between", alignItems: "center",
                 padding: "0.75rem 1rem", background: "rgba(255,255,255,0.05)", borderRadius: "8px", border: "1px solid rgba(255,255,255,0.05)"
               }}>
                 <span style={{fontWeight: 600}}>{sup.name}</span>
-                <button 
-                  onClick={() => handleRemoveSupplier(sup.id)}
-                  style={{background: "none", border: "none", color: "rgba(255,51,102,0.6)", cursor: "pointer", padding: "0.25rem"}}
-                >
-                  <Trash2 size={16} />
-                </button>
+                <div style={{display: "flex", alignItems: "center", gap: "0.25rem"}}>
+                  <button
+                    onClick={() => handleMoveSupplier(i, "up")}
+                    disabled={i === 0}
+                    style={{background: "none", border: "none", color: i === 0 ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.5)", cursor: i === 0 ? "default" : "pointer", padding: "0.25rem"}}
+                  >
+                    <ChevronUp size={16} />
+                  </button>
+                  <button
+                    onClick={() => handleMoveSupplier(i, "down")}
+                    disabled={i === suppliers.length - 1}
+                    style={{background: "none", border: "none", color: i === suppliers.length - 1 ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.5)", cursor: i === suppliers.length - 1 ? "default" : "pointer", padding: "0.25rem"}}
+                  >
+                    <ChevronDown size={16} />
+                  </button>
+                  <button
+                    onClick={() => handleRemoveSupplier(sup.id)}
+                    style={{background: "none", border: "none", color: "rgba(255,51,102,0.6)", cursor: "pointer", padding: "0.25rem", marginLeft: "0.25rem"}}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>

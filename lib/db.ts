@@ -818,13 +818,21 @@ export const db = {
   },
 
   async getSuppliers(): Promise<any[]> {
-    const { data } = await supabase.from('suppliers').select('*').order('name');
+    const { data } = await supabase.from('suppliers').select('*').order('sort_order', { nullsFirst: false }).order('name');
     return data || [];
   },
 
   async addSupplier(name: string): Promise<void> {
     const id = `sup_${Date.now()}`;
-    await supabase.from('suppliers').insert({ id, name });
+    const { data: existing } = await supabase.from('suppliers').select('sort_order').order('sort_order', { ascending: false }).limit(1);
+    const nextOrder = existing?.[0]?.sort_order != null ? existing[0].sort_order + 1 : 0;
+    await supabase.from('suppliers').insert({ id, name, sort_order: nextOrder });
+  },
+
+  async reorderSuppliers(suppliers: { id: string }[]): Promise<void> {
+    await Promise.all(
+      suppliers.map((s, i) => supabase.from('suppliers').update({ sort_order: i }).eq('id', s.id))
+    );
   },
 
   async getRefrigerants(): Promise<any[]> {
