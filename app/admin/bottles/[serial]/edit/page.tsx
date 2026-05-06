@@ -6,7 +6,7 @@ import { db, Bottle } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { ArrowLeft, Save, Trash2, AlertCircle, Package, Calendar } from "lucide-react";
 import Link from "next/link";
-import styles from "../../../dashboard/page.module.css";
+import styles from "../../../engineer/page.module.css";
 
 export default function EditBottlePage() {
   const { serial } = useParams();
@@ -23,7 +23,7 @@ export default function EditBottlePage() {
         user.availableRoles?.includes("admin") || user.availableRoles?.includes("office") ||
         user.role === "admin" || user.role === "office";
       if (!canAccess) {
-        router.replace("/dashboard");
+        router.replace("/engineer");
         return;
       }
     }

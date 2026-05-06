@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+﻿import { test, expect } from '@playwright/test';
 
 test.describe('Authentication & Role Management', () => {
   
@@ -11,7 +11,7 @@ test.describe('Authentication & Role Management', () => {
     await page.click('button:has-text("Secure Login")');
     
     // Verify dashboard redirect
-    await expect(page).toHaveURL(/\/dashboard/);
+    await expect(page).toHaveURL(/\/engineer/);
     await expect(page.locator('h1')).toContainText('John Smith');
   });
 

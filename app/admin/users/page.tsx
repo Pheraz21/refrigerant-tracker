@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { db, AppUser, UserStatus, UserRole } from "@/lib/db";
@@ -18,7 +18,7 @@ export default function UserManagementPage() {
 
   const handleSendReset = async (email: string, userId: string) => {
     await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/dashboard/reset-password`
+      redirectTo: `${window.location.origin}/engineer/reset-password`
     });
     setResetEmailSent(prev => ({ ...prev, [userId]: true }));
     setTimeout(() => setResetEmailSent(prev => ({ ...prev, [userId]: false })), 5000);

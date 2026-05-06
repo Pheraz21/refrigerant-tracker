@@ -1,11 +1,11 @@
-import type { MetadataRoute } from "next";
+﻿import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "21 Degrees F-Gas Tracker",
     short_name: "F-Gas Tracker",
     description: "Refrigerant cylinder tracking and compliance for 21 Degrees Ltd",
-    start_url: "/dashboard",
+    start_url: "/engineer",
     display: "standalone",
     orientation: "portrait",
     background_color: "#0a0e14",

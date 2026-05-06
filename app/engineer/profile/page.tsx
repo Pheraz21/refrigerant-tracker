@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -148,7 +148,7 @@ export default function ProfilePage() {
   return (
     <div className={styles.container} style={{height: "auto", minHeight: "auto"}}>
       <header className={styles.header}>
-        <Link href="/dashboard" className={styles.backBtn}>
+        <Link href="/engineer" className={styles.backBtn}>
           <ArrowLeft size={20} />
         </Link>
         <div>

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { db, Bottle } from "@/lib/db";
@@ -375,7 +375,7 @@ export default function AllBottlesPage() {
           <p style={{color: "var(--text-muted)", fontSize: "0.9rem"}}>{bottles.length} bottles in the system</p>
         </div>
         <button
-          onClick={() => router.push("/dashboard")}
+          onClick={() => router.push("/engineer")}
           style={{background: "var(--primary)", border: "none", color: "#000", padding: "0.75rem 1.25rem", borderRadius: "8px", fontSize: "0.9rem", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "0.5rem"}}
         >
           <Plus size={18} /> Register New Bottle

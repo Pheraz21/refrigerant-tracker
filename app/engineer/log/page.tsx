@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -207,7 +207,7 @@ export default function LogBottlePage() {
         <CheckCircle2 size={64} color="var(--success)" />
         <h2>Log Saved Successfully!</h2>
         <p>REFCOM compliance data recorded.</p>
-        <button onClick={() => router.push("/dashboard")} className={styles.primaryBtn}>
+        <button onClick={() => router.push("/engineer")} className={styles.primaryBtn}>
           Return to Dashboard
         </button>
       </div>
@@ -279,7 +279,7 @@ export default function LogBottlePage() {
         </div>
       )}
       <header className={styles.header}>
-        <Link href="/dashboard" className={styles.backBtn}>
+        <Link href="/engineer" className={styles.backBtn}>
           <ArrowLeft size={20} />
         </Link>
         <h1>{bottleCategory === "reclaim" ? "Log Gas Recovery" : "Log Bottle Activity"}</h1>
@@ -469,7 +469,7 @@ export default function LogBottlePage() {
             </div>
             <div className={styles.inputGroup}>
               <label>Hazardous Waste Consignment No.</label>
-              <input type="text" placeholder="e.g. HWCN-9921" required />
+              <input type="text" placeholder="e.g. 21Degr/100001" required />
             </div>
             <div className={styles.inputGroup} style={{marginTop: '1rem'}}>
               <label>Upload Supplier HWCN Paperwork (Optional)</label>

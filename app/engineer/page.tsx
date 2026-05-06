@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useRef } from "react";
 import { Html5QrcodeScanner, Html5QrcodeScanType } from "html5-qrcode";
@@ -109,9 +109,9 @@ export default function DashboardScannerPage() {
     setIsLoadingRoute(true);
     const bottle = await db.getBottle(scanResult.barcode);
     if (bottle) {
-      router.push(`/dashboard/bottle/${encodeURIComponent(scanResult.barcode)}`);
+      router.push(`/engineer/bottle/${encodeURIComponent(scanResult.barcode)}`);
     } else {
-      router.push(`/dashboard/bottle/register?serial=${encodeURIComponent(scanResult.barcode)}`);
+      router.push(`/engineer/bottle/register?serial=${encodeURIComponent(scanResult.barcode)}`);
     }
   };
 
@@ -119,7 +119,7 @@ export default function DashboardScannerPage() {
     <div className={styles.container}>
       <header className={styles.header} style={{marginTop: '0', marginBottom: '1.5rem', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
         <div style={{display: "flex", alignItems: "center", gap: "1rem"}}>
-          <Link href="/dashboard/profile" style={{
+          <Link href="/engineer/profile" style={{
             width: "42px", height: "42px", borderRadius: "50%", background: "rgba(255,255,255,0.05)",
             display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(255,255,255,0.1)",
             color: "var(--primary)"
@@ -152,7 +152,7 @@ export default function DashboardScannerPage() {
       </header>
 
       {!user?.vehicleReg && (
-        <Link href="/dashboard/profile" style={{textDecoration: "none", display: "block", marginBottom: "1.25rem"}}>
+        <Link href="/engineer/profile" style={{textDecoration: "none", display: "block", marginBottom: "1.25rem"}}>
           <div style={{
             background: "rgba(255,170,0,0.08)", border: "1px solid rgba(255,170,0,0.3)",
             borderRadius: "10px", padding: "0.85rem 1.1rem",
@@ -215,7 +215,7 @@ export default function DashboardScannerPage() {
                   const serial = manualSerial.toUpperCase();
                   const bottle = await db.getBottle(serial);
                   if (bottle) {
-                    router.push(`/dashboard/bottle/${encodeURIComponent(serial)}`);
+                    router.push(`/engineer/bottle/${encodeURIComponent(serial)}`);
                   } else {
                     // Not found — show the "New Scan" overlay so they can register it
                     onScanSuccess(serial);
@@ -229,7 +229,7 @@ export default function DashboardScannerPage() {
           </div>
 
           {user?.availableRoles?.includes("office") && (
-            <Link href="/dashboard/bulk" style={{textDecoration: 'none', display: 'block', marginTop: '1.5rem'}}>
+            <Link href="/engineer/bulk" style={{textDecoration: 'none', display: 'block', marginTop: '1.5rem'}}>
               <div className={styles.bulkLinkCard}>
                 <div className={styles.bulkIcon}>
                   <PackageSearch size={24} color="var(--primary)" />

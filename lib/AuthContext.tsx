@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
@@ -102,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // If approved and on pending page, redirect to dashboard
         if (user.status === "approved" && pathname === "/pending") {
-          if (user.role === "engineer") router.push("/dashboard");
+          if (user.role === "engineer") router.push("/engineer");
           else router.push("/admin");
           return;
         }
@@ -117,12 +117,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           router.push("/admin");
           return;
         } else if (!canAccessAdmin && isAdminRoute && !isAdminLogin) {
-          router.push("/dashboard");
+          router.push("/engineer");
           return;
         } else if (canAccessDashboard && isEngineerLogin) {
-          router.push("/dashboard");
+          router.push("/engineer");
           return;
-        } else if (!canAccessDashboard && pathname.startsWith("/dashboard") && canAccessAdmin) {
+        } else if (!canAccessDashboard && pathname.startsWith("/engineer") && canAccessAdmin) {
           router.push("/admin");
           return;
         }
@@ -145,7 +145,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (newRole === "office" || newRole === "admin") {
       router.push("/admin");
     } else {
-      router.push("/dashboard");
+      router.push("/engineer");
     }
     setLoading(false);
   };

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -130,7 +130,7 @@ export default function BulkDeliveryPage() {
         <CheckCircle2 size={64} color="var(--success)" />
         <h2>{batch.length} Bottles Received!</h2>
         <p>Batch successfully registered to PO {poNumber}.</p>
-        <button onClick={() => router.push("/dashboard")} className={styles.primaryBtn}>
+        <button onClick={() => router.push("/engineer")} className={styles.primaryBtn}>
           Return to Dashboard
         </button>
       </div>
@@ -140,7 +140,7 @@ export default function BulkDeliveryPage() {
   return (
     <div className={styles.container}>
       <header className={styles.header}>
-        <Link href="/dashboard" className={styles.backBtn}>
+        <Link href="/engineer" className={styles.backBtn}>
           <ArrowLeft size={20} />
         </Link>
         <div>

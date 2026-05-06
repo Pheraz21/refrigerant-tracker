@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { db, AppNotification } from "@/lib/db";
 import { Bell, CheckCircle, Clock, AlertTriangle, ShieldCheck, Trash2, ExternalLink, Calendar } from "lucide-react";
 import Link from "next/link";
-import styles from "../../dashboard/page.module.css";
+import styles from "../../engineer/page.module.css";
 
 type FilterChip = "all" | "location_discrepancy" | "new_registration" | "expiry" | "unread";
 

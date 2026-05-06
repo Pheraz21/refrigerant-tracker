@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { AlertTriangle, PackageSearch } from "lucide-react";
@@ -129,7 +129,7 @@ export default function InventoryPage() {
           {bottles.map(bottle => (
             <Link 
               key={bottle.serial} 
-              href={`/dashboard/bottle/${bottle.serial}`}
+              href={`/engineer/bottle/${bottle.serial}`}
               style={{ textDecoration: "none", color: "inherit" }}
             >
               <div 

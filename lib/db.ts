@@ -312,7 +312,18 @@ export const db = {
   },
 
   async createHWCN(hwcnData: any): Promise<string> {
-    const id = `HWCN-${Math.floor(Math.random() * 100000)}`;
+    const { data: existing } = await supabase
+      .from('hwcns')
+      .select('id')
+      .like('id', '21Degr/%')
+      .order('id', { ascending: false })
+      .limit(1);
+    let nextNum = 100001;
+    if (existing && existing.length > 0) {
+      const lastNum = parseInt(existing[0].id.replace('21Degr/', ''), 10);
+      if (!isNaN(lastNum)) nextNum = lastNum + 1;
+    }
+    const id = `21Degr/${nextNum}`;
     const { error } = await supabase.from('hwcns').insert({
       id,
       serial: hwcnData.serial,

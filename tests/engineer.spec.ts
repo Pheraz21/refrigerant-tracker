@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+﻿import { test, expect } from '@playwright/test';
 
 test.describe('Engineer Workflows', () => {
 
@@ -8,16 +8,16 @@ test.describe('Engineer Workflows', () => {
     await page.fill('input[type="email"]', 'john@example.com');
     await page.fill('input[type="password"]', 'password123');
     await page.click('button:has-text("Secure Login")');
-    await expect(page).toHaveURL(/\/dashboard/);
+    await expect(page).toHaveURL(/\/engineer/);
   });
 
   test('TC011 - Logging a consumption event', async ({ page }) => {
     test.setTimeout(120000);
-    await page.goto('/dashboard/profile');
+    await page.goto('/engineer/profile');
     
     await page.click('#simulate-existing-btn');
     await page.click('button:has-text("Continue")');
-    await page.waitForURL(/\/dashboard\/bottle\/8849201A/);
+    await page.waitForURL(/\/engineer\/bottle\/8849201A/);
     
     // Inline Transfer to Site
     await page.click('button:has-text("Job Site")');
@@ -30,7 +30,7 @@ test.describe('Engineer Workflows', () => {
     
     // Now back on bottle page (refreshed), click Log Gas Usage
     await page.click('h3:has-text("Log Gas Usage")');
-    await page.waitForURL(/\/dashboard\/log/);
+    await page.waitForURL(/\/engineer\/log/);
     
     await page.fill('input[placeholder="e.g. JOB-88219"]', 'TC011-SITE');
     await page.fill('input[placeholder="e.g. Daikin, Mitsubishi"]', 'Test Manufacturer');
@@ -44,15 +44,15 @@ test.describe('Engineer Workflows', () => {
 
   test('TC012 - Create a new HWCN (Reclaim Flow)', async ({ page }) => {
     test.slow();
-    await page.goto('/dashboard/profile');
+    await page.goto('/engineer/profile');
     
     await page.click('#simulate-reclaim-btn');
     await page.click('button:has-text("Continue")');
-    await page.waitForURL(/\/dashboard\/bottle\/REC-402/);
+    await page.waitForURL(/\/engineer\/bottle\/REC-402/);
     
     // Full Page Transfer to Van from Site
     await page.click('h3:has-text("Transfer Bottle into Van")');
-    await page.waitForURL(/\/dashboard\/move/);
+    await page.waitForURL(/\/engineer\/move/);
     
     // Intercepted by reclaim question
     await page.click('button:has-text("No, Transfer to Alternative Location")');
@@ -65,7 +65,7 @@ test.describe('Engineer Workflows', () => {
     await page.click('button:has-text("Return to Dashboard")');
     
     // Back to bottle page
-    await page.goto('/dashboard/bottle/REC-402');
+    await page.goto('/engineer/bottle/REC-402');
     
     // Now it's in Van, it uses the inline transfer UI.
     // Click "Office" destination
@@ -92,7 +92,7 @@ test.describe('Engineer Workflows', () => {
     const backBtn = page.locator('button:has-text("Switch to Field Mode"), button:has-text("Back to Field Mode")');
     await backBtn.first().click();
     
-    await page.waitForURL(/\/dashboard/);
+    await page.waitForURL(/\/engineer/);
     await expect(page.locator('h1')).toContainText('John Smith');
   });
 

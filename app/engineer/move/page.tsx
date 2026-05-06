@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -177,7 +177,7 @@ export default function MoveBottlePage() {
     if (needsTransit && isReclaimWithGas && (destination === "office" || destination === "other")) {
       setIsSuccess(true);
     } else {
-      router.push("/dashboard");
+      router.push("/engineer");
     }
   };
 
@@ -195,17 +195,17 @@ export default function MoveBottlePage() {
         {generatedHWCN ? (
           <div style={{marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem'}}>
             <p style={{color: 'var(--warning)', fontWeight: '600'}}>A Digital HWCN was generated for this movement.</p>
-            <Link href={`/dashboard/hwcn/${generatedHWCN}`} style={{textDecoration: 'none'}}>
+            <Link href={`/engineer/hwcn/${generatedHWCN}`} style={{textDecoration: 'none'}}>
               <button className={styles.primaryBtn} style={{width: '100%', background: 'linear-gradient(135deg, var(--warning) 0%, #ff8800 100%)', color: '#000'}}>
                 View / Download Digital HWCN
               </button>
             </Link>
-            <button onClick={() => router.push("/dashboard")} className={styles.primaryBtn} style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', border: '1px solid var(--border)', marginTop: '0' }}>
+            <button onClick={() => router.push("/engineer")} className={styles.primaryBtn} style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', border: '1px solid var(--border)', marginTop: '0' }}>
               Return to Dashboard
             </button>
           </div>
         ) : (
-          <button onClick={() => router.push("/dashboard")} className={styles.primaryBtn}>
+          <button onClick={() => router.push("/engineer")} className={styles.primaryBtn}>
             Return to Dashboard
           </button>
         )}
@@ -216,7 +216,7 @@ export default function MoveBottlePage() {
   return (
     <div className={styles.container}>
       <header className={styles.header}>
-        <Link href={`/dashboard/bottle/${serialParam}`} className={styles.backBtn}>
+        <Link href={`/engineer/bottle/${serialParam}`} className={styles.backBtn}>
           <ArrowLeft size={20} />
         </Link>
         <div>
@@ -378,7 +378,7 @@ export default function MoveBottlePage() {
                   style={{background: 'var(--warning)', color: '#000'}}
                   onClick={async () => {
                     await db.completeTransit(serialParam, undefined, user?.name);
-                    router.push("/dashboard");
+                    router.push("/engineer");
                   }}
                 >
                   <CheckCircle2 size={18} /> Complete Transfer to Office/Stores
@@ -460,7 +460,7 @@ export default function MoveBottlePage() {
                 await db.clearTransitState(serialParam);
                 await db.updateBottleLocation(serialParam, "site", divertSiteJobNo);
                 setIsSubmitting(false);
-                router.push("/dashboard");
+                router.push("/engineer");
               }}
               style={{flex: 1}}
             >
@@ -592,7 +592,7 @@ export default function MoveBottlePage() {
                 // Use divertedBranch if set, otherwise original intended destination
                 const finalLocId = divertedBranch || bottle?.intendedDestination || "Supplier";
                 await db.completeTransit(serialParam, supplierPhoto || "/mock-url.jpg", user?.name, finalLocId);
-                router.push("/dashboard");
+                router.push("/engineer");
               }}
               style={{flex: 1, opacity: (!supplierPhoto && !isSubmitting) ? 0.5 : 1}}
             >

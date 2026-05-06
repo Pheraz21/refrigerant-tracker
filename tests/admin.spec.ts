@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+﻿import { test, expect } from '@playwright/test';
 
 test.describe('Admin Portal Management', () => {
 
@@ -61,7 +61,7 @@ test.describe('Admin Portal Management', () => {
     await page.fill('input[type="email"]', 'john@example.com');
     await page.fill('input[type="password"]', 'password123');
     await page.click('button:has-text("Secure Login")');
-    await expect(page).toHaveURL(/\/dashboard/);
+    await expect(page).toHaveURL(/\/engineer/);
     
     await page.goto('/admin');
     await expect(page).not.toHaveURL(/\/admin$/);

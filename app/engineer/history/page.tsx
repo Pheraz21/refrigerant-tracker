@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { AlertTriangle, Truck, MapPin, RotateCcw, Building2, PackageSearch } from "lucide-react";
@@ -88,7 +88,7 @@ export default function HistoryPage() {
   };
 
   const renderBottle = (b: Bottle) => (
-    <Link key={b.serial} href={`/dashboard/bottle/${b.serial}`} style={{ textDecoration: "none" }}>
+    <Link key={b.serial} href={`/engineer/bottle/${b.serial}`} style={{ textDecoration: "none" }}>
       <div className={`${styles.card} glass-panel`}>
         <div className={styles.cardHeader}>
           <div className={styles.cardType}>

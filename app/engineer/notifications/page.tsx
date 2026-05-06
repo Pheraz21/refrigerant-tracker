@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { Truck, AlertTriangle, FileText, ArrowRight, Loader2, Bell } from "lucide-react";
@@ -58,7 +58,7 @@ export default function NotificationsPage() {
         {missingPaperwork.map(bottle => (
           <Link 
             key={bottle.serial} 
-            href={`/dashboard/bottle/${bottle.serial}`}
+            href={`/engineer/bottle/${bottle.serial}`}
             className={`${styles.notificationCard} ${styles.urgent}`}
           >
             <div className={styles.cardIcon}>
@@ -88,7 +88,7 @@ export default function NotificationsPage() {
         </div>
       </div>
 
-      <Link href="/dashboard" className={styles.backBtn}>
+      <Link href="/engineer" className={styles.backBtn}>
         Back to Dashboard
       </Link>
     </div>
