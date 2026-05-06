@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { db, AppUser, UserStatus, UserRole } from "@/lib/db";
 import { supabase } from "@/lib/supabaseClient";
-import { Users, ShieldCheck, ShieldAlert, UserX, Truck, Mail, Calendar, Search, Filter, Save, X, Settings2, Building, KeyRound } from "lucide-react";
+import { Users, ShieldCheck, ShieldAlert, UserX, Truck, Mail, Phone, Calendar, Search, Filter, Save, X, Settings2, Building, KeyRound } from "lucide-react";
 
 export default function UserManagementPage() {
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -111,6 +111,11 @@ export default function UserManagementPage() {
                       <div style={{fontSize: "0.8rem", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "0.3rem"}}>
                         <Mail size={12} /> {u.email}
                       </div>
+                      {u.phone && (
+                        <a href={`tel:${u.phone}`} style={{fontSize: "0.8rem", color: "var(--primary)", display: "flex", alignItems: "center", gap: "0.3rem", textDecoration: "none", marginTop: "0.15rem"}}>
+                          <Phone size={12} /> {u.phone}
+                        </a>
+                      )}
                     </div>
                   </div>
                 </td>

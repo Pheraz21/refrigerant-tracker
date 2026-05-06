@@ -15,6 +15,7 @@ interface User {
   status: UserStatus;
   vehicleReg?: string;
   employer?: string;
+  phone?: string;
 }
 
 interface AuthContextType {
@@ -182,6 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       status: dbUser.status as UserStatus,
       vehicleReg: dbUser.vehicleReg,
       employer: dbUser.employer,
+      phone: dbUser.phone,
     };
 
     setUser(userToSet);

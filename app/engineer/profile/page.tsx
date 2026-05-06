@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
 import { db } from "@/lib/db";
-import { User, Truck, Building2, ArrowLeft, Save, CheckCircle2, AlertCircle, LogOut, Pencil, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { User, Truck, Building2, ArrowLeft, Save, CheckCircle2, AlertCircle, LogOut, Pencil, Mail, Phone, Lock, Eye, EyeOff } from "lucide-react";
 import styles from "../page.module.css";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
@@ -32,6 +32,12 @@ export default function ProfilePage() {
   const [nameMode, setNameMode] = useState<"view" | "edit">("view");
   const [nameSaving, setNameSaving] = useState(false);
 
+  // Phone editing
+  const [phone, setPhone] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [phoneMode, setPhoneMode] = useState<"view" | "edit">("view");
+  const [phoneSaving, setPhoneSaving] = useState(false);
+
   // Email change
   const [newEmail, setNewEmail] = useState("");
   const [emailSaving, setEmailSaving] = useState(false);
@@ -53,6 +59,7 @@ export default function ProfilePage() {
       db.getUserById(user.id).then(u => {
         if (u?.vehicleReg) setVehicleReg(u.vehicleReg);
         if (u?.employer) setEmployer(u.employer);
+        if (u?.phone) setPhone(u.phone);
       });
     }
   }, [user]);
@@ -66,6 +73,18 @@ export default function ProfilePage() {
       setNameMode("view");
     } finally {
       setNameSaving(false);
+    }
+  };
+
+  const handlePhoneSave = async () => {
+    if (!user?.id) return;
+    setPhoneSaving(true);
+    try {
+      await db.updateUserPhone(user.id, editPhone.trim());
+      setPhone(editPhone.trim());
+      setPhoneMode("view");
+    } finally {
+      setPhoneSaving(false);
     }
   };
 
@@ -330,6 +349,35 @@ export default function ProfilePage() {
             <button onClick={() => setNameMode("view")} className={styles.secondaryBtn} style={{padding: "0.5rem 0.9rem", height: "auto"}}>Cancel</button>
             <button onClick={handleNameSave} disabled={nameSaving || !editName.trim()} className={styles.primaryBtn} style={{padding: "0.5rem 1rem", height: "auto", display: "flex", alignItems: "center", gap: "0.4rem"}}>
               <Save size={15} /> {nameSaving ? "Saving…" : "Save"}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Mobile Number */}
+      <div className="glass-panel" style={{padding: "1.5rem", marginBottom: "1.5rem"}}>
+        <h3 style={{fontSize: "1rem", marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem"}}>
+          <Phone size={16} /> Mobile Number
+        </h3>
+        {phoneMode === "view" ? (
+          <div style={{display: "flex", justifyContent: "space-between", alignItems: "center"}}>
+            <span style={{fontSize: "1rem", color: phone ? "#fff" : "var(--text-muted)", fontWeight: phone ? 600 : 400}}>
+              {phone || "Not set"}
+            </span>
+            <button onClick={() => { setEditPhone(phone); setPhoneMode("edit"); }} className={styles.secondaryBtn} style={{padding: "0.5rem 1rem", height: "auto"}}>
+              {phone ? "Edit" : "Add"}
+            </button>
+          </div>
+        ) : (
+          <div style={{display: "flex", gap: "0.75rem"}}>
+            <input
+              type="tel" value={editPhone} onChange={e => setEditPhone(e.target.value)}
+              autoFocus placeholder="e.g. 07700 900000"
+              style={{flex: 1, padding: "0.75rem 1rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "#fff", fontSize: "0.95rem"}}
+            />
+            <button onClick={() => setPhoneMode("view")} className={styles.secondaryBtn} style={{padding: "0.5rem 0.9rem", height: "auto"}}>Cancel</button>
+            <button onClick={handlePhoneSave} disabled={phoneSaving} className={styles.primaryBtn} style={{padding: "0.5rem 1rem", height: "auto", display: "flex", alignItems: "center", gap: "0.4rem"}}>
+              <Save size={15} /> {phoneSaving ? "Saving…" : "Save"}
             </button>
           </div>
         )}

@@ -14,6 +14,7 @@ export interface AppUser {
   status: UserStatus;
   vehicleReg?: string;
   employer: string;
+  phone?: string;
   createdAt: string;
 }
 
@@ -22,6 +23,7 @@ const mapUser = (u: any): AppUser => ({
   ...u,
   availableRoles: u.available_roles || u.availableRoles || [],
   vehicleReg: u.vehicle_reg || u.vehicleReg,
+  phone: u.phone_number || u.phone,
   createdAt: u.created_at || u.createdAt
 });
 
@@ -793,7 +795,9 @@ export const db = {
       role: data.role,
       available_roles: [data.role],
       status: "pending",
-      employer: data.employer
+      employer: data.employer,
+      ...(data.phone ? { phone_number: data.phone } : {}),
+      ...(data.vehicleReg ? { vehicle_reg: data.vehicleReg } : {})
     });
 
     await this.createNotification({
@@ -950,6 +954,10 @@ export const db = {
 
   async updateUserEmail(userId: string, email: string): Promise<void> {
     await supabase.from('users').update({ email }).eq('id', userId);
+  },
+
+  async updateUserPhone(userId: string, phone: string): Promise<void> {
+    await supabase.from('users').update({ phone_number: phone }).eq('id', userId);
   },
 
   async logDecommission(record: {
