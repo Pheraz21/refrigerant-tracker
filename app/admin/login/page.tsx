@@ -158,7 +158,7 @@ export default function AdminLoginPage() {
               Register as New User
             </button>
           </Link>
-          <Link href="/" style={{color: "rgba(255,255,255,0.4)", fontSize: "0.8rem", textDecoration: "none", textAlign: "center"}}>
+          <Link href="/?portal=engineer" style={{color: "rgba(255,255,255,0.4)", fontSize: "0.8rem", textDecoration: "none", textAlign: "center"}}>
             ← Engineer login
           </Link>
         </div>
