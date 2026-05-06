@@ -130,33 +130,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const switchRole = async (newRole: Role) => {
     if (!user || !user.availableRoles.includes(newRole)) return;
-    
-    setLoading(true);
+
     const { db } = await import("./db");
     await db.switchUserRole(user.id, newRole);
-    
+
     const newUser = { ...user, role: newRole };
     setUser(newUser);
     localStorage.setItem("fgas_user", JSON.stringify(newUser));
-    
+
     // Redirect based on new role
     if (newRole === "office" || newRole === "admin") {
       router.push("/admin");
     } else {
       router.push("/engineer");
     }
-    setLoading(false);
   };
 
   const login = async (email: string, password: string, role: Role) => {
-    setLoading(true);
     const { supabase } = await import("./supabaseClient");
     const { db } = await import("./db");
 
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
 
     if (authError) {
-      setLoading(false);
       // Check if they exist in the app DB but haven't set a Supabase Auth password yet
       const existing = await db.getUserByEmail(email);
       if (existing) {
@@ -167,7 +163,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const dbUser = await db.getUserByEmail(email);
     if (!dbUser) {
-      setLoading(false);
       throw new Error("Your account has not been set up yet. Please contact an administrator.");
     }
 
@@ -185,7 +180,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setUser(userToSet);
     localStorage.setItem("fgas_user", JSON.stringify(userToSet));
-    setLoading(false);
   };
 
   const logout = () => {

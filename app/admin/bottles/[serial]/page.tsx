@@ -561,7 +561,6 @@ export default function ViewBottlePage() {
                       <tr style={{ background: "rgba(255,255,255,0.04)" }}>
                         <th style={tableTh}>Date</th>
                         <th style={tableTh}>Job Ref</th>
-                        <th style={tableTh}>Site</th>
                         <th style={tableTh}>Engineer</th>
                         <th style={{ ...tableTh, textAlign: "right" }}>Qty Used</th>
                         <th style={{ ...tableTh, textAlign: "right" }}>Wt. Before</th>
@@ -576,7 +575,6 @@ export default function ViewBottlePage() {
                         >
                           <td style={{ ...tableTd, color: "var(--text-muted)" }}>{new Date(l.date).toLocaleDateString("en-GB")}</td>
                           <td style={{ ...tableTd, fontFamily: "var(--font-geist-mono)", color: "#00e5ff" }}>{l.siteRef || "—"}</td>
-                          <td style={tableTd}>{l.siteName || "—"}</td>
                           <td style={tableTd}>{l.engineer || "—"}</td>
                           <td style={{ ...tableTd, textAlign: "right", color: "#ff3366", fontWeight: 700 }}>{l.weightUsed != null ? `${l.weightUsed.toFixed(2)} kg` : "—"}</td>
                           <td style={{ ...tableTd, textAlign: "right", color: "var(--text-muted)" }}>{l.weightBefore != null ? `${l.weightBefore.toFixed(2)} kg` : "—"}</td>
@@ -584,7 +582,7 @@ export default function ViewBottlePage() {
                         </tr>
                       ))}
                       <tr style={{ background: "rgba(255,255,255,0.03)", fontWeight: 700 }}>
-                        <td colSpan={4} style={{ ...tableTd, textAlign: "right", color: "rgba(255,255,255,0.5)", fontSize: "0.8rem" }}>Total used</td>
+                        <td colSpan={3} style={{ ...tableTd, textAlign: "right", color: "rgba(255,255,255,0.5)", fontSize: "0.8rem" }}>Total used</td>
                         <td style={{ ...tableTd, textAlign: "right", color: "#ff3366" }}>
                           {usageLogs.filter(l => l.jobType !== "recovery").reduce((s, l) => s + (l.weightUsed || 0), 0).toFixed(2)} kg
                         </td>

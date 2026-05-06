@@ -104,7 +104,7 @@ export default function BottleActionHub() {
           finalLocationId = locationId || (destination === "supplier" ? "Supplier" : `${user?.name} - Van`);
         }
           
-        await db.updateBottleLocation(serial, finalDest as any, finalLocationId);
+        await db.updateBottleLocation(serial, finalDest as any, finalLocationId, undefined, undefined, undefined, user?.name);
         
         if (destination === "supplier" || destination === "office") {
           const updates: any = { status: destination === "supplier" ? "returned" : "active" };
@@ -116,7 +116,7 @@ export default function BottleActionHub() {
       } else {
         // Needs transit (Reclaim with gas to Supplier)
         const finalLocationId = locationId || "Supplier";
-        await db.updateBottleLocation(serial, "van", `${user?.name} - Van`, finalLocationId, destination as any, undefined);
+        await db.updateBottleLocation(serial, "van", `${user?.name} - Van`, finalLocationId, destination as any, undefined, user?.name);
       }
       setTransferSuccess(true);
     } catch (err) {

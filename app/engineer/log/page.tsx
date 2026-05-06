@@ -150,7 +150,7 @@ export default function LogBottlePage() {
     setIsSubmitting(true);
     const finalRefrigerant = refrigerantType === "other" ? customRefrigerant : refrigerantType;
     
-    await db.logUsage(serialParam, jobType, totalWeight, jobType === "waste", jobType === "recovery" ? producerSite : undefined, finalRefrigerant, user?.name || "Unknown");
+    await db.logUsage(serialParam, jobType, totalWeight, jobType === "waste", jobType === "recovery" ? producerSite : undefined, finalRefrigerant, user?.name || "Unknown", jobNumber || undefined);
 
     // §4.2: If multi-site was acknowledged, auto-generate Internal HWCN and set dest to Office
     if (isRecovery && multiSiteAcknowledged && bottleData) {

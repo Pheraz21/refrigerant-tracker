@@ -121,7 +121,7 @@ export default function MoveBottlePage() {
         finalLocationId = locationId || (destination === "supplier" ? "Supplier" : `${user?.name} - Van`);
       }
         
-      await db.updateBottleLocation(serialParam, finalDest as any, finalLocationId);
+      await db.updateBottleLocation(serialParam, finalDest as any, finalLocationId, undefined, undefined, undefined, user?.name);
       
       // If returning directly to supplier or office, also update status
       if (destination === "supplier" || destination === "office") {
@@ -159,7 +159,7 @@ export default function MoveBottlePage() {
         intendedLocType = intendedDest === "Office/Stores" ? "office" : "site";
       }
 
-      await db.updateBottleLocation(serialParam, "van", `${user?.name} - Van`, intendedDest || fullDestinationString, intendedLocType as any, hwcnId);
+      await db.updateBottleLocation(serialParam, "van", `${user?.name} - Van`, intendedDest || fullDestinationString, intendedLocType as any, hwcnId, user?.name);
     }
 
     if (isDiscrepancy) {
@@ -458,7 +458,7 @@ export default function MoveBottlePage() {
               onClick={async () => {
                 setIsSubmitting(true);
                 await db.clearTransitState(serialParam);
-                await db.updateBottleLocation(serialParam, "site", divertSiteJobNo);
+                await db.updateBottleLocation(serialParam, "site", divertSiteJobNo, undefined, undefined, undefined, user?.name);
                 setIsSubmitting(false);
                 router.push("/engineer");
               }}
@@ -513,7 +513,7 @@ export default function MoveBottlePage() {
                   gasType: bottle?.gasType || "Unknown",
                   fillWeight: bottle?.currentWeight
                 });
-                await db.updateBottleLocation(serialParam, "van", `${user?.name} - Van`, "Office/Stores", "office" as any, hwcnId);
+                await db.updateBottleLocation(serialParam, "van", `${user?.name} - Van`, "Office/Stores", "office" as any, hwcnId, user?.name);
                 setIsSubmitting(false);
                 setGeneratedHWCN(hwcnId);
                 setIsSuccess(true);
@@ -744,7 +744,8 @@ export default function MoveBottlePage() {
                   `${user?.name} - Van`,
                   intendedBranch,
                   "supplier" as any,
-                  undefined
+                  undefined,
+                  user?.name
                 );
                 setIsSubmitting(false);
                 setGeneratedHWCN(null);

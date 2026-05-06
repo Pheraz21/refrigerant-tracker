@@ -51,7 +51,8 @@ const mapBottle = (b: any): Bottle => ({
   returnSupplierBranch: b.return_supplier_branch || b.returnSupplierBranch,
   locationChangedAt: b.location_changed_at || b.locationChangedAt,
   vehicleReg: b.vehicle_reg || b.vehicleReg,
-  rentalExpiryDate: b.rental_expiry_date || b.rentalExpiryDate
+  rentalExpiryDate: b.rental_expiry_date || b.rentalExpiryDate,
+  lastEngineer: b.last_engineer || b.lastEngineer
 });
 
 const mapMovement = (m: any): MovementLog => ({
@@ -140,6 +141,7 @@ export interface Bottle {
   locationChangedAt?: string;
   vehicleReg?: string;
   rentalExpiryDate?: string;
+  lastEngineer?: string;
 }
 
 export interface SupplierReturnGroup {
@@ -409,7 +411,7 @@ export const db = {
     });
   },
 
-  async updateBottleLocation(serial: string, locationType: LocationType, locationId: string, intendedDestination?: string, intendedLocationType?: LocationType, activeHWCN?: string): Promise<void> {
+  async updateBottleLocation(serial: string, locationType: LocationType, locationId: string, intendedDestination?: string, intendedLocationType?: LocationType, activeHWCN?: string, engineerName?: string): Promise<void> {
     console.log(`Updating bottle ${serial} location to ${locationId} (${locationType})`);
     const { data: bottle, error: fetchError } = await supabase.from('bottles').select('*').eq('serial', serial).single();
     
@@ -428,6 +430,7 @@ export const db = {
       if (intendedDestination !== undefined) updates.intended_destination = intendedDestination;
       if (intendedLocationType !== undefined) updates.intended_location_type = intendedLocationType;
       if (activeHWCN !== undefined) updates.active_hwcn = activeHWCN;
+      if (engineerName) updates.last_engineer = engineerName;
       
       const { error: updateError } = await supabase.from('bottles').update(updates).eq('serial', serial);
       if (updateError) {
@@ -461,7 +464,7 @@ export const db = {
     }).eq('serial', serial);
   },
 
-  async logUsage(serial: string, jobType: string, weightChange: number, isWaste: boolean = false, producerSite?: { name: string, address: string, postcode: string }, gasType?: string, engineerName: string = "Unknown"): Promise<void> {
+  async logUsage(serial: string, jobType: string, weightChange: number, isWaste: boolean = false, producerSite?: { name: string, address: string, postcode: string }, gasType?: string, engineerName: string = "Unknown", siteRef?: string): Promise<void> {
     const { data: bottle } = await supabase.from('bottles').select('*').eq('serial', serial).single();
     if (!bottle) return;
 
@@ -520,6 +523,7 @@ export const db = {
     bottleUpdatePayload.status = newStatus;
     bottleUpdatePayload.location_type = newLocType;
     bottleUpdatePayload.location_id = newLocId;
+    if (engineerName && engineerName !== "Unknown") bottleUpdatePayload.last_engineer = engineerName;
 
     const { error: updateErr } = await supabase.from('bottles').update(bottleUpdatePayload).eq('serial', serial);
     
@@ -533,7 +537,7 @@ export const db = {
       job_type: jobType,
       site_name: producerSite?.name || null,
       site_address: producerSite?.address || null,
-      site_ref: producerSite?.name || null,
+      site_ref: siteRef || producerSite?.name || null,
       weight_used: weightChange || 0,
       weight_before: parseFloat(bottle.current_weight || bottle.currentWeight || 0),
       weight_after: newWeight,
