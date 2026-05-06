@@ -7,17 +7,41 @@ import Link from "next/link";
 import { db, UserRole } from "@/lib/db";
 import { supabase } from "@/lib/supabaseClient";
 
+const inputStyle: React.CSSProperties = {
+  padding: "1rem",
+  background: "rgba(255,255,255,0.1)",
+  border: "1px solid rgba(255,255,255,0.2)",
+  borderRadius: "10px",
+  color: "#fff",
+  outline: "none",
+  width: "100%",
+  boxSizing: "border-box",
+  fontSize: "0.95rem",
+};
+
+const fieldStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "0.5rem",
+};
+
+const labelStyle: React.CSSProperties = {
+  fontSize: "0.85rem",
+  color: "rgba(255,255,255,0.6)",
+  fontWeight: 500,
+};
+
 export default function SignupPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const roleParam = searchParams.get("role") as UserRole | null;
 
   const [role, setRole] = useState<UserRole>(roleParam === "office" ? "office" : "engineer");
-  const [email, setEmail] = useState("");
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [phone, setPhone] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [vehicleReg, setVehicleReg] = useState("");
+  const [phone, setPhone] = useState("");
   const [employmentType, setEmploymentType] = useState<"direct" | "sub">("direct");
   const [subContractorName, setSubContractorName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -28,9 +52,14 @@ export default function SignupPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setError("");
 
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
       const { error: signUpError } = await supabase.auth.signUp({ email, password });
       if (signUpError && signUpError.message !== "User already registered") {
@@ -44,7 +73,7 @@ export default function SignupPage() {
         vehicleReg: role === "engineer" ? vehicleReg : undefined,
         employer: role === "engineer"
           ? (employmentType === "direct" ? "Direct Staff" : subContractorName)
-          : undefined
+          : undefined,
       });
       setIsSuccess(true);
     } catch (err: any) {
@@ -56,17 +85,17 @@ export default function SignupPage() {
 
   if (isSuccess) {
     return (
-      <div style={{minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0a0a", color: "#fff", padding: "2rem"}}>
-        <div style={{maxWidth: "450px", width: "100%", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "20px", padding: "3rem", textAlign: "center"}}>
-          <div style={{width: "80px", height: "80px", background: "rgba(0, 229, 255, 0.1)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 2rem"}}>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0a0a", color: "#fff", padding: "2rem" }}>
+        <div style={{ maxWidth: "450px", width: "100%", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "20px", padding: "3rem", textAlign: "center" }}>
+          <div style={{ width: "80px", height: "80px", background: "rgba(0,229,255,0.1)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 2rem" }}>
             <ShieldCheck size={48} color="var(--primary)" />
           </div>
-          <h1 style={{fontSize: "1.8rem", fontWeight: 800, marginBottom: "1rem"}}>Registration Sent</h1>
-          <p style={{color: "var(--text-muted)", lineHeight: "1.6", marginBottom: "2.5rem"}}>
+          <h1 style={{ fontSize: "1.8rem", fontWeight: 800, marginBottom: "1rem" }}>Registration Sent</h1>
+          <p style={{ color: "var(--text-muted)", lineHeight: "1.6", marginBottom: "2.5rem" }}>
             Your account has been created and sent to the office for approval. You will be able to log in once an administrator has verified your details.
           </p>
-          <Link href={backHref} style={{textDecoration: "none"}}>
-            <button style={{width: "100%", padding: "1rem", background: "var(--primary)", border: "none", borderRadius: "12px", color: "#000", fontWeight: 700, cursor: "pointer"}}>
+          <Link href={backHref} style={{ textDecoration: "none" }}>
+            <button style={{ width: "100%", padding: "1rem", background: "var(--primary)", border: "none", borderRadius: "12px", color: "#000", fontWeight: 700, cursor: "pointer" }}>
               Return to Login
             </button>
           </Link>
@@ -76,162 +105,109 @@ export default function SignupPage() {
   }
 
   return (
-    <div style={{minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0a0a", color: "#fff", padding: "2rem"}}>
-      <div style={{maxWidth: "500px", width: "100%"}}>
-        <Link href={backHref} style={{display: "inline-flex", alignItems: "center", gap: "0.5rem", color: "var(--text-muted)", textDecoration: "none", marginBottom: "2rem", fontSize: "0.9rem"}}>
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0a0a", color: "#fff", padding: "2rem" }}>
+      <div style={{ maxWidth: "500px", width: "100%" }}>
+        <Link href={backHref} style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", color: "var(--text-muted)", textDecoration: "none", marginBottom: "2rem", fontSize: "0.9rem" }}>
           <ArrowLeft size={16} /> Back to Login
         </Link>
 
-        <div style={{background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "20px", padding: "2.5rem"}}>
-          <div style={{marginBottom: "2.5rem"}}>
-            <h1 style={{fontSize: "2rem", fontWeight: 800, marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "0.75rem"}}>
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "20px", padding: "2.5rem" }}>
+          <div style={{ marginBottom: "2.5rem" }}>
+            <h1 style={{ fontSize: "2rem", fontWeight: 800, marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
               <UserPlus size={32} color="var(--primary)" /> Create Account
             </h1>
-            <p style={{color: "var(--text-muted)"}}>Join the F-Gas tracking network</p>
+            <p style={{ color: "var(--text-muted)" }}>Join the F-Gas tracking network</p>
           </div>
 
-          <form onSubmit={handleSubmit} style={{display: "flex", flexDirection: "column", gap: "1.5rem"}}>
+          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
 
-            {/* Role selector — locked when coming from a specific portal */}
+            {/* Role indicator */}
             {roleParam ? (
-              <div style={{display: "flex", alignItems: "center", gap: "0.6rem", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", padding: "0.85rem 1rem"}}>
-                {roleParam === "office"
-                  ? <Shield size={16} color="var(--primary)" />
-                  : <Wrench size={16} color="var(--primary)" />
-                }
-                <span style={{fontSize: "0.875rem", fontWeight: 600, color: "#fff"}}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", padding: "0.85rem 1rem" }}>
+                {roleParam === "office" ? <Shield size={16} color="var(--primary)" /> : <Wrench size={16} color="var(--primary)" />}
+                <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "#fff" }}>
                   {roleParam === "office" ? "Registering as Office / Admin" : "Registering as Engineer"}
                 </span>
               </div>
             ) : (
-              <div style={{display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", background: "rgba(255,255,255,0.03)", padding: "0.5rem", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.05)"}}>
-                <button
-                  type="button"
-                  onClick={() => setRole("engineer")}
-                  style={{
-                    padding: "0.75rem", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "0.85rem", fontWeight: 700,
-                    background: role === "engineer" ? "var(--primary)" : "transparent",
-                    color: role === "engineer" ? "#000" : "var(--text-muted)",
-                    transition: "all 0.2s"
-                  }}
-                >
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", background: "rgba(255,255,255,0.03)", padding: "0.5rem", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.05)" }}>
+                <button type="button" onClick={() => setRole("engineer")} style={{ padding: "0.75rem", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "0.85rem", fontWeight: 700, background: role === "engineer" ? "var(--primary)" : "transparent", color: role === "engineer" ? "#000" : "var(--text-muted)", transition: "all 0.2s" }}>
                   Engineer
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setRole("office")}
-                  style={{
-                    padding: "0.75rem", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "0.85rem", fontWeight: 700,
-                    background: role === "office" ? "var(--primary)" : "transparent",
-                    color: role === "office" ? "#000" : "var(--text-muted)",
-                    transition: "all 0.2s"
-                  }}
-                >
+                <button type="button" onClick={() => setRole("office")} style={{ padding: "0.75rem", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "0.85rem", fontWeight: 700, background: role === "office" ? "var(--primary)" : "transparent", color: role === "office" ? "#000" : "var(--text-muted)", transition: "all 0.2s" }}>
                   Office / Admin
                 </button>
               </div>
             )}
 
-            <div style={{display: "flex", flexDirection: "column", gap: "0.5rem"}}>
-              <label style={{fontSize: "0.85rem", color: "var(--text-muted)", fontWeight: 500}}>Full Name</label>
-              <input
-                type="text" required value={name} onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. John Smith"
-                style={{padding: "1rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", color: "#fff", outline: "none"}}
-              />
+            {/* Full Name */}
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Full Name</label>
+              <input type="text" required value={name} onChange={e => setName(e.target.value)} placeholder="e.g. John Smith" style={inputStyle} />
             </div>
 
-            <div style={{display: "flex", flexDirection: "column", gap: "0.5rem"}}>
-              <label style={{fontSize: "0.85rem", color: "var(--text-muted)", fontWeight: 500}}>Email Address</label>
-              <input
-                type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@company.com"
-                style={{padding: "1rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", color: "#fff", outline: "none"}}
-              />
+            {/* Email */}
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Email Address</label>
+              <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="name@company.com" style={inputStyle} />
             </div>
 
-            <div style={{display: "flex", flexDirection: "column", gap: "0.5rem"}}>
-              <label style={{fontSize: "0.85rem", color: "var(--text-muted)", fontWeight: 500}}>Mobile Number</label>
-              <input
-                type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)}
-                placeholder="e.g. 07700 900000"
-                style={{padding: "1rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", color: "#fff", outline: "none"}}
-              />
+            {/* Password */}
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Create Password</label>
+              <input type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="Min. 8 characters" style={inputStyle} />
             </div>
 
-            <div style={{display: "flex", flexDirection: "column", gap: "0.5rem"}}>
-              <label style={{fontSize: "0.85rem", color: "var(--text-muted)", fontWeight: 500}}>Create Password</label>
-              <input
-                type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
-                placeholder="Min. 8 characters"
-                style={{padding: "1rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", color: "#fff", outline: "none"}}
-              />
+            {/* Confirm Password */}
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Confirm Password</label>
+              <input type="password" required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repeat password" style={inputStyle} />
             </div>
 
+            {/* Van Registration — engineer only */}
+            {role === "engineer" && (
+              <div style={fieldStyle}>
+                <label style={labelStyle}>Van Registration</label>
+                <input type="text" required value={vehicleReg} onChange={e => setVehicleReg(e.target.value.toUpperCase())} placeholder="e.g. VA68 LNE" style={inputStyle} />
+              </div>
+            )}
+
+            {/* Mobile */}
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Mobile Number</label>
+              <input type="tel" required value={phone} onChange={e => setPhone(e.target.value)} placeholder="e.g. 07700 900000" style={inputStyle} />
+            </div>
+
+            {/* Employment — engineer only */}
             {role === "engineer" && (
               <>
-                <div style={{display: "flex", flexDirection: "column", gap: "0.75rem"}}>
-                  <label style={{fontSize: "0.85rem", color: "var(--text-muted)", fontWeight: 500}}>Are you employed by 21 Degrees or a Sub-contractor?</label>
-                  <div style={{display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem"}}>
-                    <button
-                      type="button"
-                      onClick={() => setEmploymentType("direct")}
-                      style={{
-                        padding: "0.75rem", borderRadius: "8px", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600,
-                        background: employmentType === "direct" ? "rgba(0, 229, 255, 0.1)" : "rgba(255,255,255,0.02)",
-                        border: employmentType === "direct" ? "1px solid var(--primary)" : "1px solid rgba(255,255,255,0.1)",
-                        color: employmentType === "direct" ? "var(--primary)" : "rgba(255,255,255,0.5)",
-                        transition: "all 0.2s"
-                      }}
-                    >
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  <label style={labelStyle}>Are you employed by 21 Degrees or a Sub-contractor?</label>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                    <button type="button" onClick={() => setEmploymentType("direct")} style={{ padding: "0.75rem", borderRadius: "8px", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600, background: employmentType === "direct" ? "rgba(0,229,255,0.1)" : "rgba(255,255,255,0.02)", border: employmentType === "direct" ? "1px solid var(--primary)" : "1px solid rgba(255,255,255,0.1)", color: employmentType === "direct" ? "var(--primary)" : "rgba(255,255,255,0.5)", transition: "all 0.2s" }}>
                       21 Degrees
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setEmploymentType("sub")}
-                      style={{
-                        padding: "0.75rem", borderRadius: "8px", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600,
-                        background: employmentType === "sub" ? "rgba(0, 229, 255, 0.1)" : "rgba(255,255,255,0.02)",
-                        border: employmentType === "sub" ? "1px solid var(--primary)" : "1px solid rgba(255,255,255,0.1)",
-                        color: employmentType === "sub" ? "var(--primary)" : "rgba(255,255,255,0.5)",
-                        transition: "all 0.2s"
-                      }}
-                    >
+                    <button type="button" onClick={() => setEmploymentType("sub")} style={{ padding: "0.75rem", borderRadius: "8px", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600, background: employmentType === "sub" ? "rgba(0,229,255,0.1)" : "rgba(255,255,255,0.02)", border: employmentType === "sub" ? "1px solid var(--primary)" : "1px solid rgba(255,255,255,0.1)", color: employmentType === "sub" ? "var(--primary)" : "rgba(255,255,255,0.5)", transition: "all 0.2s" }}>
                       Sub-contractor
                     </button>
                   </div>
                 </div>
 
                 {employmentType === "sub" && (
-                  <div style={{display: "flex", flexDirection: "column", gap: "0.5rem"}}>
-                    <label style={{fontSize: "0.85rem", color: "var(--text-muted)", fontWeight: 500}}>Your Company Name</label>
-                    <input
-                      type="text" required value={subContractorName} onChange={(e) => setSubContractorName(e.target.value)}
-                      placeholder="Enter company name..."
-                      style={{padding: "1rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", color: "#fff", outline: "none"}}
-                    />
+                  <div style={fieldStyle}>
+                    <label style={labelStyle}>Your Company Name</label>
+                    <input type="text" required value={subContractorName} onChange={e => setSubContractorName(e.target.value)} placeholder="Enter company name..." style={inputStyle} />
                   </div>
                 )}
-
-                <div style={{display: "flex", flexDirection: "column", gap: "0.5rem"}}>
-                  <label style={{fontSize: "0.85rem", color: "var(--text-muted)", fontWeight: 500}}>Van Registration</label>
-                  <input
-                    type="text" required value={vehicleReg} onChange={(e) => setVehicleReg(e.target.value.toUpperCase())}
-                    placeholder="e.g. VA68 LNE"
-                    style={{padding: "1rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", color: "#fff", outline: "none"}}
-                  />
-                </div>
               </>
             )}
 
-            {error && <p style={{color: "#ff4444", fontSize: "0.85rem", margin: 0}}>{error}</p>}
+            {error && <p style={{ color: "#ff4444", fontSize: "0.85rem", margin: 0 }}>{error}</p>}
 
             <button
-              type="submit" disabled={isSubmitting}
-              style={{
-                marginTop: "1rem", padding: "1.1rem", background: "var(--primary)", border: "none", borderRadius: "12px", color: "#000", fontWeight: 700, cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: "0.75rem"
-              }}
+              type="submit"
+              disabled={isSubmitting}
+              style={{ marginTop: "0.75rem", padding: "1.1rem", background: "var(--primary)", border: "none", borderRadius: "12px", color: "#000", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.75rem" }}
             >
               {isSubmitting ? <Loader2 size={20} className="spinner" /> : "Request Approval"}
             </button>
