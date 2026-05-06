@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     const token = Buffer.from(JSON.stringify({ email, code, expires, sig })).toString('base64url');
 
     await resend.emails.send({
-      from: 'onboarding@resend.dev',
+      from: 'noreply@21-degrees.co.uk',
       to: email,
       subject: 'Your 21 Degrees registration code',
       html: `
