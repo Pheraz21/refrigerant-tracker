@@ -469,7 +469,7 @@ export default function LogBottlePage() {
             </div>
             <div className={styles.inputGroup}>
               <label>Hazardous Waste Consignment No.</label>
-              <input type="text" placeholder="e.g. 21Degr/100001" required />
+              <input type="text" placeholder="e.g. 21Degr-100001" required />
             </div>
             <div className={styles.inputGroup} style={{marginTop: '1rem'}}>
               <label>Upload Supplier HWCN Paperwork (Optional)</label>

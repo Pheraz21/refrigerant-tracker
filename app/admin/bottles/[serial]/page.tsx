@@ -85,7 +85,7 @@ export default function ViewBottlePage() {
   const printRefrigerantLog = () => {
     if (!bottle) return;
     const reportDate = new Date().toLocaleDateString("en-GB");
-    const sorted = [...usageLogs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const sorted = [...usageLogs].filter(l => l.jobType !== "recovery").sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const totalUsed = sorted.reduce((sum, l) => sum + (l.weightUsed || 0), 0);
 
     const rows = sorted.map(log => `
@@ -460,7 +460,7 @@ export default function ViewBottlePage() {
             </button>
             <button style={tabStyle("usage")} onClick={() => setActiveTab("usage")}>
               <Tag size={14} style={{ display: "inline", marginRight: "0.35rem" }} />
-              Refrigerant Usage {usageLogs.length > 0 ? `(${usageLogs.length})` : ""}
+              Refrigerant Usage {usageLogs.filter(l => l.jobType !== "recovery").length > 0 ? `(${usageLogs.filter(l => l.jobType !== "recovery").length})` : ""}
             </button>
             <button style={tabStyle("decommission")} onClick={() => setActiveTab("decommission")}>
               <Wrench size={14} style={{ display: "inline", marginRight: "0.35rem" }} />
@@ -552,7 +552,7 @@ export default function ViewBottlePage() {
           {/* Refrigerant Usage */}
           {activeTab === "usage" && (
             <div>
-              {usageLogs.length === 0 ? (
+              {usageLogs.filter(l => l.jobType !== "recovery").length === 0 ? (
                 emptyState(<Tag size={40} style={{ opacity: 0.2 }} />, "No refrigerant usage recorded for this cylinder.")
               ) : (
                 <div style={{ borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden" }}>
@@ -569,7 +569,7 @@ export default function ViewBottlePage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {[...usageLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(l => (
+                      {[...usageLogs].filter(l => l.jobType !== "recovery").sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(l => (
                         <tr key={l.id}
                           onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
                           onMouseLeave={e => e.currentTarget.style.background = "transparent"}
@@ -586,7 +586,7 @@ export default function ViewBottlePage() {
                       <tr style={{ background: "rgba(255,255,255,0.03)", fontWeight: 700 }}>
                         <td colSpan={4} style={{ ...tableTd, textAlign: "right", color: "rgba(255,255,255,0.5)", fontSize: "0.8rem" }}>Total used</td>
                         <td style={{ ...tableTd, textAlign: "right", color: "#ff3366" }}>
-                          {usageLogs.reduce((s, l) => s + (l.weightUsed || 0), 0).toFixed(2)} kg
+                          {usageLogs.filter(l => l.jobType !== "recovery").reduce((s, l) => s + (l.weightUsed || 0), 0).toFixed(2)} kg
                         </td>
                         <td colSpan={2} />
                       </tr>

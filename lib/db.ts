@@ -317,15 +317,15 @@ export const db = {
     const { data: existing } = await supabase
       .from('hwcns')
       .select('id')
-      .like('id', '21Degr/%')
+      .like('id', '21Degr-%')
       .order('id', { ascending: false })
       .limit(1);
     let nextNum = 100001;
     if (existing && existing.length > 0) {
-      const lastNum = parseInt(existing[0].id.replace('21Degr/', ''), 10);
+      const lastNum = parseInt(existing[0].id.replace('21Degr-', ''), 10);
       if (!isNaN(lastNum)) nextNum = lastNum + 1;
     }
-    const id = `21Degr/${nextNum}`;
+    const id = `21Degr-${nextNum}`;
     const { error } = await supabase.from('hwcns').insert({
       id,
       serial: hwcnData.serial,
@@ -360,10 +360,11 @@ export const db = {
   },
 
   async getHWCNsForBottle(serial: string): Promise<any[]> {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('hwcns')
       .select('*')
       .eq('serial', serial);
+    if (error) console.error('getHWCNsForBottle error:', error);
     return data ? data.map(mapHWCN) : [];
   },
 
