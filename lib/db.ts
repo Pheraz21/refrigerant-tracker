@@ -398,7 +398,7 @@ export const db = {
       action: "registered",
       from_location: "\u2014",
       to_location: data.locationId,
-      engineer: "admin",
+      engineer: data.lastEngineer || "system",
       notes: "Initial registration"
     });
     if (logError) console.error('Error logging registration:', logError);
@@ -947,6 +947,7 @@ export const db = {
     if ("rentalExpiryDate" in updates) dbUpdates.rental_expiry_date = updates.rentalExpiryDate || null;
     if (updates.supplier !== undefined) dbUpdates.supplier = updates.supplier;
     if (updates.poNumber !== undefined) dbUpdates.po_number = updates.poNumber;
+    if (updates.lastEngineer !== undefined) dbUpdates.last_engineer = updates.lastEngineer || null;
 
     await supabase.from('bottles').update(dbUpdates).eq('serial', serial);
   },

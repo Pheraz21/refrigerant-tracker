@@ -178,6 +178,17 @@ export default function EditBottlePage() {
         </div>
 
         <div>
+          <label style={{display: "block", fontSize: "0.85rem", color: "rgba(255,255,255,0.5)", marginBottom: "0.5rem"}}>Last Engineer</label>
+          <input
+            type="text"
+            value={bottle.lastEngineer || ""}
+            onChange={e => handleChange("lastEngineer", e.target.value)}
+            placeholder="Engineer name — controls whose My Bottles this appears in"
+            style={{width: "100%", padding: "0.75rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "#fff"}}
+          />
+        </div>
+
+        <div>
           <label style={{display: "block", fontSize: "0.85rem", color: "rgba(255,255,255,0.5)", marginBottom: "0.5rem"}}>Status</label>
           <select 
             value={bottle.status} 
