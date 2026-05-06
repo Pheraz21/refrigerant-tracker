@@ -61,6 +61,8 @@ export default function LogBottlePage() {
         if (b.category === "reclaim") {
           setJobType("recovery");
           setRefrigerantType("Mixed/Recovery");
+        } else {
+          setRefrigerantType(b.gasType || "R410A");
         }
         // Track existing producer sites for multi-site detection
         if (b.producerSites && b.producerSites.length > 0) {
@@ -330,51 +332,68 @@ export default function LogBottlePage() {
         <div className={styles.row}>
           <div className={styles.inputGroup} style={{flex: 1}}>
             <label>{jobType === "recovery" ? "Gas Type Being Recovered" : "Refrigerant Type"}</label>
-            <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginTop: '0.25rem'}}>
-              {["R410A", "R32", "R134a", "R404A", "R407C", "R22", "other"].map(gas => (
+            {bottleCategory === "reclaim" ? (
+              <>
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginTop: '0.25rem'}}>
+                  {["R410A", "R32", "R134a", "R404A", "R407C", "R22", "other"].map(gas => (
+                    <button
+                      key={gas}
+                      type="button"
+                      onClick={() => setRefrigerantType(gas)}
+                      style={{
+                        padding: '0.6rem 0.5rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600,
+                        cursor: 'pointer', border: refrigerantType === gas ? 'none' : '1px solid rgba(255,255,255,0.12)',
+                        background: refrigerantType === gas ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
+                        color: refrigerantType === gas ? '#000' : 'rgba(255,255,255,0.7)',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      {gas === "other" ? "Other" : gas}
+                    </button>
+                  ))}
+                </div>
                 <button
-                  key={gas}
                   type="button"
-                  onClick={() => setRefrigerantType(gas)}
+                  onClick={() => setRefrigerantType("Mixed/Recovery")}
                   style={{
-                    padding: '0.6rem 0.5rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600,
-                    cursor: 'pointer', border: refrigerantType === gas ? 'none' : '1px solid rgba(255,255,255,0.12)',
-                    background: refrigerantType === gas ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
-                    color: refrigerantType === gas ? '#000' : 'rgba(255,255,255,0.7)',
+                    marginTop: '0.5rem', width: '100%', padding: '0.6rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600,
+                    cursor: 'pointer', border: refrigerantType === "Mixed/Recovery" ? 'none' : '1px solid rgba(255,255,255,0.12)',
+                    background: refrigerantType === "Mixed/Recovery" ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
+                    color: refrigerantType === "Mixed/Recovery" ? '#000' : 'rgba(255,255,255,0.7)',
                     transition: 'all 0.15s'
                   }}
                 >
-                  {gas === "other" ? "Other" : gas}
+                  Mixed / Recovery
                 </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => setRefrigerantType("Mixed/Recovery")}
-              style={{
-                marginTop: '0.5rem', width: '100%', padding: '0.6rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600,
-                cursor: 'pointer', border: refrigerantType === "Mixed/Recovery" ? 'none' : '1px solid rgba(255,255,255,0.12)',
-                background: refrigerantType === "Mixed/Recovery" ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
-                color: refrigerantType === "Mixed/Recovery" ? '#000' : 'rgba(255,255,255,0.7)',
-                transition: 'all 0.15s'
-              }}
-            >
-              Mixed / Recovery
-            </button>
-            {refrigerantType === "other" && (
-              <input
-                type="text"
-                placeholder="Enter refrigerant (e.g. R407C)"
-                value={customRefrigerant}
-                onChange={(e) => setCustomRefrigerant(e.target.value)}
-                style={{marginTop: '0.5rem'}}
-                required
-              />
-            )}
-            {jobType === "recovery" && (
-              <p style={{fontSize: '0.75rem', color: 'var(--warning)', marginTop: '0.3rem'}}>
-                This updates the bottle label only. The bottle remains classified as Hazardous Waste.
-              </p>
+                {refrigerantType === "other" && (
+                  <input
+                    type="text"
+                    placeholder="Enter refrigerant (e.g. R407C)"
+                    value={customRefrigerant}
+                    onChange={(e) => setCustomRefrigerant(e.target.value)}
+                    style={{marginTop: '0.5rem'}}
+                    required
+                  />
+                )}
+                {jobType === "recovery" && (
+                  <p style={{fontSize: '0.75rem', color: 'var(--warning)', marginTop: '0.3rem'}}>
+                    This updates the bottle label only. The bottle remains classified as Hazardous Waste.
+                  </p>
+                )}
+              </>
+            ) : (
+              <div style={{marginTop: '0.25rem'}}>
+                <div style={{
+                  display: 'inline-block', padding: '0.4rem 1.1rem',
+                  background: 'rgba(0, 229, 255, 0.1)', border: '1px solid var(--primary)',
+                  borderRadius: '20px', color: 'var(--primary)', fontWeight: 700, fontSize: '0.95rem'
+                }}>
+                  {bottleData?.gasType || refrigerantType}
+                </div>
+                <p style={{fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.4rem'}}>
+                  Set at registration — cannot be changed.
+                </p>
+              </div>
             )}
           </div>
           
