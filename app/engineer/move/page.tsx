@@ -77,6 +77,7 @@ export default function MoveBottlePage() {
     });
 
     if (user?.id) {
+      if (user?.vehicleReg) setVehicleReg(user.vehicleReg);
       if (user?.name) setCarrierName(user.name);
       db.getEngineerProfiles().then(profiles => {
         // Filter out current user
@@ -1061,12 +1062,12 @@ export default function MoveBottlePage() {
                 <h4 style={{fontSize: '0.9rem', marginBottom: '0.75rem'}}>Part C: Carrier Certificate</h4>
                 <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
                   <div className={styles.inputGroup}>
-                    <label>Vehicle Registration Number</label>
-                    <input type="text" value={vehicleReg} onChange={(e) => setVehicleReg(e.target.value)} placeholder="e.g. AB12 CDE" required={requiresHWCN} />
-                  </div>
-                  <div className={styles.inputGroup}>
                     <label>Carrier Name</label>
                     <input type="text" value={carrierName} onChange={(e) => setCarrierName(e.target.value)} placeholder="e.g. John Doe" required={requiresHWCN} />
+                  </div>
+                  <div className={styles.inputGroup}>
+                    <label>Vehicle Registration Number</label>
+                    <input type="text" value={vehicleReg} onChange={(e) => setVehicleReg(e.target.value)} placeholder="e.g. AB12 CDE" required={requiresHWCN} />
                   </div>
                 </div>
               </div>

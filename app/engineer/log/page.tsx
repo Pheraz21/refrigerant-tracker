@@ -34,6 +34,7 @@ export default function LogBottlePage() {
   const [validationError, setValidationError] = useState<string | null>(null);
   const [hasExistingHWCN, setHasExistingHWCN] = useState(false);
   const { user } = useAuth();
+  const [crmMatch, setCrmMatch] = useState<string | null>(null);
 
   const [equipmentList, setEquipmentList] = useState([
     { id: 1, manufacturer: "", model: "", serial: "", weight: "", decommissioned: false }
@@ -99,6 +100,27 @@ export default function LogBottlePage() {
       }
     });
   }, [serialParam]);
+
+  useEffect(() => {
+    if (!jobNumber || jobNumber.length < 3) {
+      setCrmMatch(null);
+      return;
+    }
+    db.getCrmJobByNumber(jobNumber).then(crmJob => {
+      if (crmJob) {
+        setCrmMatch(crmJob.siteTitle || "");
+        if (jobType === "recovery") {
+          setProducerSite(prev => ({
+            name: prev.name || crmJob.siteTitle || "",
+            address: prev.address || crmJob.siteAddress || "",
+            postcode: prev.postcode || crmJob.sitePostcode || ""
+          }));
+        }
+      } else {
+        setCrmMatch(null);
+      }
+    });
+  }, [jobNumber, jobType]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -298,15 +320,20 @@ export default function LogBottlePage() {
             <h3 style={{ color: 'var(--primary)', marginBottom: '1rem' }}>Job & Site Details</h3>
             <div className={styles.inputGroup}>
               <label>Job Number</label>
-              <input 
-                type="text" 
-                placeholder="e.g. JOB-88219" 
+              <input
+                type="text"
+                placeholder="e.g. JOB-88219"
                 value={jobNumber}
                 onChange={(e) => setJobNumber(e.target.value)}
-                required 
+                required
               />
+              {crmMatch && (
+                <p style={{fontSize: "0.75rem", color: "var(--primary)", marginTop: "0.3rem"}}>
+                  ✓ {crmMatch}
+                </p>
+              )}
             </div>
-            
+
             {jobType === "recovery" && (
               <>
                 <p style={{fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '1rem', marginBottom: '0.5rem'}}>

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { db, CrmJob } from "@/lib/db";
 import {
   ClipboardList, Upload, Search, RefreshCw, X, ChevronUp, ChevronDown,
-  AlertTriangle, Pencil, Save
+  AlertTriangle, Pencil, Save, ArrowRight
 } from "lucide-react";
 import Link from "next/link";
 
@@ -645,8 +645,11 @@ export default function AllJobsPage() {
                     </td>
                     <td style={{ ...tdBase, color: "rgba(255,255,255,0.45)", fontSize: "0.8rem" }}>{job.prefix || nil}</td>
                     <td style={{ ...tdBase, fontWeight: 600, whiteSpace: "nowrap" }}>
-                      <Link href={`/admin/jobs/${job.jobNumber}`} style={{ color: "#00e5ff", textDecoration: "none", fontWeight: 600 }}>
-                        {job.jobNumber}
+                      <Link
+                        href={`/admin/jobs/${job.jobNumber}`}
+                        style={{ color: "#00e5ff", textDecoration: "underline", textDecorationColor: "rgba(0,229,255,0.4)", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "0.2rem" }}
+                      >
+                        {job.jobNumber} <ArrowRight size={13} />
                       </Link>
                     </td>
                     <td style={{ ...tdBase, whiteSpace: "nowrap" }}>{job.startDate || nil}</td>
