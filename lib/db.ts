@@ -371,7 +371,6 @@ export const db = {
   },
 
   async registerBottle(data: Omit<Bottle, "status">): Promise<void> {
-    console.log('Registering bottle:', data.serial);
     const { error: bottleError } = await supabase.from('bottles').insert({
       serial: data.serial,
       category: data.category,
@@ -887,19 +886,9 @@ export const db = {
   },
 
   async getDurationForSupplier(supplierName: string, category: string): Promise<number | null> {
-    console.log('[getDurationForSupplier] called:', supplierName, category);
-    const suppliers = await this.getSuppliers();
-    const supplier = (suppliers as any[]).find(s => s.name === supplierName);
-    if (!supplier) { console.warn('[getDurationForSupplier] supplier not found in list:', supplierName, 'available:', (suppliers as any[]).map(s => s.name)); return null; }
-    console.log('[getDurationForSupplier] found supplier id:', supplier.id);
-    const { data, error } = await supabase.from('supplier_durations')
-      .select('duration_days')
-      .eq('supplier_id', supplier.id)
-      .eq('category', category)
-      .maybeSingle();
-    if (error) console.error('[getDurationForSupplier] query error:', error.message, { supplierName, supplierId: supplier.id, category });
-    console.log('[getDurationForSupplier] result:', data, 'for', { supplierId: supplier.id, category });
-    return data?.duration_days ?? null;
+    const durations = await this.getSupplierDurations();
+    const match = durations.find(d => d.supplierName === supplierName && d.category === category);
+    return match?.durationDays ?? null;
   },
 
   async switchUserRole(userId: string, newRole: any): Promise<void> {

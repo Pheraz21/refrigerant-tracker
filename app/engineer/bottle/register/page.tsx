@@ -44,11 +44,9 @@ export default function RegisterBottlePage() {
     }
   }, [user, vehicleReg]);
 
-  useEffect(() => {
-    console.log('[auto-expiry] effect fired — supplier:', supplier, 'category:', category);
-    if (!supplier || !category) { console.log('[auto-expiry] guard hit — skipping'); return; }
-    db.getDurationForSupplier(supplier, category).then(days => {
-      console.log('[auto-expiry] days returned:', days);
+  const applyExpiryForSupplierAndCategory = (supplierName: string, cat: BottleCategory) => {
+    if (!supplierName) return;
+    db.getDurationForSupplier(supplierName, cat).then(days => {
       if (days) {
         const expiry = new Date();
         expiry.setDate(expiry.getDate() + days);
@@ -57,7 +55,7 @@ export default function RegisterBottlePage() {
         setRentalExpiryDate("");
       }
     });
-  }, [supplier, category]);
+  };
 
   const [topGases, setTopGases] = useState<string[]>(["R32", "R410A", "R407C", "R22"]);
 
@@ -79,7 +77,7 @@ export default function RegisterBottlePage() {
       myBottles.forEach(b => {
         if (b.supplier) supplierCounts[b.supplier] = (supplierCounts[b.supplier] || 0) + 1;
       });
-      
+
       const sortedSuppliers = [...allSuppliers].sort((a, b) => {
         const countA = supplierCounts[a.name] || 0;
         const countB = supplierCounts[b.name] || 0;
@@ -87,7 +85,10 @@ export default function RegisterBottlePage() {
       });
 
       setSuppliers(sortedSuppliers);
-      if (sortedSuppliers.length > 0) setSupplier(sortedSuppliers[0].name);
+      if (sortedSuppliers.length > 0) {
+        setSupplier(sortedSuppliers[0].name);
+        applyExpiryForSupplierAndCategory(sortedSuppliers[0].name, category);
+      }
 
       // Frequency/Recency sort for Gases
       const gasCounts: Record<string, number> = {};
@@ -194,9 +195,9 @@ export default function RegisterBottlePage() {
         <div className={styles.inputGroup}>
           <label>Bottle Type</label>
           <div style={{display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem", marginBottom: "1.5rem", marginTop: "0.5rem"}}>
-            <button 
+            <button
               type="button"
-              onClick={() => setCategory("new")}
+              onClick={() => { setCategory("new"); applyExpiryForSupplierAndCategory(supplier, "new"); }}
               style={{
                 display: "flex", flexDirection: "column", alignItems: "center", gap: "0.5rem",
                 padding: "1rem", borderRadius: "12px", border: category === "new" ? "2px solid var(--primary)" : "1px solid rgba(255,255,255,0.1)",
@@ -207,9 +208,9 @@ export default function RegisterBottlePage() {
               <CheckCircle2 size={24} />
               <span style={{fontSize: "0.85rem", fontWeight: 600}}>New</span>
             </button>
-            <button 
+            <button
               type="button"
-              onClick={() => setCategory("reclaim")}
+              onClick={() => { setCategory("reclaim"); applyExpiryForSupplierAndCategory(supplier, "reclaim"); }}
               style={{
                 display: "flex", flexDirection: "column", alignItems: "center", gap: "0.5rem",
                 padding: "1rem", borderRadius: "12px", border: category === "reclaim" ? "2px solid var(--warning)" : "1px solid rgba(255,255,255,0.1)",
@@ -220,9 +221,9 @@ export default function RegisterBottlePage() {
               <RotateCcw size={24} />
               <span style={{fontSize: "0.85rem", fontWeight: 600}}>Reclaim</span>
             </button>
-            <button 
+            <button
               type="button"
-              onClick={() => setCategory("nitrogen")}
+              onClick={() => { setCategory("nitrogen"); applyExpiryForSupplierAndCategory(supplier, "nitrogen"); }}
               style={{
                 display: "flex", flexDirection: "column", alignItems: "center", gap: "0.5rem",
                 padding: "1rem", borderRadius: "12px", border: category === "nitrogen" ? "2px solid #a855f7" : "1px solid rgba(255,255,255,0.1)",
@@ -358,29 +359,13 @@ export default function RegisterBottlePage() {
 
         <div className={styles.inputGroup}>
           <label>Supplier</label>
-          <select value={supplier} onChange={(e) => setSupplier(e.target.value)} required>
+          <select value={supplier} onChange={(e) => { setSupplier(e.target.value); applyExpiryForSupplierAndCategory(e.target.value, category); }} required>
             {suppliers.map(sup => (
               <option key={sup.id} value={sup.name}>{sup.name}</option>
             ))}
             <option value="Other">Other...</option>
           </select>
         </div>
-
-        <div className={styles.inputGroup}>
-          <label>Rental Expiry Date</label>
-          <input
-            type="date"
-            value={rentalExpiryDate}
-            onChange={e => setRentalExpiryDate(e.target.value)}
-            style={{background: rentalExpiryDate ? "rgba(0,229,255,0.05)" : undefined, borderColor: rentalExpiryDate ? "rgba(0,229,255,0.3)" : undefined}}
-          />
-          {rentalExpiryDate && (
-            <p style={{fontSize: "0.72rem", color: "var(--primary)", marginTop: "0.3rem"}}>
-              Auto-calculated from supplier rental agreement. Tap to override.
-            </p>
-          )}
-        </div>
-
 
         <div className={styles.inputGroup}>
           <label>{category === "reclaim" ? "Max Fill Weight (kg)" : "Gross Weight (Full Cylinder kg)"}</label>
