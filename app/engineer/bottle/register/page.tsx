@@ -72,22 +72,10 @@ export default function RegisterBottlePage() {
         .filter(b => b.registeredBy === user?.id)
         .sort((a, b) => new Date(b.registeredAt!).getTime() - new Date(a.registeredAt!).getTime());
 
-      // Frequency/Recency sort for Suppliers
-      const supplierCounts: Record<string, number> = {};
-      myBottles.forEach(b => {
-        if (b.supplier) supplierCounts[b.supplier] = (supplierCounts[b.supplier] || 0) + 1;
-      });
-
-      const sortedSuppliers = [...allSuppliers].sort((a, b) => {
-        const countA = supplierCounts[a.name] || 0;
-        const countB = supplierCounts[b.name] || 0;
-        return countB - countA;
-      });
-
-      setSuppliers(sortedSuppliers);
-      if (sortedSuppliers.length > 0) {
-        setSupplier(sortedSuppliers[0].name);
-        applyExpiryForSupplierAndCategory(sortedSuppliers[0].name, category);
+      setSuppliers(allSuppliers);
+      if (allSuppliers.length > 0) {
+        setSupplier(allSuppliers[0].name);
+        applyExpiryForSupplierAndCategory(allSuppliers[0].name, category);
       }
 
       // Frequency/Recency sort for Gases

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Printer, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
@@ -97,9 +97,6 @@ export default function HWCNViewPage() {
         <Link href="/engineer" style={{ color: "#00e5ff", display: "flex", alignItems: "center", gap: "0.5rem", textDecoration: "none", fontSize: "0.9rem" }}>
           <ArrowLeft size={18} /> Back to Dashboard
         </Link>
-        <button onClick={() => window.print()} style={{ background: "#00e5ff", color: "#000", border: "none", padding: "0.5rem 1.25rem", borderRadius: "4px", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: "bold" }}>
-          <Printer size={18} /> Print / PDF
-        </button>
       </div>
 
       {/* ── HWCN Status Banner (no-print) ── */}
