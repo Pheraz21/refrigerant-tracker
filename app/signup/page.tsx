@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { UserPlus, Loader2, ArrowLeft, ShieldCheck, Wrench, Shield } from "lucide-react";
+import { UserPlus, Loader2, ArrowLeft, ShieldCheck, Wrench, Shield, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { db, UserRole } from "@/lib/db";
 import { supabase } from "@/lib/supabaseClient";
@@ -44,6 +44,8 @@ export default function SignupPage() {
   const [phone, setPhone] = useState("");
   const [employmentType, setEmploymentType] = useState<"direct" | "sub">("direct");
   const [subContractorName, setSubContractorName] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -155,13 +157,23 @@ export default function SignupPage() {
             {/* Password */}
             <div style={fieldStyle}>
               <label style={labelStyle}>Create Password</label>
-              <input type="password" required value={password} onChange={e => setPassword(e.target.value)} placeholder="Min. 8 characters" style={inputStyle} />
+              <div style={{ position: "relative" }}>
+                <input type={showPassword ? "text" : "password"} required value={password} onChange={e => setPassword(e.target.value)} placeholder="Min. 8 characters" style={{ ...inputStyle, paddingRight: "3rem" }} />
+                <button type="button" onClick={() => setShowPassword(v => !v)} style={{ position: "absolute", right: "0.75rem", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", padding: "0.25rem", display: "flex", alignItems: "center" }}>
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             {/* Confirm Password */}
             <div style={fieldStyle}>
               <label style={labelStyle}>Confirm Password</label>
-              <input type="password" required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repeat password" style={inputStyle} />
+              <div style={{ position: "relative" }}>
+                <input type={showConfirmPassword ? "text" : "password"} required value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repeat password" style={{ ...inputStyle, paddingRight: "3rem" }} />
+                <button type="button" onClick={() => setShowConfirmPassword(v => !v)} style={{ position: "absolute", right: "0.75rem", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", padding: "0.25rem", display: "flex", alignItems: "center" }}>
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             {/* Van Registration — engineer only */}
