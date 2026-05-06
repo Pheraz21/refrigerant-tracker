@@ -45,8 +45,10 @@ export default function RegisterBottlePage() {
   }, [user, vehicleReg]);
 
   useEffect(() => {
-    if (!supplier || !category) return;
+    console.log('[auto-expiry] effect fired — supplier:', supplier, 'category:', category);
+    if (!supplier || !category) { console.log('[auto-expiry] guard hit — skipping'); return; }
     db.getDurationForSupplier(supplier, category).then(days => {
+      console.log('[auto-expiry] days returned:', days);
       if (days) {
         const expiry = new Date();
         expiry.setDate(expiry.getDate() + days);
