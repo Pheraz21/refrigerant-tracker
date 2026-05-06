@@ -34,17 +34,23 @@ export default function SignupPage() {
     setError("");
 
     try {
-      const res = await fetch("/api/auth/send-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email })
+      const { error: signUpError } = await supabase.auth.signUp({ email, password });
+      if (signUpError && signUpError.message !== "User already registered") {
+        throw signUpError;
+      }
+      await db.registerUser({
+        email,
+        name,
+        role,
+        phone,
+        vehicleReg: role === "engineer" ? vehicleReg : undefined,
+        employer: role === "engineer"
+          ? (employmentType === "direct" ? "Direct Staff" : subContractorName)
+          : undefined
       });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Failed to send code");
-      setOtpToken(data.token);
-      setOtpStep(true);
+      setIsSuccess(true);
     } catch (err: any) {
-      setError(err.message || "Failed to send verification code. Please try again.");
+      setError(err.message || "Registration failed. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -356,7 +362,7 @@ export default function SignupPage() {
                 display: "flex", alignItems: "center", justifyContent: "center", gap: "0.75rem"
               }}
             >
-              {isSubmitting ? <Loader2 size={20} className="spinner" /> : "Send Verification Code →"}
+              {isSubmitting ? <Loader2 size={20} className="spinner" /> : "Request Approval"}
             </button>
           </form>
         </div>
