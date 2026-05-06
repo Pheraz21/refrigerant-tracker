@@ -114,17 +114,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const canAccessDashboard =
           user.availableRoles?.includes("engineer") || user.role === "engineer";
 
-        if (canAccessAdmin && (isAdminLogin || pathname === "/")) {
+        if (canAccessAdmin && isAdminLogin) {
           router.push("/admin");
           return;
         } else if (!canAccessAdmin && isAdminRoute && !isAdminLogin) {
           router.push("/engineer");
           return;
-        } else if (canAccessDashboard && isEngineerLogin) {
+        } else if (isEngineerLogin) {
           router.push("/engineer");
-          return;
-        } else if (!canAccessDashboard && pathname.startsWith("/engineer") && canAccessAdmin) {
-          router.push("/admin");
           return;
         }
       }
