@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { db } from "@/lib/db";
-import { Settings, Save, CheckCircle2, Users, Truck, Building2, Trash2, Plus, Edit2, ShieldCheck } from "lucide-react";
+import { Settings, Save, CheckCircle2, Users, Truck, Building2, Trash2, Plus, Edit2, ShieldCheck, Clock } from "lucide-react";
 
 export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
@@ -11,6 +11,9 @@ export default function SettingsPage() {
   const [refrigerants, setRefrigerants] = useState<any[]>([]);
   const [editingRefId, setEditingRefId] = useState<string | null>(null);
   const [newRef, setNewRef] = useState({ name: "", type: "HFC", un_number: "", gwp: 0, canBeBoughtNew: true });
+  const [durations, setDurations] = useState<any[]>([]);
+  const [editingCell, setEditingCell] = useState<{ supplierId: string; category: string } | null>(null);
+  const [tempDays, setTempDays] = useState("");
 
   // Company settings — these would be persisted to DB in production
   const [companyName, setCompanyName] = useState("21 Degrees Ltd");
@@ -20,9 +23,12 @@ export default function SettingsPage() {
   const [carrierReg, setCarrierReg] = useState("CBDU368286");
   const [exemptionNo, setExemptionNo] = useState("31Z 3725 34");
 
+  const loadDurations = () => db.getSupplierDurations().then(setDurations);
+
   useEffect(() => {
     db.getSuppliers().then(setSuppliers);
     db.getRefrigerants().then(setRefrigerants);
+    loadDurations();
     db.getCompanySettings().then(s => {
       if (s.companyName) setCompanyName(s.companyName);
       if (s.companyAddress) setCompanyAddress(s.companyAddress);
@@ -32,6 +38,24 @@ export default function SettingsPage() {
       if (s.exemptionNo) setExemptionNo(s.exemptionNo);
     });
   }, []);
+
+  const getDuration = (supplierId: string, category: string) =>
+    durations.find(d => d.supplierId === supplierId && d.category === category);
+
+  const handleSaveDuration = async (supplierId: string, category: string) => {
+    const days = parseInt(tempDays);
+    if (!isNaN(days) && days > 0) {
+      await db.setSupplierDuration(supplierId, category, days);
+      await loadDurations();
+    }
+    setEditingCell(null);
+    setTempDays("");
+  };
+
+  const handleDeleteDuration = async (supplierId: string, category: string) => {
+    await db.deleteSupplierDuration(supplierId, category);
+    await loadDurations();
+  };
 
   const handleSave = async () => {
     await db.saveCompanySettings({ companyName, companyAddress, companyPostcode, companyTel, carrierReg, exemptionNo });
@@ -192,6 +216,80 @@ export default function SettingsPage() {
                 </button>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Supplier Rental Durations */}
+        <div style={{background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px", padding: "1.5rem"}}>
+          <h3 style={{fontSize: "1.05rem", fontWeight: 700, marginBottom: "0.5rem", color: "#00e5ff", display: "flex", alignItems: "center", gap: "0.5rem"}}>
+            <Clock size={18} /> Supplier Rental Durations
+          </h3>
+          <p style={{fontSize: "0.82rem", color: "var(--text-muted)", marginBottom: "1.25rem"}}>
+            Set the agreed rental period (in days) per supplier and bottle category. Used to auto-calculate expiry dates on registration.
+          </p>
+          <div style={{borderRadius: "8px", border: "1px solid rgba(255,255,255,0.06)", overflow: "hidden"}}>
+            <table style={{width: "100%", borderCollapse: "collapse"}}>
+              <thead>
+                <tr style={{background: "rgba(255,255,255,0.04)"}}>
+                  {["Supplier", "New Refrigerant", "Recovery / Reclaim", "Nitrogen"].map(h => (
+                    <th key={h} style={{padding: "0.75rem", textAlign: "left", fontSize: "0.7rem", color: "rgba(255,255,255,0.5)", fontWeight: 600, textTransform: "uppercase", borderBottom: "1px solid rgba(255,255,255,0.06)"}}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {suppliers.map(sup => (
+                  <tr key={sup.id} style={{borderBottom: "1px solid rgba(255,255,255,0.04)"}}>
+                    <td style={{padding: "0.75rem", fontWeight: 600, fontSize: "0.9rem"}}>{sup.name}</td>
+                    {(["new", "reclaim", "nitrogen"] as const).map(cat => {
+                      const existing = getDuration(sup.id, cat);
+                      const isEditing = editingCell?.supplierId === sup.id && editingCell?.category === cat;
+                      return (
+                        <td key={cat} style={{padding: "0.75rem"}}>
+                          {isEditing ? (
+                            <div style={{display: "flex", gap: "0.4rem", alignItems: "center"}}>
+                              <input
+                                type="number"
+                                min={1}
+                                value={tempDays}
+                                onChange={e => setTempDays(e.target.value)}
+                                placeholder="days"
+                                autoFocus
+                                style={{width: "70px", padding: "0.3rem 0.5rem", background: "rgba(255,255,255,0.1)", border: "1px solid var(--primary)", borderRadius: "4px", color: "#fff", fontSize: "0.8rem", outline: "none"}}
+                                onKeyDown={e => { if (e.key === "Enter") handleSaveDuration(sup.id, cat); if (e.key === "Escape") { setEditingCell(null); setTempDays(""); } }}
+                              />
+                              <button onClick={() => handleSaveDuration(sup.id, cat)} style={{background: "var(--success)", border: "none", borderRadius: "4px", padding: "0.25rem 0.5rem", cursor: "pointer", color: "#000", fontSize: "0.7rem", fontWeight: 700}}>Save</button>
+                              <button onClick={() => { setEditingCell(null); setTempDays(""); }} style={{background: "rgba(255,255,255,0.1)", border: "none", borderRadius: "4px", padding: "0.25rem 0.5rem", cursor: "pointer", color: "rgba(255,255,255,0.6)", fontSize: "0.7rem"}}>×</button>
+                            </div>
+                          ) : existing ? (
+                            <div style={{display: "flex", alignItems: "center", gap: "0.5rem"}}>
+                              <span style={{fontSize: "0.85rem", color: "var(--primary)", fontWeight: 600}}>{existing.durationDays} days</span>
+                              <button onClick={() => { setEditingCell({ supplierId: sup.id, category: cat }); setTempDays(String(existing.durationDays)); }} style={{background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", padding: 0}}>
+                                <Edit2 size={13} />
+                              </button>
+                              <button onClick={() => handleDeleteDuration(sup.id, cat)} style={{background: "none", border: "none", color: "rgba(255,51,102,0.5)", cursor: "pointer", padding: 0}}>
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => { setEditingCell({ supplierId: sup.id, category: cat }); setTempDays(""); }}
+                              style={{background: "none", border: "1px dashed rgba(255,255,255,0.15)", borderRadius: "4px", color: "rgba(255,255,255,0.3)", cursor: "pointer", fontSize: "0.75rem", padding: "0.2rem 0.6rem"}}
+                            >
+                              + Set
+                            </button>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+                {suppliers.length === 0 && (
+                  <tr><td colSpan={4} style={{padding: "1.5rem", textAlign: "center", color: "rgba(255,255,255,0.2)", fontSize: "0.85rem"}}>No suppliers added yet</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 

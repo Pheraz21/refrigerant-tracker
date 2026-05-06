@@ -402,13 +402,15 @@ export const db = {
     });
     if (logError) console.error('Error logging registration:', logError);
 
-    await this.createNotification({
-      type: "expiry_date_required",
-      title: "Set Rental Expiry Date",
-      message: `Bottle ${data.serial} (${data.gasType}) has been registered. Please set the rental expiry date.`,
-      targetRole: "office",
-      metadata: { serial: data.serial, gasType: data.gasType, supplier: data.supplier || "Unknown" }
-    });
+    if (!data.rentalExpiryDate) {
+      await this.createNotification({
+        type: "expiry_date_required",
+        title: "Set Rental Expiry Date",
+        message: `Bottle ${data.serial} (${data.gasType}) has been registered. Please set the rental expiry date.`,
+        targetRole: "office",
+        metadata: { serial: data.serial, gasType: data.gasType, supplier: data.supplier || "Unknown" }
+      });
+    }
   },
 
   async updateBottleLocation(serial: string, locationType: LocationType, locationId: string, intendedDestination?: string, intendedLocationType?: LocationType, activeHWCN?: string, engineerName?: string): Promise<void> {
@@ -858,6 +860,42 @@ export const db = {
 
   async removeSupplier(id: string): Promise<void> {
     await supabase.from('suppliers').delete().eq('id', id);
+  },
+
+  async getSupplierDurations(): Promise<{ id: string; supplierId: string; supplierName: string; category: string; durationDays: number }[]> {
+    const [{ data: durations }, suppliers] = await Promise.all([
+      supabase.from('supplier_durations').select('*'),
+      this.getSuppliers()
+    ]);
+    if (!durations) return [];
+    return durations.map((d: any) => ({
+      id: d.id,
+      supplierId: d.supplier_id,
+      supplierName: (suppliers as any[]).find(s => s.id === d.supplier_id)?.name || d.supplier_id,
+      category: d.category,
+      durationDays: d.duration_days
+    }));
+  },
+
+  async setSupplierDuration(supplierId: string, category: string, durationDays: number): Promise<void> {
+    const id = `sd_${supplierId}_${category}`;
+    await supabase.from('supplier_durations').upsert({ id, supplier_id: supplierId, category, duration_days: durationDays });
+  },
+
+  async deleteSupplierDuration(supplierId: string, category: string): Promise<void> {
+    await supabase.from('supplier_durations').delete().eq('supplier_id', supplierId).eq('category', category);
+  },
+
+  async getDurationForSupplier(supplierName: string, category: string): Promise<number | null> {
+    const suppliers = await this.getSuppliers();
+    const supplier = (suppliers as any[]).find(s => s.name === supplierName);
+    if (!supplier) return null;
+    const { data } = await supabase.from('supplier_durations')
+      .select('duration_days')
+      .eq('supplier_id', supplier.id)
+      .eq('category', category)
+      .maybeSingle();
+    return data?.duration_days ?? null;
   },
 
   async switchUserRole(userId: string, newRole: any): Promise<void> {

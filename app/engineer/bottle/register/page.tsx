@@ -24,6 +24,7 @@ export default function RegisterBottlePage() {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [weight, setWeight] = useState("");
   const [customGas, setCustomGas] = useState("");
+  const [rentalExpiryDate, setRentalExpiryDate] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -42,6 +43,19 @@ export default function RegisterBottlePage() {
       }
     }
   }, [user, vehicleReg]);
+
+  useEffect(() => {
+    if (!supplier || !category) return;
+    db.getDurationForSupplier(supplier, category).then(days => {
+      if (days) {
+        const expiry = new Date();
+        expiry.setDate(expiry.getDate() + days);
+        setRentalExpiryDate(expiry.toISOString().slice(0, 10));
+      } else {
+        setRentalExpiryDate("");
+      }
+    });
+  }, [supplier, category]);
 
   const [topGases, setTopGases] = useState<string[]>(["R32", "R410A", "R407C", "R22"]);
 
@@ -135,6 +149,7 @@ export default function RegisterBottlePage() {
       vehicleReg: locationType === "van" ? vehicleReg : undefined,
       poNumber: poNumber,
       supplier: supplier,
+      rentalExpiryDate: rentalExpiryDate || undefined,
       registeredBy: user?.id,
       registeredAt: new Date().toISOString()
     });
@@ -349,8 +364,20 @@ export default function RegisterBottlePage() {
           </select>
         </div>
 
-
-
+        <div className={styles.inputGroup}>
+          <label>Rental Expiry Date</label>
+          <input
+            type="date"
+            value={rentalExpiryDate}
+            onChange={e => setRentalExpiryDate(e.target.value)}
+            style={{background: rentalExpiryDate ? "rgba(0,229,255,0.05)" : undefined, borderColor: rentalExpiryDate ? "rgba(0,229,255,0.3)" : undefined}}
+          />
+          {rentalExpiryDate && (
+            <p style={{fontSize: "0.72rem", color: "var(--primary)", marginTop: "0.3rem"}}>
+              Auto-calculated from supplier rental agreement. Tap to override.
+            </p>
+          )}
+        </div>
 
 
         <div className={styles.inputGroup}>
