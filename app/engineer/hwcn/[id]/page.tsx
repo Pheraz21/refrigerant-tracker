@@ -22,6 +22,7 @@ const field = (label: string, value?: string, wide = false) => (
 
 export default function HWCNViewPage() {
   const { id } = useParams();
+  const hwcnId = decodeURIComponent(id as string);
   const { user } = useAuth();
   const [hwcn, setHwcn] = useState<any>(null);
   const [usageLogs, setUsageLogs] = useState<any[]>([]);
@@ -29,7 +30,7 @@ export default function HWCNViewPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadData = () => {
-    db.getHWCN(id as string).then(data => {
+    db.getHWCN(hwcnId).then(data => {
       setHwcn(data);
       if (data?.serial) {
         db.getUsageLogs(data.serial).then(logs => setUsageLogs(logs));
@@ -46,7 +47,7 @@ export default function HWCNViewPage() {
     if (!user) return;
     setIsSubmitting(true);
     try {
-      await db.completePartE(id as string, {
+      await db.completePartE(hwcnId, {
         receivedBy: user.name,
         receivedSignature: user.name, // Auto-signed
         accepted,

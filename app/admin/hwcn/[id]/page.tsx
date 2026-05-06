@@ -22,8 +22,10 @@ export default function AdminHWCNDetailPage() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
 
+  const hwcnId = decodeURIComponent(id as string);
+
   useEffect(() => {
-    db.getHWCN(id as string).then(data => {
+    db.getHWCN(hwcnId).then(data => {
       setHwcn(data);
       setLoading(false);
       if (data?.receivedBy) setReceivedBy(data.receivedBy);
@@ -32,7 +34,7 @@ export default function AdminHWCNDetailPage() {
 
   const handleSubmitPartE = async () => {
     setSubmitting(true);
-    await db.completePartE(id as string, {
+    await db.completePartE(hwcnId, {
       receivedBy: receivedBy || user?.name || "Office Staff",
       accepted,
       rejectionDetails: !accepted ? rejectionDetails : undefined,
@@ -155,7 +157,7 @@ export default function AdminHWCNDetailPage() {
                 // Call completeTransit from the office side
                 await db.completeTransit(hwcn.serial, undefined, user?.name || "Office Staff");
                 // Refresh local data
-                const updatedHwcn = await db.getHWCN(id as string);
+                const updatedHwcn = await db.getHWCN(hwcnId);
                 setHwcn(updatedHwcn);
                 setSubmitting(false);
               }}
