@@ -68,6 +68,11 @@ export default function UserManagementPage() {
     loadUsers();
   };
 
+  const setPrimaryRole = async (userId: string, role: UserRole) => {
+    await db.switchUserRole(userId, role);
+    loadUsers();
+  };
+
   const filteredUsers = users.filter(u => 
     u.name.toLowerCase().includes(search.toLowerCase()) || 
     u.email.toLowerCase().includes(search.toLowerCase()) ||
@@ -142,17 +147,30 @@ export default function UserManagementPage() {
                   {roleEditingId === u.id && (
                     <div style={{
                       marginTop: "0.5rem", background: "rgba(0,0,0,0.2)", padding: "0.5rem", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.1)",
-                      display: "flex", gap: "1rem"
+                      display: "flex", gap: "1.25rem"
                     }}>
                       {["engineer", "office", "admin"].map(r => (
-                        <label key={r} style={{fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "0.3rem", cursor: "pointer"}}>
-                          <input 
-                            type="checkbox" 
-                            checked={u.availableRoles.includes(r as UserRole)}
-                            onChange={() => toggleRole(u.id, r as UserRole)}
-                          />
-                          {r.charAt(0).toUpperCase() + r.slice(1)}
-                        </label>
+                        <div key={r} style={{display: "flex", flexDirection: "column", gap: "0.2rem"}}>
+                          <label style={{fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "0.3rem", cursor: "pointer"}}>
+                            <input
+                              type="checkbox"
+                              checked={u.availableRoles.includes(r as UserRole)}
+                              onChange={() => toggleRole(u.id, r as UserRole)}
+                            />
+                            {r.charAt(0).toUpperCase() + r.slice(1)}
+                          </label>
+                          {u.availableRoles.includes(r as UserRole) && u.role !== r && (
+                            <button
+                              onClick={() => setPrimaryRole(u.id, r as UserRole)}
+                              style={{fontSize: "0.65rem", color: "var(--primary)", background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline", textAlign: "left"}}
+                            >
+                              Set primary
+                            </button>
+                          )}
+                          {u.role === r && (
+                            <span style={{fontSize: "0.65rem", color: "var(--primary)", opacity: 0.6}}>Primary</span>
+                          )}
+                        </div>
                       ))}
                     </div>
                   )}
