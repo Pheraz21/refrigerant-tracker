@@ -24,8 +24,10 @@ export default function AdminHWCNPrintPage() {
   const [hwcn, setHwcn] = useState<any>(null);
   const [usageLogs, setUsageLogs] = useState<any[]>([]);
   const [bottle, setBottle] = useState<any>(null);
+  const [companySettings, setCompanySettings] = useState<any>(null);
 
   useEffect(() => {
+    db.getCompanySettings().then(setCompanySettings);
     db.getHWCN(id as string).then(data => {
       setHwcn(data);
       if (data?.serial) {
@@ -247,7 +249,7 @@ export default function AdminHWCNPrintPage() {
                 I certify that I today collected/delivered the consignment and that the details in A2, A3 and B3 are correct and I have been advised of any specific handling requirements.
               </p>
               {field("1. Carrier's name", hwcn.engineer)}
-              {field("2. Carrier's reg no.", "CBDU368286")}
+              {field("2. Carrier's reg no.", companySettings?.carrierReg || "CBDU368286")}
               {field("3. Vehicle reg no.", hwcn.vehicleReg || "")}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem", marginTop: "0.3rem" }}>
                 {field("Date", formattedDate)}
@@ -308,7 +310,7 @@ export default function AdminHWCNPrintPage() {
                 <div style={{ border: "1px solid #bbb", minHeight: "1.2rem", padding: "0.15rem", fontSize: "0.72rem" }}>
                   {hwcn.rejectionDetails || ""}
                 </div>
-                {field("4. Waste exemption no.", "31Z 3725 34")}
+                {field("4. Waste exemption no.", companySettings?.exemptionNo || "31Z 3725 34")}
               </div>
               <div style={{ minWidth: "160px" }}>
                 <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.3rem" }}>

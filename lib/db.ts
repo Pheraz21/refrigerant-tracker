@@ -818,7 +818,7 @@ export const db = {
   },
 
   async getSuppliers(): Promise<any[]> {
-    const { data } = await supabase.from('suppliers').select('*');
+    const { data } = await supabase.from('suppliers').select('*').order('name');
     return data || [];
   },
 
