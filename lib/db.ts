@@ -889,12 +889,13 @@ export const db = {
   async getDurationForSupplier(supplierName: string, category: string): Promise<number | null> {
     const suppliers = await this.getSuppliers();
     const supplier = (suppliers as any[]).find(s => s.name === supplierName);
-    if (!supplier) return null;
-    const { data } = await supabase.from('supplier_durations')
+    if (!supplier) { console.warn('[getDurationForSupplier] supplier not found:', supplierName); return null; }
+    const { data, error } = await supabase.from('supplier_durations')
       .select('duration_days')
       .eq('supplier_id', supplier.id)
       .eq('category', category)
       .maybeSingle();
+    if (error) console.error('[getDurationForSupplier] query error:', error.message, { supplierName, supplierId: supplier.id, category });
     return data?.duration_days ?? null;
   },
 
