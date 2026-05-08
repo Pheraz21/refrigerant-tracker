@@ -12,12 +12,13 @@ jobs:
       - name: Dump database
         env:
           PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PGUSER: postgres.vfpismkhdxcnioblynvk
+          PGHOST: aws-1-eu-west-2.pooler.supabase.com
+          PGPORT: "5432"
+          PGDATABASE: postgres
+          PGSSLMODE: require
         run: |
           pg_dump \
-            --host=aws-1-eu-west-2.pooler.supabase.com \
-            --port=5432 \
-            --username=postgres.vfpismkhdxcnioblynvk \
-            --dbname=postgres \
             --no-owner \
             --no-acl \
             --format=custom \
