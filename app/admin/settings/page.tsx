@@ -86,6 +86,15 @@ export default function SettingsPage() {
     await db.reorderSuppliers(reordered);
   };
 
+  const handleMoveGas = async (index: number, direction: "up" | "down") => {
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= refrigerants.length) return;
+    const reordered = [...refrigerants];
+    [reordered[index], reordered[swapIndex]] = [reordered[swapIndex], reordered[index]];
+    setRefrigerants(reordered);
+    await db.reorderGases(reordered);
+  };
+
   const handleAddRef = async () => {
     if (!newRef.name.trim()) return;
     await db.addRefrigerant(newRef);
@@ -329,7 +338,7 @@ export default function SettingsPage() {
             <table style={{width: "100%", borderCollapse: "collapse"}}>
               <thead>
                 <tr style={{background: "rgba(255,255,255,0.04)"}}>
-                  {["Gas Name", "Type", "UN Number", "GWP", "Buy New", "Actions"].map(h => (
+                  {["Gas Name", "Type", "UN Number", "GWP", "Buy New", "Order", "Actions"].map(h => (
                     <th key={h} style={{padding: "0.75rem", textAlign: "left", fontSize: "0.7rem", color: "rgba(255,255,255,0.5)", fontWeight: 600, textTransform: "uppercase", borderBottom: "1px solid rgba(255,255,255,0.06)"}}>
                       {h}
                     </th>
@@ -337,7 +346,7 @@ export default function SettingsPage() {
                 </tr>
               </thead>
               <tbody>
-                {refrigerants.map(ref => (
+                {refrigerants.map((ref, i) => (
                   <tr key={ref.id} style={{borderBottom: "1px solid rgba(255,255,255,0.04)"}}>
                     <td style={{padding: "0.75rem", fontWeight: 600, fontSize: "0.85rem"}}>
                       {editingRefId === ref.id ? (
@@ -372,6 +381,16 @@ export default function SettingsPage() {
                         </span>
                       )}
                     </td>
+                    <td style={{padding: "0.75rem", textAlign: "center"}}>
+                      <div style={{display: "flex", flexDirection: "column", alignItems: "center", gap: "0.1rem"}}>
+                        <button onClick={() => handleMoveGas(i, "up")} disabled={i === 0} style={{background: "none", border: "none", color: i === 0 ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.4)", cursor: i === 0 ? "default" : "pointer", padding: "0.1rem"}}>
+                          <ChevronUp size={14} />
+                        </button>
+                        <button onClick={() => handleMoveGas(i, "down")} disabled={i === refrigerants.length - 1} style={{background: "none", border: "none", color: i === refrigerants.length - 1 ? "rgba(255,255,255,0.15)" : "rgba(255,255,255,0.4)", cursor: i === refrigerants.length - 1 ? "default" : "pointer", padding: "0.1rem"}}>
+                          <ChevronDown size={14} />
+                        </button>
+                      </div>
+                    </td>
                     <td style={{padding: "0.75rem", textAlign: "right"}}>
                       <div style={{display: "flex", gap: "0.5rem", justifyContent: "flex-end"}}>
                         <button onClick={() => setEditingRefId(editingRefId === ref.id ? null : ref.id)} style={{background: "none", border: "none", color: "var(--primary)", cursor: "pointer"}}>
@@ -391,6 +410,7 @@ export default function SettingsPage() {
                   <td style={{padding: "0.75rem"}}><input placeholder="UN..." value={newRef.un_number} onChange={e => setNewRef({...newRef, un_number: e.target.value})} style={{...inputStyle, padding: "0.3rem", fontSize: "0.8rem"}} /></td>
                   <td style={{padding: "0.75rem"}}><input type="number" placeholder="GWP" value={newRef.gwp} onChange={e => setNewRef({...newRef, gwp: parseInt(e.target.value)})} style={{...inputStyle, padding: "0.3rem", fontSize: "0.8rem"}} /></td>
                   <td style={{padding: "0.75rem"}}><input type="checkbox" checked={newRef.canBeBoughtNew} onChange={e => setNewRef({...newRef, canBeBoughtNew: e.target.checked})} /></td>
+                  <td style={{padding: "0.75rem"}}></td>
                   <td style={{padding: "0.75rem", textAlign: "right"}}>
                     <button onClick={handleAddRef} style={{background: "var(--primary)", border: "none", borderRadius: "4px", padding: "0.4rem 0.6rem", cursor: "pointer", color: "#000", fontWeight: 700, fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "0.3rem"}}>
                       <Plus size={14} /> Add

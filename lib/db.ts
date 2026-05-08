@@ -835,18 +835,27 @@ export const db = {
     );
   },
 
+  async reorderGases(gases: { id: string }[]): Promise<void> {
+    await Promise.all(
+      gases.map((g, i) => supabase.from('gases').update({ sort_order: i }).eq('id', g.id))
+    );
+  },
+
   async getRefrigerants(): Promise<any[]> {
-    const { data } = await supabase.from('gases').select('*').order('name');
+    const { data } = await supabase.from('gases').select('*').order('sort_order', { nullsFirst: false }).order('name');
     return data || [];
   },
 
   async addRefrigerant(ref: any): Promise<void> {
-    await supabase.from('gases').insert({ 
+    const { data: existing } = await supabase.from('gases').select('sort_order').order('sort_order', { ascending: false }).limit(1);
+    const nextOrder = existing?.[0]?.sort_order != null ? existing[0].sort_order + 1 : 0;
+    await supabase.from('gases').insert({
       name: ref.name,
       type: ref.type || 'HFC',
       un_number: ref.un_number || ref.un,
       gwp: ref.gwp,
-      can_be_bought_new: ref.canBeBoughtNew !== undefined ? ref.canBeBoughtNew : true
+      can_be_bought_new: ref.canBeBoughtNew !== undefined ? ref.canBeBoughtNew : true,
+      sort_order: nextOrder
     });
   },
 
@@ -1098,6 +1107,7 @@ export const db = {
     const { data } = await supabase
       .from("gases")
       .select("*")
+      .order("sort_order", { nullsFirst: false })
       .order("name", { ascending: true });
     return data || [];
   },

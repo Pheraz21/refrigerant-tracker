@@ -61,16 +61,10 @@ export default function RegisterBottlePage() {
 
   useEffect(() => {
     async function loadPreferences() {
-      const [allSuppliers, allGases, recentBottles] = await Promise.all([
+      const [allSuppliers, allGases] = await Promise.all([
         db.getSuppliers(),
         db.getGases(),
-        db.getAllBottles()
       ]);
-
-      // Filter bottles for this user
-      const myBottles = recentBottles
-        .filter(b => b.registeredBy === user?.id)
-        .sort((a, b) => new Date(b.registeredAt!).getTime() - new Date(a.registeredAt!).getTime());
 
       setSuppliers(allSuppliers);
       if (allSuppliers.length > 0) {
@@ -78,28 +72,11 @@ export default function RegisterBottlePage() {
         applyExpiryForSupplierAndCategory(allSuppliers[0].name, category);
       }
 
-      // Frequency/Recency sort for Gases
-      const gasCounts: Record<string, number> = {};
-      myBottles.forEach(b => {
-        if (b.gasType && b.gasType !== "Mixed/Recovery" && b.gasType !== "Nitrogen") {
-          gasCounts[b.gasType] = (gasCounts[b.gasType] || 0) + 1;
-        }
-      });
-
-      const sortedGases = allGases
+      const buyableGases = allGases
         .filter(g => category !== "new" || g.can_be_bought_new !== false)
-        .map(g => g.name)
-        .sort((a, b) => {
-          const countA = gasCounts[a] || 0;
-          const countB = gasCounts[b] || 0;
-          return countB - countA;
-        });
-
-      // Set the top 4
-      const defaultGases = category === "new" ? ["R32", "R410A"] : ["R32", "R410A", "R407C", "R22"];
-      const finalTopGases = [...new Set([...sortedGases, ...defaultGases])].slice(0, 4);
-      setTopGases(finalTopGases);
-      if (finalTopGases.length > 0) setGasType(finalTopGases[0]);
+        .map(g => g.name);
+      setTopGases(buyableGases);
+      if (buyableGases.length > 0) setGasType(buyableGases[0]);
     }
 
     if (user) loadPreferences();

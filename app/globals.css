@@ -64,6 +64,15 @@ input, textarea, select {
   font-family: inherit;
 }
 
+select {
+  background-color: var(--surface);
+  color: var(--text-main);
+}
+select option {
+  background-color: var(--surface);
+  color: var(--text-main);
+}
+
 /* Utilities */
 .container {
   max-width: 1200px;
