@@ -122,7 +122,7 @@ export default function RegisterBottlePage() {
       supplier: supplier,
       rentalExpiryDate: rentalExpiryDate || undefined,
       lastEngineer: user?.name,
-      registeredBy: user?.id,
+      registeredBy: user?.name,
       registeredAt: new Date().toISOString()
     });
 

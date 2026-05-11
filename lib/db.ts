@@ -642,6 +642,15 @@ export const db = {
     };
     if (vehicleReg) updates.vehicle_reg = vehicleReg;
     await supabase.from('bottles').update(updates).eq('serial', serial);
+
+    await supabase.from('movement_logs').insert({
+      serial,
+      action: "moved",
+      from_location: "HQ-Stores",
+      to_location: `${engineerName} - Van`,
+      engineer: engineerName,
+      notes: "Signed out from stores"
+    });
   },
 
   async getAllHWCNs(): Promise<any[]> {

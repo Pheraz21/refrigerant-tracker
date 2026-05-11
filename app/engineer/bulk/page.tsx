@@ -127,7 +127,9 @@ export default function BulkDeliveryPage() {
         poNumber,
         supplier,
         rentalExpiryDate,
-        registeredAt: new Date().toISOString()
+        registeredAt: new Date().toISOString(),
+        lastEngineer: user?.name,
+        registeredBy: user?.name
       });
     });
 
