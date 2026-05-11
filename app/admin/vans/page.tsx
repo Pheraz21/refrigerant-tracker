@@ -37,7 +37,7 @@ function downloadFile(content: string, filename: string, type: string) {
 function exportVanCSV(bottles: Bottle[], engineer: string) {
   const header = "Serial,Category,Gas Type,Full Weight (kg),Current Weight (kg),Since";
   const rows = bottles.map(b =>
-    `${b.serial},${b.category === "new" ? "New" : b.category === "reclaim" ? "Reclaim" : "N₂"},${b.gasType},${b.initialWeight.toFixed(2)},${b.category === "nitrogen" ? "N/A" : b.currentWeight.toFixed(2)},${b.locationChangedAt ? new Date(b.locationChangedAt).toLocaleDateString("en-GB") : ""}`
+    `${b.serial},${b.category === "new" ? "New" : b.category === "reclaim" ? "Reclaim" : "N₂"},${b.gasType},${(b.initialWeight || 0).toFixed(2)},${b.category === "nitrogen" ? "N/A" : (b.currentWeight || 0).toFixed(2)},${b.locationChangedAt ? new Date(b.locationChangedAt).toLocaleDateString("en-GB") : ""}`
   );
   const fileName = engineer === "all" ? "fleet_inventory.csv" : `${engineer}_van.csv`;
   downloadFile([header, ...rows].join("\n"), fileName, "text/csv");
