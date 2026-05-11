@@ -9,17 +9,31 @@ import Link from "next/link";
 type Lifecycle = { index: number; start: string; end: string | null };
 
 function deriveLifecycles(moveLogs: MovementLog[]): Lifecycle[] {
-  const events = moveLogs
-    .filter(l => l.action === "registered" || l.action === "re_registered" || l.action === "returned_to_supplier")
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const sorted = [...moveLogs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const lifecycleEvents = sorted.filter(
+    l => l.action === "registered" || l.action === "re_registered" || l.action === "returned_to_supplier"
+  );
+  if (lifecycleEvents.length === 0) return [];
+
+  // Earliest known event date for this serial — used as a fallback "start" when explicit
+  // registration logs are missing from historical data.
+  const earliestDate = sorted[0]?.date ?? lifecycleEvents[0].date;
 
   const out: Lifecycle[] = [];
   let start: string | null = null;
-  for (const e of events) {
-    if (e.action === "registered" || e.action === "re_registered") {
+
+  for (const e of lifecycleEvents) {
+    if (e.action === "registered") {
+      if (start) out.push({ index: out.length + 1, start, end: e.date });
       start = e.date;
-    } else if (e.action === "returned_to_supplier" && start) {
-      out.push({ index: out.length + 1, start, end: e.date });
+    } else if (e.action === "re_registered") {
+      // A re_registered event always implies a previous lifecycle existed
+      const priorStart = start ?? earliestDate;
+      out.push({ index: out.length + 1, start: priorStart, end: e.date });
+      start = e.date;
+    } else if (e.action === "returned_to_supplier") {
+      const lcStart = start ?? earliestDate;
+      out.push({ index: out.length + 1, start: lcStart, end: e.date });
       start = null;
     }
   }
