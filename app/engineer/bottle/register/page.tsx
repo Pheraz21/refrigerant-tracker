@@ -334,7 +334,7 @@ export default function RegisterBottlePage() {
         </div>
 
         <div className={styles.inputGroup}>
-          <label>{category === "reclaim" ? "Max Fill Weight (kg)" : "Net Weight Of Refrigerant(Full Cylinder kg)"}</label>
+          <label>{category === "reclaim" ? "Max Fill Weight (kg)" : "Net Weight Of Refrigerant (Full Cylinder kg)"}</label>
           <input
             type="number"
             step="0.01"
