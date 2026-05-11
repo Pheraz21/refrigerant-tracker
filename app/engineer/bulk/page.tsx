@@ -105,18 +105,31 @@ export default function BulkDeliveryPage() {
     setIsScanning(false);
 
     // Register all simultaneously
-    const promises = batch.map(b => db.registerBottle({
-      serial: b.serial,
-      category: b.category,
-      gasType: b.category === "nitrogen" ? "Nitrogen" : (b.category === "reclaim" ? "Unknown" : b.gasType),
-      initialWeight: b.weight,
-      currentWeight: b.weight,
-      locationType: locationType as any,
-      locationId: locationType === "van" ? `${user?.name} - Van` : locationType === "office" ? "HQ-Stores" : jobNumber,
-      poNumber,
-      supplier,
-      registeredAt: new Date().toISOString()
-    }));
+    const promises = batch.map(async b => {
+      let rentalExpiryDate: string | undefined = undefined;
+      if (supplier) {
+        const days = await db.getDurationForSupplier(supplier, b.category);
+        if (days) {
+          const expiry = new Date();
+          expiry.setDate(expiry.getDate() + days);
+          rentalExpiryDate = expiry.toISOString().slice(0, 10);
+        }
+      }
+
+      return db.registerBottle({
+        serial: b.serial,
+        category: b.category,
+        gasType: b.category === "nitrogen" ? "Nitrogen" : (b.category === "reclaim" ? "Unknown" : b.gasType),
+        initialWeight: b.weight,
+        currentWeight: b.weight,
+        locationType: locationType as any,
+        locationId: locationType === "van" ? `${user?.name} - Van` : locationType === "office" ? "HQ-Stores" : jobNumber,
+        poNumber,
+        supplier,
+        rentalExpiryDate,
+        registeredAt: new Date().toISOString()
+      });
+    });
 
     await Promise.all(promises);
 

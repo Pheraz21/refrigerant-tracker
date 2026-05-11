@@ -68,8 +68,11 @@ export default function RegisterBottlePage() {
 
       setSuppliers(allSuppliers);
       if (allSuppliers.length > 0) {
-        setSupplier(allSuppliers[0].name);
-        applyExpiryForSupplierAndCategory(allSuppliers[0].name, category);
+        setSupplier(prev => {
+          const activeSupplier = prev || allSuppliers[0].name;
+          applyExpiryForSupplierAndCategory(activeSupplier, category);
+          return activeSupplier;
+        });
       }
 
       const buyableGases = allGases
