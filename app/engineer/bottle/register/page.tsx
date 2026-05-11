@@ -13,7 +13,7 @@ export default function RegisterBottlePage() {
   const searchParams = useSearchParams();
   const serialParam = searchParams.get("serial") || "UNKNOWN";
   const { user } = useAuth();
-  
+
   const [category, setCategory] = useState<BottleCategory>("new");
   const [gasType, setGasType] = useState("R410A");
   const [locationType, setLocationType] = useState<"van" | "office" | "office_collected" | "site">(user?.role === "admin" ? "office" : "van");
@@ -34,7 +34,7 @@ export default function RegisterBottlePage() {
       if (user.vehicleReg) {
         setVehicleReg(user.vehicleReg);
       }
-      
+
       // Auto-fill vehicle reg if missing
       if (!vehicleReg) {
         db.getEngineerById(user.id).then(profile => {
@@ -85,13 +85,13 @@ export default function RegisterBottlePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     const finalGas = gasType === "Other" ? customGas : gasType;
 
     if (gasType === "Other" && customGas) {
       // Ensure the new gas is in our global gases table
       await db.ensureGas(customGas);
-      
+
       // Create notification for office to update details
       await db.createNotification({
         type: "new_gas_registration",
@@ -147,8 +147,8 @@ export default function RegisterBottlePage() {
           <ArrowLeft size={20} />
         </Link>
         <div>
-          <h1 style={{color: "var(--primary)"}}>Unregistered Bottle</h1>
-          <p style={{fontSize: "0.85rem", color: "var(--text-muted)"}}>Please register this bottle into the system</p>
+          <h1 style={{ color: "var(--primary)" }}>Unregistered Bottle</h1>
+          <p style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>Please register this bottle into the system</p>
         </div>
       </header>
 
@@ -160,7 +160,7 @@ export default function RegisterBottlePage() {
 
         <div className={styles.inputGroup}>
           <label>Bottle Type</label>
-          <div style={{display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem", marginBottom: "1.5rem", marginTop: "0.5rem"}}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem", marginBottom: "1.5rem", marginTop: "0.5rem" }}>
             <button
               type="button"
               onClick={() => { setCategory("new"); applyExpiryForSupplierAndCategory(supplier, "new"); }}
@@ -172,7 +172,7 @@ export default function RegisterBottlePage() {
               }}
             >
               <CheckCircle2 size={24} />
-              <span style={{fontSize: "0.85rem", fontWeight: 600}}>New</span>
+              <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>New</span>
             </button>
             <button
               type="button"
@@ -185,7 +185,7 @@ export default function RegisterBottlePage() {
               }}
             >
               <RotateCcw size={24} />
-              <span style={{fontSize: "0.85rem", fontWeight: 600}}>Reclaim</span>
+              <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>Reclaim</span>
             </button>
             <button
               type="button"
@@ -198,15 +198,15 @@ export default function RegisterBottlePage() {
               }}
             >
               <Wind size={24} />
-              <span style={{fontSize: "0.85rem", fontWeight: 600}}>Nitrogen</span>
+              <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>Nitrogen</span>
             </button>
           </div>
         </div>
 
         {category === "new" && (
-          <div className={styles.inputGroup} style={{marginTop: '-0.5rem', marginBottom: '1.5rem', animation: 'fadeIn 0.3s ease-out'}}>
+          <div className={styles.inputGroup} style={{ marginTop: '-0.5rem', marginBottom: '1.5rem', animation: 'fadeIn 0.3s ease-out' }}>
             <label>Refrigerant Gas Type</label>
-            <div style={{display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", marginTop: "0.5rem"}}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", marginTop: "0.5rem" }}>
               {[...topGases, "Other"].map((gas) => (
                 <button
                   key={gas}
@@ -224,14 +224,14 @@ export default function RegisterBottlePage() {
             </div>
 
             {gasType === "Other" && (
-              <div style={{marginTop: '1rem', animation: 'fadeIn 0.2s ease-out'}}>
-                <label style={{fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 700}}>Enter Custom Gas Type</label>
-                <input 
-                  type="text" 
-                  value={customGas} 
+              <div style={{ marginTop: '1rem', animation: 'fadeIn 0.2s ease-out' }}>
+                <label style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 700 }}>Enter Custom Gas Type</label>
+                <input
+                  type="text"
+                  value={customGas}
                   onChange={e => setCustomGas(e.target.value.toUpperCase())}
                   placeholder="e.g. R407C"
-                  style={{marginTop: '0.25rem', border: '1px solid var(--primary)', background: 'rgba(0, 229, 255, 0.05)'}}
+                  style={{ marginTop: '0.25rem', border: '1px solid var(--primary)', background: 'rgba(0, 229, 255, 0.05)' }}
                   required
                 />
               </div>
@@ -240,17 +240,17 @@ export default function RegisterBottlePage() {
         )}
 
         {category === "reclaim" && (
-          <div className={styles.readonlyField} style={{background: 'rgba(255, 170, 0, 0.1)', borderColor: 'rgba(255, 170, 0, 0.3)', marginTop: '-0.5rem', marginBottom: '1.5rem'}}>
-             <span className={styles.label}>Gas Type</span>
-             <span style={{color: 'var(--warning)', fontWeight: 600}}>Unknown (Mixed/Recovery)</span>
+          <div className={styles.readonlyField} style={{ background: 'rgba(255, 170, 0, 0.1)', borderColor: 'rgba(255, 170, 0, 0.3)', marginTop: '-0.5rem', marginBottom: '1.5rem' }}>
+            <span className={styles.label}>Gas Type</span>
+            <span style={{ color: 'var(--warning)', fontWeight: 600 }}>Unknown (Mixed/Recovery)</span>
           </div>
         )}
 
         <div className={styles.inputGroup}>
           <label>Where is this bottle being received?</label>
-          <div style={{display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "1.5rem", marginTop: "0.5rem"}}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "1.5rem", marginTop: "0.5rem" }}>
             {/* VAN */}
-            <button 
+            <button
               type="button"
               onClick={() => setLocationType("van")}
               style={{
@@ -261,11 +261,11 @@ export default function RegisterBottlePage() {
               }}
             >
               <Truck size={24} />
-              <span style={{fontSize: "0.85rem", fontWeight: 600}}>My Van</span>
+              <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>My Van</span>
             </button>
 
             {/* OFFICE */}
-            <button 
+            <button
               type="button"
               onClick={() => setLocationType("office")}
               style={{
@@ -276,11 +276,11 @@ export default function RegisterBottlePage() {
               }}
             >
               <Building2 size={24} />
-              <span style={{fontSize: "0.85rem", fontWeight: 600}}>Office / Stores</span>
+              <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>Office / Stores</span>
             </button>
 
             {/* SITE */}
-            <button 
+            <button
               type="button"
               onClick={() => setLocationType("site")}
               style={{
@@ -292,34 +292,34 @@ export default function RegisterBottlePage() {
               }}
             >
               <MapPin size={24} />
-              <span style={{fontSize: "0.85rem", fontWeight: 600}}>Direct to Job Site</span>
+              <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>Direct to Job Site</span>
             </button>
           </div>
         </div>
 
         {locationType === "site" && (
-          <div className={`${styles.dynamicSection} glass-panel`} style={{borderColor: 'var(--primary)', marginBottom: '1rem', marginTop: '-0.5rem'}}>
+          <div className={`${styles.dynamicSection} glass-panel`} style={{ borderColor: 'var(--primary)', marginBottom: '1rem', marginTop: '-0.5rem' }}>
             <div className={styles.inputGroup}>
               <label>Job Number</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={locationId}
                 onChange={(e) => setLocationId(e.target.value)}
-                placeholder="e.g. JOB-88219" 
-                required 
+                placeholder="e.g. JOB-88219"
+                required
               />
             </div>
           </div>
         )}
 
-        <div className={styles.inputGroup} style={{marginTop: '0.5rem'}}>
+        <div className={styles.inputGroup} style={{ marginTop: '0.5rem' }}>
           <label>Purchase Order (PO) Number</label>
-          <input 
-            type="text" 
+          <input
+            type="text"
             value={poNumber}
             onChange={(e) => setPoNumber(e.target.value)}
-            placeholder="e.g. PO-10442" 
-            required 
+            placeholder="e.g. PO-10442"
+            required
           />
         </div>
 
@@ -334,51 +334,51 @@ export default function RegisterBottlePage() {
         </div>
 
         <div className={styles.inputGroup}>
-          <label>{category === "reclaim" ? "Max Fill Weight (kg)" : "Gross Weight (Full Cylinder kg)"}</label>
-          <input 
-            type="number" 
-            step="0.01" 
+          <label>{category === "reclaim" ? "Max Fill Weight (kg)" : "Net Weight Of Refrigerant(Full Cylinder kg)"}</label>
+          <input
+            type="number"
+            step="0.01"
             value={weight}
             onChange={(e) => setWeight(e.target.value)}
-            placeholder={category === "reclaim" ? "e.g. 10.0" : "e.g. 10.5"} 
-            required 
+            placeholder={category === "reclaim" ? "e.g. 10.0" : "e.g. 10.5"}
+            required
           />
         </div>
 
         {locationType === "van" && (
-          <div className={`${styles.dynamicSection} glass-panel`} style={{borderColor: 'var(--primary)', marginBottom: '1rem', marginTop: '1.5rem'}}>
+          <div className={`${styles.dynamicSection} glass-panel`} style={{ borderColor: 'var(--primary)', marginBottom: '1rem', marginTop: '1.5rem' }}>
             <div className={styles.inputGroup}>
               <label>Vehicle / Van Registration</label>
-              <div style={{display: 'flex', alignItems: 'center', gap: '1rem', background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)'}}>
-                <div style={{flex: 1}}>
-                  <input 
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'rgba(255,255,255,0.03)', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <div style={{ flex: 1 }}>
+                  <input
                     type="text"
                     value={vehicleReg}
                     onChange={(e) => setVehicleReg(e.target.value.toUpperCase())}
                     placeholder="Enter Registration"
                     style={{
                       background: 'transparent', border: 'none', color: 'var(--primary)',
-                      fontSize: '1.2rem', fontWeight: 700, letterSpacing: '0.05em', 
+                      fontSize: '1.2rem', fontWeight: 700, letterSpacing: '0.05em',
                       fontFamily: 'var(--font-geist-mono)', width: '100%', outline: 'none',
                       padding: 0
                     }}
                   />
-                  <p style={{margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem'}}>Tap to edit van registration</p>
+                  <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Tap to edit van registration</p>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        <button 
-          type="submit" 
-          className={styles.submitBtn} 
+        <button
+          type="submit"
+          className={styles.submitBtn}
           disabled={
-            isSubmitting || 
-            !weight || 
-            !poNumber || 
-            !supplier || 
-            (locationType === "site" && !locationId) || 
+            isSubmitting ||
+            !weight ||
+            !poNumber ||
+            !supplier ||
+            (locationType === "site" && !locationId) ||
             (locationType === "van" && !vehicleReg) ||
             (category === "new" && gasType === "Other" && !customGas)
           }
