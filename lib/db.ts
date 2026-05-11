@@ -451,6 +451,7 @@ export const db = {
         action: action as any,
         from_location: from || "Unknown",
         to_location: locationId,
+        engineer: engineerName || "system",
         notes: activeHWCN 
           ? `Consignment ${activeHWCN} generated. Destination: ${intendedDestination}.` 
           : (action === "handover" ? "Cylinder handed over to another engineer." : (intendedDestination ? `In Transit to ${intendedDestination}` : undefined))
