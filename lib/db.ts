@@ -949,7 +949,7 @@ export const db = {
   },
 
   async acknowledgeAllNotifications(): Promise<void> {
-    await supabase.from('notifications').update({ status: "acknowledged" });
+    await supabase.from('notifications').update({ status: "acknowledged" }).eq('status', 'new');
   },
 
   async updateBottle(serial: string, updates: any): Promise<void> {
