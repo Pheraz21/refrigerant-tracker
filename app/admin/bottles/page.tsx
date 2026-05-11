@@ -22,7 +22,7 @@ const categoryFilters = [
   { key: "nitrogen", label: "Nitrogen" },
 ];
 
-type SortKey = "serial" | "category" | "gasType" | "currentWeight" | "initialWeight" | "locationId" | "status" | "locationChangedAt" | "supplier" | "registeredAt";
+type SortKey = "serial" | "category" | "gasType" | "currentWeight" | "initialWeight" | "locationId" | "status" | "locationChangedAt" | "supplier" | "registeredAt" | "rentalExpiryDate";
 
 const COLUMN_DEFS = [
   { key: "serial",      label: "Serial",        required: true  },
@@ -34,6 +34,7 @@ const COLUMN_DEFS = [
   { key: "location",    label: "Location"                       },
   { key: "supplier",    label: "Supplier"                       },
   { key: "registered",  label: "Registered"                     },
+  { key: "expiry",      label: "Expiry Date"                    },
   { key: "status",      label: "Status"                         },
   { key: "lastChanged", label: "Last Changed"                   },
   { key: "actions",     label: "Actions",       required: true  },
@@ -212,6 +213,7 @@ export default function AllBottlesPage() {
       case "location":    return <th key={key} style={s} onClick={() => handleSort("locationId")}>Location <SortIcon col="locationId" /></th>;
       case "supplier":    return <th key={key} style={s} onClick={() => handleSort("supplier")}>Supplier <SortIcon col="supplier" /></th>;
       case "registered":  return <th key={key} style={s} onClick={() => handleSort("registeredAt")}>Registered <SortIcon col="registeredAt" /></th>;
+      case "expiry":      return <th key={key} style={s} onClick={() => handleSort("rentalExpiryDate")}>Expiry Date <SortIcon col="rentalExpiryDate" /></th>;
       case "status":      return <th key={key} style={s} onClick={() => handleSort("status")}>Status <SortIcon col="status" /></th>;
       case "lastChanged": return <th key={key} style={s} onClick={() => handleSort("locationChangedAt")}>Last Changed <SortIcon col="locationChangedAt" /></th>;
       case "actions":     return <th key={key} style={ns}>Actions</th>;
@@ -322,6 +324,8 @@ export default function AllBottlesPage() {
         );
       case "registered":
         return <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", color: "var(--text-muted)"}}>{b.registeredAt ? new Date(b.registeredAt).toLocaleDateString("en-GB") : "—"}</td>;
+      case "expiry":
+        return <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", color: b.rentalExpiryDate && new Date(b.rentalExpiryDate) < new Date() ? "#ff3366" : "var(--text-muted)", fontWeight: b.rentalExpiryDate && new Date(b.rentalExpiryDate) < new Date() ? 600 : "normal"}}>{b.rentalExpiryDate ? new Date(b.rentalExpiryDate).toLocaleDateString("en-GB") : "—"}</td>;
       case "status":
         return (
           <td key={key} style={{padding: "0.85rem 1rem"}}>

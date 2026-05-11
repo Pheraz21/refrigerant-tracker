@@ -18,6 +18,7 @@ const COLUMN_DEFS = [
   { key: "returnDate",  label: "Return Date"                 },
   { key: "supplier",    label: "Supplier"                    },
   { key: "registered",  label: "Registered"                  },
+  { key: "expiry",      label: "Expiry Date"                    },
 ] as const;
 
 export default function ReturnedToSupplierPage() {
@@ -257,6 +258,8 @@ export default function ReturnedToSupplierPage() {
         );
       case "registered":
         return <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", color: "var(--text-muted)"}}>{b.registeredAt ? new Date(b.registeredAt).toLocaleDateString("en-GB") : "—"}</td>;
+      case "expiry":
+        return <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", color: b.rentalExpiryDate && new Date(b.rentalExpiryDate) < new Date() ? "#ff3366" : "var(--text-muted)", fontWeight: b.rentalExpiryDate && new Date(b.rentalExpiryDate) < new Date() ? 600 : "normal"}}>{b.rentalExpiryDate ? new Date(b.rentalExpiryDate).toLocaleDateString("en-GB") : "—"}</td>;
       default: return null;
     }
   }
