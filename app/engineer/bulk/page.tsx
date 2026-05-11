@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -112,7 +112,7 @@ export default function BulkDeliveryPage() {
       initialWeight: b.weight,
       currentWeight: b.weight,
       locationType: locationType as any,
-      locationId: locationType === "van" ? `${user?.name} - Van` : locationType === "office" ? "HQ-Stores" : jobNumber,
+      locationId: locationType === "van" ? `${user?.name} - Van` : locationType === "office" ? "Office / Stores" : jobNumber,
       poNumber,
       supplier,
       registeredAt: new Date().toISOString()

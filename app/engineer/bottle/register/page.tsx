@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -113,7 +113,7 @@ export default function RegisterBottlePage() {
       initialWeight: Number(weight),
       currentWeight: category === "reclaim" ? 0 : Number(weight),
       locationType: locationType as any,
-      locationId: locationType === "van" ? `${user?.name} - Van` : (locationType === "office" || locationType === "office_collected") ? "HQ-Stores" : locationId,
+      locationId: locationType === "van" ? `${user?.name} - Van` : (locationType === "office" || locationType === "office_collected") ? "Office / Stores" : locationId,
       vehicleReg: locationType === "van" ? vehicleReg : undefined,
       poNumber: poNumber,
       supplier: supplier,
