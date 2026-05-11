@@ -56,7 +56,7 @@ function SupplierInventoryContent() {
     });
   }, []);
 
-  const suppliers = Array.from(new Set(bottles.map(b => b.supplier).filter(Boolean))).sort();
+  const suppliers = Array.from(new Set(bottles.map(b => b.supplier).filter((s): s is string => Boolean(s)))).sort();
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
