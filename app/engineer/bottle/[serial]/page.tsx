@@ -787,7 +787,7 @@ export default function BottleActionHub() {
                       <button 
                         onClick={() => (bottle.locationType as string) !== 'van' && setShowNitrogenUsage(true)}
                         className={`${styles.actionCard} ${styles.useCard} ${(bottle.locationType as string) === 'van' ? styles.disabledCard : ''}`}
-                        style={{ textAlign: 'left', width: '100%', border: 'none', background: 'rgba(0, 229, 255, 0.05)', cursor: (bottle.locationType as string) === 'van' ? 'not-allowed' : 'pointer' }}
+                        style={{ textAlign: 'left', width: '100%', cursor: (bottle.locationType as string) === 'van' ? 'not-allowed' : 'pointer' }}
                         disabled={(bottle.locationType as string) === 'van'}
                       >
                         <div className={styles.iconWrapper}>
@@ -803,7 +803,7 @@ export default function BottleActionHub() {
                         <div className={`${styles.dynamicSection} glass-panel`} style={{ borderColor: '#00e5ff', marginTop: '1rem', animation: 'fadeIn 0.3s ease-out' }}>
                           <h3 style={{ color: '#00e5ff', marginBottom: '1rem', fontSize: '1rem' }}>Is the Nitrogen bottle empty?</h3>
                           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-                            Nitrogen cannot be weighed accurately. Select &quot;No&quot; to record a usage indicator, or &quot;Yes&quot; if the bottle has been completely emptied.
+                            Nitrogen cannot be weighed accurately. If the bottle is empty press &quot;Yes&quot;, if the bottle is not empty press &quot;No&quot;.
                           </p>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                             <button 
