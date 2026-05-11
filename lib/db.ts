@@ -378,17 +378,28 @@ export const db = {
       if (existingBottle.status !== 'returned') {
         throw new Error("This bottle is already active in our inventory. It cannot be registered again.");
       } else {
-        // It's a returned bottle! Archive it so we can safely register the fresh one under the same serial
+        // It's a returned bottle — archive it so we can register the fresh one under the same serial
         const archiveSuffix = `-ARCHIVED-${Date.now()}`;
         const archivedSerial = `${data.serial}${archiveSuffix}`;
 
-        // Rename the old bottle's serial
-        await supabase.from('bottles').update({ serial: archivedSerial }).eq('serial', data.serial);
-        // Cascade the serial rename to its historical logs
-        await supabase.from('movement_logs').update({ serial: archivedSerial }).eq('serial', data.serial);
-        await supabase.from('usage_logs').update({ serial: archivedSerial }).eq('serial', data.serial);
-        await supabase.from('hwcns').update({ serial: archivedSerial }).eq('serial', data.serial);
-        await supabase.from('decommission_records').update({ serial: archivedSerial }).eq('serial', data.serial);
+        // Try to rename the old bottle's serial
+        const { error: renameErr } = await supabase.from('bottles').update({ serial: archivedSerial }).eq('serial', data.serial);
+        
+        if (renameErr) {
+          // Rename failed (likely RLS) — delete the old bottle row instead
+          console.warn('Could not rename old bottle, deleting instead:', renameErr);
+          const { error: deleteErr } = await supabase.from('bottles').delete().eq('serial', data.serial);
+          if (deleteErr) {
+            console.error('Failed to delete old bottle:', deleteErr);
+            throw new Error("Could not clear the old bottle record. Please contact an administrator.");
+          }
+        } else {
+          // Rename succeeded — cascade to historical log tables (best-effort, non-blocking)
+          await supabase.from('movement_logs').update({ serial: archivedSerial }).eq('serial', data.serial);
+          await supabase.from('usage_logs').update({ serial: archivedSerial }).eq('serial', data.serial);
+          await supabase.from('hwcns').update({ serial: archivedSerial }).eq('serial', data.serial);
+          await supabase.from('decommission_records').update({ serial: archivedSerial }).eq('serial', data.serial);
+        }
       }
     }
 
