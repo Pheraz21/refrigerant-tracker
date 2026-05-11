@@ -378,31 +378,69 @@ export const db = {
       if (existingBottle.status !== 'returned') {
         throw new Error("This bottle is already active in our inventory. It cannot be registered again.");
       } else {
-        // It's a returned bottle — archive it so we can register the fresh one under the same serial
-        const archiveSuffix = `-ARCHIVED-${Date.now()}`;
-        const archivedSerial = `${data.serial}${archiveSuffix}`;
+        // It's a returned bottle being recirculated — reset it in-place with fresh data
+        const { error: updateErr } = await supabase.from('bottles').update({
+          category: data.category,
+          gas_type: data.gasType,
+          initial_weight: data.initialWeight,
+          current_weight: data.currentWeight,
+          location_type: data.locationType,
+          location_id: data.locationId,
+          po_number: data.poNumber || null,
+          supplier: data.supplier || null,
+          registered_at: data.registeredAt,
+          rental_expiry_date: data.rentalExpiryDate || null,
+          last_engineer: data.lastEngineer || null,
+          registered_by: data.registeredBy || null,
+          status: data.category === "reclaim" ? "empty" : "full",
+          location_changed_at: new Date().toISOString(),
+          // Clear old lifecycle fields
+          returned_by: null,
+          returned_at: null,
+          delivered_at: null,
+          intended_destination: null,
+          intended_location_type: null,
+          active_hwcn: null,
+          supplier_hwcn_photo_pending: null,
+          supplier_hwcn_photo_url: null,
+          producer_sites: null,
+          return_hwcn_number: null,
+          return_supplier: null,
+          return_supplier_branch: null,
+          vehicle_reg: null
+        }).eq('serial', data.serial);
 
-        // Try to rename the old bottle's serial
-        const { error: renameErr } = await supabase.from('bottles').update({ serial: archivedSerial }).eq('serial', data.serial);
-        
-        if (renameErr) {
-          // Rename failed (likely RLS) — delete the old bottle row instead
-          console.warn('Could not rename old bottle, deleting instead:', renameErr);
-          const { error: deleteErr } = await supabase.from('bottles').delete().eq('serial', data.serial);
-          if (deleteErr) {
-            console.error('Failed to delete old bottle:', deleteErr);
-            throw new Error("Could not clear the old bottle record. Please contact an administrator.");
-          }
-        } else {
-          // Rename succeeded — cascade to historical log tables (best-effort, non-blocking)
-          await supabase.from('movement_logs').update({ serial: archivedSerial }).eq('serial', data.serial);
-          await supabase.from('usage_logs').update({ serial: archivedSerial }).eq('serial', data.serial);
-          await supabase.from('hwcns').update({ serial: archivedSerial }).eq('serial', data.serial);
-          await supabase.from('decommission_records').update({ serial: archivedSerial }).eq('serial', data.serial);
+        if (updateErr) {
+          console.error('Error resetting returned bottle:', updateErr);
+          throw new Error("Failed to re-register this bottle. Please contact an administrator.");
         }
+
+        // Log the re-registration in movement_logs (old logs stay as-is for compliance)
+        const { error: logError } = await supabase.from('movement_logs').insert({
+          serial: data.serial,
+          action: "re_registered",
+          from_location: "Supplier (Recirculated)",
+          to_location: data.locationId,
+          engineer: data.lastEngineer || "system",
+          notes: "Bottle returned by supplier and re-registered as fresh"
+        });
+        if (logError) console.error('Error logging re-registration:', logError);
+
+        if (!data.rentalExpiryDate) {
+          await this.createNotification({
+            type: "expiry_date_required",
+            title: "Set Rental Expiry Date",
+            message: `Bottle ${data.serial} (${data.gasType}) has been re-registered. Please set the rental expiry date.`,
+            targetRole: "office",
+            metadata: { serial: data.serial, gasType: data.gasType, supplier: data.supplier || "Unknown" }
+          });
+        }
+
+        return; // Done — skip the normal insert path below
       }
     }
 
+    // Normal first-time registration (INSERT)
     const { error: bottleError } = await supabase.from('bottles').insert({
       serial: data.serial,
       category: data.category,
