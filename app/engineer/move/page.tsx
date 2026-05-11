@@ -115,7 +115,7 @@ export default function MoveBottlePage() {
       } else if (destination === "van") {
         finalLocationId = `${user?.name} - Van`;
       } else if (destination === "office") {
-        finalLocationId = "Office / Stores";
+        finalLocationId = "HQ-Stores";
       } else if (destination === "other") {
         finalLocationId = `${customDestination.name}, ${customDestination.address}, ${customDestination.postcode}`;
       } else {
@@ -134,7 +134,7 @@ export default function MoveBottlePage() {
       }
     } else {
       // In transit (Requires HWCN or Supplier Document)
-      let finalLocationId = destination === "office" ? "Office / Stores" : destination === "other" ? customDestination.name : locationId || "Supplier";
+      let finalLocationId = destination === "office" ? "HQ-Stores" : destination === "other" ? customDestination.name : locationId || "Supplier";
       if (destination === "van") {
          finalLocationId = intendedDest; // If they clicked 'Transfer to Van', the actual destination is their chosen intendedDest
       }
@@ -157,7 +157,7 @@ export default function MoveBottlePage() {
       
       let intendedLocType = destination;
       if (destination === "van") {
-        intendedLocType = intendedDest === "Office/Stores" ? "office" : "site";
+        intendedLocType = intendedDest === "HQ-Stores" ? "office" : "site";
       }
 
       await db.updateBottleLocation(serialParam, "van", `${user?.name} - Van`, intendedDest || fullDestinationString, intendedLocType as any, hwcnId, user?.name);
@@ -231,7 +231,7 @@ export default function MoveBottlePage() {
           <p style={{fontSize: "0.85rem", color: "var(--text-muted)", margin: "0.25rem 0 0"}}>
             {isDiscrepancy 
               ? "Select where this bottle is actually located" 
-              : (bottle?.locationType === "office" ? "Picking up from Office / Stores" : `Bottle ${serialParam}`)}
+              : (bottle?.locationType === "office" ? "Picking up from HQ-Stores" : `Bottle ${serialParam}`)}
           </p>
           {bottle?.intendedDestination && (
             <div style={{marginTop: '0.5rem', padding: '0.5rem 0.75rem', background: 'rgba(255, 187, 0, 0.1)', borderLeft: '3px solid var(--warning)', borderRadius: '4px'}}>
@@ -370,7 +370,7 @@ export default function MoveBottlePage() {
               </>
             )}
 
-            {/* §3.2 — Office/Stores Intended Destination */}
+            {/* §3.2 — HQ-Stores Intended Destination */}
             {bottle?.intendedLocationType !== "supplier" && (
               <>
                 <button 
@@ -382,7 +382,7 @@ export default function MoveBottlePage() {
                     router.push("/engineer");
                   }}
                 >
-                  <CheckCircle2 size={18} /> Complete Transfer to Office/Stores
+                  <CheckCircle2 size={18} /> Complete Transfer to HQ-Stores
                 </button>
                 <button 
                   type="button"
@@ -416,7 +416,7 @@ export default function MoveBottlePage() {
               style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', border: '1px solid var(--border)' }}
               onClick={() => setReclaimFlowStep("divert_to_office")}
             >
-              <Building2 size={18} /> To Office / Stores
+              <Building2 size={18} /> To HQ-Stores
             </button>
             <button 
               type="button"
@@ -474,7 +474,7 @@ export default function MoveBottlePage() {
       {/* §4.3 — Divert to Office (auto-generate Internal HWCN) */}
       {reclaimFlowStep === "divert_to_office" && (
         <div className={`${styles.dynamicSection} glass-panel`} style={{borderColor: 'var(--warning)', marginTop: '2rem'}}>
-          <h3 style={{color: 'var(--warning)', marginBottom: '1rem'}}>Change Destination to Office / Stores</h3>
+          <h3 style={{color: 'var(--warning)', marginBottom: '1rem'}}>Change Destination to HQ-Stores</h3>
           {bottle?.intendedLocationType === "supplier" && (
             <div style={{background: 'rgba(255, 187, 0, 0.1)', border: '1px solid var(--warning)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem'}}>
               <p style={{fontSize: '0.85rem', color: 'var(--warning)', margin: 0, lineHeight: 1.5}}>
@@ -483,7 +483,7 @@ export default function MoveBottlePage() {
             </div>
           )}
           <p style={{fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '1.5rem'}}>
-            The Intended Destination will be changed to <strong>Office / Stores</strong> and an Internal HWCN will be generated for this movement.
+            The Intended Destination will be changed to <strong>HQ-Stores</strong> and an Internal HWCN will be generated for this movement.
           </p>
           <div style={{display: 'flex', gap: '1rem'}}>
             <button 
@@ -506,7 +506,7 @@ export default function MoveBottlePage() {
                   : [{name: "Unknown Site", address: "See recovery logs", postcode: ""}];
                 const hwcnId = await db.createHWCN({
                   serial: serialParam,
-                  destination: "Office/Stores",
+                  destination: "HQ-Stores",
                   sites: sites,
                   vehicleReg: vehicleReg,
                   engineer: user?.name,
@@ -514,7 +514,7 @@ export default function MoveBottlePage() {
                   gasType: bottle?.gasType || "Unknown",
                   fillWeight: bottle?.currentWeight
                 });
-                await db.updateBottleLocation(serialParam, "van", `${user?.name} - Van`, "Office/Stores", "office" as any, hwcnId, user?.name);
+                await db.updateBottleLocation(serialParam, "van", `${user?.name} - Van`, "HQ-Stores", "office" as any, hwcnId, user?.name);
                 setIsSubmitting(false);
                 setGeneratedHWCN(hwcnId);
                 setIsSuccess(true);
@@ -608,7 +608,7 @@ export default function MoveBottlePage() {
           <h3 style={{color: 'var(--warning)', marginBottom: '1rem'}}>Hazardous Waste Transfer</h3>
           {(bottle?.producerSites?.length || 0) <= 1 ? (
             <>
-              <p style={{marginBottom: '1.5rem', fontSize: '0.9rem'}}>This bottle contains reclaimed gas. Is it being returned Direct to Supplier or to Office/Stores?</p>
+              <p style={{marginBottom: '1.5rem', fontSize: '0.9rem'}}>This bottle contains reclaimed gas. Is it being returned Direct to Supplier or to HQ-Stores?</p>
               <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
                 <button 
                   type="button"
@@ -622,13 +622,13 @@ export default function MoveBottlePage() {
                   className={styles.primaryBtn} 
                   style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', border: '1px solid var(--border)' }}
                   onClick={() => {
-                    setIntendedDest("Office/Stores");
+                    setIntendedDest("HQ-Stores");
                     setReclaimFlowPath("alternative");
                     setDestination("van");
                     setReclaimFlowStep("standard");
                   }}
                 >
-                  To Office / Stores
+                  To HQ-Stores
                 </button>
               </div>
             </>
@@ -637,20 +637,20 @@ export default function MoveBottlePage() {
               <div style={{background: 'rgba(255, 187, 0, 0.1)', border: '1px solid var(--warning)', padding: '1rem', borderRadius: '8px', marginBottom: '1rem'}}>
                 <p style={{fontSize: '0.85rem', color: 'var(--warning)', margin: 0, lineHeight: 1.5}}>
                   <strong style={{display: 'block', marginBottom: '0.25rem'}}>Multiple Producer Sites Detected</strong>
-                  This bottle contains waste from multiple locations. Suppliers only accept waste from a single producer per HWCN. This bottle must be returned to the <strong>Office / Stores</strong> for internal consolidation.
+                  This bottle contains waste from multiple locations. Suppliers only accept waste from a single producer per HWCN. This bottle must be returned to the <strong>HQ-Stores</strong> for internal consolidation.
                 </p>
               </div>
               <button 
                 type="button"
                 className={styles.primaryBtn} 
                 onClick={() => {
-                  setIntendedDest("Office/Stores");
+                  setIntendedDest("HQ-Stores");
                   setReclaimFlowPath("alternative");
                   setDestination("van");
                   setReclaimFlowStep("standard");
                 }}
               >
-                Transfer to Office / Stores
+                Transfer to HQ-Stores
               </button>
             </>
           )}
@@ -1004,15 +1004,15 @@ export default function MoveBottlePage() {
                 <div style={{display: 'flex', gap: '0.5rem', marginTop: '0.5rem'}}>
                   <button 
                     type="button"
-                    onClick={() => setIntendedDest("Office/Stores")}
+                    onClick={() => setIntendedDest("HQ-Stores")}
                     style={{
                       flex: 1, padding: '0.75rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 500, fontSize: '0.85rem', transition: 'all 0.2s',
-                      background: intendedDest === "Office/Stores" ? 'rgba(255, 187, 0, 0.15)' : 'rgba(255,255,255,0.03)',
-                      border: intendedDest === "Office/Stores" ? '1px solid var(--warning)' : '1px solid var(--border)',
-                      color: intendedDest === "Office/Stores" ? 'var(--warning)' : 'var(--text-main)'
+                      background: intendedDest === "HQ-Stores" ? 'rgba(255, 187, 0, 0.15)' : 'rgba(255,255,255,0.03)',
+                      border: intendedDest === "HQ-Stores" ? '1px solid var(--warning)' : '1px solid var(--border)',
+                      color: intendedDest === "HQ-Stores" ? 'var(--warning)' : 'var(--text-main)'
                     }}
                   >
-                    Office / Stores
+                    HQ-Stores
                   </button>
                   {reclaimFlowPath !== "alternative" && (
                     <button 

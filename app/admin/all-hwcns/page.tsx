@@ -29,7 +29,7 @@ interface UnifiedRow {
 }
 
 const getDigitalType = (destination: string): "Office Return" | "Supplier Transfer" =>
-  destination === "Office/Stores" || destination === "Office / Stores"
+  destination === "HQ-Stores" || destination === "HQ-Stores"
     ? "Office Return"
     : "Supplier Transfer";
 

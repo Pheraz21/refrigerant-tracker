@@ -47,7 +47,7 @@ export default function AdminHWCNPrintPage() {
   const formattedTime = new Date(hwcn.date).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   const deliveredDate = hwcn.deliveredAt ? new Date(hwcn.deliveredAt).toLocaleDateString("en-GB") : "";
   const deliveredTime = hwcn.deliveredAt ? new Date(hwcn.deliveredAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
-  const isOffice = hwcn.destination === "Office/Stores" || hwcn.destination === "Office / Stores";
+  const isOffice = hwcn.destination === "HQ-Stores" || hwcn.destination === "HQ-Stores";
 
   return (
     <div className="hwcn-container" style={{ maxWidth: "820px", margin: "0 auto", padding: "0.4rem", background: "#fff", color: "#000", minHeight: "100vh", fontFamily: "Arial, sans-serif" }}>
@@ -286,7 +286,7 @@ export default function AdminHWCNPrintPage() {
       {/* Part E */}
       <div className="hwcn-section">
         <div className="hwcn-header">
-          Part E: Consignee&apos;s Certificate — To be completed by {isOffice ? "Office / Stores Staff" : "Receiving Staff"}
+          Part E: Consignee&apos;s Certificate — To be completed by {isOffice ? "HQ-Stores Staff" : "Receiving Staff"}
         </div>
         <div style={{ padding: "0.4rem 0.6rem", fontSize: "0.78rem" }}>
           <div style={{ display: "flex", gap: "1rem", marginBottom: "0.4rem", alignItems: "center", flexWrap: "wrap" }}>

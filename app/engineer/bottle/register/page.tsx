@@ -113,7 +113,7 @@ export default function RegisterBottlePage() {
       initialWeight: Number(weight),
       currentWeight: category === "reclaim" ? 0 : Number(weight),
       locationType: locationType as any,
-      locationId: locationType === "van" ? `${user?.name} - Van` : (locationType === "office" || locationType === "office_collected") ? "Office / Stores" : locationId,
+      locationId: locationType === "van" ? `${user?.name} - Van` : (locationType === "office" || locationType === "office_collected") ? "HQ-Stores" : locationId,
       vehicleReg: locationType === "van" ? vehicleReg : undefined,
       poNumber: poNumber,
       supplier: supplier,
@@ -276,7 +276,7 @@ export default function RegisterBottlePage() {
               }}
             >
               <Building2 size={24} />
-              <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>Office / Stores</span>
+              <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>HQ-Stores</span>
             </button>
 
             {/* SITE */}

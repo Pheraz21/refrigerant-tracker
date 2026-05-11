@@ -82,7 +82,7 @@ export default function HistoryPage() {
     if (b.locationType === "supplier" || b.status === "returned")
       return <span className={`${styles.pill} ${styles.pillReturned}`}>Returned to Supplier{date ? ` · ${date}` : ""}</span>;
     if (b.locationType === "office")
-      return <span className={`${styles.pill} ${styles.pillOffice}`}>In Office / Stores{date ? ` · ${date}` : ""}</span>;
+      return <span className={`${styles.pill} ${styles.pillOffice}`}>In HQ-Stores{date ? ` · ${date}` : ""}</span>;
     if (b.locationType === "van")
       return <span className={`${styles.pill} ${styles.pillVan}`}>In Van{date ? ` since ${date}` : ""}</span>;
     if (b.locationType === "site")

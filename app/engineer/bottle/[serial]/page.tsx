@@ -80,7 +80,7 @@ export default function BottleActionHub() {
     // MULTI-SITE CONSTRAINT: If multi-site, user cannot return to supplier. 
     // They must pick Office.
     if (isMultiSite && destination === "supplier") {
-      alert("Notice: This bottle contains waste from multiple locations. Suppliers only accept waste from a single producer per HWCN. This bottle must be returned to the Office / Stores for internal consolidation.");
+      alert("Notice: This bottle contains waste from multiple locations. Suppliers only accept waste from a single producer per HWCN. This bottle must be returned to the HQ-Stores for internal consolidation.");
       setDestination("office");
       return;
     }
@@ -99,7 +99,7 @@ export default function BottleActionHub() {
         } else if (destination === "van") {
           finalLocationId = `${user?.name} - Van`;
         } else if (destination === "office") {
-          finalLocationId = "Office / Stores";
+          finalLocationId = "HQ-Stores";
         } else {
           finalLocationId = locationId || (destination === "supplier" ? "Supplier" : `${user?.name} - Van`);
         }
@@ -473,7 +473,7 @@ export default function BottleActionHub() {
                   </>
                 )}
 
-                {/* §3.2 — Office/Stores Intended Destination */}
+                {/* §3.2 — HQ-Stores Intended Destination */}
                 {bottle.intendedLocationType !== 'supplier' && (
                   <>
                     <button
@@ -485,7 +485,7 @@ export default function BottleActionHub() {
                         router.push('/engineer');
                       }}
                     >
-                      <CheckCircle2 size={18} /> Complete Transfer to Office/Stores
+                      <CheckCircle2 size={18} /> Complete Transfer to HQ-Stores
                     </button>
                     <button 
                       type="button"
@@ -516,7 +516,7 @@ export default function BottleActionHub() {
               <div style={{display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem'}}>
                 <PackageCheck size={26} color="var(--primary)" />
                 <div>
-                  <h3 style={{color: 'var(--primary)', margin: 0}}>In Office / Stores</h3>
+                  <h3 style={{color: 'var(--primary)', margin: 0}}>In HQ-Stores</h3>
                   <p style={{margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)'}}>This bottle is currently held in stores</p>
                 </div>
               </div>
@@ -657,7 +657,7 @@ export default function BottleActionHub() {
                   {(bottle.producerSites?.length || 0) > 1 && (
                     <div style={{background: 'rgba(255, 187, 0, 0.1)', border: '1px solid var(--warning)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem'}}>
                       <p style={{fontSize: '0.85rem', color: 'var(--warning)', margin: 0, lineHeight: 1.5}}>
-                        <strong>Multi-Site Waste Detected:</strong> This bottle contains gas from multiple locations. Regulatory rules require this to be returned to the <strong>Office / Stores</strong> for consolidation.
+                        <strong>Multi-Site Waste Detected:</strong> This bottle contains gas from multiple locations. Regulatory rules require this to be returned to the <strong>HQ-Stores</strong> for consolidation.
                       </p>
                     </div>
                   )}
@@ -733,7 +733,7 @@ export default function BottleActionHub() {
                       {bottle.locationType === "site" || bottle.locationType === "office" ? (
                         <>
                           <h3>Transfer Bottle into Van {bottle.locationType !== "site" ? "from Stores" : `from ${bottle.locationId}`}</h3>
-                          <p>Move this bottle {bottle.locationType !== "site" ? "from Office / Stores" : `from ${bottle.locationId}`} back into your van stock</p>
+                          <p>Move this bottle {bottle.locationType !== "site" ? "from HQ-Stores" : `from ${bottle.locationId}`} back into your van stock</p>
                         </>
                       ) : (
                         <>

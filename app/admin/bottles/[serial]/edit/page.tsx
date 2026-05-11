@@ -162,7 +162,7 @@ export default function EditBottlePage() {
             >
               <option value="van">Van</option>
               <option value="site">Job Site</option>
-              <option value="office">Office / Stores</option>
+              <option value="office">HQ-Stores</option>
               <option value="supplier">Supplier</option>
             </select>
           </div>

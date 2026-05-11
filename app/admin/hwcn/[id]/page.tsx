@@ -52,7 +52,7 @@ export default function AdminHWCNDetailPage() {
   const deliveredDate = hwcn.deliveredAt ? new Date(hwcn.deliveredAt).toLocaleDateString("en-GB") : "—";
   const deliveredTime = hwcn.deliveredAt ? new Date(hwcn.deliveredAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
   const primarySite = hwcn.sites?.[0];
-  const isOffice = hwcn.destination === "Office / Stores";
+  const isOffice = hwcn.destination === "HQ-Stores";
   const isPending = hwcn.hwcnStatus === "awaiting_consignee";
 
   if (success) {

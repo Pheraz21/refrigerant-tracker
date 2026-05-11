@@ -285,7 +285,7 @@ export default function ViewBottlePage() {
   };
 
   const getHwcnType = (destination: string) =>
-    destination === "Office/Stores" || destination === "Office / Stores" ? "Office Return" : "Supplier Transfer";
+    destination === "HQ-Stores" || destination === "HQ-Stores" ? "Office Return" : "Supplier Transfer";
 
   const catBadge = getCatBadge();
   const statusBadge = getStatusBadge();

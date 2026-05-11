@@ -184,7 +184,7 @@ export default function LogBottlePage() {
       }
       const hwcnId = await db.createHWCN({
         serial: serialParam,
-        destination: "Office/Stores",
+        destination: "HQ-Stores",
         sites: sites,
         vehicleReg: vehicleReg,
         engineer: user?.name,
@@ -193,7 +193,7 @@ export default function LogBottlePage() {
         fillWeight: (bottleData.currentWeight || 0) + totalWeight
       });
       // Update bottle with new intended destination
-      await db.updateBottleLocation(serialParam, bottleData.locationType, bottleData.locationId, "Office/Stores", "office" as any, hwcnId);
+      await db.updateBottleLocation(serialParam, bottleData.locationType, bottleData.locationId, "HQ-Stores", "office" as any, hwcnId);
     }
 
     // Log decommissioned equipment if any are flagged
@@ -257,10 +257,10 @@ export default function LogBottlePage() {
               <AlertTriangle size={32} color="var(--warning)" />
               <h3 style={{color: 'var(--warning)', margin: 0}}>2nd Waste Producer Detected</h3>
             </div>
-            {hasExistingHWCN || bottleData?.intendedDestination === "Office/Stores" ? (
+            {hasExistingHWCN || bottleData?.intendedDestination === "HQ-Stores" ? (
               <>
                 <p style={{fontSize: '0.9rem', lineHeight: 1.6, marginBottom: '1.5rem', color: 'var(--text-main)'}}>
-                  You are adding a 2nd waste producer to this bottle. It cannot be returned by an engineer direct to supplier and must go back to the <strong>Office / Stores</strong>.
+                  You are adding a 2nd waste producer to this bottle. It cannot be returned by an engineer direct to supplier and must go back to the <strong>HQ-Stores</strong>.
                 </p>
                 <p style={{fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '1.5rem', color: 'var(--text-muted)'}}>
                   There is already an Internal HWCN in place for this bottle, the 2nd waste producer will be added to that HWCN.
@@ -272,7 +272,7 @@ export default function LogBottlePage() {
                   You are adding a 2nd waste producer to this bottle. It can <strong>no longer be returned Direct to Supplier</strong>.
                 </p>
                 <p style={{fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '1.5rem', color: 'var(--text-muted)'}}>
-                  The Intended Destination will be automatically changed to <strong style={{color: 'var(--warning)'}}>Office / Stores</strong> and an Internal HWCN will be generated.
+                  The Intended Destination will be automatically changed to <strong style={{color: 'var(--warning)'}}>HQ-Stores</strong> and an Internal HWCN will be generated.
                 </p>
               </>
             )}

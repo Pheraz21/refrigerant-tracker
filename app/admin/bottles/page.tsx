@@ -11,7 +11,7 @@ const locationFilters = [
   { key: "all", label: "All Locations" },
   { key: "van", label: "In Van" },
   { key: "site", label: "On Site" },
-  { key: "office", label: "Office / Stores" },
+  { key: "office", label: "HQ-Stores" },
   { key: "supplier", label: "Returned to Supplier" },
 ];
 

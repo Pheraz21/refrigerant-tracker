@@ -56,7 +56,7 @@ export default function BulkDeliveryPage() {
         false
       );
 
-      scannerRef.current.render(handleScanSuccess, () => {});
+      scannerRef.current.render(handleScanSuccess, () => { });
     }
 
     return () => {
@@ -75,7 +75,7 @@ export default function BulkDeliveryPage() {
 
   const handleScanSuccess = (decodedText: string) => {
     const upperSerial = decodedText.toUpperCase();
-    
+
     // Check if already in batch
     if (batch.some(b => b.serial === upperSerial)) {
       alert("Bottle already scanned in this batch!");
@@ -112,7 +112,7 @@ export default function BulkDeliveryPage() {
       initialWeight: b.weight,
       currentWeight: b.weight,
       locationType: locationType as any,
-      locationId: locationType === "van" ? `${user?.name} - Van` : locationType === "office" ? "Office / Stores" : jobNumber,
+      locationId: locationType === "van" ? `${user?.name} - Van` : locationType === "office" ? "HQ-Stores" : jobNumber,
       poNumber,
       supplier,
       registeredAt: new Date().toISOString()
@@ -154,10 +154,10 @@ export default function BulkDeliveryPage() {
           <h2>Step 1: Delivery Details</h2>
           <div className={styles.inputGroup}>
             <label>PO Number</label>
-            <input 
-              type="text" 
-              value={poNumber} 
-              onChange={e => setPoNumber(e.target.value)} 
+            <input
+              type="text"
+              value={poNumber}
+              onChange={e => setPoNumber(e.target.value)}
               placeholder="e.g. PO-9921"
             />
           </div>
@@ -171,10 +171,10 @@ export default function BulkDeliveryPage() {
             </select>
           </div>
           <div className={styles.inputGroup}>
-            <label style={{marginBottom: '0.75rem', display: 'block'}}>Location Received</label>
-            <div style={{display: 'grid', gridTemplateColumns: '1fr', gap: '0.75rem'}}>
+            <label style={{ marginBottom: '0.75rem', display: 'block' }}>Location Received</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.75rem' }}>
               {user?.role === "admin" && (
-                <button 
+                <button
                   type="button"
                   onClick={() => setLocationType("office")}
                   style={{
@@ -186,20 +186,20 @@ export default function BulkDeliveryPage() {
                   }}
                 >
                   <div style={{
-                    width: '40px', height: '40px', borderRadius: '8px', 
+                    width: '40px', height: '40px', borderRadius: '8px',
                     background: locationType === 'office' ? 'rgba(0, 229, 255, 0.1)' : 'rgba(255,255,255,0.05)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}>
                     <Warehouse size={20} />
                   </div>
                   <div>
-                    <div style={{fontWeight: 700, fontSize: '0.95rem'}}>Office / Stores</div>
-                    <div style={{fontSize: '0.75rem', opacity: 0.7}}>Deliver items to main storage</div>
+                    <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>HQ-Stores</div>
+                    <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>Deliver items to main storage</div>
                   </div>
                 </button>
               )}
-              
-              <button 
+
+              <button
                 type="button"
                 onClick={() => setLocationType("van")}
                 style={{
@@ -211,19 +211,19 @@ export default function BulkDeliveryPage() {
                 }}
               >
                 <div style={{
-                  width: '40px', height: '40px', borderRadius: '8px', 
+                  width: '40px', height: '40px', borderRadius: '8px',
                   background: locationType === 'van' ? 'rgba(0, 229, 255, 0.1)' : 'rgba(255,255,255,0.05)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center'
                 }}>
                   <Truck size={20} />
                 </div>
                 <div>
-                  <div style={{fontWeight: 700, fontSize: '0.95rem'}}>My Van</div>
-                  <div style={{fontSize: '0.75rem', opacity: 0.7}}>Collected by Engineer</div>
+                  <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>My Van</div>
+                  <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>Collected by Engineer</div>
                 </div>
               </button>
 
-              <button 
+              <button
                 type="button"
                 onClick={() => setLocationType("site")}
                 style={{
@@ -235,27 +235,27 @@ export default function BulkDeliveryPage() {
                 }}
               >
                 <div style={{
-                  width: '40px', height: '40px', borderRadius: '8px', 
+                  width: '40px', height: '40px', borderRadius: '8px',
                   background: locationType === 'site' ? 'rgba(0, 229, 255, 0.1)' : 'rgba(255,255,255,0.05)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center'
                 }}>
                   <MapPin size={20} />
                 </div>
                 <div>
-                  <div style={{fontWeight: 700, fontSize: '0.95rem'}}>Direct to Job Site</div>
-                  <div style={{fontSize: '0.75rem', opacity: 0.7}}>Delivered straight to project</div>
+                  <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>Direct to Job Site</div>
+                  <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>Delivered straight to project</div>
                 </div>
               </button>
             </div>
           </div>
 
           {locationType === "site" && (
-            <div className={styles.inputGroup} style={{marginTop: '1.5rem', animation: 'fadeIn 0.3s ease-out'}}>
-              <label style={{color: 'var(--primary)', fontWeight: 700}}>Job Number</label>
-              <input 
-                type="text" 
-                value={jobNumber} 
-                onChange={e => setJobNumber(e.target.value)} 
+            <div className={styles.inputGroup} style={{ marginTop: '1.5rem', animation: 'fadeIn 0.3s ease-out' }}>
+              <label style={{ color: 'var(--primary)', fontWeight: 700 }}>Job Number</label>
+              <input
+                type="text"
+                value={jobNumber}
+                onChange={e => setJobNumber(e.target.value)}
                 placeholder="e.g. JOB-1234"
                 style={{
                   border: '1px solid var(--primary)',
@@ -265,11 +265,11 @@ export default function BulkDeliveryPage() {
             </div>
           )}
 
-          <button 
-            className={styles.primaryBtn} 
+          <button
+            className={styles.primaryBtn}
             onClick={() => setStep(2)}
             disabled={!poNumber || (locationType === 'site' && !jobNumber)}
-            style={{marginTop: '2rem'}}
+            style={{ marginTop: '2rem' }}
           >
             Start Scanning
           </button>
@@ -301,7 +301,7 @@ export default function BulkDeliveryPage() {
 
           {!isScanning ? (
             <>
-              <button 
+              <button
                 onClick={() => setIsScanning(true)}
                 style={{
                   width: '100%',
@@ -320,20 +320,20 @@ export default function BulkDeliveryPage() {
                   transition: 'transform 0.2s'
                 }}
               >
-                <div style={{background: 'rgba(255,255,255,0.2)', padding: '1rem', borderRadius: '50%'}}>
+                <div style={{ background: 'rgba(255,255,255,0.2)', padding: '1rem', borderRadius: '50%' }}>
                   <Camera size={36} color="#000" />
                 </div>
-                <div style={{textAlign: 'center'}}>
-                  <h2 style={{fontSize: '1.4rem', fontWeight: '700', marginBottom: '0.25rem'}}>Scan Bottle</h2>
-                  <p style={{fontSize: '0.9rem', opacity: 0.8}}>Open camera to add next bottle to batch</p>
+                <div style={{ textAlign: 'center' }}>
+                  <h2 style={{ fontSize: '1.4rem', fontWeight: '700', marginBottom: '0.25rem' }}>Scan Bottle</h2>
+                  <p style={{ fontSize: '0.9rem', opacity: 0.8 }}>Open camera to add next bottle to batch</p>
                 </div>
               </button>
 
-              <div className={styles.manualEntryContainer} style={{maxWidth: '100%', marginBottom: '1.5rem'}}>
-                <p className={styles.manualEntryText} style={{textAlign: 'left', marginBottom: '0.5rem', fontSize: '0.85rem', opacity: 0.7}}>Or enter serial manually:</p>
-                <div style={{display: 'flex', gap: '0.5rem'}}>
-                  <input 
-                    type="text" 
+              <div className={styles.manualEntryContainer} style={{ maxWidth: '100%', marginBottom: '1.5rem' }}>
+                <p className={styles.manualEntryText} style={{ textAlign: 'left', marginBottom: '0.5rem', fontSize: '0.85rem', opacity: 0.7 }}>Or enter serial manually:</p>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    type="text"
                     placeholder="e.g. SN-998201A"
                     value={manualSerial}
                     onChange={(e) => setManualSerial(e.target.value)}
@@ -342,7 +342,7 @@ export default function BulkDeliveryPage() {
                       border: '1px solid var(--border)', borderRadius: '8px', color: '#fff', fontSize: '1rem'
                     }}
                   />
-                  <button 
+                  <button
                     onClick={() => manualSerial && handleScanSuccess(manualSerial)}
                     disabled={!manualSerial}
                     style={{
@@ -357,12 +357,12 @@ export default function BulkDeliveryPage() {
               </div>
             </>
           ) : (
-            <div className={styles.scannerBox} style={{marginBottom: '1.5rem'}}>
+            <div className={styles.scannerBox} style={{ marginBottom: '1.5rem' }}>
               <div id="reader-bulk" className={styles.reader}></div>
-              <button 
-                onClick={() => setIsScanning(false)} 
+              <button
+                onClick={() => setIsScanning(false)}
                 className={styles.primaryBtn}
-                style={{marginTop: '1rem', background: 'var(--surface-hover)', color: '#fff', border: '1px solid var(--border)'}}
+                style={{ marginTop: '1rem', background: 'var(--surface-hover)', color: '#fff', border: '1px solid var(--border)' }}
               >
                 Close Camera
               </button>
@@ -394,8 +394,8 @@ export default function BulkDeliveryPage() {
             )}
           </div>
 
-          <button 
-            className={styles.submitBatchBtn} 
+          <button
+            className={styles.submitBatchBtn}
             onClick={submitBatch}
             disabled={batch.length === 0 || isSubmitting}
           >

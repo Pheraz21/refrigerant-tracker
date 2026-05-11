@@ -51,7 +51,7 @@ export default function ReportsPage() {
   bottles.forEach(b => {
     const key = b.locationType === "van" ? `Van — ${b.locationId}` :
                 b.locationType === "site" ? `Site — ${b.locationId}` :
-                b.locationType === "office" ? "Office / Stores" :
+                b.locationType === "office" ? "HQ-Stores" :
                 `Supplier — ${b.supplier || "Unknown"}`;
     if (!locGroups[key]) locGroups[key] = [];
     locGroups[key].push(b);
