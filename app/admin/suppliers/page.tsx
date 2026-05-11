@@ -29,7 +29,8 @@ function SupplierInventoryContent() {
   const [bottles, setBottles] = useState<Bottle[]>([]);
   const [engineers, setEngineers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [supplierFilter, setSupplierFilter] = useState("all");
+  const [supplierFilter, setSupplierFilter] = useState<string[]>([]);
+  const [supplierDropdownOpen, setSupplierDropdownOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [sinceDate, setSinceDate] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("supplier");
@@ -41,7 +42,7 @@ function SupplierInventoryContent() {
 
   useEffect(() => {
     const s = searchParams.get("supplier");
-    if (s) setSupplierFilter(s);
+    if (s) setSupplierFilter([s]);
   }, [searchParams]);
 
   useEffect(() => {
@@ -71,7 +72,7 @@ function SupplierInventoryContent() {
 
   const filtered = bottles
     .filter(b => b.status !== "returned")
-    .filter(b => supplierFilter === "all" || b.supplier === supplierFilter)
+    .filter(b => supplierFilter.length === 0 || (b.supplier && supplierFilter.includes(b.supplier)))
     .filter(b => {
       if (!sinceDate) return true;
       const bottleDate = b.registeredAt || b.locationChangedAt;
@@ -323,15 +324,39 @@ function SupplierInventoryContent() {
         <div>
           <label style={{display: "block", fontSize: "0.75rem", color: "rgba(255,255,255,0.5)", fontWeight: 600, marginBottom: "0.4rem", textTransform: "uppercase"}}>Filter by Supplier:</label>
           <div style={{position: "relative", minWidth: "220px"}}>
-            <FilterIcon size={16} style={{position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)", pointerEvents: "none"}} />
-            <select
-              value={supplierFilter}
-              onChange={e => setSupplierFilter(e.target.value)}
-              style={{width: "100%", padding: "0.6rem 1rem 0.6rem 2.25rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", color: "#fff", fontSize: "0.9rem", fontWeight: 600, outline: "none", appearance: "none"}}
+            <div 
+              onClick={() => setSupplierDropdownOpen(!supplierDropdownOpen)}
+              style={{width: "100%", padding: "0.6rem 1rem 0.6rem 2.25rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", color: "#fff", fontSize: "0.9rem", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", userSelect: "none"}}
             >
-              <option value="all" style={{color: "#000"}}>All Suppliers</option>
-              {suppliers.map(s => <option key={s} value={s} style={{color: "#000"}}>{s}</option>)}
-            </select>
+              <FilterIcon size={16} style={{position: "absolute", left: "0.75rem", color: "rgba(255,255,255,0.3)"}} />
+              <span style={{overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"}}>
+                {supplierFilter.length === 0 ? "All Suppliers" : supplierFilter.length === 1 ? supplierFilter[0] : `${supplierFilter.length} Selected`}
+              </span>
+              <ArrowUpDown size={14} style={{opacity: 0.5}} />
+            </div>
+            
+            {supplierDropdownOpen && (
+              <div style={{position: "absolute", top: "100%", left: 0, right: 0, marginTop: "0.5rem", background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", padding: "0.5rem", zIndex: 50, maxHeight: "250px", overflowY: "auto", boxShadow: "0 10px 25px rgba(0,0,0,0.5)"}}>
+                <label style={{display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.4rem 0.5rem", cursor: "pointer", borderRadius: "4px", fontSize: "0.85rem"}}>
+                  <input type="checkbox" checked={supplierFilter.length === 0} onChange={() => setSupplierFilter([])} />
+                  All Suppliers
+                </label>
+                <div style={{height: "1px", background: "rgba(255,255,255,0.1)", margin: "0.3rem 0"}} />
+                {suppliers.map(s => (
+                  <label key={s} style={{display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.4rem 0.5rem", cursor: "pointer", borderRadius: "4px", fontSize: "0.85rem", color: "var(--text-main)"}}>
+                    <input 
+                      type="checkbox" 
+                      checked={supplierFilter.includes(s)} 
+                      onChange={(e) => {
+                        if (e.target.checked) setSupplierFilter(prev => [...prev, s]);
+                        else setSupplierFilter(prev => prev.filter(x => x !== s));
+                      }} 
+                    />
+                    {s}
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
