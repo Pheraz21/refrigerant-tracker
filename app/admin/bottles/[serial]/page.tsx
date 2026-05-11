@@ -1,21 +1,53 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db, Bottle, MovementLog, UsageLog } from "@/lib/db";
-import { ArrowLeft, Edit3, History, ArrowRight, User, Package, Calendar, MapPin, Truck, Building2, FileText, FileSpreadsheet, ClipboardList, Wrench, Tag, CheckCircle, RotateCcw } from "lucide-react";
+import { ArrowLeft, Edit3, History, ArrowRight, User, Package, Calendar, MapPin, Truck, Building2, FileText, FileSpreadsheet, ClipboardList, Wrench, Tag, CheckCircle, RotateCcw, RefreshCw } from "lucide-react";
 import Link from "next/link";
+
+type Lifecycle = { index: number; start: string; end: string | null };
+
+function deriveLifecycles(moveLogs: MovementLog[]): Lifecycle[] {
+  const events = moveLogs
+    .filter(l => l.action === "registered" || l.action === "re_registered" || l.action === "returned_to_supplier")
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  const out: Lifecycle[] = [];
+  let start: string | null = null;
+  for (const e of events) {
+    if (e.action === "registered" || e.action === "re_registered") {
+      start = e.date;
+    } else if (e.action === "returned_to_supplier" && start) {
+      out.push({ index: out.length + 1, start, end: e.date });
+      start = null;
+    }
+  }
+  if (start) out.push({ index: out.length + 1, start, end: null });
+  return out.reverse();
+}
+
+function formatLifecycleLabel(l: Lifecycle, totalCount: number): string {
+  const startDate = new Date(l.start).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  const endDate = l.end
+    ? new Date(l.end).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+    : "present";
+  const isCurrent = l.index === totalCount;
+  const prefix = isCurrent ? "Current" : `Lifecycle ${l.index}`;
+  return `${prefix} (${startDate} – ${endDate})`;
+}
 
 export default function ViewBottlePage() {
   const { serial } = useParams();
   const router = useRouter();
   const [bottle, setBottle] = useState<Bottle | null>(null);
-  const [logs, setLogs] = useState<MovementLog[]>([]);
+  const [moveLogs, setMoveLogs] = useState<MovementLog[]>([]);
   const [usageLogs, setUsageLogs] = useState<UsageLog[]>([]);
   const [hwcns, setHwcns] = useState<any[]>([]);
   const [decommissions, setDecommissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("audit");
+  const [selectedLifecycleIndex, setSelectedLifecycleIndex] = useState<number | null>(null);
 
   const serialStr = decodeURIComponent(serial as string);
 
@@ -27,67 +59,101 @@ export default function ViewBottlePage() {
         db.getUsageLogs(serialStr),
         db.getHWCNsForBottle(serialStr),
         db.getDecommissionsByBottleSerial(serialStr),
-      ]).then(([bottleData, moveLogs, useLogs, hwcnData, decommData]) => {
+      ]).then(([bottleData, moveData, useData, hwcnData, decommData]) => {
         setBottle(bottleData);
-        setUsageLogs(useLogs);
+        setMoveLogs(moveData);
+        setUsageLogs(useData);
         setHwcns(hwcnData);
         setDecommissions(decommData);
-
-        const combined = [
-          ...moveLogs.flatMap(l => {
-            const usageMatch = l.notes?.match(/([\d.]+)\s*kg\s*dispensed/i);
-            if (usageMatch) {
-              const amount = usageMatch[1];
-              return [
-                { ...l, logType: 'movement', notes: (l.notes || "").replace(/[\d.]+\s*kg\s*dispensed/i, "").trim() || "Transfer to site" },
-                {
-                  id: `${l.id}-usage`,
-                  date: l.date,
-                  action: 'Gas Usage',
-                  from: '',
-                  to: '',
-                  engineer: l.engineer,
-                  qty: amount,
-                  notes: `Usage recorded at ${l.to}`,
-                  logType: 'usage'
-                }
-              ];
-            }
-            return { ...l, logType: 'movement', notes: l.notes || "" };
-          }),
-          ...useLogs.map(l => ({
-            id: l.id,
-            date: l.date,
-            action: 'Gas Usage',
-            from: '',
-            to: '',
-            engineer: l.engineer,
-            qty: l.weightUsed?.toString() || "",
-            notes: `Site Job: ${l.siteRef}`,
-            logType: 'usage'
-          }))
-        ];
-
-        const chronLogs = combined.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        let currentBalance = bottleData?.initialWeight || 0;
-
-        const logsWithBalance = chronLogs.map(log => {
-          if ((log as any).qty) {
-            currentBalance = Math.max(0, currentBalance - parseFloat((log as any).qty));
-          }
-          return { ...log, balance: currentBalance };
-        });
-
-        setLogs(logsWithBalance.reverse() as any);
         setLoading(false);
       });
     }
   }, [serial]);
 
+  const lifecycles = useMemo(() => deriveLifecycles(moveLogs), [moveLogs]);
+
+  // Default to the most recent (current) lifecycle whenever lifecycles change
+  useEffect(() => {
+    if (lifecycles.length === 0) {
+      setSelectedLifecycleIndex(null);
+    } else if (selectedLifecycleIndex == null || !lifecycles.some(l => l.index === selectedLifecycleIndex)) {
+      setSelectedLifecycleIndex(lifecycles[0].index);
+    }
+  }, [lifecycles]);
+
+  const selectedLifecycle = useMemo(
+    () => lifecycles.find(l => l.index === selectedLifecycleIndex) ?? null,
+    [lifecycles, selectedLifecycleIndex]
+  );
+
+  const inLifecycle = (dateStr: string | undefined | null): boolean => {
+    if (!selectedLifecycle) return true; // no lifecycles derived → show everything
+    if (!dateStr) return true;
+    const t = new Date(dateStr).getTime();
+    const startT = new Date(selectedLifecycle.start).getTime();
+    const endT = selectedLifecycle.end ? new Date(selectedLifecycle.end).getTime() : Infinity;
+    return t >= startT && t <= endT;
+  };
+
+  const filteredMoveLogs = useMemo(() => moveLogs.filter(l => inLifecycle(l.date)), [moveLogs, selectedLifecycle]);
+  const filteredUsageLogs = useMemo(() => usageLogs.filter(l => inLifecycle(l.date)), [usageLogs, selectedLifecycle]);
+  const filteredHwcns = useMemo(() => hwcns.filter(h => inLifecycle(h.date || h.created_at || h.createdAt)), [hwcns, selectedLifecycle]);
+  const filteredDecommissions = useMemo(() => decommissions.filter(d => inLifecycle(d.date)), [decommissions, selectedLifecycle]);
+
+  // Build the combined Audit Trail rows from the filtered raw data (balance resets per lifecycle)
+  const logs = useMemo(() => {
+    const combined: any[] = [
+      ...filteredMoveLogs.flatMap(l => {
+        const usageMatch = l.notes?.match(/([\d.]+)\s*kg\s*dispensed/i);
+        if (usageMatch) {
+          const amount = usageMatch[1];
+          return [
+            { ...l, logType: 'movement', notes: (l.notes || "").replace(/[\d.]+\s*kg\s*dispensed/i, "").trim() || "Transfer to site" },
+            {
+              id: `${l.id}-usage`,
+              date: l.date,
+              action: 'Gas Usage',
+              from: '',
+              to: '',
+              engineer: l.engineer,
+              qty: amount,
+              notes: `Usage recorded at ${l.to}`,
+              logType: 'usage'
+            }
+          ];
+        }
+        return { ...l, logType: 'movement', notes: l.notes || "" };
+      }),
+      ...filteredUsageLogs.map(l => ({
+        id: l.id,
+        date: l.date,
+        action: 'Gas Usage',
+        from: '',
+        to: '',
+        engineer: l.engineer,
+        qty: l.weightUsed?.toString() || "",
+        notes: `Site Job: ${l.siteRef}`,
+        logType: 'usage'
+      }))
+    ];
+
+    const chronLogs = combined.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    let currentBalance = bottle?.initialWeight || 0;
+
+    const logsWithBalance = chronLogs.map(log => {
+      if (log.qty) {
+        currentBalance = Math.max(0, currentBalance - parseFloat(log.qty));
+      }
+      return { ...log, balance: currentBalance };
+    });
+
+    return logsWithBalance.reverse();
+  }, [filteredMoveLogs, filteredUsageLogs, bottle]);
+
   const printRefrigerantLog = () => {
     if (!bottle) return;
     const reportDate = new Date().toLocaleDateString("en-GB");
-    const sorted = [...usageLogs].filter(l => l.jobType !== "recovery").sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const sorted = [...filteredUsageLogs].filter(l => l.jobType !== "recovery").sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const totalUsed = sorted.reduce((sum, l) => sum + (l.weightUsed || 0), 0);
 
     const rows = sorted.map(log => `
@@ -450,6 +516,38 @@ export default function ViewBottlePage() {
 
         {/* Main tabbed content */}
         <div>
+          {/* Lifecycle picker — only shown when this serial has been through more than one lifecycle */}
+          {lifecycles.length > 1 && (
+            <div style={{ marginBottom: "1rem", padding: "0.75rem 1rem", background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.25)", borderRadius: "8px", display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+              <RefreshCw size={16} style={{ color: "#a855f7", flexShrink: 0 }} />
+              <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.7)" }}>
+                This serial has had <strong style={{ color: "#fff" }}>{lifecycles.length}</strong> separate lifecycles. Viewing:
+              </div>
+              <select
+                value={selectedLifecycleIndex ?? ""}
+                onChange={e => setSelectedLifecycleIndex(Number(e.target.value))}
+                style={{
+                  padding: "0.4rem 0.75rem",
+                  borderRadius: "6px",
+                  border: "1px solid rgba(168,85,247,0.4)",
+                  background: "var(--surface)",
+                  color: "#fff",
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  flex: 1,
+                  minWidth: "240px",
+                }}
+              >
+                {lifecycles.map(l => (
+                  <option key={l.index} value={l.index}>
+                    {formatLifecycleLabel(l, lifecycles.length)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Tab bar */}
           <div style={{ display: "flex", gap: "0.25rem", background: "rgba(255,255,255,0.04)", borderRadius: "8px", padding: "0.25rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
             <button style={tabStyle("audit")} onClick={() => setActiveTab("audit")}>
@@ -458,15 +556,15 @@ export default function ViewBottlePage() {
             </button>
             <button style={tabStyle("hwcns")} onClick={() => setActiveTab("hwcns")}>
               <ClipboardList size={14} style={{ display: "inline", marginRight: "0.35rem" }} />
-              HWCNs {hwcns.length > 0 ? `(${hwcns.length})` : ""}
+              HWCNs {filteredHwcns.length > 0 ? `(${filteredHwcns.length})` : ""}
             </button>
             <button style={tabStyle("usage")} onClick={() => setActiveTab("usage")}>
               <Tag size={14} style={{ display: "inline", marginRight: "0.35rem" }} />
-              Refrigerant Usage {usageLogs.filter(l => l.jobType !== "recovery").length > 0 ? `(${usageLogs.filter(l => l.jobType !== "recovery").length})` : ""}
+              Refrigerant Usage {filteredUsageLogs.filter(l => l.jobType !== "recovery").length > 0 ? `(${filteredUsageLogs.filter(l => l.jobType !== "recovery").length})` : ""}
             </button>
             <button style={tabStyle("decommission")} onClick={() => setActiveTab("decommission")}>
               <Wrench size={14} style={{ display: "inline", marginRight: "0.35rem" }} />
-              Decommission Records {decommissions.length > 0 ? `(${decommissions.length})` : ""}
+              Decommission Records {filteredDecommissions.length > 0 ? `(${filteredDecommissions.length})` : ""}
             </button>
           </div>
 
@@ -506,7 +604,7 @@ export default function ViewBottlePage() {
           {/* HWCNs */}
           {activeTab === "hwcns" && (
             <div>
-              {hwcns.length === 0 ? (
+              {filteredHwcns.length === 0 ? (
                 emptyState(<ClipboardList size={40} style={{ opacity: 0.2 }} />, "No HWCNs recorded for this cylinder.")
               ) : (
                 <div style={{ borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden" }}>
@@ -522,7 +620,7 @@ export default function ViewBottlePage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {hwcns.map(h => {
+                      {filteredHwcns.map(h => {
                         const badge = getHwcnStatusBadge(h.hwcnStatus);
                         const type = getHwcnType(h.destination || "");
                         return (
@@ -554,7 +652,7 @@ export default function ViewBottlePage() {
           {/* Refrigerant Usage */}
           {activeTab === "usage" && (
             <div>
-              {usageLogs.filter(l => l.jobType !== "recovery").length === 0 ? (
+              {filteredUsageLogs.filter(l => l.jobType !== "recovery").length === 0 ? (
                 emptyState(<Tag size={40} style={{ opacity: 0.2 }} />, "No refrigerant usage recorded for this cylinder.")
               ) : (
                 <div style={{ borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden" }}>
@@ -570,7 +668,7 @@ export default function ViewBottlePage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {[...usageLogs].filter(l => l.jobType !== "recovery").sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(l => (
+                      {[...filteredUsageLogs].filter(l => l.jobType !== "recovery").sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(l => (
                         <tr key={l.id}
                           onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
                           onMouseLeave={e => e.currentTarget.style.background = "transparent"}
@@ -586,7 +684,7 @@ export default function ViewBottlePage() {
                       <tr style={{ background: "rgba(255,255,255,0.03)", fontWeight: 700 }}>
                         <td colSpan={3} style={{ ...tableTd, textAlign: "right", color: "rgba(255,255,255,0.5)", fontSize: "0.8rem" }}>Total used</td>
                         <td style={{ ...tableTd, textAlign: "right", color: "#ff3366" }}>
-                          {usageLogs.filter(l => l.jobType !== "recovery").reduce((s, l) => s + (l.weightUsed || 0), 0).toFixed(2)} kg
+                          {filteredUsageLogs.filter(l => l.jobType !== "recovery").reduce((s, l) => s + (l.weightUsed || 0), 0).toFixed(2)} kg
                         </td>
                         <td colSpan={2} />
                       </tr>
@@ -600,7 +698,7 @@ export default function ViewBottlePage() {
           {/* Decommission Records */}
           {activeTab === "decommission" && (
             <div>
-              {decommissions.length === 0 ? (
+              {filteredDecommissions.length === 0 ? (
                 emptyState(<Wrench size={40} style={{ opacity: 0.2 }} />, "No decommissioning records linked to this cylinder.")
               ) : (
                 <div style={{ borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden" }}>
@@ -616,7 +714,7 @@ export default function ViewBottlePage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {decommissions.map((d: any) => {
+                      {filteredDecommissions.map((d: any) => {
                         const equipList: any[] = Array.isArray(d.equipment) ? d.equipment : [];
                         return (
                           <tr key={d.id}
