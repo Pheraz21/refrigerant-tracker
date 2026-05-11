@@ -124,7 +124,7 @@ export interface Bottle {
   poNumber?: string; // Purchase Order number when registered
   supplier?: string; // Supplier name
   registeredAt: string;
-  status: "active" | "empty" | "returned";
+  status: "active" | "empty" | "returned" | "full";
   intendedDestination?: string;
   intendedLocationType?: LocationType;
   activeHWCN?: string;
@@ -385,7 +385,7 @@ export const db = {
       rental_expiry_date: data.rentalExpiryDate,
       last_engineer: data.lastEngineer,
       registered_by: data.registeredBy,
-      status: "active",
+      status: data.category === "reclaim" ? "empty" : "full",
       location_changed_at: new Date().toISOString()
     });
     if (bottleError) {
@@ -483,10 +483,21 @@ export const db = {
       newWeight = Math.max(0, newWeight - weightChange);
       if (newWeight === 0 && (bottle.category === "new" || bottle.category === "nitrogen")) {
         newStatus = "empty";
+      } else if (newWeight > 0) {
+        newStatus = "active";
       }
     } else if (jobType === "recovery" || jobType === "retrofit" || jobType === "waste") {
       // Adding gas to bottle
       newWeight += weightChange;
+      const initialWeight = parseFloat(bottle.initial_weight || bottle.initialWeight || 0);
+      
+      if (bottle.category === "reclaim") {
+        if (newWeight >= initialWeight && initialWeight > 0) {
+          newStatus = "full";
+        } else {
+          newStatus = "active";
+        }
+      }
 
       if (jobType === "recovery") {
         // Handle producer sites (JSONB)

@@ -761,43 +761,77 @@ export default function BottleActionHub() {
 
                   {/* COMPLIANCE: Using the gas inside */}
                   {bottle.category !== "nitrogen" ? (
-                    <Link 
-                      href={(bottle.locationType as string) === 'van' ? '#' : `/engineer/log?serial=${bottle.serial}`} 
-                      className={`${styles.actionCard} ${bottle.category === 'reclaim' ? styles.reclaimCard : styles.useCard} ${(bottle.locationType as string) === 'van' ? styles.disabledCard : ''}`}
-                    >
-                      <div className={styles.iconWrapper}>
-                        <Wrench size={32} />
+                    bottle.status === 'empty' && bottle.category === 'new' ? (
+                      <div className={styles.actionCard} style={{ opacity: 0.6, cursor: 'not-allowed' }}>
+                        <div className={styles.iconWrapper} style={{ background: 'rgba(255,255,255,0.1)' }}>
+                          <CheckCircle2 size={32} color="var(--text-muted)" />
+                        </div>
+                        <div className={styles.actionText}>
+                          <h3>Bottle Empty</h3>
+                          <p>This cylinder is completely empty and cannot be used.</p>
+                        </div>
                       </div>
-                      <div className={styles.actionText}>
-                        {bottle.category === "reclaim" ? (
-                          <>
-                            <h3>Log Recovered Gas</h3>
-                            <p>{(bottle.locationType as string) === 'van' ? "Bottle currently in van, transfer bottle to site to enable recovery." : "Log contaminated gas pumped into this cylinder"}</p>
-                          </>
-                        ) : (
-                          <>
-                            <h3>Log Gas Usage</h3>
-                            <p>{(bottle.locationType as string) === 'van' ? "Bottle currently in van, transfer bottle to site to enable usage." : "Log refrigerant dispensed into a system"}</p>
-                          </>
-                        )}
+                    ) : bottle.status === 'full' && bottle.category === 'reclaim' ? (
+                      <div className={styles.actionCard} style={{ opacity: 0.6, cursor: 'not-allowed' }}>
+                        <div className={styles.iconWrapper} style={{ background: 'rgba(255,255,255,0.1)' }}>
+                          <CheckCircle2 size={32} color="var(--text-muted)" />
+                        </div>
+                        <div className={styles.actionText}>
+                          <h3>Bottle Full</h3>
+                          <p>This reclaim cylinder is full. No more gas can be recovered into it.</p>
+                        </div>
                       </div>
-                    </Link>
-                  ) : (
-                    <>
-                      <button 
-                        onClick={() => (bottle.locationType as string) !== 'van' && setShowNitrogenUsage(true)}
-                        className={`${styles.actionCard} ${styles.useCard} ${(bottle.locationType as string) === 'van' ? styles.disabledCard : ''}`}
-                        style={{ textAlign: 'left', width: '100%', cursor: (bottle.locationType as string) === 'van' ? 'not-allowed' : 'pointer' }}
-                        disabled={(bottle.locationType as string) === 'van'}
+                    ) : (
+                      <Link 
+                        href={(bottle.locationType as string) === 'van' ? '#' : `/engineer/log?serial=${bottle.serial}`} 
+                        className={`${styles.actionCard} ${bottle.category === 'reclaim' ? styles.reclaimCard : styles.useCard} ${(bottle.locationType as string) === 'van' ? styles.disabledCard : ''}`}
                       >
                         <div className={styles.iconWrapper}>
                           <Wrench size={32} />
                         </div>
                         <div className={styles.actionText}>
-                          <h3>Log Nitrogen Usage</h3>
-                          <p>{(bottle.locationType as string) === 'van' ? "Bottle currently in van, transfer bottle to site to enable usage." : "Record nitrogen usage for pressure testing or purging"}</p>
+                          {bottle.category === "reclaim" ? (
+                            <>
+                              <h3>Log Recovered Gas</h3>
+                              <p>{(bottle.locationType as string) === 'van' ? "Bottle currently in van, transfer bottle to site to enable recovery." : "Log contaminated gas pumped into this cylinder"}</p>
+                            </>
+                          ) : (
+                            <>
+                              <h3>Log Gas Usage</h3>
+                              <p>{(bottle.locationType as string) === 'van' ? "Bottle currently in van, transfer bottle to site to enable usage." : "Log refrigerant dispensed into a system"}</p>
+                            </>
+                          )}
                         </div>
-                      </button>
+                      </Link>
+                    )
+                  ) : (
+                    <>
+                      {bottle.status !== 'empty' ? (
+                        <button 
+                          onClick={() => (bottle.locationType as string) !== 'van' && setShowNitrogenUsage(true)}
+                          className={`${styles.actionCard} ${styles.nitrogenCard} ${(bottle.locationType as string) === 'van' ? styles.disabledCard : ''}`}
+                          style={{ textAlign: 'left', width: '100%', cursor: (bottle.locationType as string) === 'van' ? 'not-allowed' : 'pointer' }}
+                          disabled={(bottle.locationType as string) === 'van'}
+                        >
+                          <div className={styles.iconWrapper}>
+                            <Wrench size={32} />
+                          </div>
+                          <div className={styles.actionText}>
+                            <h3>Log Nitrogen Usage</h3>
+                            <p>{(bottle.locationType as string) === 'van' ? "Bottle currently in van, transfer bottle to site to enable usage." : "Record nitrogen usage for pressure testing or purging"}</p>
+                          </div>
+                        </button>
+                      ) : (
+                        <div className={styles.actionCard} style={{ opacity: 0.6, cursor: 'not-allowed' }}>
+                          <div className={styles.iconWrapper} style={{ background: 'rgba(255,255,255,0.1)' }}>
+                            <CheckCircle2 size={32} color="var(--text-muted)" />
+                          </div>
+                          <div className={styles.actionText}>
+                            <h3>Bottle Empty</h3>
+                            <p>This nitrogen bottle is empty and cannot be used.</p>
+                          </div>
+                        </div>
+                      )}
 
                       {showNitrogenUsage && (
                         <div className={`${styles.dynamicSection} glass-panel`} style={{ borderColor: '#00e5ff', marginTop: '1rem', animation: 'fadeIn 0.3s ease-out' }}>
