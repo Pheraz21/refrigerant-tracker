@@ -33,6 +33,21 @@ export default function BottleActionHub() {
   const [generatedHWCN, setGeneratedHWCN] = useState<string | null>(null);
   const [vehicleReg, setVehicleReg] = useState("");
   const [associatedHWCNs, setAssociatedHWCNs] = useState<any[]>([]);
+  const [showNitrogenUsage, setShowNitrogenUsage] = useState(false);
+  const [isSubmittingNitrogen, setIsSubmittingNitrogen] = useState(false);
+
+  const handleNitrogenUsage = async (isEmpty: boolean) => {
+    if (!bottle) return;
+    setIsSubmittingNitrogen(true);
+    try {
+      const weightUsed = isEmpty ? (bottle.currentWeight || 0) : 1;
+      await db.logUsage(serial, "service", weightUsed, false, undefined, undefined, user?.name || "Unknown", bottle.locationId);
+      router.push('/engineer');
+    } catch (err) {
+      console.error("Failed to log nitrogen usage:", err);
+      setIsSubmittingNitrogen(false);
+    }
+  };
 
   useEffect(() => {
     async function loadInitialData() {
@@ -745,7 +760,7 @@ export default function BottleActionHub() {
                   </Link>
 
                   {/* COMPLIANCE: Using the gas inside */}
-                  {bottle.category !== "nitrogen" && (
+                  {bottle.category !== "nitrogen" ? (
                     <Link 
                       href={(bottle.locationType as string) === 'van' ? '#' : `/engineer/log?serial=${bottle.serial}`} 
                       className={`${styles.actionCard} ${bottle.category === 'reclaim' ? styles.reclaimCard : styles.useCard} ${(bottle.locationType as string) === 'van' ? styles.disabledCard : ''}`}
@@ -767,6 +782,58 @@ export default function BottleActionHub() {
                         )}
                       </div>
                     </Link>
+                  ) : (
+                    <>
+                      <button 
+                        onClick={() => (bottle.locationType as string) !== 'van' && setShowNitrogenUsage(true)}
+                        className={`${styles.actionCard} ${styles.useCard} ${(bottle.locationType as string) === 'van' ? styles.disabledCard : ''}`}
+                        style={{ textAlign: 'left', width: '100%', border: 'none', background: 'rgba(0, 229, 255, 0.05)', cursor: (bottle.locationType as string) === 'van' ? 'not-allowed' : 'pointer' }}
+                        disabled={(bottle.locationType as string) === 'van'}
+                      >
+                        <div className={styles.iconWrapper}>
+                          <Wrench size={32} />
+                        </div>
+                        <div className={styles.actionText}>
+                          <h3>Log Nitrogen Usage</h3>
+                          <p>{(bottle.locationType as string) === 'van' ? "Bottle currently in van, transfer bottle to site to enable usage." : "Record nitrogen usage for pressure testing or purging"}</p>
+                        </div>
+                      </button>
+
+                      {showNitrogenUsage && (
+                        <div className={`${styles.dynamicSection} glass-panel`} style={{ borderColor: '#00e5ff', marginTop: '1rem', animation: 'fadeIn 0.3s ease-out' }}>
+                          <h3 style={{ color: '#00e5ff', marginBottom: '1rem', fontSize: '1rem' }}>Is the Nitrogen bottle empty?</h3>
+                          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+                            Nitrogen cannot be weighed accurately. Select &quot;No&quot; to record a usage indicator, or &quot;Yes&quot; if the bottle has been completely emptied.
+                          </p>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                            <button 
+                              className={styles.primaryBtn}
+                              style={{ background: 'var(--error)', color: '#fff' }}
+                              disabled={isSubmittingNitrogen}
+                              onClick={() => handleNitrogenUsage(true)}
+                            >
+                              {isSubmittingNitrogen ? <Loader2 size={18} className={styles.spinner} /> : "Yes, Empty"}
+                            </button>
+                            <button 
+                              className={styles.primaryBtn}
+                              style={{ background: 'var(--success)', color: '#fff' }}
+                              disabled={isSubmittingNitrogen}
+                              onClick={() => handleNitrogenUsage(false)}
+                            >
+                              {isSubmittingNitrogen ? <Loader2 size={18} className={styles.spinner} /> : "No, Not Empty"}
+                            </button>
+                          </div>
+                          <button 
+                            className={styles.secondaryBtn} 
+                            style={{ width: '100%', marginTop: '1rem' }}
+                            onClick={() => setShowNitrogenUsage(false)}
+                            disabled={isSubmittingNitrogen}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
               )}
