@@ -371,6 +371,27 @@ export const db = {
   },
 
   async registerBottle(data: Omit<Bottle, "status">): Promise<void> {
+    // 1. Check if the serial already exists
+    const { data: existingBottle } = await supabase.from('bottles').select('*').eq('serial', data.serial).maybeSingle();
+
+    if (existingBottle) {
+      if (existingBottle.status !== 'returned') {
+        throw new Error("This bottle is already active in our inventory. It cannot be registered again.");
+      } else {
+        // It's a returned bottle! Archive it so we can safely register the fresh one under the same serial
+        const archiveSuffix = `-ARCHIVED-${Date.now()}`;
+        const archivedSerial = `${data.serial}${archiveSuffix}`;
+
+        // Rename the old bottle's serial
+        await supabase.from('bottles').update({ serial: archivedSerial }).eq('serial', data.serial);
+        // Cascade the serial rename to its historical logs
+        await supabase.from('movement_logs').update({ serial: archivedSerial }).eq('serial', data.serial);
+        await supabase.from('usage_logs').update({ serial: archivedSerial }).eq('serial', data.serial);
+        await supabase.from('hwcns').update({ serial: archivedSerial }).eq('serial', data.serial);
+        await supabase.from('decommission_records').update({ serial: archivedSerial }).eq('serial', data.serial);
+      }
+    }
+
     const { error: bottleError } = await supabase.from('bottles').insert({
       serial: data.serial,
       category: data.category,

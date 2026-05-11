@@ -42,6 +42,29 @@ export default function BulkDeliveryPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  function handleScanSuccess(decodedText: string) {
+    const upperSerial = decodedText.toUpperCase();
+
+    const newBottle: BatchBottle = {
+      serial: upperSerial,
+      category: lastCategory,
+      gasType: lastGasType,
+      weight: lastWeight
+    };
+
+    setBatch(prev => {
+      if (prev.some(b => b.serial === upperSerial)) {
+        alert("Bottle already scanned in this batch!");
+        return prev;
+      }
+      return [newBottle, ...prev];
+    });
+    
+    setManualSerial("");
+    // We intentionally DO NOT stop scanning. Let them rapid fire.
+  }
+
   // Handle Scanner Initialization
   useEffect(() => {
     if (step === 2 && isScanning) {
@@ -72,27 +95,6 @@ export default function BulkDeliveryPage() {
       if (data.length > 0) setSupplier(data[0].name);
     });
   }, []);
-
-  const handleScanSuccess = (decodedText: string) => {
-    const upperSerial = decodedText.toUpperCase();
-
-    // Check if already in batch
-    if (batch.some(b => b.serial === upperSerial)) {
-      alert("Bottle already scanned in this batch!");
-      return;
-    }
-
-    const newBottle: BatchBottle = {
-      serial: upperSerial,
-      category: lastCategory,
-      gasType: lastGasType,
-      weight: lastWeight
-    };
-
-    setBatch(prev => [newBottle, ...prev]);
-    setManualSerial("");
-    // We intentionally DO NOT stop scanning. Let them rapid fire.
-  };
 
   const removeBottle = (serial: string) => {
     setBatch(prev => prev.filter(b => b.serial !== serial));
@@ -133,10 +135,16 @@ export default function BulkDeliveryPage() {
       });
     });
 
-    await Promise.all(promises);
+    try {
+      await Promise.all(promises);
 
-    setIsSubmitting(false);
-    setIsSuccess(true);
+      setIsSubmitting(false);
+      setIsSuccess(true);
+    } catch (error) {
+      console.error(error);
+      alert((error as Error).message || "Failed to register some bottles in the batch.");
+      setIsSubmitting(false);
+    }
   };
 
   if (isSuccess) {

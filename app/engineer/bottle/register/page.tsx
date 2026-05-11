@@ -109,25 +109,31 @@ export default function RegisterBottlePage() {
       });
     }
 
-    await db.registerBottle({
-      serial: serialParam,
-      category,
-      gasType: category === "reclaim" ? "Mixed/Recovery" : (category === "nitrogen" ? "Nitrogen" : finalGas),
-      initialWeight: Number(weight),
-      currentWeight: category === "reclaim" ? 0 : Number(weight),
-      locationType: locationType as any,
-      locationId: locationType === "van" ? `${user?.name} - Van` : (locationType === "office" || locationType === "office_collected") ? "HQ-Stores" : locationId,
-      vehicleReg: locationType === "van" ? vehicleReg : undefined,
-      poNumber: poNumber,
-      supplier: supplier,
-      rentalExpiryDate: rentalExpiryDate || undefined,
-      lastEngineer: user?.name,
-      registeredBy: user?.name,
-      registeredAt: new Date().toISOString()
-    });
+    try {
+      await db.registerBottle({
+        serial: serialParam,
+        category,
+        gasType: category === "reclaim" ? "Mixed/Recovery" : (category === "nitrogen" ? "Nitrogen" : finalGas),
+        initialWeight: Number(weight),
+        currentWeight: category === "reclaim" ? 0 : Number(weight),
+        locationType: locationType as any,
+        locationId: locationType === "van" ? `${user?.name} - Van` : (locationType === "office" || locationType === "office_collected") ? "HQ-Stores" : locationId,
+        vehicleReg: locationType === "van" ? vehicleReg : undefined,
+        poNumber: poNumber,
+        supplier: supplier,
+        rentalExpiryDate: rentalExpiryDate || undefined,
+        lastEngineer: user?.name,
+        registeredBy: user?.name,
+        registeredAt: new Date().toISOString()
+      });
 
-    setIsSubmitting(false);
-    setIsSuccess(true);
+      setIsSubmitting(false);
+      setIsSuccess(true);
+    } catch (error) {
+      console.error(error);
+      alert((error as Error).message || "Failed to register bottle.");
+      setIsSubmitting(false);
+    }
   };
 
   if (isSuccess) {

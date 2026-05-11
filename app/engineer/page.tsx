@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useRef } from "react";
 import { Html5QrcodeScanner, Html5QrcodeScanType } from "html5-qrcode";
@@ -108,7 +108,7 @@ export default function DashboardScannerPage() {
     if (!scanResult) return;
     setIsLoadingRoute(true);
     const bottle = await db.getBottle(scanResult.barcode);
-    if (bottle) {
+    if (bottle && bottle.status !== 'returned') {
       router.push(`/engineer/bottle/${encodeURIComponent(scanResult.barcode)}`);
     } else {
       router.push(`/engineer/bottle/register?serial=${encodeURIComponent(scanResult.barcode)}`);
@@ -214,10 +214,10 @@ export default function DashboardScannerPage() {
                   if (!manualSerial) return;
                   const serial = manualSerial.toUpperCase();
                   const bottle = await db.getBottle(serial);
-                  if (bottle) {
+                  if (bottle && bottle.status !== 'returned') {
                     router.push(`/engineer/bottle/${encodeURIComponent(serial)}`);
                   } else {
-                    // Not found — show the "New Scan" overlay so they can register it
+                    // Not found or returned — show the "New Scan" overlay so they can register it
                     onScanSuccess(serial);
                   }
                 }}
