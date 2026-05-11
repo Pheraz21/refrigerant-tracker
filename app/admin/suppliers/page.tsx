@@ -337,13 +337,13 @@ function SupplierInventoryContent() {
             
             {supplierDropdownOpen && (
               <div style={{position: "absolute", top: "100%", left: 0, right: 0, marginTop: "0.5rem", background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", padding: "0.5rem", zIndex: 50, maxHeight: "250px", overflowY: "auto", boxShadow: "0 10px 25px rgba(0,0,0,0.5)"}}>
-                <label style={{display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.4rem 0.5rem", cursor: "pointer", borderRadius: "4px", fontSize: "0.85rem"}}>
+                <label style={{display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.4rem 0.5rem", cursor: "pointer", borderRadius: "4px", fontSize: "0.85rem", color: "#fff"}}>
                   <input type="checkbox" checked={supplierFilter.length === 0} onChange={() => setSupplierFilter([])} />
                   All Suppliers
                 </label>
                 <div style={{height: "1px", background: "rgba(255,255,255,0.1)", margin: "0.3rem 0"}} />
                 {suppliers.map(s => (
-                  <label key={s} style={{display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.4rem 0.5rem", cursor: "pointer", borderRadius: "4px", fontSize: "0.85rem", color: "var(--text-main)"}}>
+                  <label key={s} style={{display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.4rem 0.5rem", cursor: "pointer", borderRadius: "4px", fontSize: "0.85rem", color: "#fff"}}>
                     <input 
                       type="checkbox" 
                       checked={supplierFilter.includes(s)} 

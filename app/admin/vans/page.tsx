@@ -326,9 +326,9 @@ export default function VanInventoryPage() {
               onChange={e => setSelectedEngineer(e.target.value)}
               style={{padding: "0.6rem 1.25rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", color: "#fff", fontSize: "0.95rem", fontWeight: 600, outline: "none", textTransform: "capitalize", minWidth: "180px"}}
             >
-              <option value="all" style={{color: "#000"}}>All Engineers</option>
+              <option value="all" style={{color: "#fff", background: "#222"}}>All Engineers</option>
               {engineers.map(e => (
-                <option key={e.id} value={e.id} style={{color: "#000"}}>{e.name}</option>
+                <option key={e.id} value={e.id} style={{color: "#fff", background: "#222"}}>{e.name}</option>
               ))}
             </select>
           </div>
