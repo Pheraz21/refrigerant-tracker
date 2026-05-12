@@ -4,9 +4,53 @@ import { useEffect, useRef, useState } from "react";
 import { db, CrmJob } from "@/lib/db";
 import {
   ClipboardList, Upload, Search, RefreshCw, X, ChevronUp, ChevronDown,
-  AlertTriangle, Pencil, Save, ArrowRight
+  AlertTriangle, Pencil, Save, ArrowRight, Calendar
 } from "lucide-react";
 import Link from "next/link";
+
+// Tolerant date parser — handles ISO (YYYY-MM-DD), UK (DD/MM/YYYY), and Excel serial numbers.
+function parseStartDate(s: string | null | undefined): Date | null {
+  if (!s) return null;
+  const t = s.trim();
+  if (!t) return null;
+  // ISO YYYY-MM-DD (optional time)
+  if (/^\d{4}-\d{1,2}-\d{1,2}/.test(t)) {
+    const d = new Date(t);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  // UK DD/MM/YYYY
+  const ukMatch = t.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (ukMatch) {
+    const [, dd, mm, yyyy] = ukMatch;
+    const d = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+    return isNaN(d.getTime()) ? null : d;
+  }
+  // Excel serial number (days since 1900-01-01, range ~25000–60000 for modern dates)
+  const n = Number(t);
+  if (!Number.isNaN(n) && n > 25000 && n < 60000) {
+    return new Date(Math.round((n - 25569) * 86400 * 1000));
+  }
+  // Last-resort fallback
+  const d = new Date(t);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+type DateFilterKey = "12m" | "30d" | "thisyear" | "all";
+const DATE_FILTER_OPTIONS: { key: DateFilterKey; label: string }[] = [
+  { key: "12m",      label: "Last 12 months" },
+  { key: "30d",      label: "Last 30 days" },
+  { key: "thisyear", label: "This year" },
+  { key: "all",      label: "All time" },
+];
+
+function cutoffForFilter(key: DateFilterKey): Date | null {
+  const now = new Date();
+  if (key === "all") return null;
+  if (key === "30d") return new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
+  if (key === "thisyear") return new Date(now.getFullYear(), 0, 1);
+  // 12m: 365 days ago
+  return new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+}
 
 // ── Exact column headers from the CRM export ──────────────────────────────────
 const EXACT_HEADERS: Record<string, string> = {
@@ -110,6 +154,7 @@ export default function AllJobsPage() {
   const [sortKey, setSortKey] = useState<SortKey>("startDate");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [jobSearch, setJobSearch] = useState("");
+  const [dateFilter, setDateFilter] = useState<DateFilterKey>("12m");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<PreviewState | null>(null);
@@ -233,7 +278,16 @@ export default function AllJobsPage() {
     else { setSortKey(key); setSortDir("asc"); }
   };
 
-  const sorted = [...jobs].sort((a, b) => {
+  // Date-filtered base set — applied before sort & search
+  const dateCutoff = cutoffForFilter(dateFilter);
+  const dateFiltered = dateCutoff
+    ? jobs.filter(j => {
+        const d = parseStartDate(j.startDate);
+        return d ? d >= dateCutoff : false; // exclude jobs with unparseable/missing dates from windowed views
+      })
+    : jobs;
+
+  const sorted = [...dateFiltered].sort((a, b) => {
     if (sortKey === "jobNumber" || sortKey === "jobNumberUnprefixed") {
       // Numeric sort: strip any leading non-numeric chars (handles both 'M19672' and '19672')
       const toNum = (s: string) => parseInt((s || "").replace(/^[^\d]+/, ""), 10) || 0;
@@ -323,6 +377,7 @@ export default function AllJobsPage() {
         </div>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "0.9rem", margin: 0 }}>
           CRM job import — {jobs.length.toLocaleString()} jobs loaded
+          {dateFilter !== "all" && jobs.length !== dateFiltered.length && ` · ${dateFiltered.length.toLocaleString()} in selected window`}
           {jobs.length > 0 && `, ${withUprn.toLocaleString()} of ${jobs.length.toLocaleString()} have UPRNs`}
         </p>
       </div>
@@ -369,6 +424,25 @@ export default function AllJobsPage() {
           }}>
             <X size={14} /> Stop
           </button>
+        )}
+
+        {jobs.length > 0 && (
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", padding: "0 0.6rem" }}>
+            <Calendar size={15} style={{ color: "rgba(255,255,255,0.4)" }} />
+            <select
+              value={dateFilter}
+              onChange={e => setDateFilter(e.target.value as DateFilterKey)}
+              style={{
+                background: "transparent", border: "none", color: "#fff",
+                fontSize: "0.85rem", fontWeight: 600, padding: "0.5rem 0.25rem",
+                outline: "none", cursor: "pointer"
+              }}
+            >
+              {DATE_FILTER_OPTIONS.map(o => (
+                <option key={o.key} value={o.key}>{o.label}</option>
+              ))}
+            </select>
+          </div>
         )}
 
         {jobs.length > 0 && (

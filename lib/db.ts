@@ -1244,7 +1244,8 @@ export const db = {
     const { data } = await supabase
       .from("crm_jobs")
       .select("*")
-      .order("imported_at", { ascending: false });
+      .order("imported_at", { ascending: false })
+      .range(0, 49999);
     return data ? data.map((r: any) => ({
       id: r.id,
       jobNumber: r.job_number,
