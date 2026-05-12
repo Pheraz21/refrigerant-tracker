@@ -57,7 +57,10 @@ export default function DashboardScannerPage() {
         supportedScanTypes: [
           Html5QrcodeScanType.SCAN_TYPE_CAMERA
         ],
-        rememberLastUsedCamera: true
+        rememberLastUsedCamera: true,
+        videoConstraints: {
+          facingMode: "environment"
+        }
       },
       false
     );

@@ -199,6 +199,12 @@ export default function BottleActionHub() {
           <div className={styles.bottleStats} style={{display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'start', gap: '1rem'}}>
             {/* Left Column: Info */}
             <div style={{display: 'flex', flexDirection: 'column', gap: '0.4rem', overflow: 'hidden'}}>
+              {bottle.supplier && (
+                <div style={{fontSize: '0.85rem', wordBreak: 'break-word'}}>
+                  <span style={{color: 'var(--text-muted)'}}>Supplier: </span>
+                  <strong style={{color: '#fff'}}>{bottle.supplier}</strong>
+                </div>
+              )}
               <div style={{fontSize: '0.85rem', wordBreak: 'break-word'}}>
                 <span style={{color: 'var(--text-muted)'}}>Gas Type: </span>
                 <strong style={{color: '#fff'}}>{bottle.gasType}</strong>
