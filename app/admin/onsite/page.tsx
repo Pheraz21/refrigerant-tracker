@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { db, Bottle, CrmJob } from "@/lib/db";
 import { MapPin, AlertTriangle, Search, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Filter as FilterIcon, FileText, FileSpreadsheet, Settings2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useTablePrefs } from "@/lib/useTablePrefs";
 import { ColumnCustomizer } from "@/app/components/ColumnCustomizer";
 
@@ -262,7 +263,17 @@ export default function BottlesOnSitePage() {
           <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.9rem"}}>
             <div style={{display: "flex", alignItems: "center", gap: "0.4rem"}}>
               <MapPin size={14} color="#00e5ff" />
-              <span style={{fontWeight: 600}}>{b.locationId}</span>
+              {b.locationId ? (
+                <Link
+                  href={`/admin/jobs/${encodeURIComponent(b.locationId)}`}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ color: "#00e5ff", textDecoration: "underline", textDecorationColor: "rgba(0,229,255,0.4)", fontWeight: 700 }}
+                >
+                  {b.locationId}
+                </Link>
+              ) : (
+                <span style={{ color: "var(--text-muted)" }}>—</span>
+              )}
             </div>
           </td>
         );
@@ -358,7 +369,7 @@ export default function BottlesOnSitePage() {
           <p style={{fontSize: "0.85rem"}}>All bottles are currently in vans, stores, or returned</p>
         </div>
       ) : (
-        <div style={{borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden"}}>
+        <div style={{borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)", overflowX: "auto"}}>
           <table style={{width: "100%", borderCollapse: "collapse"}}>
             <thead>
               <tr style={{background: "rgba(255,255,255,0.04)"}}>

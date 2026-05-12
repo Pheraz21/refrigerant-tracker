@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { db } from "@/lib/db";
 import { Trash2, Search, Download, FileText, Calendar, X, Printer } from "lucide-react";
+import Link from "next/link";
 
 export default function DecommissionedEquipmentPage() {
   const [records, setRecords] = useState<any[]>([]);
@@ -460,7 +461,11 @@ export default function DecommissionedEquipmentPage() {
                     {row.date ? new Date(row.date).toLocaleDateString("en-GB") : "—"}
                   </td>
                   <td style={{padding: "0.75rem 1rem", fontWeight: 600, fontSize: "0.85rem"}}>
-                    {row.jobNumber || "—"}
+                    {row.jobNumber ? (
+                      <Link href={`/admin/jobs/${encodeURIComponent(row.jobNumber)}`} style={{ color: "#00e5ff", textDecoration: "underline", textDecorationColor: "rgba(0,229,255,0.4)", fontWeight: 700 }}>
+                        {row.jobNumber}
+                      </Link>
+                    ) : "—"}
                   </td>
                   <td style={{padding: "0.75rem 1rem", fontSize: "0.85rem"}}>
                     <div>{row.siteName || "—"}</div>

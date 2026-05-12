@@ -333,7 +333,7 @@ export default function ReturnedToSupplierPage() {
           <div className="no-print" style={{display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "1rem"}}>
             <span style={{fontSize: "0.85rem", color: "var(--text-muted)"}}>Showing {filteredBottles.length} records</span>
           </div>
-          <div style={{borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden", background: "rgba(255,255,255,0.02)"}}>
+          <div style={{borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)", overflowX: "auto", background: "rgba(255,255,255,0.02)"}}>
             <table style={{width: "100%", borderCollapse: "collapse"}}>
               <thead>
                 <tr style={{background: "rgba(255,255,255,0.04)"}}>

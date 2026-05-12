@@ -329,7 +329,7 @@ export default function StoresInventoryPage() {
           <p style={{fontSize: "0.85rem"}}>No bottles currently held in office/stores</p>
         </div>
       ) : (
-        <div style={{borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden"}}>
+        <div style={{borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)", overflowX: "auto"}}>
           <table style={{width: "100%", borderCollapse: "collapse"}}>
             <thead>
               <tr style={{background: "rgba(255,255,255,0.04)"}}>

@@ -392,7 +392,17 @@ export default function RefrigerantJobsPage() {
   function renderCell(key: string, job: JobSummary) {
     switch (key) {
       case "jobRef":
-        return <td key={key} style={{ ...tdBase, fontFamily: "var(--font-geist-mono)", fontWeight: 600, color: "#00e5ff" }}>{job.siteRef}</td>;
+        return (
+          <td key={key} style={{ ...tdBase, fontFamily: "var(--font-geist-mono)", fontWeight: 600 }}>
+            <Link
+              href={`/admin/jobs/${encodeURIComponent(job.siteRef)}`}
+              onClick={e => e.stopPropagation()}
+              style={{ color: "#00e5ff", textDecoration: "underline", textDecorationColor: "rgba(0,229,255,0.4)", fontWeight: 700 }}
+            >
+              {job.siteRef}
+            </Link>
+          </td>
+        );
       case "gasUsed":
         return <td key={key} style={{ ...tdBase, textAlign: "right", fontWeight: 600, color: job.newGasKg > 0 ? "#22c55e" : "var(--text-muted)" }}>{job.newGasKg > 0 ? `${job.newGasKg.toFixed(2)} kg` : "—"}</td>;
       case "reclaim":

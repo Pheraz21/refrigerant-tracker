@@ -703,7 +703,13 @@ export default function ViewBottlePage() {
                           onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                         >
                           <td style={{ ...tableTd, color: "var(--text-muted)" }}>{new Date(l.date).toLocaleDateString("en-GB")}</td>
-                          <td style={{ ...tableTd, fontFamily: "var(--font-geist-mono)", color: "#00e5ff" }}>{l.siteRef || "—"}</td>
+                          <td style={{ ...tableTd, fontFamily: "var(--font-geist-mono)", color: "#00e5ff", fontWeight: 700 }}>
+                            {l.siteRef ? (
+                              <Link href={`/admin/jobs/${encodeURIComponent(l.siteRef)}`} style={{ color: "#00e5ff", textDecoration: "underline", textDecorationColor: "rgba(0,229,255,0.4)" }}>
+                                {l.siteRef}
+                              </Link>
+                            ) : "—"}
+                          </td>
                           <td style={tableTd}>{l.engineer || "—"}</td>
                           <td style={{ ...tableTd, textAlign: "right", color: "#ff3366", fontWeight: 700 }}>{l.weightUsed != null ? `${l.weightUsed.toFixed(2)} kg` : "—"}</td>
                           <td style={{ ...tableTd, textAlign: "right", color: "var(--text-muted)" }}>{l.weightBefore != null ? `${l.weightBefore.toFixed(2)} kg` : "—"}</td>
@@ -751,7 +757,13 @@ export default function ViewBottlePage() {
                             onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                           >
                             <td style={{ ...tableTd, color: "var(--text-muted)" }}>{d.date ? new Date(d.date).toLocaleDateString("en-GB") : "—"}</td>
-                            <td style={{ ...tableTd, fontFamily: "var(--font-geist-mono)", color: "#00e5ff" }}>{d.jobNumber || "—"}</td>
+                            <td style={{ ...tableTd, fontFamily: "var(--font-geist-mono)", color: "#00e5ff", fontWeight: 700 }}>
+                              {d.jobNumber ? (
+                                <Link href={`/admin/jobs/${encodeURIComponent(d.jobNumber)}`} style={{ color: "#00e5ff", textDecoration: "underline", textDecorationColor: "rgba(0,229,255,0.4)" }}>
+                                  {d.jobNumber}
+                                </Link>
+                              ) : "—"}
+                            </td>
                             <td style={tableTd}>{d.siteName || "—"}</td>
                             <td style={tableTd}>{d.engineer || "—"}</td>
                             <td style={{ ...tableTd, fontSize: "0.8rem", color: "var(--text-muted)" }}>
