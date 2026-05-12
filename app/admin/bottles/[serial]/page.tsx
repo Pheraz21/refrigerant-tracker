@@ -66,6 +66,7 @@ export default function ViewBottlePage() {
   const [decommissions, setDecommissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("audit");
+  const [resolvedRegisteredBy, setResolvedRegisteredBy] = useState<string | null>(null);
   const [selectedLifecycleIndex, setSelectedLifecycleIndex] = useState<number | null>(null);
 
   const serialStr = decodeURIComponent(serial as string);
@@ -85,6 +86,13 @@ export default function ViewBottlePage() {
         setHwcns(hwcnData);
         setDecommissions(decommData);
         setLoading(false);
+
+        // Resolve registeredBy if it looks like a UUID (old data before fix)
+        if (bottleData?.registeredBy && /^[0-9a-f]{8}-[0-9a-f]{4}-/.test(bottleData.registeredBy)) {
+          db.getEngineerById(bottleData.registeredBy).then(eng => {
+            if (eng?.name) setResolvedRegisteredBy(eng.name);
+          });
+        }
       });
     }
   }, [serial]);
@@ -509,7 +517,7 @@ export default function ViewBottlePage() {
               {bottle.registeredBy && (
                 <div>
                   <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>Registered By</div>
-                  <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "0.85rem" }}>{bottle.registeredBy}</div>
+                  <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "0.85rem" }}>{resolvedRegisteredBy || bottle.registeredBy}</div>
                 </div>
               )}
 
