@@ -19,6 +19,7 @@ const COLUMN_DEFS = [
   { key: "returnedBy",   label: "Returned By"                 },
   { key: "dateReceived", label: "Date Received"               },
   { key: "supplier",     label: "Supplier"                    },
+  { key: "poNumber",     label: "PO Number"                   },
   { key: "registered",   label: "Registered"                  },
   { key: "expiry",      label: "Expiry Date"                    },
 ] as const;
@@ -168,6 +169,7 @@ export default function StoresInventoryPage() {
       case "returnedBy":   return <th key={key} style={s} onClick={() => handleSort("returnedBy")}>Returned By <SortIcon col="returnedBy" /></th>;
       case "dateReceived": return <th key={key} style={s} onClick={() => handleSort("locationChangedAt")}>Date Received <SortIcon col="locationChangedAt" /></th>;
       case "supplier":     return <th key={key} style={s} onClick={() => handleSort("supplier")}>Supplier <SortIcon col="supplier" /></th>;
+      case "poNumber":     return <th key={key} style={ns}>PO Number</th>;
       case "registered":   return <th key={key} style={s} onClick={() => handleSort("registeredAt")}>Registered <SortIcon col="registeredAt" /></th>;
       case "expiry":      return <th key={key} style={s} onClick={() => handleSort("rentalExpiryDate")}>Expiry Date <SortIcon col="rentalExpiryDate" /></th>;
       default:             return null;
@@ -270,6 +272,8 @@ export default function StoresInventoryPage() {
             ) : "—"}
           </td>
         );
+      case "poNumber":
+        return <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", color: b.poNumber ? "rgba(255,255,255,0.75)" : "var(--text-muted)"}}>{b.poNumber || "—"}</td>;
       case "registered":
         return <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", color: "var(--text-muted)"}}>{b.registeredAt ? new Date(b.registeredAt).toLocaleDateString("en-GB") : "—"}</td>;
       case "expiry":

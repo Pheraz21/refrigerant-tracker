@@ -8,29 +8,34 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-// Tolerant date parser — handles ISO (YYYY-MM-DD), UK (DD/MM/YYYY), and Excel serial numbers.
+// Tolerant date parser — handles many likely text/numeric date formats.
 function parseStartDate(s: string | null | undefined): Date | null {
-  if (!s) return null;
-  const t = s.trim();
+  if (s === null || s === undefined) return null;
+  const t = String(s).trim();
   if (!t) return null;
-  // ISO YYYY-MM-DD (optional time)
-  if (/^\d{4}-\d{1,2}-\d{1,2}/.test(t)) {
-    const d = new Date(t);
-    return isNaN(d.getTime()) ? null : d;
-  }
-  // UK DD/MM/YYYY
-  const ukMatch = t.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-  if (ukMatch) {
-    const [, dd, mm, yyyy] = ukMatch;
-    const d = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
-    return isNaN(d.getTime()) ? null : d;
-  }
-  // Excel serial number (days since 1900-01-01, range ~25000–60000 for modern dates)
+
+  // Excel serial number (days since 1900-01-01, modern-date range ~25000–60000)
   const n = Number(t);
-  if (!Number.isNaN(n) && n > 25000 && n < 60000) {
+  if (!Number.isNaN(n) && Number.isFinite(n) && n > 25000 && n < 60000) {
     return new Date(Math.round((n - 25569) * 86400 * 1000));
   }
-  // Last-resort fallback
+
+  // ISO YYYY-MM-DD (with optional time, with optional timezone)
+  if (/^\d{4}-\d{1,2}-\d{1,2}/.test(t)) {
+    const d = new Date(t);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // UK DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY, 2- or 4-digit year
+  const ukMatch = t.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/);
+  if (ukMatch) {
+    const [, dd, mm, yyyyRaw] = ukMatch;
+    const year = yyyyRaw.length === 2 ? 2000 + Number(yyyyRaw) : Number(yyyyRaw);
+    const d = new Date(year, Number(mm) - 1, Number(dd));
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // Last-resort: let JS Date attempt it (handles "May 12 2025", "12-May-2025", ISO with slashes, etc.)
   const d = new Date(t);
   return isNaN(d.getTime()) ? null : d;
 }
@@ -154,6 +159,7 @@ export default function AllJobsPage() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [jobSearch, setJobSearch] = useState("");
   const [dateFilter, setDateFilter] = useState<DateFilterKey>("12m");
+  const [diagOpen, setDiagOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<PreviewState | null>(null);
@@ -280,10 +286,24 @@ export default function AllJobsPage() {
   // Date-filtered base set — applied before sort & search.
   // The dropdown is bounded to a max 12-month window, so the cutoff is always set.
   const dateCutoff = cutoffForFilter(dateFilter);
+  const parseableCount = jobs.reduce((n, j) => n + (parseStartDate(j.startDate) ? 1 : 0), 0);
   const dateFiltered = jobs.filter(j => {
     const d = parseStartDate(j.startDate);
     return d ? d >= dateCutoff : false; // exclude unparseable/missing start dates
   });
+
+  // Sample raw start_date values for diagnostic popover (first 5 distinct, including blanks)
+  const sampleStartDates: string[] = (() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const j of jobs) {
+      const v = j.startDate ?? "";
+      const k = JSON.stringify(v); // distinguish "" from "  " etc.
+      if (!seen.has(k)) { seen.add(k); out.push(v); }
+      if (out.length >= 5) break;
+    }
+    return out;
+  })();
 
   const sorted = [...dateFiltered].sort((a, b) => {
     if (sortKey === "jobNumber" || sortKey === "jobNumberUnprefixed") {
@@ -375,8 +395,8 @@ export default function AllJobsPage() {
         </div>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "0.9rem", margin: 0 }}>
           CRM job import — {jobs.length.toLocaleString()} jobs loaded
-          {jobs.length !== dateFiltered.length && ` · ${dateFiltered.length.toLocaleString()} in selected window`}
-          {jobs.length > 0 && `, ${withUprn.toLocaleString()} of ${jobs.length.toLocaleString()} have UPRNs`}
+          {jobs.length > 0 && ` · ${parseableCount.toLocaleString()} with parseable start dates · ${dateFiltered.length.toLocaleString()} in selected window`}
+          {jobs.length > 0 && `, ${withUprn.toLocaleString()} have UPRNs`}
         </p>
       </div>
 
@@ -425,7 +445,7 @@ export default function AllJobsPage() {
         )}
 
         {jobs.length > 0 && (
-          <div style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", padding: "0 0.6rem" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", padding: "0 0.6rem", position: "relative" }}>
             <Calendar size={15} style={{ color: "rgba(255,255,255,0.4)" }} />
             <select
               value={dateFilter}
@@ -440,6 +460,48 @@ export default function AllJobsPage() {
                 <option key={o.key} value={o.key}>{o.label}</option>
               ))}
             </select>
+            <button
+              onClick={() => setDiagOpen(d => !d)}
+              title="Sample start_date values"
+              style={{
+                background: "transparent", border: "none", color: "rgba(255,255,255,0.4)",
+                cursor: "pointer", padding: "0.25rem", display: "inline-flex", alignItems: "center"
+              }}
+            >
+              <AlertTriangle size={14} />
+            </button>
+            {diagOpen && (
+              <div style={{
+                position: "absolute", top: "100%", right: 0, marginTop: "0.4rem", zIndex: 10,
+                background: "var(--surface)", border: "1px solid rgba(255,255,255,0.15)",
+                borderRadius: "8px", padding: "0.85rem 1rem", minWidth: "300px",
+                boxShadow: "0 8px 24px rgba(0,0,0,0.4)", fontSize: "0.8rem"
+              }}>
+                <div style={{ fontWeight: 600, color: "#fff", marginBottom: "0.4rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>Sample start_date values</span>
+                  <button onClick={() => setDiagOpen(false)} style={{ background: "transparent", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", padding: 0 }}>
+                    <X size={14} />
+                  </button>
+                </div>
+                <div style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.5)", marginBottom: "0.5rem" }}>
+                  First 5 distinct raw values across {jobs.length.toLocaleString()} loaded jobs:
+                </div>
+                {sampleStartDates.length === 0 ? (
+                  <div style={{ color: "rgba(255,255,255,0.4)" }}>(no values)</div>
+                ) : (
+                  <ul style={{ margin: 0, paddingLeft: "1.1rem", color: "rgba(255,255,255,0.8)", fontFamily: "var(--font-geist-mono, monospace)", fontSize: "0.78rem", lineHeight: 1.6 }}>
+                    {sampleStartDates.map((v, i) => (
+                      <li key={i}>{v === "" ? <em style={{ color: "rgba(255,255,255,0.4)" }}>(empty)</em> : JSON.stringify(v)}</li>
+                    ))}
+                  </ul>
+                )}
+                <div style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.4)", marginTop: "0.6rem", lineHeight: 1.4 }}>
+                  {parseableCount === 0
+                    ? "None of the values were recognised as dates. Share these strings so the parser can be adjusted."
+                    : `${parseableCount.toLocaleString()} of ${jobs.length.toLocaleString()} parsed successfully.`}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

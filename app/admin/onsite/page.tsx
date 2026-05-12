@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { db, Bottle } from "@/lib/db";
+import { db, Bottle, CrmJob } from "@/lib/db";
 import { MapPin, AlertTriangle, Search, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Filter as FilterIcon, FileText, FileSpreadsheet, Settings2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTablePrefs } from "@/lib/useTablePrefs";
@@ -16,8 +16,11 @@ const COLUMN_DEFS = [
   { key: "capacity",    label: "Capacity"                     },
   { key: "gasInBottle", label: "Gas In Bottle"                },
   { key: "balance",     label: "Balance"                      },
-  { key: "siteRef",     label: "Site / Job Ref"               },
+  { key: "jobNo",       label: "Job No"                       },
+  { key: "site",        label: "Site"                         },
+  { key: "customer",    label: "Customer"                     },
   { key: "supplier",    label: "Supplier"                     },
+  { key: "poNumber",    label: "PO Number"                    },
   { key: "registered",  label: "Registered"                   },
   { key: "expiry",      label: "Expiry Date"                    },
   { key: "onSiteSince", label: "On Site Since"                },
@@ -26,6 +29,7 @@ const COLUMN_DEFS = [
 export default function BottlesOnSitePage() {
   const router = useRouter();
   const [bottles, setBottles] = useState<Bottle[]>([]);
+  const [crmMap, setCrmMap] = useState<Map<string, CrmJob>>(new Map());
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [sinceDate, setSinceDate] = useState("");
@@ -37,10 +41,17 @@ export default function BottlesOnSitePage() {
     useTablePrefs("onsite", COLUMN_DEFS.map(c => c.key));
 
   useEffect(() => {
-    db.getBottlesByLocation("site").then(b => {
+    (async () => {
+      const b = await db.getBottlesByLocation("site");
       setBottles(b);
+      // Look up matching CRM jobs by locationId (which is the prefixed job number for site bottles)
+      const ids = Array.from(new Set(b.map(x => x.locationId).filter(Boolean) as string[]));
+      if (ids.length) {
+        const jobs = await db.getCrmJobsByNumbers(ids);
+        setCrmMap(new Map(jobs.map(j => [j.jobNumber, j])));
+      }
       setLoading(false);
-    });
+    })();
   }, []);
 
   const handleSort = (key: SortKey) => {
@@ -56,7 +67,16 @@ export default function BottlesOnSitePage() {
   };
 
   const filtered = bottles
-    .filter(b => !search || b.serial.toLowerCase().includes(search.toLowerCase()) || b.gasType.toLowerCase().includes(search.toLowerCase()) || b.locationId.toLowerCase().includes(search.toLowerCase()))
+    .filter(b => {
+      if (!search) return true;
+      const q = search.toLowerCase();
+      const crm = crmMap.get(b.locationId);
+      return b.serial.toLowerCase().includes(q)
+        || b.gasType.toLowerCase().includes(q)
+        || (b.locationId || "").toLowerCase().includes(q)
+        || (crm?.siteTitle || "").toLowerCase().includes(q)
+        || (crm?.customer || "").toLowerCase().includes(q);
+    })
     .filter(b => {
       if (!sinceDate) return true;
       const bottleDate = b.locationChangedAt || b.registeredAt;
@@ -160,8 +180,11 @@ export default function BottlesOnSitePage() {
       case "capacity":    return <th key={key} style={s} onClick={() => handleSort("initialWeight")}>Capacity <SortIcon col="initialWeight" /></th>;
       case "gasInBottle": return <th key={key} style={s} onClick={() => handleSort("currentWeight")}>Gas In Bottle <SortIcon col="currentWeight" /></th>;
       case "balance":     return <th key={key} style={ns}>Balance</th>;
-      case "siteRef":     return <th key={key} style={s} onClick={() => handleSort("locationId")}>Site / Job Ref <SortIcon col="locationId" /></th>;
+      case "jobNo":       return <th key={key} style={s} onClick={() => handleSort("locationId")}>Job No <SortIcon col="locationId" /></th>;
+      case "site":        return <th key={key} style={ns}>Site</th>;
+      case "customer":    return <th key={key} style={ns}>Customer</th>;
       case "supplier":    return <th key={key} style={s} onClick={() => handleSort("supplier")}>Supplier <SortIcon col="supplier" /></th>;
+      case "poNumber":    return <th key={key} style={ns}>PO Number</th>;
       case "registered":  return <th key={key} style={s} onClick={() => handleSort("registeredAt")}>Registered <SortIcon col="registeredAt" /></th>;
       case "expiry":      return <th key={key} style={s} onClick={() => handleSort("rentalExpiryDate")}>Expiry Date <SortIcon col="rentalExpiryDate" /></th>;
       case "onSiteSince": return <th key={key} style={s} onClick={() => handleSort("locationChangedAt")}>On Site Since <SortIcon col="locationChangedAt" /></th>;
@@ -234,13 +257,35 @@ export default function BottlesOnSitePage() {
             )}
           </td>
         );
-      case "siteRef":
+      case "jobNo":
         return (
           <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.9rem"}}>
             <div style={{display: "flex", alignItems: "center", gap: "0.4rem"}}>
               <MapPin size={14} color="#00e5ff" />
               <span style={{fontWeight: 600}}>{b.locationId}</span>
             </div>
+          </td>
+        );
+      case "site": {
+        const crm = crmMap.get(b.locationId);
+        return (
+          <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", color: crm?.siteTitle ? "rgba(255,255,255,0.85)" : "var(--text-muted)"}}>
+            {crm?.siteTitle || "—"}
+          </td>
+        );
+      }
+      case "customer": {
+        const crm = crmMap.get(b.locationId);
+        return (
+          <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", color: crm?.customer ? "rgba(255,255,255,0.85)" : "var(--text-muted)"}}>
+            {crm?.customer || "—"}
+          </td>
+        );
+      }
+      case "poNumber":
+        return (
+          <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", color: b.poNumber ? "rgba(255,255,255,0.75)" : "var(--text-muted)"}}>
+            {b.poNumber || "—"}
           </td>
         );
       case "supplier":

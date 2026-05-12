@@ -1323,6 +1323,31 @@ export const db = {
     await supabase.from("crm_jobs").update(d).eq("id", id);
   },
 
+  async getCrmJobsByNumbers(jobNumbers: string[]): Promise<CrmJob[]> {
+    if (!jobNumbers.length) return [];
+    const { data } = await supabase
+      .from("crm_jobs")
+      .select("*")
+      .in("job_number", jobNumbers);
+    return data ? data.map((r: any) => ({
+      id: r.id,
+      jobNumber: r.job_number,
+      jobNumberUnprefixed: r.job_number_unprefixed ?? "",
+      prefix: r.prefix ?? "",
+      customer: r.customer ?? "",
+      siteTitle: r.site_title ?? "",
+      siteAddress: r.site_address ?? "",
+      sitePostcode: r.site_postcode ?? "",
+      uprn: r.uprn ?? null,
+      rawData: r.raw_data ?? {},
+      importedAt: r.imported_at,
+      startDate: r.start_date ?? "",
+      category: r.category ?? "",
+      faultCode: r.fault_code ?? "",
+      jobTitle: r.job_title ?? ""
+    })) : [];
+  },
+
   async getCrmJobByNumber(jobNumber: string): Promise<CrmJob | null> {
     const { data } = await supabase
       .from("crm_jobs").select("*").eq("job_number", jobNumber).limit(1).single();

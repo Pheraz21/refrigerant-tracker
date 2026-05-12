@@ -18,6 +18,7 @@ const COLUMN_DEFS = [
   { key: "balance",         label: "Balance"                         },
   { key: "currentLocation", label: "Current Location"                },
   { key: "supplier",        label: "Supplier"                        },
+  { key: "poNumber",        label: "PO Number"                       },
   { key: "registered",      label: "Registered"                      },
   { key: "expiry",      label: "Expiry Date"                    },
   { key: "status",          label: "Status"                          },
@@ -191,6 +192,7 @@ function SupplierInventoryContent() {
       case "balance":         return <th key={key} style={ns}>Balance</th>;
       case "currentLocation": return <th key={key} style={s} onClick={() => handleSort("locationId")}>Current Location <SortIcon col="locationId" /></th>;
       case "supplier":        return <th key={key} style={s} onClick={() => handleSort("supplier")}>Supplier <SortIcon col="supplier" /></th>;
+      case "poNumber":        return <th key={key} style={ns}>PO Number</th>;
       case "registered":      return <th key={key} style={s} onClick={() => handleSort("registeredAt")}>Registered <SortIcon col="registeredAt" /></th>;
       case "expiry":      return <th key={key} style={s} onClick={() => handleSort("rentalExpiryDate")}>Expiry Date <SortIcon col="rentalExpiryDate" /></th>;
       case "status":          return <th key={key} style={s} onClick={() => handleSort("status")}>Status <SortIcon col="status" /></th>;
@@ -295,6 +297,8 @@ function SupplierInventoryContent() {
             ) : "—"}
           </td>
         );
+      case "poNumber":
+        return <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", color: b.poNumber ? "rgba(255,255,255,0.75)" : "var(--text-muted)"}}>{b.poNumber || "—"}</td>;
       case "registered":
         return <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", color: "var(--text-muted)"}}>{b.registeredAt ? new Date(b.registeredAt).toLocaleDateString("en-GB") : "—"}</td>;
       case "expiry":

@@ -17,6 +17,7 @@ const COLUMN_DEFS = [
   { key: "returnedBy",  label: "Returned By"                 },
   { key: "returnDate",  label: "Return Date"                 },
   { key: "supplier",    label: "Supplier"                    },
+  { key: "poNumber",    label: "PO Number"                   },
   { key: "registered",  label: "Registered"                  },
   { key: "expiry",      label: "Expiry Date"                    },
 ] as const;
@@ -172,6 +173,7 @@ export default function ReturnedToSupplierPage() {
       case "returnedBy":  return mkTh(key, "Returned By", "returnedBy");
       case "returnDate":  return mkTh(key, "Return Date", "returnedAt");
       case "supplier":    return mkTh(key, "Supplier", "supplier");
+      case "poNumber":    return mkTh(key, "PO Number");
       case "registered":  return mkTh(key, "Registered", "registeredAt");
       default:            return null;
     }
@@ -256,6 +258,8 @@ export default function ReturnedToSupplierPage() {
             ) : "—"}
           </td>
         );
+      case "poNumber":
+        return <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", color: b.poNumber ? "rgba(255,255,255,0.75)" : "var(--text-muted)"}}>{b.poNumber || "—"}</td>;
       case "registered":
         return <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", color: "var(--text-muted)"}}>{b.registeredAt ? new Date(b.registeredAt).toLocaleDateString("en-GB") : "—"}</td>;
       case "expiry":
