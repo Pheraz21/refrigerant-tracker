@@ -41,6 +41,11 @@ function deriveLifecycles(moveLogs: MovementLog[]): Lifecycle[] {
   return out.reverse();
 }
 
+const RECOVERY_JOB_TYPES = new Set(["recovery", "retrofit", "waste"]);
+function usageActionLabel(jobType: string | undefined | null): "Gas Recovered" | "Gas Used" {
+  return jobType && RECOVERY_JOB_TYPES.has(jobType) ? "Gas Recovered" : "Gas Used";
+}
+
 function formatLifecycleLabel(l: Lifecycle, totalCount: number): string {
   const startDate = new Date(l.start).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   const endDate = l.end
@@ -126,7 +131,7 @@ export default function ViewBottlePage() {
             {
               id: `${l.id}-usage`,
               date: l.date,
-              action: 'Gas Usage',
+              action: 'Gas Used',
               from: '',
               to: '',
               engineer: l.engineer,
@@ -141,7 +146,7 @@ export default function ViewBottlePage() {
       ...filteredUsageLogs.map(l => ({
         id: l.id,
         date: l.date,
-        action: 'Gas Usage',
+        action: usageActionLabel(l.jobType),
         from: '',
         to: '',
         engineer: l.engineer,
@@ -263,7 +268,7 @@ export default function ViewBottlePage() {
     const rows = logs.map(log => {
       const qty = (log as any).qty;
       const balance = (log as any).balance;
-      const isUsage = log.action.toLowerCase().includes('usage');
+      const isUsage = log.action === "Gas Used" || log.action === "Gas Recovered";
       return `
         <tr style="${isUsage ? 'background-color: #f8fafc;' : ''}">
           <td style="white-space: nowrap; font-size: 9px;">${new Date(log.date).toLocaleDateString("en-GB")}</td>
@@ -605,6 +610,16 @@ export default function ViewBottlePage() {
                         </div>
                         {log.notes && <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>{log.notes}</div>}
                       </div>
+                      {(log as any).qty && (
+                        <div style={{
+                          fontSize: "0.85rem",
+                          fontWeight: 700,
+                          color: log.action === "Gas Recovered" ? "#ffaa00" : "#00e5ff",
+                          whiteSpace: "nowrap",
+                        }}>
+                          {parseFloat((log as any).qty).toFixed(2)} kg
+                        </div>
+                      )}
                       <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", display: "flex", alignItems: "center", gap: "0.4rem" }}>
                         <User size={12} style={{ opacity: 0.5 }} /> {log.engineer}
                       </div>
