@@ -6,6 +6,7 @@ import { Building2, Search, MapPin, Truck, Warehouse, ArrowUpDown, ArrowUp, Arro
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTablePrefs } from "@/lib/useTablePrefs";
 import { ColumnCustomizer } from "@/app/components/ColumnCustomizer";
+import { DoubleScrollContainer } from "@/app/components/DoubleScrollContainer";
 
 type SortKey = "serial" | "category" | "gasType" | "currentWeight" | "initialWeight" | "locationId" | "status" | "locationChangedAt" | "supplier" | "registeredAt" | "rentalExpiryDate";
 
@@ -405,7 +406,7 @@ function SupplierInventoryContent() {
           <p style={{fontSize: "0.85rem"}}>Try adjusting your filter or search terms</p>
         </div>
       ) : (
-        <div style={{borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)", overflowX: "auto"}}>
+        <DoubleScrollContainer>
           <table style={{width: "100%", borderCollapse: "collapse"}}>
             <thead>
               <tr style={{background: "rgba(255,255,255,0.04)"}}>
@@ -425,7 +426,7 @@ function SupplierInventoryContent() {
               ))}
             </tbody>
           </table>
-        </div>
+        </DoubleScrollContainer>
       )}
 
       <ColumnCustomizer

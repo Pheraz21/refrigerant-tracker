@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useTablePrefs } from "@/lib/useTablePrefs";
 import { ColumnCustomizer } from "@/app/components/ColumnCustomizer";
+import { DoubleScrollContainer } from "@/app/components/DoubleScrollContainer";
 
 type SortKey = "serial" | "category" | "gasType" | "currentWeight" | "initialWeight" | "locationId" | "locationChangedAt" | "supplier" | "registeredAt" | "rentalExpiryDate";
 
@@ -369,7 +370,7 @@ export default function BottlesOnSitePage() {
           <p style={{fontSize: "0.85rem"}}>All bottles are currently in vans, stores, or returned</p>
         </div>
       ) : (
-        <div style={{borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)", overflowX: "auto"}}>
+        <DoubleScrollContainer>
           <table style={{width: "100%", borderCollapse: "collapse"}}>
             <thead>
               <tr style={{background: "rgba(255,255,255,0.04)"}}>
@@ -389,7 +390,7 @@ export default function BottlesOnSitePage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </DoubleScrollContainer>
       )}
 
       <ColumnCustomizer

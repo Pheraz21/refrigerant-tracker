@@ -6,6 +6,7 @@ import { Truck, Search, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Filter, Downl
 import { useRouter } from "next/navigation";
 import { useTablePrefs } from "@/lib/useTablePrefs";
 import { ColumnCustomizer } from "@/app/components/ColumnCustomizer";
+import { DoubleScrollContainer } from "@/app/components/DoubleScrollContainer";
 
 const COLUMN_DEFS = [
   { key: "serial",      label: "Serial",      required: true },
@@ -333,7 +334,7 @@ export default function ReturnedToSupplierPage() {
           <div className="no-print" style={{display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "1rem"}}>
             <span style={{fontSize: "0.85rem", color: "var(--text-muted)"}}>Showing {filteredBottles.length} records</span>
           </div>
-          <div style={{borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)", overflowX: "auto", background: "rgba(255,255,255,0.02)"}}>
+          <DoubleScrollContainer wrapStyle={{ borderRadius: "12px", background: "rgba(255,255,255,0.02)" }}>
             <table style={{width: "100%", borderCollapse: "collapse"}}>
               <thead>
                 <tr style={{background: "rgba(255,255,255,0.04)"}}>
@@ -356,7 +357,7 @@ export default function ReturnedToSupplierPage() {
                 )}
               </tbody>
             </table>
-          </div>
+          </DoubleScrollContainer>
         </div>
       )}
 

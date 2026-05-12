@@ -56,7 +56,6 @@ const navGroups = [
     title: "Jobs",
     items: [
       { href: "/admin/jobs", label: "Refrigerant Jobs", icon: Briefcase },
-      { href: "/admin/all-jobs", label: "All Jobs", icon: ClipboardList },
     ]
   },
   {
