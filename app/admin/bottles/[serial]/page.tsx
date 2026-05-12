@@ -87,11 +87,12 @@ export default function ViewBottlePage() {
         setDecommissions(decommData);
         setLoading(false);
 
-        // Resolve registeredBy if it looks like a UUID (old data before fix)
-        if (bottleData?.registeredBy && /^[0-9a-f]{8}-[0-9a-f]{4}-/.test(bottleData.registeredBy)) {
-          db.getEngineerById(bottleData.registeredBy).then(eng => {
+        // Resolve registeredBy if it doesn't look like a human name (e.g. it's a UUID from old data)
+        const regBy = bottleData?.registeredBy;
+        if (regBy && (!regBy.includes(' ') || /[0-9a-fA-F]{8}-/.test(regBy))) {
+          db.getEngineerById(regBy).then(eng => {
             if (eng?.name) setResolvedRegisteredBy(eng.name);
-          });
+          }).catch(() => { /* not a valid ID, leave as-is */ });
         }
       });
     }
