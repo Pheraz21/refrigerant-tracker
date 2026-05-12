@@ -10,17 +10,21 @@ import Link from "next/link";
 
 // ── Exact column headers from the CRM export ──────────────────────────────────
 const EXACT_HEADERS: Record<string, string> = {
-  "prefix":            "prefix",
-  "job no.":           "jobNumber",
-  "job no":            "jobNumber",
-  "job no (prefixed)": "jobNumber",
-  "start date":        "startDate",
-  "customer":          "customer",
-  "site":              "__site__",
-  "title":             "jobTitle",
-  "postcode":          "sitePostcode",
-  "category":          "category",
-  "fault code":        "faultCode",
+  "prefix":                    "prefix",
+  "job no.":                   "jobNumber",
+  "job no":                    "jobNumber",
+  "job no (prefixed)":         "jobNumber",
+  "job number (prefixed)":     "jobNumber",
+  "job number":                "jobNumberUnprefixed",
+  "job no (unprefixed)":       "jobNumberUnprefixed",
+  "job number (unprefixed)":   "jobNumberUnprefixed",
+  "start date":                "startDate",
+  "customer":                  "customer",
+  "site":                      "__site__",
+  "title":                     "jobTitle",
+  "postcode":                  "sitePostcode",
+  "category":                  "category",
+  "fault code":                "faultCode",
 };
 
 // ── Site field parser ─────────────────────────────────────────────────────────
@@ -54,7 +58,7 @@ function parseRows(rawRows: Record<string, any>[]): Omit<CrmJob, "id" | "importe
   return rawRows.map(row => {
     const obj: any = {
       rawData: row, uprn: null,
-      jobNumber: "", prefix: "", customer: "", siteTitle: "", siteAddress: "",
+      jobNumber: "", jobNumberUnprefixed: "", prefix: "", customer: "", siteTitle: "", siteAddress: "",
       sitePostcode: "", startDate: "", category: "", faultCode: "", jobTitle: "",
       _pp: ""
     };
@@ -76,7 +80,7 @@ function parseRows(rawRows: Record<string, any>[]): Omit<CrmJob, "id" | "importe
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type SortKey = "jobNumber" | "prefix" | "startDate" | "jobTitle" | "customer" | "siteTitle" | "siteAddress" | "sitePostcode" | "uprn" | "importedAt";
+type SortKey = "jobNumber" | "jobNumberUnprefixed" | "prefix" | "startDate" | "jobTitle" | "customer" | "siteTitle" | "siteAddress" | "sitePostcode" | "uprn" | "importedAt";
 type SortDir = "asc" | "desc";
 
 interface PreviewState {
@@ -230,10 +234,12 @@ export default function AllJobsPage() {
   };
 
   const sorted = [...jobs].sort((a, b) => {
-    if (sortKey === "jobNumber") {
-      // Strip leading non-numeric characters and sort by number (M19672 → 19672)
-      const toNum = (s: string) => parseInt(s.replace(/^[^\d]+/, ""), 10) || 0;
-      const diff = toNum(a.jobNumber) - toNum(b.jobNumber);
+    if (sortKey === "jobNumber" || sortKey === "jobNumberUnprefixed") {
+      // Numeric sort: strip any leading non-numeric chars (handles both 'M19672' and '19672')
+      const toNum = (s: string) => parseInt((s || "").replace(/^[^\d]+/, ""), 10) || 0;
+      const av = sortKey === "jobNumberUnprefixed" ? a.jobNumberUnprefixed : a.jobNumber;
+      const bv = sortKey === "jobNumberUnprefixed" ? b.jobNumberUnprefixed : b.jobNumber;
+      const diff = toNum(av) - toNum(bv);
       return sortDir === "asc" ? diff : -diff;
     }
     const av = (a[sortKey] ?? "") as string;
@@ -271,6 +277,7 @@ export default function AllJobsPage() {
     ? sorted.filter(j => {
         const q = jobSearch.toLowerCase();
         return (j.jobNumber || "").toLowerCase().includes(q) ||
+          (j.jobNumberUnprefixed || "").toLowerCase().includes(q) ||
           (j.customer || "").toLowerCase().includes(q) ||
           (j.siteTitle || "").toLowerCase().includes(q) ||
           (j.jobTitle || "").toLowerCase().includes(q);
@@ -369,7 +376,7 @@ export default function AllJobsPage() {
             <Search size={15} style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)", pointerEvents: "none" }} />
             <input
               type="text"
-              placeholder="Search job no., customer, site…"
+              placeholder="Search job no. (M19672 or 19672), customer, site…"
               value={jobSearch}
               onChange={e => setJobSearch(e.target.value)}
               style={{
@@ -609,7 +616,8 @@ export default function AllJobsPage() {
                 <tr>
                   <th style={{ ...thBase, cursor: "default", width: "48px" }}></th>
                   {th("prefix", "Prefix")}
-                  {th("jobNumber", "Job No.")}
+                  {th("jobNumber", "Job No (Prefixed)")}
+                  {th("jobNumberUnprefixed", "Job No")}
                   {th("startDate", "Start Date")}
                   {th("jobTitle", "Title")}
                   {th("customer", "Customer")}
@@ -652,6 +660,7 @@ export default function AllJobsPage() {
                         {job.jobNumber} <ArrowRight size={13} />
                       </Link>
                     </td>
+                    <td style={{ ...tdBase, whiteSpace: "nowrap", color: "rgba(255,255,255,0.55)" }}>{job.jobNumberUnprefixed || nil}</td>
                     <td style={{ ...tdBase, whiteSpace: "nowrap" }}>{job.startDate || nil}</td>
                     <td style={tdBase}>{job.jobTitle || nil}</td>
                     <td style={tdBase}>{job.customer || nil}</td>

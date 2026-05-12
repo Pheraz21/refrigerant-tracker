@@ -1248,6 +1248,7 @@ export const db = {
     return data ? data.map((r: any) => ({
       id: r.id,
       jobNumber: r.job_number,
+      jobNumberUnprefixed: r.job_number_unprefixed ?? "",
       prefix: r.prefix ?? "",
       customer: r.customer ?? "",
       siteTitle: r.site_title ?? "",
@@ -1266,6 +1267,7 @@ export const db = {
   async upsertCrmJobs(jobs: Omit<CrmJob, "id" | "importedAt">[]): Promise<void> {
     const rows = jobs.map(j => ({
       job_number: j.jobNumber,
+      job_number_unprefixed: j.jobNumberUnprefixed || (j.jobNumber || "").replace(/^[^0-9]+/, ""),
       prefix: j.prefix ?? null,
       customer: j.customer,
       site_title: j.siteTitle,
@@ -1302,6 +1304,7 @@ export const db = {
     if (updates.jobTitle     !== undefined) d.job_title     = updates.jobTitle;
     if (updates.uprn         !== undefined) d.uprn          = updates.uprn;
     if (updates.jobNumber    !== undefined) d.job_number    = updates.jobNumber;
+    if (updates.jobNumberUnprefixed !== undefined) d.job_number_unprefixed = updates.jobNumberUnprefixed;
     await supabase.from("crm_jobs").update(d).eq("id", id);
   },
 
@@ -1310,7 +1313,8 @@ export const db = {
       .from("crm_jobs").select("*").eq("job_number", jobNumber).limit(1).single();
     if (!data) return null;
     return {
-      id: data.id, jobNumber: data.job_number, prefix: data.prefix ?? "",
+      id: data.id, jobNumber: data.job_number, jobNumberUnprefixed: data.job_number_unprefixed ?? "",
+      prefix: data.prefix ?? "",
       customer: data.customer ?? "", siteTitle: data.site_title ?? "",
       siteAddress: data.site_address ?? "", sitePostcode: data.site_postcode ?? "",
       uprn: data.uprn ?? null, rawData: data.raw_data ?? {}, importedAt: data.imported_at,
@@ -1352,6 +1356,7 @@ export const db = {
 export interface CrmJob {
   id: string;
   jobNumber: string;
+  jobNumberUnprefixed: string;
   prefix: string;
   customer: string;
   siteTitle: string;
