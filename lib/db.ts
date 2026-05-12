@@ -1241,12 +1241,26 @@ export const db = {
   },
 
   async getAllCrmJobs(): Promise<CrmJob[]> {
-    const { data } = await supabase
+    // Supabase's max_rows defaults to 1000 per request, so we paginate in parallel
+    // to fetch the full table in one round-trip-batch.
+    const pageSize = 1000;
+    const { count } = await supabase
       .from("crm_jobs")
-      .select("*")
-      .order("imported_at", { ascending: false })
-      .range(0, 49999);
-    return data ? data.map((r: any) => ({
+      .select("*", { count: "exact", head: true });
+    const total = count ?? 0;
+    if (total === 0) return [];
+
+    const pageCount = Math.ceil(total / pageSize);
+    const requests = Array.from({ length: pageCount }, (_, i) =>
+      supabase
+        .from("crm_jobs")
+        .select("*")
+        .order("imported_at", { ascending: false })
+        .range(i * pageSize, (i + 1) * pageSize - 1)
+    );
+    const results = await Promise.all(requests);
+    const data = results.flatMap(r => r.data ?? []);
+    return data.map((r: any) => ({
       id: r.id,
       jobNumber: r.job_number,
       jobNumberUnprefixed: r.job_number_unprefixed ?? "",
@@ -1262,7 +1276,7 @@ export const db = {
       category: r.category ?? "",
       faultCode: r.fault_code ?? "",
       jobTitle: r.job_title ?? ""
-    })) : [];
+    }));
   },
 
   async upsertCrmJobs(jobs: Omit<CrmJob, "id" | "importedAt">[]): Promise<void> {

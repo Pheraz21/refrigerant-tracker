@@ -35,20 +35,19 @@ function parseStartDate(s: string | null | undefined): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
-type DateFilterKey = "12m" | "30d" | "thisyear" | "all";
+type DateFilterKey = "30d" | "3m" | "6m" | "12m";
 const DATE_FILTER_OPTIONS: { key: DateFilterKey; label: string }[] = [
-  { key: "12m",      label: "Last 12 months" },
-  { key: "30d",      label: "Last 30 days" },
-  { key: "thisyear", label: "This year" },
-  { key: "all",      label: "All time" },
+  { key: "30d", label: "Last 30 days" },
+  { key: "3m",  label: "Last 3 months" },
+  { key: "6m",  label: "Last 6 months" },
+  { key: "12m", label: "Last 12 months" },
 ];
 
-function cutoffForFilter(key: DateFilterKey): Date | null {
+function cutoffForFilter(key: DateFilterKey): Date {
   const now = new Date();
-  if (key === "all") return null;
   if (key === "30d") return new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
-  if (key === "thisyear") return new Date(now.getFullYear(), 0, 1);
-  // 12m: 365 days ago
+  if (key === "3m")  return new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+  if (key === "6m")  return new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
   return new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
 }
 
@@ -278,14 +277,13 @@ export default function AllJobsPage() {
     else { setSortKey(key); setSortDir("asc"); }
   };
 
-  // Date-filtered base set — applied before sort & search
+  // Date-filtered base set — applied before sort & search.
+  // The dropdown is bounded to a max 12-month window, so the cutoff is always set.
   const dateCutoff = cutoffForFilter(dateFilter);
-  const dateFiltered = dateCutoff
-    ? jobs.filter(j => {
-        const d = parseStartDate(j.startDate);
-        return d ? d >= dateCutoff : false; // exclude jobs with unparseable/missing dates from windowed views
-      })
-    : jobs;
+  const dateFiltered = jobs.filter(j => {
+    const d = parseStartDate(j.startDate);
+    return d ? d >= dateCutoff : false; // exclude unparseable/missing start dates
+  });
 
   const sorted = [...dateFiltered].sort((a, b) => {
     if (sortKey === "jobNumber" || sortKey === "jobNumberUnprefixed") {
@@ -377,7 +375,7 @@ export default function AllJobsPage() {
         </div>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "0.9rem", margin: 0 }}>
           CRM job import — {jobs.length.toLocaleString()} jobs loaded
-          {dateFilter !== "all" && jobs.length !== dateFiltered.length && ` · ${dateFiltered.length.toLocaleString()} in selected window`}
+          {jobs.length !== dateFiltered.length && ` · ${dateFiltered.length.toLocaleString()} in selected window`}
           {jobs.length > 0 && `, ${withUprn.toLocaleString()} of ${jobs.length.toLocaleString()} have UPRNs`}
         </p>
       </div>
