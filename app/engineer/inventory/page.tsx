@@ -13,17 +13,25 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    db.getAllBottles().then(all => {
-      // Match by vehicleReg (preferred) or name-in-locationId (fallback for older bottles)
-      const vanBottles = all.filter(b =>
-        b.locationType === "van" && (
-          (user?.vehicleReg && b.vehicleReg === user.vehicleReg) ||
-          b.locationId?.toLowerCase().includes((user?.name || "").toLowerCase())
-        )
-      );
-      setBottles(vanBottles);
-      setLoading(false);
-    });
+    if (!user) return;
+    if (user.canViewStores) {
+      db.getBottlesByLocation("office").then(storesBottles => {
+        setBottles(storesBottles);
+        setLoading(false);
+      });
+    } else {
+      db.getAllBottles().then(all => {
+        // Match by vehicleReg (preferred) or name-in-locationId (fallback for older bottles)
+        const vanBottles = all.filter(b =>
+          b.locationType === "van" && (
+            (user.vehicleReg && b.vehicleReg === user.vehicleReg) ||
+            b.locationId?.toLowerCase().includes((user.name || "").toLowerCase())
+          )
+        );
+        setBottles(vanBottles);
+        setLoading(false);
+      });
+    }
   }, [user]);
 
   const printReport = () => {
@@ -68,9 +76,9 @@ export default function InventoryPage() {
               </div>
             </div>
             <div class="report-info">
-              <div class="report-title">Van Stock Report</div>
+              <div class="report-title">${user?.canViewStores ? "Stores Inventory Report" : "Van Stock Report"}</div>
               <div class="report-meta">
-                <div>Engineer: ${user?.name || "N/A"}</div>
+                ${user?.canViewStores ? "" : `<div>Engineer: ${user?.name || "N/A"}</div>`}
                 <div>Generated: ${reportDate}</div>
                 <div>Results: ${bottles.length} Bottles</div>
               </div>
@@ -102,8 +110,10 @@ export default function InventoryPage() {
     <div className={styles.container}>
       <header className={styles.header}>
         <div>
-          <h1 className={styles.name}>My Van Stock</h1>
-          <p className={styles.greeting}>Currently assigned to {user?.name || "you"}</p>
+          <h1 className={styles.name}>{user?.canViewStores ? "Stores Inventory" : "My Van Stock"}</h1>
+          <p className={styles.greeting}>
+            {user?.canViewStores ? "All bottles currently in HQ Stores" : `Currently assigned to ${user?.name || "you"}`}
+          </p>
         </div>
       </header>
 
@@ -120,8 +130,14 @@ export default function InventoryPage() {
         {!loading && bottles.length === 0 && (
           <div style={{ textAlign: "center", padding: "3rem 1rem", color: "var(--text-muted)" }}>
             <PackageSearch size={48} style={{ marginBottom: "1rem", opacity: 0.4 }} />
-            <p>No bottles currently in your van.</p>
-            <p style={{ fontSize: "0.85rem" }}>Scan a bottle to check it out to your van.</p>
+            {user?.canViewStores ? (
+              <p>No bottles currently in stores.</p>
+            ) : (
+              <>
+                <p>No bottles currently in your van.</p>
+                <p style={{ fontSize: "0.85rem" }}>Scan a bottle to check it out to your van.</p>
+              </>
+            )}
           </div>
         )}
 

@@ -1,14 +1,16 @@
 ﻿"use client";
 
-import { Home, ScanLine, History, User, PackageSearch, AlertTriangle, Bell } from "lucide-react";
+import { Home, ScanLine, History, User, PackageSearch, AlertTriangle, Bell, Warehouse } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { db } from "@/lib/db";
+import { useAuth } from "@/lib/AuthContext";
 import styles from "./layout.module.css";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { user } = useAuth();
   const [missingPhotos, setMissingPhotos] = useState<number>(0);
 
   useEffect(() => {
@@ -63,8 +65,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <span style={{marginTop: '-5px'}}>Scan</span>
         </Link>
         <Link href="/engineer/inventory" className={`${styles.navItem} ${pathname.includes("/engineer/inventory") ? styles.active : ""}`}>
-          <PackageSearch size={24} />
-          <span>My Van</span>
+          {user?.canViewStores ? <Warehouse size={24} /> : <PackageSearch size={24} />}
+          <span>{user?.canViewStores ? "Stores" : "My Van"}</span>
         </Link>
         <Link href="/engineer/profile" className={`${styles.navItem} ${pathname === "/engineer/profile" ? styles.active : ""}`}>
           <User size={24} />

@@ -16,6 +16,7 @@ export interface AppUser {
   employer: string;
   phone?: string;
   createdAt: string;
+  canViewStores?: boolean;
 }
 
 // Mapping helpers for Supabase (snake_case) to Frontend (camelCase)
@@ -24,7 +25,8 @@ const mapUser = (u: any): AppUser => ({
   availableRoles: u.available_roles || u.availableRoles || [],
   vehicleReg: u.vehicle_reg || u.vehicleReg,
   phone: u.phone_number || u.phone,
-  createdAt: u.created_at || u.createdAt
+  createdAt: u.created_at || u.createdAt,
+  canViewStores: u.can_view_stores ?? false,
 });
 
 const mapBottle = (b: any): Bottle => ({
@@ -1015,6 +1017,10 @@ export const db = {
 
   async updateUserRoles(id: string, roles: any[]): Promise<void> {
     await supabase.from('users').update({ available_roles: roles }).eq('id', id);
+  },
+
+  async setUserCanViewStores(userId: string, value: boolean): Promise<void> {
+    await supabase.from('users').update({ can_view_stores: value }).eq('id', userId);
   },
 
   async getNotifications(): Promise<any[]> {

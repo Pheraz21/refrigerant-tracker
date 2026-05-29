@@ -146,32 +146,51 @@ export default function UserManagementPage() {
                   </div>
                   {roleEditingId === u.id && (
                     <div style={{
-                      marginTop: "0.5rem", background: "rgba(0,0,0,0.2)", padding: "0.5rem", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.1)",
-                      display: "flex", gap: "1.25rem"
+                      marginTop: "0.5rem", background: "rgba(0,0,0,0.2)", padding: "0.5rem", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.1)"
                     }}>
-                      {["engineer", "office", "admin"].map(r => (
-                        <div key={r} style={{display: "flex", flexDirection: "column", gap: "0.2rem"}}>
-                          <label style={{fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "0.3rem", cursor: "pointer"}}>
+                      <div style={{display: "flex", gap: "1.25rem"}}>
+                        {["engineer", "office", "admin"].map(r => (
+                          <div key={r} style={{display: "flex", flexDirection: "column", gap: "0.2rem"}}>
+                            <label style={{fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "0.3rem", cursor: "pointer"}}>
+                              <input
+                                type="checkbox"
+                                checked={u.availableRoles.includes(r as UserRole)}
+                                onChange={() => toggleRole(u.id, r as UserRole)}
+                              />
+                              {r.charAt(0).toUpperCase() + r.slice(1)}
+                            </label>
+                            {u.availableRoles.includes(r as UserRole) && u.role !== r && (
+                              <button
+                                onClick={() => setPrimaryRole(u.id, r as UserRole)}
+                                style={{fontSize: "0.65rem", color: "var(--primary)", background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline", textAlign: "left"}}
+                              >
+                                Set primary
+                              </button>
+                            )}
+                            {u.role === r && (
+                              <span style={{fontSize: "0.65rem", color: "var(--primary)", opacity: 0.6}}>Primary</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      {u.availableRoles.includes("engineer") && (
+                        <div style={{borderTop: "1px solid rgba(255,255,255,0.08)", marginTop: "0.5rem", paddingTop: "0.5rem"}}>
+                          <label style={{fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer"}}>
                             <input
                               type="checkbox"
-                              checked={u.availableRoles.includes(r as UserRole)}
-                              onChange={() => toggleRole(u.id, r as UserRole)}
+                              checked={u.canViewStores ?? false}
+                              onChange={async () => {
+                                await db.setUserCanViewStores(u.id, !(u.canViewStores ?? false));
+                                loadUsers();
+                              }}
                             />
-                            {r.charAt(0).toUpperCase() + r.slice(1)}
+                            Stores Access
+                            <span style={{fontSize: "0.65rem", color: "var(--text-muted)"}}>
+                              (replaces My Van with Stores view)
+                            </span>
                           </label>
-                          {u.availableRoles.includes(r as UserRole) && u.role !== r && (
-                            <button
-                              onClick={() => setPrimaryRole(u.id, r as UserRole)}
-                              style={{fontSize: "0.65rem", color: "var(--primary)", background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline", textAlign: "left"}}
-                            >
-                              Set primary
-                            </button>
-                          )}
-                          {u.role === r && (
-                            <span style={{fontSize: "0.65rem", color: "var(--primary)", opacity: 0.6}}>Primary</span>
-                          )}
                         </div>
-                      ))}
+                      )}
                     </div>
                   )}
                 </td>
