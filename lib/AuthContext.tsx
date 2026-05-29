@@ -16,6 +16,7 @@ interface User {
   vehicleReg?: string;
   employer?: string;
   phone?: string;
+  canViewStores?: boolean;
 }
 
 interface AuthContextType {
@@ -176,6 +177,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       vehicleReg: dbUser.vehicleReg,
       employer: dbUser.employer,
       phone: dbUser.phone,
+      canViewStores: dbUser.canViewStores,
     };
 
     setUser(userToSet);
@@ -194,7 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { db } = await import("./db");
       const dbUser = await db.getUserById(user.id);
       if (dbUser) {
-        const updated = { ...user, name: dbUser.name, email: dbUser.email, status: dbUser.status, availableRoles: dbUser.availableRoles, role: dbUser.role, vehicleReg: dbUser.vehicleReg, employer: dbUser.employer };
+        const updated = { ...user, name: dbUser.name, email: dbUser.email, status: dbUser.status, availableRoles: dbUser.availableRoles, role: dbUser.role, vehicleReg: dbUser.vehicleReg, employer: dbUser.employer, canViewStores: dbUser.canViewStores };
         setUser(updated);
         localStorage.setItem("fgas_user", JSON.stringify(updated));
       }
