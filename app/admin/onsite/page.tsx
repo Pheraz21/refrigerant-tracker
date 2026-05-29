@@ -9,7 +9,7 @@ import { useTablePrefs } from "@/lib/useTablePrefs";
 import { ColumnCustomizer } from "@/app/components/ColumnCustomizer";
 import { DoubleScrollContainer } from "@/app/components/DoubleScrollContainer";
 
-type SortKey = "serial" | "category" | "gasType" | "currentWeight" | "initialWeight" | "locationId" | "locationChangedAt" | "supplier" | "registeredAt" | "rentalExpiryDate";
+type SortKey = "serial" | "category" | "gasType" | "currentWeight" | "initialWeight" | "locationId" | "locationChangedAt" | "supplier" | "registeredAt" | "rentalExpiryDate" | "lastEngineer";
 
 const COLUMN_DEFS = [
   { key: "serial",      label: "Serial",       required: true },
@@ -25,7 +25,8 @@ const COLUMN_DEFS = [
   { key: "poNumber",    label: "PO Number"                    },
   { key: "registered",  label: "Registered"                   },
   { key: "expiry",      label: "Expiry Date"                    },
-  { key: "onSiteSince", label: "On Site Since"                },
+  { key: "onSiteSince",    label: "On Site Since"                },
+  { key: "lastEngineer",  label: "Last Engineer"                },
 ] as const;
 
 export default function BottlesOnSitePage() {
@@ -77,7 +78,8 @@ export default function BottlesOnSitePage() {
         || b.gasType.toLowerCase().includes(q)
         || (b.locationId || "").toLowerCase().includes(q)
         || (crm?.siteTitle || "").toLowerCase().includes(q)
-        || (crm?.customer || "").toLowerCase().includes(q);
+        || (crm?.customer || "").toLowerCase().includes(q)
+        || (b.lastEngineer || "").toLowerCase().includes(q);
     })
     .filter(b => {
       if (!sinceDate) return true;
@@ -189,8 +191,9 @@ export default function BottlesOnSitePage() {
       case "poNumber":    return <th key={key} style={ns}>PO Number</th>;
       case "registered":  return <th key={key} style={s} onClick={() => handleSort("registeredAt")}>Registered <SortIcon col="registeredAt" /></th>;
       case "expiry":      return <th key={key} style={s} onClick={() => handleSort("rentalExpiryDate")}>Expiry Date <SortIcon col="rentalExpiryDate" /></th>;
-      case "onSiteSince": return <th key={key} style={s} onClick={() => handleSort("locationChangedAt")}>On Site Since <SortIcon col="locationChangedAt" /></th>;
-      default:            return null;
+      case "onSiteSince":   return <th key={key} style={s} onClick={() => handleSort("locationChangedAt")}>On Site Since <SortIcon col="locationChangedAt" /></th>;
+      case "lastEngineer":  return <th key={key} style={s} onClick={() => handleSort("lastEngineer")}>Last Engineer <SortIcon col="lastEngineer" /></th>;
+      default:              return null;
     }
   }
 
@@ -321,6 +324,8 @@ export default function BottlesOnSitePage() {
         return <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", color: b.rentalExpiryDate && new Date(b.rentalExpiryDate) < new Date() ? "#ff3366" : "var(--text-muted)", fontWeight: b.rentalExpiryDate && new Date(b.rentalExpiryDate) < new Date() ? 600 : "normal"}}>{b.rentalExpiryDate ? new Date(b.rentalExpiryDate).toLocaleDateString("en-GB") : "—"}</td>;
       case "onSiteSince":
         return <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.82rem", color: "var(--text-muted)"}}>{b.locationChangedAt ? new Date(b.locationChangedAt).toLocaleDateString("en-GB") : "—"}</td>;
+      case "lastEngineer":
+        return <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", color: b.lastEngineer ? "rgba(255,255,255,0.85)" : "var(--text-muted)"}}>{b.lastEngineer || "—"}</td>;
       default: return null;
     }
   }
