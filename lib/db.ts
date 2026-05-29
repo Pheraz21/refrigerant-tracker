@@ -677,7 +677,8 @@ export const db = {
           updates.supplier_hwcn_photo_pending = true;
         }
       } else if (finalLocType === "office") {
-        updates.status = "active"; // Reactivate when back in stores
+        updates.status = "active";
+        updates.returned_by = engineerName || "System";
       } else {
         updates.status = "active";
       }
