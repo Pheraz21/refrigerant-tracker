@@ -10,7 +10,11 @@ import styles from "./layout.module.css";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
+
+  useEffect(() => {
+    refreshUser();
+  }, []);
   const [missingPhotos, setMissingPhotos] = useState<number>(0);
 
   useEffect(() => {
