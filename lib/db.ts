@@ -659,8 +659,6 @@ export const db = {
         active_hwcn: null
       };
       
-      if (engineerName) updates.returned_by = engineerName;
-      
       if (hwcnId) {
         await supabase.from('hwcns').update({
           delivered_at: deliveredAt,
@@ -670,6 +668,8 @@ export const db = {
 
       if (finalLocType === "supplier") {
         updates.status = "returned";
+        updates.returned_at = deliveredAt;
+        updates.returned_by = engineerName || "System";
         if (supplierPhotoUrl) {
           updates.supplier_hwcn_photo_url = supplierPhotoUrl;
           updates.supplier_hwcn_photo_pending = false;

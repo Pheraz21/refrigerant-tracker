@@ -176,6 +176,7 @@ export default function ReturnedToSupplierPage() {
       case "supplier":    return mkTh(key, "Supplier", "supplier");
       case "poNumber":    return mkTh(key, "PO Number");
       case "registered":  return mkTh(key, "Registered", "registeredAt");
+      case "expiry":      return mkTh(key, "Expiry Date", "rentalExpiryDate");
       default:            return null;
     }
   }
