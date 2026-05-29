@@ -11,10 +11,12 @@ export default function InventoryPage() {
   const { user } = useAuth();
   const [bottles, setBottles] = useState<Bottle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedGas, setSelectedGas] = useState<string>("");
 
   useEffect(() => {
     if (!user) return;
     if (user.canViewStores) {
+      setSelectedGas("");
       db.getBottlesByLocation("office").then(storesBottles => {
         setBottles(storesBottles);
         setLoading(false);
@@ -106,6 +108,14 @@ export default function InventoryPage() {
     setTimeout(() => { win?.print(); }, 500);
   };
 
+  const gasTypes = user?.canViewStores
+    ? [...new Set(bottles.map(b => b.gasType))].sort()
+    : [];
+
+  const displayedBottles = selectedGas
+    ? bottles.filter(b => b.gasType === selectedGas)
+    : bottles;
+
   return (
     <div className={styles.container}>
       <header className={styles.header}>
@@ -117,10 +127,46 @@ export default function InventoryPage() {
         </div>
       </header>
 
+      {user?.canViewStores && !loading && (
+        <div style={{display: "flex", gap: "0.75rem", alignItems: "center", marginBottom: "1.25rem"}}>
+          <select
+            value={selectedGas}
+            onChange={e => setSelectedGas(e.target.value)}
+            style={{
+              flex: 1, padding: "0.6rem 0.75rem",
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.15)",
+              borderRadius: "8px",
+              color: selectedGas ? "#fff" : "rgba(255,255,255,0.4)",
+              fontSize: "0.9rem", outline: "none"
+            }}
+          >
+            <option value="">All Gas Types ({bottles.length})</option>
+            {gasTypes.map(g => (
+              <option key={g} value={g}>{g} ({bottles.filter(b => b.gasType === g).length})</option>
+            ))}
+          </select>
+          {selectedGas && (
+            <button
+              onClick={() => setSelectedGas("")}
+              style={{
+                padding: "0.6rem 1rem", background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px",
+                color: "#fff", fontSize: "0.85rem", cursor: "pointer", whiteSpace: "nowrap"
+              }}
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      )}
+
       <section className={styles.inventory}>
         <div className={styles.sectionHeader}>
           <h2>Active Bottles</h2>
-          <span className={styles.badge}>{loading ? "…" : bottles.length}</span>
+          <span className={styles.badge}>
+            {loading ? "…" : selectedGas ? `${displayedBottles.length} / ${bottles.length}` : bottles.length}
+          </span>
         </div>
 
         {loading && (
@@ -142,7 +188,7 @@ export default function InventoryPage() {
         )}
 
         <div className={styles.bottleList}>
-          {bottles.map(bottle => (
+          {displayedBottles.map(bottle => (
             <Link 
               key={bottle.serial} 
               href={`/engineer/bottle/${bottle.serial}`}
