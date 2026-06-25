@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { db, SupplierReturnGroup } from "@/lib/db";
+import { db, SupplierReturnGroup, Bottle } from "@/lib/db";
 import Link from "next/link";
-import { FileText, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { FileText, Search, ArrowUpDown, ArrowUp, ArrowDown, Camera, X } from "lucide-react";
 
 const statusTabs = [
-  { key: "all",                label: "All" },
-  { key: "awaiting_consignee", label: "Awaiting Part E" },
-  { key: "complete",           label: "Complete" },
-  { key: "supplier_return",    label: "Supplier Returns" },
-  { key: "draft",              label: "Draft" },
+  { key: "all",                  label: "All" },
+  { key: "awaiting_consignee",   label: "Awaiting Part E" },
+  { key: "complete",             label: "Complete" },
+  { key: "supplier_return",      label: "Supplier Returns From Office" },
+  { key: "direct_return",        label: "Direct To Supplier Returns" },
+  { key: "draft",                label: "Draft" },
 ];
 
 type SortKey = "id" | "serial" | "engineer" | "type" | "date" | "gasType" | "fillWeight" | "hwcnStatus";
@@ -19,25 +20,25 @@ interface UnifiedRow {
   id: string;
   serial: string;
   engineer: string;
-  type: "Office Return" | "Supplier Transfer" | "Supplier Return Note";
+  type: "Office Return" | "Supplier Transfer" | "Supplier Return Note" | "Direct Return";
   date: string;
   gasType: string;
   fillWeight: number | null;
   hwcnStatus: string;
   photoUrl?: string;
   isSupplierReturn: boolean;
+  isDirectReturn: boolean;
 }
 
 const getDigitalType = (destination: string): "Office Return" | "Supplier Transfer" =>
-  destination === "HQ-Stores" || destination === "HQ-Stores"
-    ? "Office Return"
-    : "Supplier Transfer";
+  destination === "HQ-Stores" ? "Office Return" : "Supplier Transfer";
 
 const getStatusBadge = (status: string) => {
   switch (status) {
     case "complete":           return { bg: "rgba(34,197,94,0.12)",   color: "#22c55e", label: "Complete" };
     case "awaiting_consignee": return { bg: "rgba(255,193,7,0.15)",   color: "#ffc107", label: "Awaiting Part E" };
     case "supplier_return":    return { bg: "rgba(34,197,94,0.12)",   color: "#22c55e", label: "Complete" };
+    case "direct_return":      return { bg: "rgba(168,85,247,0.12)", color: "#a855f7", label: "Complete" };
     default:                   return { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)", label: "Draft" };
   }
 };
@@ -47,27 +48,34 @@ const getTypeBadge = (type: UnifiedRow["type"]) => {
     case "Office Return":        return { bg: "rgba(0,229,255,0.1)",   color: "#00e5ff" };
     case "Supplier Transfer":    return { bg: "rgba(255,170,0,0.1)",   color: "#ffaa00" };
     case "Supplier Return Note": return { bg: "rgba(168,85,247,0.12)", color: "#a855f7" };
+    case "Direct Return":        return { bg: "rgba(255,80,80,0.1)",   color: "#ff5050" };
   }
 };
 
 export default function AllHWCNsPage() {
   const [digitalHwcns, setDigitalHwcns] = useState<any[]>([]);
   const [returnGroups, setReturnGroups] = useState<SupplierReturnGroup[]>([]);
+  const [directReturns, setDirectReturns] = useState<Bottle[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("all");
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [viewPhotoUrl, setViewPhotoUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([db.getAllHWCNs(), db.getSupplierReturnGroups()]).then(([hwcns, groups]) => {
+    Promise.all([
+      db.getAllHWCNs(),
+      db.getSupplierReturnGroups(),
+      db.getDirectEngineerReturns(),
+    ]).then(([hwcns, groups, direct]) => {
       setDigitalHwcns(hwcns);
       setReturnGroups(groups);
+      setDirectReturns(direct);
       setLoading(false);
     });
   }, []);
 
-  // Merge into unified rows
   const allRows: UnifiedRow[] = [
     ...digitalHwcns.map(h => ({
       id: h.id,
@@ -79,6 +87,7 @@ export default function AllHWCNsPage() {
       fillWeight: h.fillWeight ? Number(h.fillWeight) : null,
       hwcnStatus: h.hwcnStatus,
       isSupplierReturn: false,
+      isDirectReturn: false,
     })),
     ...returnGroups.map(g => ({
       id: g.hwcnNumber,
@@ -93,6 +102,20 @@ export default function AllHWCNsPage() {
       hwcnStatus: "supplier_return",
       photoUrl: g.photoUrl,
       isSupplierReturn: true,
+      isDirectReturn: false,
+    })),
+    ...directReturns.map(b => ({
+      id: b.serial,
+      serial: b.serial,
+      engineer: b.returnedBy || "—",
+      type: "Direct Return" as const,
+      date: b.returnedAt || b.registeredAt,
+      gasType: b.gasType || "—",
+      fillWeight: b.currentWeight ?? null,
+      hwcnStatus: "direct_return",
+      photoUrl: b.supplierHwcnPhotoUrl,
+      isSupplierReturn: false,
+      isDirectReturn: true,
     })),
   ];
 
@@ -150,6 +173,31 @@ export default function AllHWCNsPage() {
 
   return (
     <div>
+      {/* Photo modal */}
+      {viewPhotoUrl && (
+        <div
+          onClick={() => setViewPhotoUrl(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "2rem" }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ maxWidth: "800px", width: "100%", borderRadius: "12px", overflow: "hidden", boxShadow: "0 0 60px rgba(0,0,0,0.6)" }}>
+            <img src={viewPhotoUrl} alt="Supplier HWCN" style={{ width: "100%", display: "block" }} />
+            <div style={{ padding: "0.75rem 1rem", background: "rgba(20,20,30,0.95)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                <Camera size={14} /> Supplier HWCN Photo
+              </span>
+              <div style={{ display: "flex", gap: "1.25rem", alignItems: "center" }}>
+                <a href={viewPhotoUrl} target="_blank" rel="noreferrer" style={{ color: "#a855f7", fontSize: "0.85rem", textDecoration: "none", fontWeight: 600 }}>
+                  Open full size →
+                </a>
+                <button onClick={() => setViewPhotoUrl(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.5)", display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.85rem" }}>
+                  <X size={16} /> Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{ marginBottom: "2rem" }}>
         <h1 style={{ fontSize: "1.8rem", fontWeight: 700, marginBottom: "0.25rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
           <FileText size={28} /> All HWCNs
@@ -201,7 +249,7 @@ export default function AllHWCNsPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "820px" }}>
               <thead>
                 <tr style={{ background: "rgba(255,255,255,0.04)" }}>
-                  <th style={thStyle("id")} onClick={() => handleSort("id")}>Note Code <SortIcon col="id" /></th>
+                  <th style={thStyle("id")} onClick={() => handleSort("id")}>Note / Serial <SortIcon col="id" /></th>
                   <th style={thStyle("serial")} onClick={() => handleSort("serial")}>Serial(s) <SortIcon col="serial" /></th>
                   <th style={thStyle("engineer")} onClick={() => handleSort("engineer")}>Engineer <SortIcon col="engineer" /></th>
                   <th style={thStyle("type")} onClick={() => handleSort("type")}>Type <SortIcon col="type" /></th>
@@ -219,13 +267,16 @@ export default function AllHWCNsPage() {
                   return (
                     <tr
                       key={`${row.id}-${i}`}
-                      style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", cursor: "pointer" }}
+                      style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", cursor: row.isDirectReturn ? "default" : "pointer" }}
                       onClick={() => {
+                        if (row.isDirectReturn) return;
                         if (row.isSupplierReturn) window.location.href = `/admin/supplier-hwcn/${encodeURIComponent(row.id)}`;
                         else window.location.href = `/admin/hwcn/${encodeURIComponent(row.id)}`;
                       }}
+                      onMouseEnter={e => { if (!row.isDirectReturn) e.currentTarget.style.background = "rgba(255,255,255,0.02)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
                     >
-                      <td style={{ padding: "0.85rem 1rem", fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "#00e5ff", fontSize: "0.88rem" }}>{row.id}</td>
+                      <td style={{ padding: "0.85rem 1rem", fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: row.isDirectReturn ? "#a855f7" : "#00e5ff", fontSize: "0.88rem" }}>{row.id}</td>
                       <td style={{ padding: "0.85rem 1rem", fontFamily: "var(--font-geist-mono)", fontSize: "0.85rem", maxWidth: "180px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.serial}</td>
                       <td style={{ padding: "0.85rem 1rem", fontSize: "0.88rem" }}>{row.engineer}</td>
                       <td style={{ padding: "0.85rem 1rem" }}>
@@ -246,7 +297,18 @@ export default function AllHWCNsPage() {
                         </span>
                       </td>
                       <td style={{ padding: "0.85rem 1rem" }}>
-                        {row.isSupplierReturn ? (
+                        {row.isDirectReturn ? (
+                          row.photoUrl ? (
+                            <button
+                              onClick={e => { e.stopPropagation(); setViewPhotoUrl(row.photoUrl!); }}
+                              style={{ color: "#a855f7", fontSize: "0.85rem", background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: "0.3rem" }}
+                            >
+                              <Camera size={14} /> View →
+                            </button>
+                          ) : (
+                            <span style={{ color: "rgba(255,255,255,0.25)", fontSize: "0.8rem" }}>No photo</span>
+                          )
+                        ) : row.isSupplierReturn ? (
                           <Link
                             href={`/admin/supplier-hwcn/${encodeURIComponent(row.id)}`}
                             style={{ color: "#a855f7", fontSize: "0.85rem", textDecoration: "none" }}

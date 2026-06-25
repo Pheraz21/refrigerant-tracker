@@ -584,7 +584,7 @@ export default function ViewBottlePage() {
             </button>
             <button style={tabStyle("hwcns")} onClick={() => setActiveTab("hwcns")}>
               <ClipboardList size={14} style={{ display: "inline", marginRight: "0.35rem" }} />
-              HWCNs {filteredHwcns.length > 0 ? `(${filteredHwcns.length})` : ""}
+              HWCNs {(filteredHwcns.length + (bottle.supplierHwcnPhotoUrl ? 1 : 0)) > 0 ? `(${filteredHwcns.length + (bottle.supplierHwcnPhotoUrl ? 1 : 0)})` : ""}
             </button>
             <button style={tabStyle("usage")} onClick={() => setActiveTab("usage")}>
               <Tag size={14} style={{ display: "inline", marginRight: "0.35rem" }} />

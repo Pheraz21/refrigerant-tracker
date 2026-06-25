@@ -791,6 +791,16 @@ export const db = {
     });
   },
 
+  async getDirectEngineerReturns(): Promise<Bottle[]> {
+    const { data } = await supabase
+      .from('bottles')
+      .select('*')
+      .eq('status', 'returned')
+      .not('supplier_hwcn_photo_url', 'is', null)
+      .is('return_hwcn_number', null);
+    return data ? data.map(mapBottle) : [];
+  },
+
   async getHWCNsByStatus(status: string): Promise<any[]> {
     const { data } = await supabase.from('hwcns').select('*').eq('hwcn_status', status);
     return data ? data.map(mapHWCN) : [];
