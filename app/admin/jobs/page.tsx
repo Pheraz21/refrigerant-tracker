@@ -117,7 +117,49 @@ const COLUMN_DEFS = [
 
 const RECOVERY_TYPES = new Set(["recovery", "waste", "reclaim"]);
 
+function jobTypeFromPrefix(siteRef: string): string | null {
+  const prefix = (siteRef || "").split(/[-\s_]/)[0].toUpperCase();
+  if (prefix === "C") return "install";
+  if (prefix === "S") return "service";
+  if (prefix === "M") return "maintenance";
+  return null;
+}
+
 type SortKey = "jobRef" | "site" | "customer" | "gasUsed" | "reclaim" | "bottles";
+
+function groupJobEquipment(logs: UsageLog[]) {
+  const grouped = new Map<string, {
+    manufacturer: string; model: string; equipmentSerial: string;
+    totalWeight: number; dates: string[]; engineers: Set<string>;
+  }>();
+  logs.forEach(log => {
+    const eqList: any[] = (log as any).equipmentDetails || [];
+    eqList.forEach((eq: any) => {
+      const mfr = eq.manufacturer || "";
+      const mdl = eq.model || "";
+      const sn = eq.serial || "";
+      if (!mfr && !mdl && !sn) return;
+      const key = sn ? `sn:${sn.toLowerCase()}` : `mm:${mfr.toLowerCase()}|${mdl.toLowerCase()}`;
+      if (!grouped.has(key)) {
+        grouped.set(key, { manufacturer: mfr, model: mdl, equipmentSerial: sn, totalWeight: 0, dates: [], engineers: new Set() });
+      }
+      const e = grouped.get(key)!;
+      e.totalWeight += (parseFloat(String(eq.weight)) || 0);
+      if (log.date) e.dates.push(log.date);
+      if (log.engineer) e.engineers.add(log.engineer);
+    });
+  });
+  return Array.from(grouped.values()).map(e => ({
+    manufacturer: e.manufacturer,
+    model: e.model,
+    equipmentSerial: e.equipmentSerial,
+    totalWeight: e.totalWeight,
+    serviceCount: e.dates.length,
+    engineers: Array.from(e.engineers),
+    firstDate: [...e.dates].sort()[0] || "",
+    lastDate: [...e.dates].sort().reverse()[0] || "",
+  }));
+}
 
 export default function RefrigerantJobsPage() {
   const [usageLogs, setUsageLogs] = useState<UsageLog[]>([]);
@@ -132,6 +174,7 @@ export default function RefrigerantJobsPage() {
   const [dateTo, setDateTo] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<"all" | "service" | "recovery">("all");
   const [expandedJobs, setExpandedJobs] = useState<Set<string>>(new Set());
+  const [expandedJobTabs, setExpandedJobTabs] = useState<Record<string, "bottles" | "equipment">>({});
   const [sortKey, setSortKey] = useState<SortKey>("jobRef");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [customizerOpen, setCustOpen] = useState(false);
@@ -497,12 +540,13 @@ export default function RefrigerantJobsPage() {
 
     const rows = sortedLogs.map(log => {
       const isRecovery = RECOVERY_TYPES.has((log.jobType || "").toLowerCase());
+      const displayJobType = isRecovery ? log.jobType : (jobTypeFromPrefix(log.siteRef || job.siteRef) || log.jobType || "—");
       return `
         <tr>
           <td style="white-space:nowrap">${new Date(log.date).toLocaleDateString("en-GB")}</td>
           <td style="font-family:monospace;font-weight:600">${log.serial}</td>
           <td>${log.engineer || "—"}</td>
-          <td><span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:${isRecovery ? "#fff3cd" : "#d4edda"};color:${isRecovery ? "#856404" : "#155724"}">${log.jobType || "—"}</span></td>
+          <td><span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:${isRecovery ? "#fff3cd" : "#d4edda"};color:${isRecovery ? "#856404" : "#155724"}">${displayJobType}</span></td>
           <td style="text-align:right;font-weight:600;color:${isRecovery ? "#856404" : "#155724"}">${(log.weightUsed || 0).toFixed(2)} kg</td>
           <td style="text-align:right">${log.weightBefore?.toFixed(2) || "—"} kg</td>
           <td style="text-align:right">${log.weightAfter?.toFixed(2) || "—"} kg</td>
@@ -898,10 +942,31 @@ export default function RefrigerantJobsPage() {
                       </td>
                       {visibleCols.map(k => renderCell(k, job))}
                     </tr>
-                    {isExpanded && (
+                    {isExpanded && (() => {
+                      const activeTab = expandedJobTabs[job.siteRef] || "bottles";
+                      const eqGroups = groupJobEquipment(job.logs);
+                      return (
                       <tr style={{ background: "rgba(0,229,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                         <td colSpan={visibleCols.length + 1} style={{ padding: "0 0 0.75rem 3rem" }}>
-                          {job.logs.length === 0 ? (
+                          {/* Tab bar */}
+                          <div style={{ display: "flex", gap: "0.25rem", padding: "0.5rem 0 0.5rem", borderBottom: "1px solid rgba(255,255,255,0.06)", marginBottom: "0" }}>
+                            {(["bottles", "equipment"] as const).map(tab => (
+                              <button
+                                key={tab}
+                                onClick={e => { e.stopPropagation(); setExpandedJobTabs(prev => ({ ...prev, [job.siteRef]: tab })); }}
+                                style={{ padding: "0.2rem 0.7rem", borderRadius: "4px", fontSize: "0.72rem", fontWeight: 600, cursor: "pointer", border: "1px solid", transition: "all 0.15s", background: activeTab === tab ? "rgba(0,229,255,0.12)" : "transparent", borderColor: activeTab === tab ? "rgba(0,229,255,0.35)" : "rgba(255,255,255,0.1)", color: activeTab === tab ? "#00e5ff" : "rgba(255,255,255,0.4)" }}
+                              >
+                                {tab === "bottles" ? "By Bottle" : "By Equipment"}
+                                {tab === "equipment" && eqGroups.length > 0 && (
+                                  <span style={{ marginLeft: "0.3rem", background: activeTab === tab ? "rgba(0,229,255,0.2)" : "rgba(255,255,255,0.08)", padding: "0.05rem 0.3rem", borderRadius: "3px", fontSize: "0.68rem" }}>{eqGroups.length}</span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+
+                          {/* By Bottle tab */}
+                          {activeTab === "bottles" && (
+                          job.logs.length === 0 ? (
                             <div style={{ padding: "0.75rem 1rem", fontSize: "0.82rem", color: "rgba(255,255,255,0.35)", fontStyle: "italic" }}>
                               No gas log entries for this job — decommissioned equipment only.
                             </div>
@@ -922,7 +987,11 @@ export default function RefrigerantJobsPage() {
                                 const logHwcn = hwcns.find(h => h.serial === log.serial);
                                 const logReturnNote = supplierReturnGroups.find(g => g.serials.includes(log.serial));
                                 const logDirectReturn = directReturns.find(b => b.serial === log.serial && b.supplierHwcnPhotoUrl);
-                                const isRecovery = RECOVERY_TYPES.has((log.jobType || "").toLowerCase());
+                                const rawJobType = (log.jobType || "").toLowerCase();
+                                const isRecovery = RECOVERY_TYPES.has(rawJobType);
+                                const displayJobType = isRecovery
+                                  ? log.jobType
+                                  : (jobTypeFromPrefix(log.siteRef || job.siteRef) || log.jobType || "—");
                                 return (
                                   <tr key={log.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
                                     <td style={{ padding: "0.5rem 1rem", fontFamily: "var(--font-geist-mono)", color: "#00e5ff", fontWeight: 600 }}>
@@ -935,7 +1004,7 @@ export default function RefrigerantJobsPage() {
                                     </td>
                                     <td style={{ padding: "0.5rem 1rem" }}>
                                       <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "0.1rem 0.4rem", borderRadius: "3px", background: isRecovery ? "rgba(255,170,0,0.1)" : "rgba(34,197,94,0.1)", color: isRecovery ? "#ffaa00" : "#22c55e", textTransform: "capitalize" }}>
-                                        {log.jobType || "—"}
+                                        {displayJobType}
                                       </span>
                                     </td>
                                     <td style={{ padding: "0.5rem 1rem", textAlign: "right", fontWeight: 600, color: isRecovery ? "#ffaa00" : "#22c55e" }}>
@@ -983,10 +1052,64 @@ export default function RefrigerantJobsPage() {
                               })}
                             </tbody>
                           </table>
-                          )}
+                          ))}
+
+                          {/* By Equipment tab */}
+                          {activeTab === "equipment" && (
+                          eqGroups.length === 0 ? (
+                            <div style={{ padding: "0.75rem 1rem", fontSize: "0.82rem", color: "rgba(255,255,255,0.35)", fontStyle: "italic" }}>
+                              No equipment details recorded for this job.
+                            </div>
+                          ) : (
+                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+                            <thead>
+                              <tr style={{ background: "rgba(255,255,255,0.03)" }}>
+                                <th style={{ ...thBase, fontSize: "0.65rem" }}>Serial No.</th>
+                                <th style={{ ...thBase, fontSize: "0.65rem" }}>Manufacturer</th>
+                                <th style={{ ...thBase, fontSize: "0.65rem" }}>Model</th>
+                                <th style={{ ...thBase, fontSize: "0.65rem", textAlign: "center" }}>Services</th>
+                                <th style={{ ...thBase, fontSize: "0.65rem" }}>First Service</th>
+                                <th style={{ ...thBase, fontSize: "0.65rem" }}>Last Service</th>
+                                <th style={{ ...thBase, fontSize: "0.65rem", textAlign: "right" }}>Total Gas</th>
+                                <th style={{ ...thBase, fontSize: "0.65rem" }}>Engineers</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {eqGroups.map((eq, i) => (
+                                <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                                  <td style={{ padding: "0.5rem 1rem", fontFamily: "var(--font-geist-mono)", color: eq.equipmentSerial ? "#00e5ff" : "rgba(255,255,255,0.3)", fontWeight: eq.equipmentSerial ? 600 : 400 }}>
+                                    {eq.equipmentSerial || <span style={{ fontStyle: "italic" }}>No serial</span>}
+                                  </td>
+                                  <td style={{ padding: "0.5rem 1rem", color: "rgba(255,255,255,0.75)" }}>
+                                    {eq.manufacturer || <span style={{ color: "rgba(255,255,255,0.25)" }}>—</span>}
+                                  </td>
+                                  <td style={{ padding: "0.5rem 1rem", color: "rgba(255,255,255,0.75)" }}>
+                                    {eq.model || <span style={{ color: "rgba(255,255,255,0.25)" }}>—</span>}
+                                  </td>
+                                  <td style={{ padding: "0.5rem 1rem", textAlign: "center", color: "rgba(255,255,255,0.5)" }}>
+                                    {eq.serviceCount}
+                                  </td>
+                                  <td style={{ padding: "0.5rem 1rem", color: "rgba(255,255,255,0.45)", whiteSpace: "nowrap" }}>
+                                    {eq.firstDate ? new Date(eq.firstDate).toLocaleDateString("en-GB") : "—"}
+                                  </td>
+                                  <td style={{ padding: "0.5rem 1rem", color: "rgba(255,255,255,0.45)", whiteSpace: "nowrap" }}>
+                                    {eq.lastDate ? new Date(eq.lastDate).toLocaleDateString("en-GB") : "—"}
+                                  </td>
+                                  <td style={{ padding: "0.5rem 1rem", textAlign: "right", fontWeight: 600, color: eq.totalWeight > 0 ? "#22c55e" : "rgba(255,255,255,0.3)" }}>
+                                    {eq.totalWeight > 0 ? `${eq.totalWeight.toFixed(2)} kg` : "—"}
+                                  </td>
+                                  <td style={{ padding: "0.5rem 1rem", color: "rgba(255,255,255,0.5)", fontSize: "0.78rem" }}>
+                                    {eq.engineers.join(", ") || "—"}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          ))}
                         </td>
                       </tr>
-                    )}
+                      );
+                    })()}
                   </React.Fragment>
                 );
               })}

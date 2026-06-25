@@ -560,7 +560,7 @@ export const db = {
 
     const bottleUpdatePayload: any = {};
 
-    if (jobType === "service" || jobType === "install") {
+    if (jobType === "service" || jobType === "install" || jobType === "maintenance") {
       newWeight = Math.max(0, newWeight - weightChange);
       if (newWeight === 0 && (bottle.category === "new" || bottle.category === "nitrogen")) {
         newStatus = "empty";
