@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { db, Bottle, MovementLog, UsageLog } from "@/lib/db";
+import { db, Bottle, MovementLog, UsageLog, CrmJob } from "@/lib/db";
 import { ArrowLeft, Edit3, History, ArrowRight, User, Package, Calendar, MapPin, Truck, Building2, FileText, FileSpreadsheet, ClipboardList, Wrench, Tag, CheckCircle, RotateCcw, RefreshCw, Camera, ZoomIn, ZoomOut, Printer, Maximize2 } from "lucide-react";
 import Link from "next/link";
 
@@ -69,6 +69,7 @@ export default function ViewBottlePage() {
   const [resolvedRegisteredBy, setResolvedRegisteredBy] = useState<string | null>(null);
   const [selectedLifecycleIndex, setSelectedLifecycleIndex] = useState<number | null>(null);
   const [photoZoom, setPhotoZoom] = useState(1);
+  const [crmJobMap, setCrmJobMap] = useState<Map<string, CrmJob>>(new Map());
 
   const serialStr = decodeURIComponent(serial as string);
 
@@ -94,6 +95,17 @@ export default function ViewBottlePage() {
           db.getEngineerById(regBy).then(eng => {
             if (eng?.name) setResolvedRegisteredBy(eng.name);
           }).catch(() => { /* not a valid ID, leave as-is */ });
+        }
+
+        // Build a map of job-number → CRM job for enriching location displays
+        const jobRefs = new Set<string>();
+        useData.forEach(l => l.siteRef && jobRefs.add(l.siteRef));
+        if (bottleData?.locationType === "site" && bottleData.locationId) jobRefs.add(bottleData.locationId);
+        moveData.forEach(l => { if (l.to) jobRefs.add(l.to); if (l.from) jobRefs.add(l.from); });
+        if (jobRefs.size > 0) {
+          db.getCrmJobsByNumbers(Array.from(jobRefs)).then(jobs => {
+            setCrmJobMap(new Map(jobs.map(j => [j.jobNumber, j])));
+          });
         }
       });
     }
@@ -162,6 +174,7 @@ export default function ViewBottlePage() {
         engineer: l.engineer,
         qty: l.weightUsed?.toString() || "",
         notes: `Site Job: ${l.siteRef}`,
+        siteRef: l.siteRef,
         logType: 'usage'
       }))
     ];
@@ -189,7 +202,7 @@ export default function ViewBottlePage() {
       <tr>
         <td style="white-space: nowrap">${new Date(log.date).toLocaleDateString("en-GB")}</td>
         <td style="font-family: monospace; font-weight: 600">${log.siteRef || "—"}</td>
-        <td>${log.siteName || "—"}</td>
+        <td>${crmJobMap.get(log.siteRef || '')?.siteTitle || log.siteName || "—"}</td>
         <td>${log.engineer || "—"}</td>
         <td style="text-align: right; font-weight: 600; color: #e53e3e">${log.weightUsed?.toFixed(2) || "—"} kg</td>
         <td style="text-align: right">${log.weightBefore?.toFixed(2) || "—"} kg</td>
@@ -279,12 +292,16 @@ export default function ViewBottlePage() {
       const qty = (log as any).qty;
       const balance = (log as any).balance;
       const isUsage = log.action === "Gas Used" || log.action === "Gas Recovered";
+      const fromSite = log.from ? crmJobMap.get(log.from)?.siteTitle : null;
+      const toSite = log.to ? crmJobMap.get(log.to)?.siteTitle : null;
+      const fromCell = log.from ? (fromSite ? `${log.from}<br/><span style="color:#718096;font-size:8px">${fromSite}</span>` : log.from) : '—';
+      const toCell = log.to ? (toSite ? `${log.to}<br/><span style="color:#718096;font-size:8px">${toSite}</span>` : log.to) : '—';
       return `
         <tr style="${isUsage ? 'background-color: #f8fafc;' : ''}">
           <td style="white-space: nowrap; font-size: 9px;">${new Date(log.date).toLocaleDateString("en-GB")}</td>
           <td><strong style="text-transform: uppercase; font-size: 8px; color: ${isUsage ? '#2c5282' : '#2d3748'}">${log.action.replace(/_/g, " ")}</strong></td>
-          <td style="font-size: 9px;">${log.from || '—'}</td>
-          <td style="font-size: 9px;">${log.to || '—'}</td>
+          <td style="font-size: 9px;">${fromCell}</td>
+          <td style="font-size: 9px;">${toCell}</td>
           <td style="text-align: center; font-weight: bold; color: ${qty ? '#e53e3e' : '#cbd5e0'}; font-size: 10px;">${qty ? `${qty} kg` : '—'}</td>
           <td style="text-align: center; font-weight: bold; color: #2d3748; font-size: 10px;">${balance ? `${balance.toFixed(2)} kg` : '—'}</td>
           <td style="font-size: 9px;">${log.engineer}</td>
@@ -494,6 +511,11 @@ export default function ViewBottlePage() {
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--primary)", fontWeight: 700 }}>
                   {getLocationIcon(bottle.locationType)} {bottle.locationId}
                 </div>
+                {bottle.locationType === "site" && crmJobMap.get(bottle.locationId)?.siteTitle && (
+                  <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.55)", marginTop: "0.15rem", paddingLeft: "1.75rem" }}>
+                    {crmJobMap.get(bottle.locationId)!.siteTitle}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -635,10 +657,25 @@ export default function ViewBottlePage() {
                             {log.action.replace(/_/g, " ")}
                           </span>
                           <span style={{ fontSize: "0.75rem", color: "#fff", fontWeight: 600 }}>
-                            {log.from} <ArrowRight size={12} style={{ opacity: 0.3 }} /> {log.to}
+                            {log.from}
+                            {log.from && crmJobMap.get(log.from)?.siteTitle && (
+                              <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 400 }}> — {crmJobMap.get(log.from)!.siteTitle}</span>
+                            )}
+                            {" "}<ArrowRight size={12} style={{ opacity: 0.3 }} />{" "}
+                            {log.to}
+                            {log.to && crmJobMap.get(log.to)?.siteTitle && (
+                              <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 400 }}> — {crmJobMap.get(log.to)!.siteTitle}</span>
+                            )}
                           </span>
                         </div>
-                        {log.notes && <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>{log.notes}</div>}
+                        {log.notes && (
+                          <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>
+                            {log.notes}
+                            {(log as any).siteRef && crmJobMap.get((log as any).siteRef)?.siteTitle && (
+                              <span style={{ color: "rgba(255,255,255,0.3)" }}> — {crmJobMap.get((log as any).siteRef)!.siteTitle}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
                       {(log as any).qty && (
                         <div style={{
