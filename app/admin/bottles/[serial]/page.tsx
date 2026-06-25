@@ -175,6 +175,7 @@ export default function ViewBottlePage() {
         qty: l.weightUsed?.toString() || "",
         notes: `Site Job: ${l.siteRef}`,
         siteRef: l.siteRef,
+        equipmentDetails: l.equipmentDetails || null,
         logType: 'usage'
       }))
     ];
@@ -198,7 +199,20 @@ export default function ViewBottlePage() {
     const sorted = [...filteredUsageLogs].filter(l => l.jobType !== "recovery").sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const totalUsed = sorted.reduce((sum, l) => sum + (l.weightUsed || 0), 0);
 
-    const rows = sorted.map(log => `
+    const rows = sorted.map(log => {
+      const eqList: any[] = log.equipmentDetails || [];
+      const eqRow = eqList.length > 0 ? `
+        <tr style="background-color:#f0f4ff;">
+          <td colspan="7" style="padding:3px 12px 5px 22px; font-size:8px; color:#4a5568; border-bottom:1px solid #e2e8f0;">
+            ${eqList.map(eq => {
+              const name = [eq.manufacturer, eq.model].filter(Boolean).join(" ") || "Unknown unit";
+              const sn = eq.serial ? ` &nbsp;&middot;&nbsp; SN: ${eq.serial}` : "";
+              const wt = eq.weight > 0 ? ` &nbsp;&middot;&nbsp; ${Number(eq.weight).toFixed(2)} kg` : "";
+              return `<span style="margin-right:12px">${name}${sn}${wt}</span>`;
+            }).join("")}
+          </td>
+        </tr>` : "";
+      return `
       <tr>
         <td style="white-space: nowrap">${new Date(log.date).toLocaleDateString("en-GB")}</td>
         <td style="font-family: monospace; font-weight: 600">${log.siteRef || "—"}</td>
@@ -207,8 +221,8 @@ export default function ViewBottlePage() {
         <td style="text-align: right; font-weight: 600; color: #e53e3e">${log.weightUsed?.toFixed(2) || "—"} kg</td>
         <td style="text-align: right">${log.weightBefore?.toFixed(2) || "—"} kg</td>
         <td style="text-align: right">${log.weightAfter?.toFixed(2) || "—"} kg</td>
-      </tr>
-    `).join("");
+      </tr>${eqRow}`;
+    }).join("");
 
     const html = `
       <html><head><style>
@@ -291,11 +305,23 @@ export default function ViewBottlePage() {
     const rows = logs.map(log => {
       const qty = (log as any).qty;
       const balance = (log as any).balance;
+      const eqList: any[] = (log as any).equipmentDetails || [];
       const isUsage = log.action === "Gas Used" || log.action === "Gas Recovered";
       const fromSite = log.from ? crmJobMap.get(log.from)?.siteTitle : null;
       const toSite = log.to ? crmJobMap.get(log.to)?.siteTitle : null;
       const fromCell = log.from ? (fromSite ? `${log.from}<br/><span style="color:#718096;font-size:8px">${fromSite}</span>` : log.from) : '—';
       const toCell = log.to ? (toSite ? `${log.to}<br/><span style="color:#718096;font-size:8px">${toSite}</span>` : log.to) : '—';
+      const eqRow = eqList.length > 0 ? `
+        <tr style="background-color:#f0f4ff;">
+          <td colspan="7" style="padding:3px 12px 5px 22px; font-size:8px; color:#4a5568; border-bottom:1px solid #e2e8f0;">
+            ${eqList.map(eq => {
+              const name = [eq.manufacturer, eq.model].filter(Boolean).join(" ") || "Unknown unit";
+              const sn = eq.serial ? ` &nbsp;&middot;&nbsp; SN: ${eq.serial}` : "";
+              const wt = eq.weight > 0 ? ` &nbsp;&middot;&nbsp; ${Number(eq.weight).toFixed(2)} kg` : "";
+              return `<span style="margin-right:12px">${name}${sn}${wt}</span>`;
+            }).join("")}
+          </td>
+        </tr>` : "";
       return `
         <tr style="${isUsage ? 'background-color: #f8fafc;' : ''}">
           <td style="white-space: nowrap; font-size: 9px;">${new Date(log.date).toLocaleDateString("en-GB")}</td>
@@ -305,7 +331,7 @@ export default function ViewBottlePage() {
           <td style="text-align: center; font-weight: bold; color: ${qty ? '#e53e3e' : '#cbd5e0'}; font-size: 10px;">${qty ? `${qty} kg` : '—'}</td>
           <td style="text-align: center; font-weight: bold; color: #2d3748; font-size: 10px;">${balance ? `${balance.toFixed(2)} kg` : '—'}</td>
           <td style="font-size: 9px;">${log.engineer}</td>
-        </tr>
+        </tr>${eqRow}
       `;
     }).join("");
     const html = `
@@ -674,6 +700,19 @@ export default function ViewBottlePage() {
                             {(log as any).siteRef && crmJobMap.get((log as any).siteRef)?.siteTitle && (
                               <span style={{ color: "rgba(255,255,255,0.3)" }}> — {crmJobMap.get((log as any).siteRef)!.siteTitle}</span>
                             )}
+                          </div>
+                        )}
+                        {(log as any).equipmentDetails && (log as any).equipmentDetails.length > 0 && (
+                          <div style={{ marginTop: "0.3rem", display: "flex", flexDirection: "column", gap: "0.15rem" }}>
+                            {(log as any).equipmentDetails.map((eq: any, i: number) => (
+                              <div key={i} style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.35)", display: "flex", flexWrap: "wrap", gap: "0.4rem", alignItems: "center" }}>
+                                <span style={{ color: "rgba(255,255,255,0.5)", fontWeight: 500 }}>
+                                  {[eq.manufacturer, eq.model].filter(Boolean).join(" ") || "Unknown unit"}
+                                </span>
+                                {eq.serial && <span>· SN: {eq.serial}</span>}
+                                {eq.weight > 0 && <span>· {Number(eq.weight).toFixed(2)} kg</span>}
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>

@@ -72,7 +72,8 @@ const mapUsage = (u: any): UsageLog => ({
   siteAddress: u.site_address || u.siteAddress,
   weightUsed: u.weight_used || u.weightUsed,
   weightBefore: u.weight_before || u.weightBefore,
-  weightAfter: u.weight_after || u.weightAfter
+  weightAfter: u.weight_after || u.weightAfter,
+  equipmentDetails: u.equipment_details || u.equipmentDetails || null,
 });
 
 const mapHWCN = (h: any): any => ({
@@ -101,6 +102,7 @@ export interface UsageLog {
   weightUsed: number; // kg dispensed or recovered
   weightBefore: number;
   weightAfter: number;
+  equipmentDetails?: Array<{ manufacturer: string; model: string; serial: string; weight: number }> | null;
 }
 
 export interface MovementLog {

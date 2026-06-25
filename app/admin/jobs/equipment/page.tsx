@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { db, CrmJob } from "@/lib/db";
-import { Wrench, Search, ChevronDown, ChevronRight, X, Calendar, ExternalLink } from "lucide-react";
+import { Wrench, Search, ChevronDown, ChevronRight, X, Calendar, ExternalLink, Printer } from "lucide-react";
 import Link from "next/link";
 
 interface ServiceEvent {
@@ -134,6 +134,100 @@ export default function EquipmentRegisterPage() {
 
   const hasFilters = !!(search || dateFrom || dateTo);
 
+  const printEquipmentRegister = () => {
+    const reportDate = new Date().toLocaleDateString("en-GB", { dateStyle: "long" });
+    const filterDesc = [
+      search ? `Search: "${search}"` : "",
+      dateFrom ? `From: ${new Date(dateFrom).toLocaleDateString("en-GB")}` : "",
+      dateTo ? `To: ${new Date(dateTo).toLocaleDateString("en-GB")}` : "",
+    ].filter(Boolean).join(" · ") || "All equipment";
+
+    const rows = filtered.map(g => {
+      const serviceRows = g.events.map(ev => {
+        const siteName = ev.jobRef ? crmJobMap.get(ev.jobRef)?.siteTitle : null;
+        const jtColors: Record<string, string> = { service: "#155724", install: "#0c5460", recovery: "#856404", retrofit: "#4a235a", waste: "#721c24" };
+        const jtBg: Record<string, string> = { service: "#d4edda", install: "#d1ecf1", recovery: "#fff3cd", retrofit: "#e8d5f5", waste: "#f8d7da" };
+        const color = jtColors[ev.jobType] || "#555";
+        const bg = jtBg[ev.jobType] || "#f8f9fa";
+        return `
+          <tr style="background:#fafafa">
+            <td style="padding:5px 8px;font-size:9px;color:#666">${ev.date ? new Date(ev.date).toLocaleDateString("en-GB") : "—"}</td>
+            <td style="padding:5px 8px;font-size:9px;font-family:monospace;font-weight:600;color:#1a202c">${ev.jobRef || "—"}</td>
+            <td style="padding:5px 8px;font-size:9px;color:#555">${siteName || "—"}</td>
+            <td style="padding:5px 8px">
+              <span style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;background:${bg};color:${color};text-transform:capitalize">${ev.jobType || "—"}</span>
+            </td>
+            <td style="padding:5px 8px;font-size:9px;color:#555">${ev.engineer}</td>
+            <td style="padding:5px 8px;font-size:9px;text-align:right;font-weight:600;color:#155724">${ev.equipmentWeight > 0 ? ev.equipmentWeight.toFixed(2) + " kg" : "—"}</td>
+            <td style="padding:5px 8px;font-size:9px;font-family:monospace;color:#888">${ev.bottleSerial}</td>
+          </tr>`;
+      }).join("");
+
+      const displayName = [g.manufacturer, g.model].filter(Boolean).join(" ") || "Unknown unit";
+      return `
+        <div style="margin-bottom:16px;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;page-break-inside:avoid">
+          <div style="background:#f8f9fa;padding:8px 12px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <span style="font-family:monospace;font-weight:700;font-size:11px;color:#1a202c">${g.equipmentSerial || "No serial"}</span>
+              <span style="font-size:10px;color:#555;margin-left:10px">${displayName}</span>
+            </div>
+            <div style="font-size:9px;color:#888">${g.events.length} service${g.events.length !== 1 ? "s" : ""} &nbsp;·&nbsp; ${new Date(g.firstDate).toLocaleDateString("en-GB")} – ${new Date(g.lastDate).toLocaleDateString("en-GB")}</div>
+          </div>
+          <table style="width:100%;border-collapse:collapse">
+            <thead>
+              <tr style="background:#f1f3f5">
+                <th style="padding:4px 8px;font-size:8px;text-align:left;color:#888;font-weight:700;text-transform:uppercase;border-bottom:1px solid #e2e8f0">Date</th>
+                <th style="padding:4px 8px;font-size:8px;text-align:left;color:#888;font-weight:700;text-transform:uppercase;border-bottom:1px solid #e2e8f0">Job Ref</th>
+                <th style="padding:4px 8px;font-size:8px;text-align:left;color:#888;font-weight:700;text-transform:uppercase;border-bottom:1px solid #e2e8f0">Site</th>
+                <th style="padding:4px 8px;font-size:8px;text-align:left;color:#888;font-weight:700;text-transform:uppercase;border-bottom:1px solid #e2e8f0">Type</th>
+                <th style="padding:4px 8px;font-size:8px;text-align:left;color:#888;font-weight:700;text-transform:uppercase;border-bottom:1px solid #e2e8f0">Engineer</th>
+                <th style="padding:4px 8px;font-size:8px;text-align:right;color:#888;font-weight:700;text-transform:uppercase;border-bottom:1px solid #e2e8f0">Gas Qty</th>
+                <th style="padding:4px 8px;font-size:8px;text-align:left;color:#888;font-weight:700;text-transform:uppercase;border-bottom:1px solid #e2e8f0">Cylinder</th>
+              </tr>
+            </thead>
+            <tbody>${serviceRows}</tbody>
+          </table>
+        </div>`;
+    }).join("");
+
+    const html = `<!DOCTYPE html><html><head><title>Equipment Register — 21 Degrees</title>
+      <style>
+        @page { margin: 10mm; size: A4 portrait; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; color: #333; line-height: 1.4; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 12px; margin-bottom: 16px; }
+        .logo-section { display: flex; gap: 12px; align-items: flex-end; }
+        .company-info { font-size: 9px; line-height: 1.5; color: #555; }
+        .report-info { text-align: right; }
+        .report-title { font-size: 18px; font-weight: bold; text-transform: uppercase; color: #1a202c; }
+        .report-meta { font-size: 10px; color: #666; margin-top: 3px; }
+        .footer { margin-top: 20px; font-size: 8px; color: #aaa; text-align: center; border-top: 1px solid #eee; padding-top: 8px; }
+      </style></head><body>
+      <div class="header">
+        <div class="logo-section">
+          <img src="/21-degrees-logo-reports.png" style="width:90px;height:auto" />
+          <div class="company-info">
+            <strong>21 Degrees Ltd</strong><br/>
+            Unit 10, Apollo Court, Monkton Business Park<br/>
+            Hebburn, Tyne &amp; Wear, NE31 2ES &nbsp;·&nbsp; Tel: 0191 495 7224
+          </div>
+        </div>
+        <div class="report-info">
+          <div class="report-title">Equipment Register</div>
+          <div class="report-meta">Generated: ${reportDate} &nbsp;·&nbsp; Filter: ${filterDesc} &nbsp;·&nbsp; ${filtered.length} unit${filtered.length !== 1 ? "s" : ""}</div>
+        </div>
+      </div>
+      ${rows}
+      <div class="footer">Equipment Register | 21 Degrees Refrigerant Compliance System</div>
+    </body></html>`;
+
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+    setTimeout(() => win.print(), 500);
+  };
+
   const thBase: React.CSSProperties = {
     padding: "0.7rem 1rem", textAlign: "left", fontSize: "0.72rem",
     color: "rgba(255,255,255,0.5)", fontWeight: 600, textTransform: "uppercase",
@@ -209,6 +303,13 @@ export default function EquipmentRegisterPage() {
             <X size={14} /> Clear
           </button>
         )}
+        <button
+          onClick={printEquipmentRegister}
+          disabled={filtered.length === 0}
+          style={{ padding: "0.65rem 0.75rem", borderRadius: "8px", border: "1px solid rgba(255,170,0,0.25)", background: "rgba(255,170,0,0.08)", color: filtered.length === 0 ? "rgba(255,170,0,0.3)" : "#ffaa00", cursor: filtered.length === 0 ? "default" : "pointer", fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "0.35rem", alignSelf: "flex-end", fontWeight: 600 }}
+        >
+          <Printer size={15} /> Print PDF
+        </button>
       </div>
 
       <div style={{ marginBottom: "1rem", fontSize: "0.82rem", color: "var(--text-muted)" }}>
