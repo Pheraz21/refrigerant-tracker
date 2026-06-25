@@ -547,7 +547,7 @@ export const db = {
     }).eq('serial', serial);
   },
 
-  async logUsage(serial: string, jobType: string, weightChange: number, isWaste: boolean = false, producerSite?: { name: string, address: string, postcode: string }, gasType?: string, engineerName: string = "Unknown", siteRef?: string): Promise<void> {
+  async logUsage(serial: string, jobType: string, weightChange: number, isWaste: boolean = false, producerSite?: { name: string, address: string, postcode: string }, gasType?: string, engineerName: string = "Unknown", siteRef?: string, equipmentDetails?: Array<{ manufacturer: string; model: string; serial: string; weight: number }>): Promise<void> {
     const { data: bottle } = await supabase.from('bottles').select('*').eq('serial', serial).single();
     if (!bottle) return;
 
@@ -635,7 +635,8 @@ export const db = {
       weight_used: weightChange || 0,
       weight_before: parseFloat(bottle.current_weight || bottle.currentWeight || 0),
       weight_after: newWeight,
-      engineer: engineerName
+      engineer: engineerName,
+      ...(equipmentDetails && equipmentDetails.length > 0 ? { equipment_details: equipmentDetails } : {}),
     });
     
     if (logErr) console.error("Error inserting usage log:", logErr);
@@ -883,6 +884,15 @@ export const db = {
   async getAllUsageLogs(): Promise<UsageLog[]> {
     const { data } = await supabase.from('usage_logs').select('*').order('date', { ascending: false });
     return data ? data.map(mapUsage) : [];
+  },
+
+  async getUsageLogsWithEquipment(): Promise<any[]> {
+    const { data } = await supabase
+      .from('usage_logs')
+      .select('*')
+      .not('equipment_details', 'is', null)
+      .order('date', { ascending: false });
+    return data || [];
   },
 
   async getEngineers(): Promise<string[]> {

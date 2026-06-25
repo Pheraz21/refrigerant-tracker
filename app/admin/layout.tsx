@@ -28,7 +28,8 @@ import {
   Briefcase,
   UserCircle,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Wrench
 } from "lucide-react";
 
 const navGroups = [
@@ -56,6 +57,7 @@ const navGroups = [
     title: "Jobs",
     items: [
       { href: "/admin/jobs", label: "Refrigerant Jobs", icon: Briefcase },
+      { href: "/admin/jobs/equipment", label: "Equipment Register", icon: Wrench },
     ]
   },
   {
