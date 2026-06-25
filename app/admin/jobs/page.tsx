@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState, useMemo } from "react";
-import { db, UsageLog, SupplierReturnGroup, CrmJob } from "@/lib/db";
+import { db, UsageLog, SupplierReturnGroup, CrmJob, Bottle } from "@/lib/db";
 import {
   Briefcase, Search, ChevronDown, ChevronRight, Calendar, X,
   ExternalLink, Settings2, ArrowUpDown, ArrowUp, ArrowDown, Printer,
-  Upload, RefreshCw, AlertTriangle
+  Upload, RefreshCw, AlertTriangle, Camera
 } from "lucide-react";
 import Link from "next/link";
 import React from "react";
@@ -100,6 +100,7 @@ interface JobSummary {
   bottleCount: number;
   hwcns: any[];
   returnNotes: SupplierReturnGroup[];
+  directReturnBottles: Bottle[];
 }
 
 const COLUMN_DEFS = [
@@ -123,6 +124,7 @@ export default function RefrigerantJobsPage() {
   const [hwcns, setHwcns] = useState<any[]>([]);
   const [decommissions, setDecommissions] = useState<any[]>([]);
   const [supplierReturnGroups, setSupplierReturnGroups] = useState<SupplierReturnGroup[]>([]);
+  const [directReturns, setDirectReturns] = useState<Bottle[]>([]);
   const [crmMap, setCrmMap] = useState<Map<string, CrmJob>>(new Map());
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -162,16 +164,18 @@ export default function RefrigerantJobsPage() {
 
   const load = async () => {
     setLoading(true);
-    const [logs, h, decom, returnGroups] = await Promise.all([
+    const [logs, h, decom, returnGroups, dirReturns] = await Promise.all([
       db.getAllUsageLogs(),
       db.getAllHWCNs(),
       db.getAllDecommissions(),
       db.getSupplierReturnGroups(),
+      db.getDirectEngineerReturns(),
     ]);
     setUsageLogs(logs);
     setHwcns(h);
     setDecommissions(decom);
     setSupplierReturnGroups(returnGroups);
+    setDirectReturns(dirReturns);
     await loadCrmMap(logs, decom);
     setLoading(false);
   };
@@ -180,6 +184,7 @@ export default function RefrigerantJobsPage() {
 
   const jobs = useMemo<JobSummary[]>(() => {
     const grouped = new Map<string, UsageLog[]>();
+    const directReturnMap = new Map(directReturns.map(b => [b.serial, b]));
 
     usageLogs.forEach(log => {
       const key = log.siteRef || "No Job Ref";
@@ -203,6 +208,9 @@ export default function RefrigerantJobsPage() {
       const relatedReturnNotes = supplierReturnGroups.filter(g =>
         g.serials.some(s => jobSerials.has(s))
       );
+      const relatedDirectReturns = [...jobSerials]
+        .filter(s => directReturnMap.has(s))
+        .map(s => directReturnMap.get(s)!);
       const newGasKg = logs.filter(l => !RECOVERY_TYPES.has((l.jobType || "").toLowerCase())).reduce((s, l) => s + (l.weightUsed || 0), 0);
       const reclaimKg = logs.filter(l => RECOVERY_TYPES.has((l.jobType || "").toLowerCase())).reduce((s, l) => s + (l.weightUsed || 0), 0);
       return {
@@ -218,9 +226,10 @@ export default function RefrigerantJobsPage() {
         bottleCount: jobSerials.size,
         hwcns: relatedHwcns,
         returnNotes: relatedReturnNotes,
+        directReturnBottles: relatedDirectReturns,
       };
     });
-  }, [usageLogs, hwcns, decommissions, supplierReturnGroups, crmMap]);
+  }, [usageLogs, hwcns, decommissions, supplierReturnGroups, crmMap, directReturns]);
 
   const filtered = useMemo(() => {
     return jobs.filter(job => {
@@ -664,7 +673,7 @@ export default function RefrigerantJobsPage() {
           </td>
         );
       case "hwcn": {
-        const hasAny = job.hwcns.length > 0 || job.returnNotes.length > 0;
+        const hasAny = job.hwcns.length > 0 || job.returnNotes.length > 0 || job.directReturnBottles.length > 0;
         return (
           <td key={key} style={tdBase}>
             {hasAny ? (
@@ -689,6 +698,17 @@ export default function RefrigerantJobsPage() {
                     style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.25)", color: "#a855f7", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600, textDecoration: "none" }}
                   >
                     <ExternalLink size={11} /> {g.hwcnNumber}
+                  </Link>
+                ))}
+                {job.directReturnBottles.map(b => (
+                  <Link
+                    key={b.serial}
+                    href={`/admin/bottles/${encodeURIComponent(b.serial)}`}
+                    onClick={e => e.stopPropagation()}
+                    title={`Direct engineer return to supplier — HWCN photo for ${b.serial}`}
+                    style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(255,107,107,0.1)", border: "1px solid rgba(255,107,107,0.25)", color: "#ff6b6b", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600, textDecoration: "none" }}
+                  >
+                    <Camera size={11} /> {b.serial}
                   </Link>
                 ))}
               </div>
@@ -901,6 +921,7 @@ export default function RefrigerantJobsPage() {
                               {job.logs.map(log => {
                                 const logHwcn = hwcns.find(h => h.serial === log.serial);
                                 const logReturnNote = supplierReturnGroups.find(g => g.serials.includes(log.serial));
+                                const logDirectReturn = directReturns.find(b => b.serial === log.serial && b.supplierHwcnPhotoUrl);
                                 const isRecovery = RECOVERY_TYPES.has((log.jobType || "").toLowerCase());
                                 return (
                                   <tr key={log.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
@@ -943,7 +964,16 @@ export default function RefrigerantJobsPage() {
                                             <ExternalLink size={11} /> {logReturnNote.hwcnNumber}
                                           </Link>
                                         )}
-                                        {!logHwcn && !logReturnNote && (
+                                        {logDirectReturn && (
+                                          <Link
+                                            href={`/admin/bottles/${encodeURIComponent(logDirectReturn.serial)}`}
+                                            title={`Direct engineer return to supplier — HWCN photo for ${logDirectReturn.serial}`}
+                                            style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(255,107,107,0.1)", border: "1px solid rgba(255,107,107,0.25)", color: "#ff6b6b", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600, textDecoration: "none" }}
+                                          >
+                                            <Camera size={11} /> Direct Return
+                                          </Link>
+                                        )}
+                                        {!logHwcn && !logReturnNote && !logDirectReturn && (
                                           <span style={{ color: "var(--text-muted)" }}>—</span>
                                         )}
                                       </div>
