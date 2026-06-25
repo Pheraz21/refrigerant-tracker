@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db, Bottle, MovementLog, UsageLog } from "@/lib/db";
-import { ArrowLeft, Edit3, History, ArrowRight, User, Package, Calendar, MapPin, Truck, Building2, FileText, FileSpreadsheet, ClipboardList, Wrench, Tag, CheckCircle, RotateCcw, RefreshCw, Camera } from "lucide-react";
+import { ArrowLeft, Edit3, History, ArrowRight, User, Package, Calendar, MapPin, Truck, Building2, FileText, FileSpreadsheet, ClipboardList, Wrench, Tag, CheckCircle, RotateCcw, RefreshCw, Camera, ZoomIn, ZoomOut, Printer, Maximize2 } from "lucide-react";
 import Link from "next/link";
 
 type Lifecycle = { index: number; start: string; end: string | null };
@@ -68,6 +68,7 @@ export default function ViewBottlePage() {
   const [activeTab, setActiveTab] = useState("audit");
   const [resolvedRegisteredBy, setResolvedRegisteredBy] = useState<string | null>(null);
   const [selectedLifecycleIndex, setSelectedLifecycleIndex] = useState<number | null>(null);
+  const [photoZoom, setPhotoZoom] = useState(1);
 
   const serialStr = decodeURIComponent(serial as string);
 
@@ -413,6 +414,26 @@ export default function ViewBottlePage() {
     padding: "0.75rem 1rem", fontSize: "0.85rem", borderBottom: "1px solid rgba(255,255,255,0.04)",
   };
 
+  const openHwcnPhotoFullSize = () => {
+    const url = bottle!.supplierHwcnPhotoUrl!;
+    if (url.startsWith("data:")) {
+      const win = window.open("", "_blank");
+      if (!win) return;
+      win.document.write(`<!DOCTYPE html><html><head><title>Supplier HWCN — ${serialStr}</title><style>body{margin:0;background:#000}img{max-width:100%;display:block}</style></head><body><img src="${url}" /></body></html>`);
+      win.document.close();
+    } else {
+      window.open(url, "_blank");
+    }
+  };
+
+  const printHwcnPhoto = () => {
+    const url = bottle!.supplierHwcnPhotoUrl!;
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html><html><head><title>Supplier HWCN — ${serialStr}</title><style>body{margin:0;padding:0}img{width:100%;display:block}@media print{body{margin:0}}</style></head><body><img src="${url}" onload="setTimeout(function(){window.print();},300)" /></body></html>`);
+    win.document.close();
+  };
+
   return (
     <div style={{ maxWidth: "1200px" }}>
       {/* Header */}
@@ -691,21 +712,50 @@ export default function ViewBottlePage() {
                   )}
                   {bottle.supplierHwcnPhotoUrl && (
                     <div style={{ background: "rgba(168,85,247,0.05)", border: "1px solid rgba(168,85,247,0.2)", borderRadius: "10px", padding: "1.25rem" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem", fontSize: "0.9rem", fontWeight: 700, color: "#a855f7" }}>
-                        <Camera size={16} /> Supplier HWCN Photo
+                      {/* Header + controls */}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.9rem", fontWeight: 700, color: "#a855f7" }}>
+                          <Camera size={16} /> Supplier HWCN Photo
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                          {/* Zoom controls */}
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.2rem", background: "rgba(255,255,255,0.06)", borderRadius: "6px", padding: "0.2rem 0.5rem" }}>
+                            <button onClick={() => setPhotoZoom(z => Math.max(+(z - 0.25).toFixed(2), 0.5))} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", padding: "0.1rem 0.2rem", display: "flex", alignItems: "center" }}>
+                              <ZoomOut size={14} />
+                            </button>
+                            <span style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.6)", minWidth: "38px", textAlign: "center" }}>{Math.round(photoZoom * 100)}%</span>
+                            <button onClick={() => setPhotoZoom(z => Math.min(+(z + 0.25).toFixed(2), 4))} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", padding: "0.1rem 0.2rem", display: "flex", alignItems: "center" }}>
+                              <ZoomIn size={14} />
+                            </button>
+                            {photoZoom !== 1 && (
+                              <button onClick={() => setPhotoZoom(1)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.4)", padding: "0.1rem 0.3rem", fontSize: "0.72rem" }}>Reset</button>
+                            )}
+                          </div>
+                          {/* Print */}
+                          <button onClick={printHwcnPhoto} style={{ display: "flex", alignItems: "center", gap: "0.3rem", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px", padding: "0.3rem 0.7rem", color: "rgba(255,255,255,0.7)", cursor: "pointer", fontSize: "0.8rem", fontWeight: 500 }}>
+                            <Printer size={13} /> Print
+                          </button>
+                          {/* Full size */}
+                          <button onClick={openHwcnPhotoFullSize} style={{ display: "flex", alignItems: "center", gap: "0.3rem", background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.3)", borderRadius: "6px", padding: "0.3rem 0.7rem", color: "#a855f7", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600 }}>
+                            <Maximize2 size={13} /> Full size
+                          </button>
+                        </div>
                       </div>
+                      {/* Meta */}
                       {(bottle.returnedAt || bottle.returnedBy) && (
                         <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
                           {bottle.returnedAt ? `Returned ${new Date(bottle.returnedAt).toLocaleDateString("en-GB")}` : ""}
                           {bottle.returnedBy ? ` · ${bottle.returnedBy}` : ""}
                         </div>
                       )}
-                      <div style={{ borderRadius: "8px", overflow: "hidden", maxWidth: "500px", border: "1px solid rgba(168,85,247,0.15)" }}>
-                        <img src={bottle.supplierHwcnPhotoUrl} alt="Supplier HWCN" style={{ width: "100%", display: "block" }} />
+                      {/* Photo */}
+                      <div style={{ borderRadius: "8px", overflow: "auto", maxHeight: "520px", border: "1px solid rgba(168,85,247,0.15)" }}>
+                        <img
+                          src={bottle.supplierHwcnPhotoUrl}
+                          alt="Supplier HWCN"
+                          style={{ width: `${photoZoom * 100}%`, display: "block", maxWidth: "none", transition: "width 0.15s ease" }}
+                        />
                       </div>
-                      <a href={bottle.supplierHwcnPhotoUrl} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: "0.5rem", color: "#a855f7", fontSize: "0.82rem", textDecoration: "none", fontWeight: 600 }}>
-                        Open full size →
-                      </a>
                     </div>
                   )}
                 </>
