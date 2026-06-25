@@ -135,6 +135,7 @@ export default function RefrigerantJobsPage() {
   const [sortKey, setSortKey] = useState<SortKey>("jobRef");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [customizerOpen, setCustOpen] = useState(false);
+  const [viewPhoto, setViewPhoto] = useState<{ url: string; serial: string } | null>(null);
 
   // CSV import state (moved from /admin/all-jobs)
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -701,15 +702,14 @@ export default function RefrigerantJobsPage() {
                   </Link>
                 ))}
                 {job.directReturnBottles.map(b => (
-                  <Link
+                  <button
                     key={b.serial}
-                    href={`/admin/bottles/${encodeURIComponent(b.serial)}`}
-                    onClick={e => e.stopPropagation()}
-                    title={`Direct engineer return to supplier — HWCN photo for ${b.serial}`}
-                    style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(255,107,107,0.1)", border: "1px solid rgba(255,107,107,0.25)", color: "#ff6b6b", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600, textDecoration: "none" }}
+                    onClick={e => { e.stopPropagation(); setViewPhoto({ url: b.supplierHwcnPhotoUrl!, serial: b.serial }); }}
+                    title={`Direct engineer return to supplier — view HWCN photo for ${b.serial}`}
+                    style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(255,107,107,0.1)", border: "1px solid rgba(255,107,107,0.25)", color: "#ff6b6b", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer" }}
                   >
                     <Camera size={11} /> {b.serial}
-                  </Link>
+                  </button>
                 ))}
               </div>
             ) : <span style={{ color: "var(--text-muted)" }}>—</span>}
@@ -965,13 +965,13 @@ export default function RefrigerantJobsPage() {
                                           </Link>
                                         )}
                                         {logDirectReturn && (
-                                          <Link
-                                            href={`/admin/bottles/${encodeURIComponent(logDirectReturn.serial)}`}
-                                            title={`Direct engineer return to supplier — HWCN photo for ${logDirectReturn.serial}`}
-                                            style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(255,107,107,0.1)", border: "1px solid rgba(255,107,107,0.25)", color: "#ff6b6b", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600, textDecoration: "none" }}
+                                          <button
+                                            onClick={e => { e.stopPropagation(); setViewPhoto({ url: logDirectReturn.supplierHwcnPhotoUrl!, serial: logDirectReturn.serial }); }}
+                                            title={`Direct engineer return to supplier — view HWCN photo for ${logDirectReturn.serial}`}
+                                            style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(255,107,107,0.1)", border: "1px solid rgba(255,107,107,0.25)", color: "#ff6b6b", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer" }}
                                           >
                                             <Camera size={11} /> Direct Return
-                                          </Link>
+                                          </button>
                                         )}
                                         {!logHwcn && !logReturnNote && !logDirectReturn && (
                                           <span style={{ color: "var(--text-muted)" }}>—</span>
@@ -1005,6 +1005,49 @@ export default function RefrigerantJobsPage() {
         onMove={moveCol}
         onReset={reset}
       />
+
+      {/* Direct return HWCN photo modal */}
+      {viewPhoto && (
+        <div
+          onClick={() => setViewPhoto(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300, cursor: "pointer" }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ maxWidth: "92vw", maxHeight: "92vh", display: "flex", flexDirection: "column", gap: "0.75rem", alignItems: "center" }}>
+            <p style={{ margin: 0, color: "rgba(255,255,255,0.5)", fontSize: "0.8rem", fontFamily: "var(--font-geist-mono)" }}>
+              Direct supplier return — {viewPhoto.serial}
+            </p>
+            <img
+              src={viewPhoto.url}
+              alt={`HWCN photo — ${viewPhoto.serial}`}
+              style={{ maxWidth: "100%", maxHeight: "78vh", objectFit: "contain", borderRadius: "8px", display: "block" }}
+            />
+            <div style={{ display: "flex", gap: "0.75rem" }}>
+              <button
+                onClick={() => {
+                  const url = viewPhoto.url;
+                  if (url.startsWith("data:")) {
+                    const win = window.open("", "_blank");
+                    if (!win) return;
+                    win.document.write(`<!DOCTYPE html><html><head><title>HWCN — ${viewPhoto.serial}</title><style>body{margin:0;background:#000}img{max-width:100%;display:block}</style></head><body><img src="${url}" /></body></html>`);
+                    win.document.close();
+                  } else {
+                    window.open(url, "_blank");
+                  }
+                }}
+                style={{ padding: "0.5rem 1.1rem", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.8)", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem" }}
+              >
+                Open full size
+              </button>
+              <button
+                onClick={() => setViewPhoto(null)}
+                style={{ padding: "0.5rem 1.1rem", background: "rgba(255,107,107,0.1)", border: "1px solid rgba(255,107,107,0.25)", color: "#ff6b6b", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem" }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* CSV import preview modal */}
       {preview && (
