@@ -8,6 +8,17 @@ import Link from "next/link";
 import { db, Bottle } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { compressImage } from "@/lib/utils";
+import { supabase } from "@/lib/supabaseClient";
+
+async function uploadHwcnPhotoToStorage(base64: string, serial: string): Promise<string> {
+  const res = await fetch(base64);
+  const blob = await res.blob();
+  const path = `supplier-returns/${serial}-${Date.now()}.jpg`;
+  const { error } = await supabase.storage.from("hwcn-photos").upload(path, blob, { contentType: "image/jpeg" });
+  if (error) throw error;
+  const { data } = supabase.storage.from("hwcn-photos").getPublicUrl(path);
+  return data.publicUrl;
+}
 
 export default function BottleActionHub() {
   const router = useRouter();
@@ -355,7 +366,14 @@ export default function BottleActionHub() {
             disabled={!supplierPhoto || loading}
             onClick={async () => {
               setLoading(true);
-              await db.completeTransit(bottle.serial, supplierPhoto || "/mock-url-uploaded.jpg");
+              try {
+                const photoUrl = await uploadHwcnPhotoToStorage(supplierPhoto!, bottle.serial);
+                await db.completeTransit(bottle.serial, photoUrl);
+              } catch (err) {
+                console.error("HWCN photo upload failed:", err);
+                setLoading(false);
+                return;
+              }
               router.push('/engineer');
             }}
             style={{width: '100%', background: 'var(--error)', color: '#fff'}}
@@ -443,7 +461,14 @@ export default function BottleActionHub() {
                     style={{background: 'var(--warning)', color: '#000', margin: 0, flex: 1}}
                     onClick={async () => {
                       setLoading(true);
-                      await db.completeTransit(serial, supplierPhoto || "/mock-url.jpg", user?.name, isAltBranch ? altBranchName : undefined);
+                      try {
+                        const photoUrl = await uploadHwcnPhotoToStorage(supplierPhoto!, bottle.serial);
+                        await db.completeTransit(serial, photoUrl, user?.name, isAltBranch ? altBranchName : undefined);
+                      } catch (err) {
+                        console.error("HWCN photo upload failed:", err);
+                        setLoading(false);
+                        return;
+                      }
                       router.push('/engineer');
                     }}
                   >

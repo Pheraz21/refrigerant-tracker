@@ -518,15 +518,22 @@ export const db = {
         action = "handover";
       }
 
+      let logVehicleReg: string | null = null;
+      if (locationType === "van" && engineerName) {
+        const { data: engData } = await supabase.from('users').select('vehicle_reg').eq('name', engineerName).single();
+        logVehicleReg = engData?.vehicle_reg || null;
+      }
+
       const { error: logError } = await supabase.from('movement_logs').insert({
         serial,
         action: action as any,
         from_location: from || "Unknown",
         to_location: locationId,
         engineer: engineerName || "system",
-        notes: activeHWCN 
-          ? `Consignment ${activeHWCN} generated. Destination: ${intendedDestination}.` 
-          : (action === "handover" ? "Cylinder handed over to another engineer." : (intendedDestination ? `In Transit to ${intendedDestination}` : undefined))
+        notes: activeHWCN
+          ? `Consignment ${activeHWCN} generated. Destination: ${intendedDestination}.`
+          : (action === "handover" ? "Cylinder handed over to another engineer." : (intendedDestination ? `In Transit to ${intendedDestination}` : undefined)),
+        ...(logVehicleReg ? { vehicle_reg: logVehicleReg } : {})
       });
       if (logError) console.error(`Error logging movement for ${serial}:`, logError);
     }
@@ -643,6 +650,15 @@ export const db = {
       throw fetchError;
     }
 
+    // Late photo upload: bottle already returned but photo was pending
+    if (bottle && !bottle.intended_destination && bottle.supplier_hwcn_photo_pending && supplierPhotoUrl) {
+      await supabase.from('bottles').update({
+        supplier_hwcn_photo_url: supplierPhotoUrl,
+        supplier_hwcn_photo_pending: false,
+      }).eq('serial', serial);
+      return;
+    }
+
     if (bottle && (bottle.intended_destination || bottle.intendedDestination)) {
       const deliveredAt = new Date().toISOString();
       const finalDest = altDestination || bottle.intended_destination || bottle.intendedDestination;
@@ -734,7 +750,8 @@ export const db = {
       from_location: "HQ-Stores",
       to_location: `${engineerName} - Van`,
       engineer: engineerName,
-      notes: "Signed out from stores"
+      notes: "Signed out from stores",
+      ...(vehicleReg ? { vehicle_reg: vehicleReg } : {})
     });
   },
 
@@ -1092,7 +1109,8 @@ export const db = {
           from_location: `Van (${oldReg})`,
           to_location: `Van (${newReg})`,
           engineer: user.name,
-          notes: `Cylinder transferred to new vehicle ${newReg}.`
+          notes: `Cylinder transferred to new vehicle ${newReg}.`,
+          vehicle_reg: newReg
         });
       }
     }

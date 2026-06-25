@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db, Bottle, MovementLog, UsageLog } from "@/lib/db";
-import { ArrowLeft, Edit3, History, ArrowRight, User, Package, Calendar, MapPin, Truck, Building2, FileText, FileSpreadsheet, ClipboardList, Wrench, Tag, CheckCircle, RotateCcw, RefreshCw } from "lucide-react";
+import { ArrowLeft, Edit3, History, ArrowRight, User, Package, Calendar, MapPin, Truck, Building2, FileText, FileSpreadsheet, ClipboardList, Wrench, Tag, CheckCircle, RotateCcw, RefreshCw, Camera } from "lucide-react";
 import Link from "next/link";
 
 type Lifecycle = { index: number; start: string; end: string | null };
@@ -631,6 +631,9 @@ export default function ViewBottlePage() {
                       )}
                       <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", display: "flex", alignItems: "center", gap: "0.4rem" }}>
                         <User size={12} style={{ opacity: 0.5 }} /> {log.engineer}
+                        {log.vehicleReg && (
+                          <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.75rem" }}>· {log.vehicleReg}</span>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -641,48 +644,71 @@ export default function ViewBottlePage() {
 
           {/* HWCNs */}
           {activeTab === "hwcns" && (
-            <div>
-              {filteredHwcns.length === 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+              {filteredHwcns.length === 0 && !bottle.supplierHwcnPhotoUrl ? (
                 emptyState(<ClipboardList size={40} style={{ opacity: 0.2 }} />, "No HWCNs recorded for this cylinder.")
               ) : (
-                <div style={{ borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                    <thead>
-                      <tr style={{ background: "rgba(255,255,255,0.04)" }}>
-                        <th style={tableTh}>HWCN ID</th>
-                        <th style={tableTh}>Status</th>
-                        <th style={tableTh}>Type</th>
-                        <th style={tableTh}>Date</th>
-                        <th style={tableTh}>Engineer</th>
-                        <th style={tableTh}>Destination</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredHwcns.map(h => {
-                        const badge = getHwcnStatusBadge(h.hwcnStatus);
-                        const type = getHwcnType(h.destination || "");
-                        return (
-                          <tr key={h.id} style={{ cursor: "pointer" }}
-                            onClick={() => router.push(`/admin/hwcn/${encodeURIComponent(h.id)}`)}
-                            onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
-                            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                          >
-                            <td style={{ ...tableTd, fontFamily: "var(--font-geist-mono)", color: "#00e5ff", fontWeight: 700 }}>{h.id}</td>
-                            <td style={tableTd}>
-                              <span style={{ background: badge.bg, color: badge.color, padding: "0.2rem 0.6rem", borderRadius: "20px", fontSize: "0.75rem", fontWeight: 600 }}>
-                                {badge.label}
-                              </span>
-                            </td>
-                            <td style={{ ...tableTd, fontSize: "0.8rem", color: type === "Office Return" ? "#00e5ff" : "#ffaa00" }}>{type}</td>
-                            <td style={{ ...tableTd, color: "var(--text-muted)" }}>{h.date ? new Date(h.date).toLocaleDateString("en-GB") : "—"}</td>
-                            <td style={tableTd}>{h.engineer || "—"}</td>
-                            <td style={{ ...tableTd, color: "var(--text-muted)" }}>{h.destination || "—"}</td>
+                <>
+                  {filteredHwcns.length > 0 && (
+                    <div style={{ borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                        <thead>
+                          <tr style={{ background: "rgba(255,255,255,0.04)" }}>
+                            <th style={tableTh}>HWCN ID</th>
+                            <th style={tableTh}>Status</th>
+                            <th style={tableTh}>Type</th>
+                            <th style={tableTh}>Date</th>
+                            <th style={tableTh}>Engineer</th>
+                            <th style={tableTh}>Destination</th>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                        </thead>
+                        <tbody>
+                          {filteredHwcns.map(h => {
+                            const badge = getHwcnStatusBadge(h.hwcnStatus);
+                            const type = getHwcnType(h.destination || "");
+                            return (
+                              <tr key={h.id} style={{ cursor: "pointer" }}
+                                onClick={() => router.push(`/admin/hwcn/${encodeURIComponent(h.id)}`)}
+                                onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
+                                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                              >
+                                <td style={{ ...tableTd, fontFamily: "var(--font-geist-mono)", color: "#00e5ff", fontWeight: 700 }}>{h.id}</td>
+                                <td style={tableTd}>
+                                  <span style={{ background: badge.bg, color: badge.color, padding: "0.2rem 0.6rem", borderRadius: "20px", fontSize: "0.75rem", fontWeight: 600 }}>
+                                    {badge.label}
+                                  </span>
+                                </td>
+                                <td style={{ ...tableTd, fontSize: "0.8rem", color: type === "Office Return" ? "#00e5ff" : "#ffaa00" }}>{type}</td>
+                                <td style={{ ...tableTd, color: "var(--text-muted)" }}>{h.date ? new Date(h.date).toLocaleDateString("en-GB") : "—"}</td>
+                                <td style={tableTd}>{h.engineer || "—"}</td>
+                                <td style={{ ...tableTd, color: "var(--text-muted)" }}>{h.destination || "—"}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  {bottle.supplierHwcnPhotoUrl && (
+                    <div style={{ background: "rgba(168,85,247,0.05)", border: "1px solid rgba(168,85,247,0.2)", borderRadius: "10px", padding: "1.25rem" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem", fontSize: "0.9rem", fontWeight: 700, color: "#a855f7" }}>
+                        <Camera size={16} /> Supplier HWCN Photo
+                      </div>
+                      {(bottle.returnedAt || bottle.returnedBy) && (
+                        <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
+                          {bottle.returnedAt ? `Returned ${new Date(bottle.returnedAt).toLocaleDateString("en-GB")}` : ""}
+                          {bottle.returnedBy ? ` · ${bottle.returnedBy}` : ""}
+                        </div>
+                      )}
+                      <div style={{ borderRadius: "8px", overflow: "hidden", maxWidth: "500px", border: "1px solid rgba(168,85,247,0.15)" }}>
+                        <img src={bottle.supplierHwcnPhotoUrl} alt="Supplier HWCN" style={{ width: "100%", display: "block" }} />
+                      </div>
+                      <a href={bottle.supplierHwcnPhotoUrl} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: "0.5rem", color: "#a855f7", fontSize: "0.82rem", textDecoration: "none", fontWeight: 600 }}>
+                        Open full size →
+                      </a>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
