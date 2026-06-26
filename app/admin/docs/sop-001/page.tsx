@@ -52,7 +52,6 @@ export default function Sop001Page() {
           #sop-document .footer { border-top: 1px solid #ccc; margin-top: 3rem; padding-top: 0.75rem; font-size: 0.78rem; color: #777; text-align: center; }
           #sop-document .control-table td { background: #fafafa; }
           #sop-document .control-table td:first-child { width: 35%; font-weight: 600; color: #333; }
-          #sop-document code { font-family: monospace; background: #f0f0f0; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.85rem; }
         `}</style>
 
         {/* Header */}
@@ -71,17 +70,16 @@ export default function Sop001Page() {
               <tr><td>Document Number</td><td>SOP-001</td><td>Version</td><td>1.0</td></tr>
               <tr><td>Issue Date</td><td>26 June 2026</td><td>Next Review</td><td>26 June 2027</td></tr>
               <tr><td>Author</td><td>_________________________</td><td>Approved By</td><td>_________________________</td></tr>
-              <tr><td>REFCOM Registration</td><td>REF1010728</td><td>System</td><td>21 Degrees F-Gas Tracker Pro</td></tr>
+              <tr><td>F-Gas Certification No.</td><td>REF1010728</td><td>System</td><td>21 Degrees F-Gas Tracker Pro</td></tr>
             </tbody>
           </table>
         </div>
 
         {/* 1 */}
         <h2>1. Purpose and Scope</h2>
-        <p>This procedure describes the controlled process by which <strong>21 Degrees Ltd</strong> receives new virgin refrigerant cylinders from suppliers, allocates them to certified engineers, records their use on site, and manages their return when empty or partially depleted. It establishes the audit trail maintained within the <strong>F-Gas Tracker Pro</strong> system to demonstrate compliance with UK F-Gas regulations.</p>
-        <p>21 Degrees Ltd utilises a bespoke <strong>F-Gas Tracker Pro</strong> application for the management of all refrigerant cylinders. This system consists of a <strong>web portal</strong> (used by office staff and administrators to register cylinders, manage movements, process returns and generate compliance reports) and a <strong>mobile application</strong> (used by field engineers on site to record bottle movements, log usage, capture equipment details, and manage the HWCN process). All records are stored centrally and are available for audit at any time.</p>
-        <p><strong>Scope:</strong> Applies to all refrigerant cylinders categorised as <strong>New</strong> (virgin gas) within the F-Gas Tracker Pro system. This includes all hydrofluorocarbons (HFCs), hydrochlorofluorocarbons (HCFCs), and other fluorinated gases purchased for use in refrigeration and air conditioning equipment.</p>
-        <p>This procedure does <strong>not</strong> cover recovery cylinders (see SOP-002).</p>
+        <p>This procedure describes the controlled process by which <strong>21 Degrees Ltd</strong> procures, receives, allocates, uses, and returns new virgin refrigerant cylinders. It establishes the audit trail that demonstrates compliance with UK F-Gas regulations throughout the full cylinder lifecycle.</p>
+        <p>21 Degrees Ltd utilises a bespoke <strong>F-Gas Tracker Pro</strong> application for the management of all refrigerant cylinders. This system consists of a <strong>web portal</strong> used by office staff and administrators, and a <strong>mobile application</strong> used by field engineers on site. All records are stored centrally and are available for audit at any time.</p>
+        <p><strong>Scope:</strong> Applies to all new (virgin gas) refrigerant cylinders including hydrofluorocarbons (HFCs), hydrochlorofluorocarbons (HCFCs), and other fluorinated gases purchased for use in refrigeration and air conditioning equipment. Recovery cylinders are covered under SOP-002.</p>
 
         {/* 2 */}
         <h2>2. Regulatory References</h2>
@@ -89,7 +87,7 @@ export default function Sop001Page() {
           <thead><tr><th>Reference</th><th>Description</th></tr></thead>
           <tbody>
             <tr><td>The Fluorinated Greenhouse Gases Regulations 2015 (SI 2015/310)</td><td>UK implementing legislation for F-Gas control; operator record-keeping obligations</td></tr>
-            <tr><td>Regulation (EU) No 517/2014 (retained in UK law)</td><td>F-Gas Regulation requiring records of quantities of F-Gas placed on market, used, recovered and destroyed</td></tr>
+            <tr><td>Regulation (EU) No 517/2014 (retained in UK law)</td><td>F-Gas Regulation requiring records of quantities used, recovered and destroyed</td></tr>
             <tr><td>BS EN 378</td><td>Safety and environmental requirements for refrigerating systems</td></tr>
             <tr><td>REFCOM Code of Practice</td><td>Register of Companies Competent to Handle Refrigerants — operational standards for registered contractors</td></tr>
             <tr><td>Environment Act 1995</td><td>Reporting obligations for fluorinated gases to the Environment Agency</td></tr>
@@ -97,100 +95,71 @@ export default function Sop001Page() {
         </table>
 
         {/* 3 */}
-        <h2>3. Roles and Responsibilities</h2>
+        <h2>3. Procurement</h2>
+        <p>All refrigerant cylinder purchases are initiated through <strong>Clik4</strong>, the company's CRM system. Purchase orders are raised within Clik4 and emailed directly to the relevant supplier. The purchase order number is recorded in F-Gas Tracker Pro when the cylinder is registered on receipt, maintaining a continuous chain from procurement through to disposal.</p>
+        <p>No refrigerant cylinder may enter service without a corresponding purchase order reference recorded in the system.</p>
+
+        {/* 4 */}
+        <h2>4. Roles and Responsibilities</h2>
         <table>
           <thead><tr><th>Role</th><th>Responsibility</th></tr></thead>
           <tbody>
-            <tr><td>Office / Admin</td><td>Register new cylinders on receipt; process returns to supplier; maintain supplier and PO records in the system</td></tr>
-            <tr><td>Engineer</td><td>Use the F-Gas Tracker Pro mobile application to: register new bottles upon receipt; record all bottle movements (including van loading, site delivery and returns); record all on-site usage accurately and promptly with weight before and after; capture equipment details (manufacturer, model, serial number) at every usage event; and return cylinders to the supplier once usage is complete. Engineers must not handle refrigerant without logging the event in the system.</td></tr>
-            <tr><td>Office Manager / Director</td><td>Approve this procedure; ensure all engineers hold valid F-Gas qualifications before handling refrigerant</td></tr>
+            <tr><td>Office / Admin</td><td>Raise purchase orders in Clik4; register cylinders received at HQ into F-Gas Tracker Pro; record van allocations; process returns to supplier; maintain supplier records</td></tr>
+            <tr><td>Engineer</td><td>Use the F-Gas Tracker Pro mobile application to: register new bottles upon direct collection from supplier; record all bottle movements (van loading, site delivery and returns); record all on-site usage accurately and promptly; capture equipment details (manufacturer, model, serial number) at every usage event; and return cylinders to the supplier once usage is complete. Engineers must not handle refrigerant without logging the event in the system.</td></tr>
+            <tr><td>Office Manager / Director</td><td>Approve this procedure; ensure all engineers hold valid F-Gas qualifications before handling refrigerant; maintain F-Gas certification REF1010728</td></tr>
           </tbody>
         </table>
-        <p>All engineers handling F-Gas must hold a current, relevant <strong>F-Gas qualification</strong> (Category I or appropriate category) and be employed by REFCOM-registered company <strong>REF1010728</strong>.</p>
+        <p>All engineers handling F-Gas must hold a current, relevant <strong>F-Gas qualification</strong> (Category I or appropriate category) and work under a company holding F-Gas certification <strong>REF1010728</strong>.</p>
 
-        {/* 4 */}
-        <h2>4. Procedure</h2>
+        {/* 5 */}
+        <h2>5. Procedure</h2>
 
-        <h3>4.1 Cylinder Receipt and Registration</h3>
-        <p>When a new refrigerant cylinder is received from a supplier:</p>
-        <ol>
-          <li>Inspect the cylinder physically — check for damage, correct labelling, and that the weight label matches the delivery note.</li>
-          <li>Log into the <strong>F-Gas Tracker Pro</strong> admin panel and navigate to <strong>Register Cylinder</strong> (or use <strong>Bulk Receive</strong> for multiple cylinders).</li>
-          <li>Enter the following mandatory fields:</li>
-        </ol>
+        <h3>5.1 Cylinder Receipt and Registration</h3>
+        <p>New refrigerant cylinders enter 21 Degrees Ltd's possession by one of two routes:</p>
+
+        <p><strong>Route A — Delivery to HQ Stores:</strong> Where a cylinder is delivered to Unit 10, Apollo Court, Hebburn, office staff inspect the cylinder on receipt (checking for damage, correct labelling, and that the weight matches the delivery note) and register it in F-Gas Tracker Pro. The cylinder is assigned to Stores and becomes available for allocation to engineers.</p>
+
+        <p><strong>Route B — Direct Collection from Supplier:</strong> Where an engineer collects a cylinder directly from a supplier — for example when a specific gas type is needed immediately — the engineer registers the bottle in the F-Gas Tracker Pro mobile application at the point of collection. The same information is recorded as Route A.</p>
+
+        <p>In both cases, the following information is recorded at registration:</p>
         <table>
           <thead><tr><th>Field</th><th>Description</th><th>Example</th></tr></thead>
           <tbody>
-            <tr><td>Serial Number</td><td>Unique cylinder identifier from the label</td><td><code>8849201A</code></td></tr>
-            <tr><td>Category</td><td>Select <strong>New</strong></td><td>New</td></tr>
-            <tr><td>Gas Type</td><td>Select from catalogue (e.g. R410A, R32, R134a)</td><td><code>R410A</code></td></tr>
-            <tr><td>Initial Weight</td><td>Full weight in kg as shown on cylinder label</td><td>12.00 kg</td></tr>
+            <tr><td>Serial Number</td><td>Unique cylinder identifier from the label</td><td>8849201A</td></tr>
+            <tr><td>Gas Type</td><td>Refrigerant type</td><td>R410A</td></tr>
+            <tr><td>Initial Weight (kg)</td><td>Full weight as shown on cylinder label</td><td>12.00 kg</td></tr>
             <tr><td>Supplier</td><td>Supplier name</td><td>A-Gas</td></tr>
-            <tr><td>PO Number</td><td>Purchase order reference</td><td>PO-2026-0441</td></tr>
-            <tr><td>Rental Expiry (if applicable)</td><td>Date rental agreement expires</td><td>31/12/2026</td></tr>
+            <tr><td>Purchase Order Number</td><td>PO reference from Clik4</td><td>PO-2026-0441</td></tr>
+            <tr><td>Rental Expiry Date (if applicable)</td><td>Date the rental agreement expires</td><td>31/12/2026</td></tr>
           </tbody>
         </table>
-        <ol start={4}>
-          <li>The system creates a permanent cylinder record including the registration date and time, the staff member who registered it, gas type, initial weight, supplier and PO number. The cylinder is assigned to Stores and an entry is added to the permanent audit log.</li>
-          <li>The cylinder is now tracked in the system and visible in the <strong>Stores Inventory</strong>.</li>
-        </ol>
+        <p>The system creates a permanent cylinder record and an entry in the audit log at the time of registration.</p>
 
-        <h3>4.2 Allocation to Engineer's Van</h3>
-        <p>When a cylinder is to be issued to a field engineer:</p>
-        <ol>
-          <li>In the admin panel, locate the cylinder by serial number.</li>
-          <li>Use the <strong>Move Cylinder</strong> function to change its location.</li>
-          <li>Enter the following fields:</li>
-        </ol>
-        <table>
-          <thead><tr><th>Field</th><th>Description</th></tr></thead>
-          <tbody>
-            <tr><td>New Location Type</td><td>Van</td></tr>
-            <tr><td>Engineer</td><td>Select the receiving engineer by name</td></tr>
-            <tr><td>Vehicle Registration</td><td>The van registration plate (e.g. VA68 LNE)</td></tr>
-          </tbody>
-        </table>
-        <ol start={4}>
-          <li>The system records the engineer's van as the new location, saves the vehicle registration plate against the cylinder, and creates a permanent movement log entry showing the engineer's name, vehicle registration, previous location, new location, and date/time of the move.</li>
-          <li>The cylinder now appears in the engineer's <strong>Van Inventory</strong> in the mobile app.</li>
-        </ol>
-        <blockquote><strong>Control:</strong> Only one engineer's van is associated with each cylinder at any time. If a cylinder is transferred between vans, a movement log entry is created recording both parties and the date/time of the handover.</blockquote>
+        <h3>5.2 Allocation to Engineer's Van</h3>
+        <p>When a cylinder is to be issued from Stores to a field engineer, this allocation is recorded in F-Gas Tracker Pro by office staff. The engineer's name and vehicle registration plate are recorded against the cylinder, and a movement log entry is created. The cylinder then appears in the engineer's Van Inventory on the mobile app.</p>
+        <blockquote><strong>Control:</strong> Only one engineer's van is associated with each cylinder at any time. If a cylinder is transferred between vans, both parties and the date/time of the handover are recorded in the movement log.</blockquote>
 
-        <h3>4.3 On-Site Usage</h3>
-        <p>When refrigerant is dispensed to a customer's system on site:</p>
-        <ol>
-          <li>The engineer navigates to the cylinder in the mobile app and selects <strong>Log Usage</strong>.</li>
-          <li>The engineer enters:</li>
-        </ol>
+        <h3>5.3 On-Site Usage</h3>
+        <p>When refrigerant is dispensed to a customer's system on site, the engineer records the usage in the F-Gas Tracker Pro mobile application before leaving site. The following information is captured:</p>
         <table>
           <thead><tr><th>Field</th><th>Description</th><th>Example</th></tr></thead>
           <tbody>
-            <tr><td>Job Number</td><td>Work order / job reference from the CRM</td><td>JOB-88219</td></tr>
+            <tr><td>Job Number</td><td>Work order reference from Clik4</td><td>JOB-88219</td></tr>
             <tr><td>Job Type</td><td>Nature of work</td><td>Installation / Service / Repair</td></tr>
-            <tr><td>Site Name</td><td>Customer site name (auto-filled from CRM if available)</td><td>Retail Store #4</td></tr>
+            <tr><td>Site Name</td><td>Customer site name</td><td>Retail Store #4</td></tr>
             <tr><td>Site Address</td><td>Full site address</td><td>123 High Street, NE1 4XP</td></tr>
-            <tr><td>Weight Before (kg)</td><td>Cylinder weight recorded immediately before dispensing</td><td>11.50 kg</td></tr>
-            <tr><td>Weight After (kg)</td><td>Cylinder weight recorded immediately after dispensing</td><td>9.20 kg</td></tr>
+            <tr><td>Weight Before (kg)</td><td>Cylinder weight immediately before use</td><td>11.50 kg</td></tr>
+            <tr><td>Weight After (kg)</td><td>Cylinder weight immediately after use</td><td>9.20 kg</td></tr>
             <tr><td>Equipment Manufacturer</td><td>Manufacturer of the system being charged</td><td>Daikin</td></tr>
-            <tr><td>Equipment Model</td><td>Model number of the system</td><td>FDTC50VF</td></tr>
-            <tr><td>Equipment Serial</td><td>Serial number of the system</td><td>9948201B</td></tr>
+            <tr><td>Equipment Model</td><td>Model number</td><td>FDTC50VF</td></tr>
+            <tr><td>Equipment Serial Number</td><td>Serial number of the system</td><td>9948201B</td></tr>
           </tbody>
         </table>
-        <ol start={3}>
-          <li>The system <strong>automatically calculates</strong> quantity used: Weight Used = Weight Before − Weight After.</li>
-          <li>The cylinder's current weight is updated in the system to reflect the remaining quantity after use.</li>
-        </ol>
-        <p><strong>The system automatically creates the following records:</strong></p>
-        <table>
-          <thead><tr><th>Record</th><th>What is captured</th></tr></thead>
-          <tbody>
-            <tr><td>Usage Log</td><td>Job number, job type, site name and address, engineer name, weight before, weight after, quantity used, equipment details, date and time</td></tr>
-            <tr><td>Movement Log</td><td>Job site reference, engineer name, vehicle registration, date and time</td></tr>
-          </tbody>
-        </table>
-        <blockquote><strong>Control:</strong> Weight before and after are recorded independently to provide a verifiable audit trail. The system does not allow retrospective editing of usage logs — corrections must be logged as separate adjustment entries.</blockquote>
+        <p>The quantity used is calculated automatically as Weight Before minus Weight After. A permanent usage log entry and movement log entry are created in the system.</p>
+        <blockquote><strong>Control:</strong> Weight before and after are recorded independently to provide a verifiable audit trail. Usage records cannot be edited after submission — corrections are logged as separate adjustment entries.</blockquote>
 
-        <h3>4.4 Cylinder Status Monitoring</h3>
+        <h3>5.4 Cylinder Status Monitoring</h3>
+        <p>F-Gas Tracker Pro continuously tracks each cylinder's status. Office staff and admin are notified automatically when a cylinder falls below the minimum weight threshold.</p>
         <table>
           <thead><tr><th>Status</th><th>Condition</th><th>Action Required</th></tr></thead>
           <tbody>
@@ -199,33 +168,14 @@ export default function Sop001Page() {
             <tr><td>Empty</td><td>No remaining gas</td><td>Return to stores or supplier</td></tr>
           </tbody>
         </table>
-        <p>Cylinder status and weight history are visible at any time via the <strong>Cylinder Detail</strong> page, showing full usage history (date, job number, engineer, quantity used, equipment details) and all movement history (location changes with timestamps).</p>
 
-        <h3>4.5 Return of Empty or Partially Depleted Cylinders</h3>
-        <p>When a cylinder is empty or no longer required on a van:</p>
-        <ol>
-          <li>The engineer returns the cylinder to HQ stores or directly to supplier.</li>
-          <li>Office admin navigates to <strong>Returned to Supplier</strong> in the admin panel.</li>
-          <li>Admin enters:</li>
-        </ol>
-        <table>
-          <thead><tr><th>Field</th><th>Description</th></tr></thead>
-          <tbody>
-            <tr><td>Cylinder Serial(s)</td><td>One or more cylinders being returned</td></tr>
-            <tr><td>Return Weight</td><td>Weight at time of return (for audit reconciliation)</td></tr>
-            <tr><td>Supplier Name</td><td>e.g. A-Gas</td></tr>
-            <tr><td>Supplier Branch</td><td>e.g. Newcastle</td></tr>
-            <tr><td>Supplier Returns Reference</td><td>Supplier's reference number on their returns documentation</td></tr>
-            <tr><td>Supplier Documentation Photo</td><td>Optional photo of supplier's return receipt or label</td></tr>
-          </tbody>
-        </table>
-        <ol start={4}>
-          <li>The system marks the cylinder as returned, records the return date and time, the staff member who processed the return, and the supplier's reference number. A permanent entry is added to the movement log confirming the return. The cylinder exits active tracking and appears in the <strong>Returned to Supplier</strong> register.</li>
-        </ol>
-        <blockquote><strong>Note:</strong> New (virgin gas) cylinders contain no hazardous waste. No HWCN is required for their return. Recovery cylinders require the full HWCN process — see SOP-002.</blockquote>
+        <h3>5.5 Return of Empty or Depleted Cylinders</h3>
+        <p>When a cylinder is empty or no longer required, it is returned to the supplier. Office staff record the return in F-Gas Tracker Pro, entering the supplier's name, branch, and their reference number for the return. A photo of the supplier's returns documentation may also be uploaded. The cylinder is marked as returned and a permanent movement log entry is created.</p>
+        <p>The cylinder exits active tracking and appears in the <strong>Returned to Supplier</strong> register.</p>
+        <blockquote><strong>Note:</strong> New (virgin gas) cylinders contain no hazardous waste. No Hazardous Waste Consignment Note (HWCN) is required for their return. Recovery cylinders require the full HWCN process — see SOP-002.</blockquote>
 
-        {/* 5 */}
-        <h2>5. Records Generated and Retention</h2>
+        {/* 6 */}
+        <h2>6. Records Generated and Retention</h2>
         <table>
           <thead><tr><th>Record Type</th><th>What it contains</th><th>Retention</th></tr></thead>
           <tbody>
@@ -239,30 +189,31 @@ export default function Sop001Page() {
         <p>All records are <strong>permanent and cannot be edited or deleted</strong>. The system maintains a complete, unbroken audit trail for every cylinder from registration through to return.</p>
         <p>The following reports can be generated from the system for audit purposes:</p>
         <ul>
-          <li><strong>Cylinder Usage Report</strong> — per cylinder, full usage history with equipment details</li>
-          <li><strong>Full Job Report</strong> — per job, all cylinders used, quantities, engineers, equipment</li>
+          <li><strong>Cylinder Usage Report</strong> — full usage history per cylinder, including equipment details</li>
+          <li><strong>Full Job Report</strong> — all cylinders used on a job, quantities, engineers, equipment</li>
           <li><strong>Van Inventory Report</strong> — point-in-time snapshot of all cylinders on a van</li>
-          <li><strong>Returned to Supplier Register</strong> — all returned cylinders with reference numbers</li>
+          <li><strong>On-Site Inventory Report</strong> — all cylinders currently located at customer sites, with site details and last engineer</li>
+          <li><strong>Returned to Supplier Register</strong> — all returned cylinders with supplier reference numbers</li>
         </ul>
 
-        {/* 6 */}
-        <h2>6. Compliance Controls</h2>
+        {/* 7 */}
+        <h2>7. Compliance Controls</h2>
         <table>
           <thead><tr><th>Control</th><th>How Enforced</th></tr></thead>
           <tbody>
-            <tr><td>Weight reconciliation</td><td>Every usage log records weight before and after independently; quantity used is system-calculated, not manually entered</td></tr>
-            <tr><td>Engineer qualification</td><td>Only registered, approved users can log usage in the system; role-based access control enforced at login</td></tr>
-            <tr><td>Immutable audit trail</td><td>usage_logs and movement_logs tables are append-only; no UPDATE or DELETE operations permitted on historical records</td></tr>
-            <tr><td>PO traceability</td><td>Every cylinder is linked to a supplier and PO number at registration</td></tr>
-            <tr><td>Equipment record</td><td>Manufacturer, model and serial number captured for every usage event, enabling traceability back to the specific system charged</td></tr>
-            <tr><td>Cylinder lifecycle</td><td>Full chain from registeredAt to returnedAt is traceable within the system for any cylinder at any time</td></tr>
+            <tr><td>Procurement trail</td><td>Every cylinder is linked to a Clik4 purchase order number at registration</td></tr>
+            <tr><td>Weight reconciliation</td><td>Weight before and after are recorded independently; quantity used is calculated by the system, not manually entered</td></tr>
+            <tr><td>Engineer qualification</td><td>Only approved, qualified users may log usage; role-based access enforced at login</td></tr>
+            <tr><td>Immutable audit trail</td><td>Usage and movement records are permanent — no editing or deletion of historical entries is permitted</td></tr>
+            <tr><td>Equipment traceability</td><td>Manufacturer, model and serial number of the serviced system recorded at every usage event</td></tr>
+            <tr><td>Full lifecycle traceability</td><td>Every cylinder is traceable from the original purchase order through to supplier return</td></tr>
           </tbody>
         </table>
 
         {/* Footer */}
         <div className="footer">
           21 Degrees Ltd &nbsp;|&nbsp; Unit 10, Apollo Court, Monkton Business Park, Hebburn, Tyne &amp; Wear, NE31 2ES &nbsp;|&nbsp; Tel: 0191 495 7224<br />
-          REFCOM Registration: REF1010728 &nbsp;|&nbsp; 21 Degrees F-Gas Tracker Pro &nbsp;|&nbsp; &copy; 2026 21 Degrees Ltd
+          F-Gas Certification No. REF1010728 &nbsp;|&nbsp; 21 Degrees F-Gas Tracker Pro &nbsp;|&nbsp; &copy; 2026 21 Degrees Ltd
         </div>
       </div>
     </div>

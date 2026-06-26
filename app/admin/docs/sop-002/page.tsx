@@ -72,7 +72,7 @@ export default function Sop002Page() {
               <tr><td>Document Number</td><td>SOP-002</td><td>Version</td><td>1.0</td></tr>
               <tr><td>Issue Date</td><td>26 June 2026</td><td>Next Review</td><td>26 June 2027</td></tr>
               <tr><td>Author</td><td>_________________________</td><td>Approved By</td><td>_________________________</td></tr>
-              <tr><td>REFCOM Registration</td><td>REF1010728</td><td>System</td><td>21 Degrees F-Gas Tracker Pro</td></tr>
+              <tr><td>F-Gas Certification No.</td><td>REF1010728</td><td>System</td><td>21 Degrees F-Gas Tracker Pro</td></tr>
               <tr><td>Carrier Registration (CBDU)</td><td>CBDU368286</td><td>Waste Exemption No.</td><td>31Z 3725 34</td></tr>
               <tr><td>EWC Code</td><td colSpan={3}>14 06 01 — Halogenated refrigerants</td></tr>
             </tbody>
@@ -126,7 +126,7 @@ export default function Sop002Page() {
           <tbody>
             <tr><td>Engineer</td><td>Use the F-Gas Tracker Pro mobile application to: register new bottles upon receipt; record all bottle movements (including van loading, site delivery and returns); perform recovery on site and record all weights, producer site details (name, address, postcode) and equipment details accurately and promptly; initiate the HWCN transit process in the app and carry the cylinder (with HWCN documentation) to HQ-Stores or supplier; return cylinders to the supplier once usage or recovery is complete. Engineers must hold a current F-Gas Category I qualification and must not handle refrigerant without logging the event in the system.</td></tr>
             <tr><td>Office / Admin</td><td>Generate and print HWCNs; complete Part E sign-off on receipt at HQ-Stores; process supplier returns; record supplier HWCN reference numbers; manage waste exemption documentation</td></tr>
-            <tr><td>Office Manager / Director</td><td>Ensure carrier registration (CBDU368286) and waste exemption (31Z 3725 34) remain current; approve this procedure; maintain REFCOM registration REF1010728</td></tr>
+            <tr><td>Office Manager / Director</td><td>Ensure carrier registration (CBDU368286) and waste exemption (31Z 3725 34) remain current; approve this procedure; maintain company F-Gas certification REF1010728</td></tr>
           </tbody>
         </table>
 
@@ -135,10 +135,7 @@ export default function Sop002Page() {
 
         <h3>5.1 Recovery Cylinder Registration and Van Allocation</h3>
         <p>Recovery cylinders must be registered in the system <strong>before</strong> being issued to an engineer.</p>
-        <ol>
-          <li>Office admin navigates to <strong>Register Cylinder</strong> in the F-Gas Tracker Pro admin panel.</li>
-          <li>Enter the following mandatory fields:</li>
-        </ol>
+        <p>Office staff register the cylinder in F-Gas Tracker Pro on receipt. The following information is recorded:</p>
         <table>
           <thead><tr><th>Field</th><th>Description</th><th>Example</th></tr></thead>
           <tbody>
@@ -150,16 +147,11 @@ export default function Sop002Page() {
             <tr><td>Supplier</td><td>Supplier from whom this cylinder was obtained</td><td>A-Gas</td></tr>
           </tbody>
         </table>
-        <ol start={3}>
-          <li>Allocate the cylinder to the engineer's van using the <strong>Move Cylinder</strong> function (see SOP-001, Section 4.2). The engineer's name, vehicle registration, and timestamp are recorded.</li>
-        </ol>
+        <p>Once registered, the cylinder is allocated to the engineer's van in F-Gas Tracker Pro. The engineer's name and vehicle registration plate are recorded against the cylinder (see SOP-001, Section 5.2).</p>
 
         <h3>5.2 On-Site Refrigerant Recovery</h3>
         <p>When recovering refrigerant from a customer's system on site:</p>
-        <ol>
-          <li>The engineer navigates to the recovery cylinder in the mobile app and selects <strong>Log Recovery</strong>.</li>
-          <li>The engineer enters:</li>
-        </ol>
+        <p>When recovering refrigerant from a customer's system on site, the engineer records the recovery in the F-Gas Tracker Pro mobile application before leaving site. The following information is captured:</p>
         <table>
           <thead><tr><th>Field</th><th>Description</th><th>Example</th></tr></thead>
           <tbody>
@@ -211,9 +203,9 @@ export default function Sop002Page() {
         <h3>5.6 Transit to HQ-Stores and Part E Sign-Off (Multi-Site Route)</h3>
         <ol>
           <li>The engineer loads the cylinder into their vehicle. The HWCN (printed or digital) must accompany the waste during transit.</li>
-          <li>On arrival at HQ-Stores, the engineer opens the cylinder record on the mobile app and taps <strong>Complete Transit</strong>.</li>
+          <li>On arrival at HQ-Stores, the engineer confirms delivery in the F-Gas Tracker Pro mobile application.</li>
           <li>The system records the delivery date and time, updates the HWCN to show it is awaiting Part E sign-off, and confirms the cylinder's location as HQ-Stores.</li>
-          <li>An office staff member navigates to the HWCN in the admin panel and completes <strong>Part E</strong>:</li>
+          <li>An office staff member completes <strong>Part E</strong> of the HWCN in the F-Gas Tracker Pro web portal:</li>
         </ol>
         <table>
           <thead><tr><th>Field</th><th>Description</th></tr></thead>
@@ -235,7 +227,7 @@ export default function Sop002Page() {
         <ol>
           <li>The engineer (or office admin) drives the cylinder to the supplier's branch.</li>
           <li>At the supplier, the supplier issues their own HWCN paperwork. The engineer retains/photographs this document.</li>
-          <li>On return, office admin navigates to <strong>Supplier Returns</strong> in the admin panel and enters:</li>
+          <li>On return to HQ, office staff record the supplier return in F-Gas Tracker Pro, entering:</li>
         </ol>
         <table>
           <thead><tr><th>Field</th><th>Description</th><th>Example</th></tr></thead>
@@ -261,7 +253,7 @@ export default function Sop002Page() {
         <table>
           <thead><tr><th>Reference</th><th>Value</th><th>Where Used</th></tr></thead>
           <tbody>
-            <tr><td>REFCOM Registration</td><td>REF1010728</td><td>Company identity on all compliance documents</td></tr>
+            <tr><td>F-Gas Certification No.</td><td>REF1010728</td><td>Company identity on all compliance documents</td></tr>
             <tr><td>Carrier Registration Number (CBDU)</td><td>CBDU368286</td><td>Part C of HWCN — carrier's certificate</td></tr>
             <tr><td>Waste Exemption Number</td><td>31Z 3725 34</td><td>Part E of HWCN — consignee's certificate</td></tr>
             <tr><td>EWC Waste Code</td><td>14 06 01</td><td>Waste description on all HWCN parts (halogenated refrigerants)</td></tr>
@@ -291,7 +283,7 @@ export default function Sop002Page() {
           <li><strong>Decommissioned Equipment Register</strong> — all decommissioning events by date, site, engineer, equipment</li>
           <li><strong>HWCN Print</strong> — printable four-part consignment note per consignment</li>
           <li><strong>Returned to Supplier Register</strong> — all returned cylinders with supplier HWCN references</li>
-          <li><strong>On-Site Inventory Report</strong> — cylinders currently at customer sites</li>
+          <li><strong>On-Site Inventory Report</strong> — all cylinders currently located at customer sites, with site details and last engineer</li>
           <li><strong>Van Inventory Report</strong> — cylinders on each engineer's van</li>
         </ul>
 
@@ -304,11 +296,11 @@ export default function Sop002Page() {
             <tr><td>Producer site capture</td><td>Site name, address and postcode are mandatory fields for all recovery log entries</td></tr>
             <tr><td>Multi-site routing enforcement</td><td>System automatically detects second producer site; cylinder is locked to HQ-Stores routing — cannot be changed to direct supplier</td></tr>
             <tr><td>HWCN generation</td><td>HWCN is generated automatically by the system on multi-site trigger; cannot be bypassed</td></tr>
-            <tr><td>Part E sign-off required</td><td>HWCN remains in awaiting_consignee status until office staff completes Part E; appears as open item in admin panel</td></tr>
+            <tr><td>Part E sign-off required</td><td>HWCN remains open and flagged in the system until office staff complete Part E sign-off; it cannot be closed without acceptance or formal rejection</td></tr>
             <tr><td>Supplier lock on returns</td><td>All cylinders in a return batch must match the same supplier — enforced by the system</td></tr>
             <tr><td>Immutable audit trail</td><td>All logs are append-only; no records can be deleted or edited retrospectively</td></tr>
             <tr><td>Equipment traceability</td><td>Manufacturer, model and serial number recorded at every recovery event</td></tr>
-            <tr><td>F-Gas qualification</td><td>Only system-approved, REFCOM-registered engineers can log recovery events</td></tr>
+            <tr><td>F-Gas qualification</td><td>Only approved, qualified engineers with valid F-Gas certification may log recovery events; role-based access enforced at login</td></tr>
           </tbody>
         </table>
 
@@ -359,7 +351,7 @@ export default function Sop002Page() {
         {/* Footer */}
         <div className="footer">
           21 Degrees Ltd &nbsp;|&nbsp; Unit 10, Apollo Court, Monkton Business Park, Hebburn, Tyne &amp; Wear, NE31 2ES &nbsp;|&nbsp; Tel: 0191 495 7224<br />
-          REFCOM: REF1010728 &nbsp;|&nbsp; Carrier: CBDU368286 &nbsp;|&nbsp; 21 Degrees F-Gas Tracker Pro &nbsp;|&nbsp; &copy; 2026 21 Degrees Ltd
+          F-Gas Certification No. REF1010728 &nbsp;|&nbsp; Carrier CBDU368286 &nbsp;|&nbsp; 21 Degrees F-Gas Tracker Pro &nbsp;|&nbsp; &copy; 2026 21 Degrees Ltd
         </div>
       </div>
     </div>
