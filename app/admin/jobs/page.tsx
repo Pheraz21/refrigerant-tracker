@@ -530,8 +530,13 @@ export default function RefrigerantJobsPage() {
     setTimeout(() => printWindow.print(), 500);
   };
 
-  const printJobRefrigerantLog = (job: JobSummary) => {
+  const printJobRefrigerantLog = async (job: JobSummary) => {
     if (job.logs.length === 0) return;
+    const serials = [...new Set(job.logs.map(l => l.serial))];
+    const btls = await db.getBottlesBySerials(serials);
+    const btlMap = new Map(btls.map(b => [b.serial, b]));
+    const gasType = (serial: string) => btlMap.get(serial)?.gasType ?? "—";
+
     const reportDate = new Date().toLocaleDateString("en-GB");
     const sortedLogs = [...job.logs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const totalUsed = sortedLogs.reduce((s, l) => s + (l.weightUsed || 0), 0);
@@ -545,6 +550,7 @@ export default function RefrigerantJobsPage() {
         <tr>
           <td style="white-space:nowrap">${new Date(log.date).toLocaleDateString("en-GB")}</td>
           <td style="font-family:monospace;font-weight:600">${log.serial}</td>
+          <td>${gasType(log.serial)}</td>
           <td>${log.engineer || "—"}</td>
           <td><span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:${isRecovery ? "#fff3cd" : "#d4edda"};color:${isRecovery ? "#856404" : "#155724"}">${displayJobType}</span></td>
           <td style="text-align:right;font-weight:600;color:${isRecovery ? "#856404" : "#155724"}">${(log.weightUsed || 0).toFixed(2)} kg</td>
@@ -608,6 +614,7 @@ export default function RefrigerantJobsPage() {
             <thead><tr>
               <th style="width:80px">Date</th>
               <th style="width:110px">Bottle Serial</th>
+              <th style="width:80px">Gas Type</th>
               <th style="width:130px">Engineer</th>
               <th style="width:90px">Job Type</th>
               <th style="width:80px;text-align:right">Qty Used</th>
@@ -617,7 +624,7 @@ export default function RefrigerantJobsPage() {
             <tbody>
               ${rows}
               <tr class="total-row">
-                <td colspan="4" style="text-align:right">Total</td>
+                <td colspan="5" style="text-align:right">Total</td>
                 <td style="text-align:right;color:#155724">${totalUsed.toFixed(2)} kg</td>
                 <td colspan="2"></td>
               </tr>
