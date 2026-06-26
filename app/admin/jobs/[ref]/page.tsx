@@ -166,6 +166,89 @@ export default function JobDetailPage() {
     setTimeout(() => win.print(), 500);
   };
 
+  const printFullJobPdf = () => {
+    const reportDate = new Date().toLocaleDateString("en-GB", { dateStyle: "long" });
+    const allUsageLogs = [...newGasLogs, ...recoveryLogs, ...nitrogenLogs].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+    const decomFlatRows = decomRecords.flatMap(rec =>
+      (rec.equipment || []).map((eq: any) => ({ ...rec, eq }))
+    );
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html><html><head><style>
+      ${PDF_BASE_STYLES}@page{margin:0;size:A4 landscape;}
+      .summary-table{width:100%;margin-bottom:20px;border-collapse:separate;border-spacing:0;background:#f9fafb;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;}
+      .summary-cell{padding:12px 15px;border-right:1px solid #e2e8f0;vertical-align:top;}
+      .summary-cell:last-child{border-right:none;}
+      .summary-label{font-size:8px;color:#718096;text-transform:uppercase;margin-bottom:4px;font-weight:700;letter-spacing:0.1em;}
+      .summary-value{font-size:13px;font-weight:bold;color:#1a202c;}
+      .section-title{font-size:13px;font-weight:700;text-transform:uppercase;color:#2d3748;border-left:4px solid #a3e635;padding-left:10px;margin:20px 0 8px;}
+    </style></head><body>
+    ${companyHeader("Full Job Report", `<div>Generated: ${reportDate}</div><div>Job: ${ref}</div>${crmJob?.siteTitle ? `<div>${crmJob.siteTitle}</div>` : ""}`)}
+    <table class="summary-table"><tr>
+      <td class="summary-cell"><div class="summary-label">Job Reference</div><div class="summary-value">${ref}</div></td>
+      ${crmJob?.customer ? `<td class="summary-cell"><div class="summary-label">Customer</div><div class="summary-value">${crmJob.customer}</div></td>` : ""}
+      ${crmJob?.siteTitle ? `<td class="summary-cell"><div class="summary-label">Site</div><div class="summary-value">${crmJob.siteTitle}</div></td>` : ""}
+      ${(crmJob?.siteAddress || crmJob?.sitePostcode) ? `<td class="summary-cell"><div class="summary-label">Address</div><div class="summary-value" style="font-size:11px">${[crmJob?.siteAddress, crmJob?.sitePostcode].filter(Boolean).join(", ")}</div></td>` : ""}
+      ${totalNewGas > 0 ? `<td class="summary-cell"><div class="summary-label">Gas Dispensed</div><div class="summary-value">${totalNewGas.toFixed(2)} kg</div></td>` : ""}
+      ${totalRecovered > 0 ? `<td class="summary-cell"><div class="summary-label">Gas Recovered</div><div class="summary-value">${totalRecovered.toFixed(2)} kg</div></td>` : ""}
+      ${decomItemCount > 0 ? `<td class="summary-cell"><div class="summary-label">Decom Items</div><div class="summary-value">${decomItemCount} (${totalDecomWt.toFixed(2)} kg)</div></td>` : ""}
+    </tr></table>
+    ${allUsageLogs.length > 0 ? `
+    <div class="section-title">Refrigerant Usage</div>
+    <table>
+      <thead><tr>
+        <th style="width:80px">Date</th><th style="width:110px">Bottle</th><th>Gas Type</th>
+        <th>Engineer</th><th style="width:80px">Type</th>
+        <th style="width:80px;text-align:right">Qty (kg)</th>
+        <th style="width:90px;text-align:right">Wt Before</th>
+        <th style="width:90px;text-align:right">Wt After</th>
+      </tr></thead>
+      <tbody>
+        ${allUsageLogs.map(log => {
+          const isRec = RECOVERY_TYPES.has((log.jobType || "").toLowerCase());
+          return `<tr>
+            <td style="white-space:nowrap">${new Date(log.date).toLocaleDateString("en-GB")}</td>
+            <td style="font-family:monospace;font-weight:600">${log.serial}</td>
+            <td>${gasType(log.serial)}</td>
+            <td>${log.engineer || "—"}</td>
+            <td><span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:${isRec ? "#fff3cd" : "#d4edda"};color:${isRec ? "#856404" : "#155724"}">${log.jobType || "—"}</span></td>
+            <td style="text-align:right;font-weight:600">${(log.weightUsed || 0).toFixed(2)}</td>
+            <td style="text-align:right">${log.weightBefore?.toFixed(2) ?? "—"}</td>
+            <td style="text-align:right">${log.weightAfter?.toFixed(2) ?? "—"}</td>
+          </tr>`;
+        }).join("")}
+        <tr class="total-row"><td colspan="5" style="text-align:right">Total</td>
+          <td style="text-align:right">${(totalNewGas + totalRecovered + totalNitrogen).toFixed(2)}</td>
+          <td colspan="2"></td></tr>
+      </tbody>
+    </table>` : ""}
+    ${decomFlatRows.length > 0 ? `
+    <div class="section-title">Decommissioned Equipment</div>
+    <table>
+      <thead><tr>
+        <th>Date</th><th>Gas</th><th>Engineer</th><th>Manufacturer</th><th>Model</th><th>Serial No.</th><th style="text-align:right">Wt Recovered (kg)</th>
+      </tr></thead>
+      <tbody>
+        ${decomFlatRows.map(({ eq, ...rec }) => `<tr>
+          <td style="white-space:nowrap">${rec.date ? new Date(rec.date).toLocaleDateString("en-GB") : "—"}</td>
+          <td>${rec.gasType || "—"}</td>
+          <td>${rec.engineer || "—"}</td>
+          <td>${eq?.manufacturer || "—"}</td>
+          <td>${eq?.model || "—"}</td>
+          <td style="font-family:monospace;font-weight:600">${eq?.serial || "—"}</td>
+          <td style="text-align:right">${(eq?.weightRecovered || 0).toFixed(2)}</td>
+        </tr>`).join("")}
+        <tr class="total-row"><td colspan="6">Total Recovered</td><td style="text-align:right">${totalDecomWt.toFixed(2)}</td></tr>
+      </tbody>
+    </table>` : ""}
+    <div class="footer">21 Degrees F-Gas Tracker Pro | Official Audit Document | &copy; 2026 21 Degrees Ltd | Job: ${ref}</div>
+    </body></html>`);
+    win.document.close();
+    setTimeout(() => win.print(), 500);
+  };
+
   const printDecomPdf = () => {
     if (!decomRecords.length) return;
     const reportDate = new Date().toLocaleDateString("en-GB", { dateStyle: "long" });
@@ -272,13 +355,18 @@ export default function JobDetailPage() {
           <ArrowLeft size={15} /> Refrigerant Jobs
         </Link>
         <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
+          {(hasRefLog || decomRecords.length > 0) && (
+            <button onClick={printFullJobPdf} style={pdfBtn("0,229,255")}>
+              <Printer size={14} /> Full Job Report
+            </button>
+          )}
           {hasRefLog && (
             <button onClick={printRefrigerantLog} style={pdfBtn("255,170,0")}>
               <Printer size={14} /> Ref. Log PDF
             </button>
           )}
           {decomRecords.length > 0 && (
-            <button onClick={printDecomPdf} style={pdfBtn("255,170,0")}>
+            <button onClick={printDecomPdf} style={pdfBtn("255,51,102")}>
               <Printer size={14} /> Decom PDF
             </button>
           )}
