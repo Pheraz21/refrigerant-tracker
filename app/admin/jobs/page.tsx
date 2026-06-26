@@ -525,11 +525,18 @@ export default function RefrigerantJobsPage() {
   };
 
   const printJobRefrigerantLog = async (job: JobSummary) => {
-    if (job.logs.length === 0) return;
-    const serials = [...new Set(job.logs.map(l => l.serial))];
-    const btls = await db.getBottlesBySerials(serials);
-    const btlMap = new Map(btls.map(b => [b.serial, b]));
-    const gasType = (serial: string) => btlMap.get(serial)?.gasType ?? "—";
+    const hasUsage = job.logs.length > 0;
+    const jobDecomRecords = decommissions.filter(r => r.jobNumber === job.siteRef);
+    const hasDecom = jobDecomRecords.length > 0;
+    if (!hasUsage && !hasDecom) return;
+
+    let gasType = (_: string) => "—";
+    if (hasUsage) {
+      const serials = [...new Set(job.logs.map(l => l.serial))];
+      const btls = await db.getBottlesBySerials(serials);
+      const btlMap = new Map(btls.map(b => [b.serial, b]));
+      gasType = (serial: string) => btlMap.get(serial)?.gasType ?? "—";
+    }
 
     const reportDate = new Date().toLocaleDateString("en-GB");
     const sortedLogs = [...job.logs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -537,108 +544,119 @@ export default function RefrigerantJobsPage() {
     const totalReclaim = sortedLogs.filter(l => RECOVERY_TYPES.has((l.jobType || "").toLowerCase())).reduce((s, l) => s + (l.weightUsed || 0), 0);
     const uniqueBottles = new Set(sortedLogs.map(l => l.serial)).size;
 
-    const rows = sortedLogs.map(log => {
+    const decomFlatRows = jobDecomRecords.flatMap((rec: any) =>
+      (rec.equipment || []).map((eq: any) => ({
+        date: rec.date, gasType: rec.gasType, engineer: rec.engineer,
+        bottleSerial: rec.bottleSerial,
+        eqManufacturer: eq.manufacturer, eqModel: eq.model,
+        eqSerial: eq.serial, eqWeight: eq.weightRecovered,
+      }))
+    );
+    const totalDecomWt = decomFlatRows.reduce((s: number, r: any) => s + (r.eqWeight || 0), 0);
+
+    const THEAD = `<thead><tr>
+      <th style="width:75px">Date</th><th style="width:105px">Bottle</th><th style="width:70px">Gas Type</th>
+      <th>Engineer</th><th>Manufacturer</th><th>Model</th><th>Serial No.</th>
+      <th style="width:70px">Type</th>
+      <th style="width:70px;text-align:right">Qty (kg)</th>
+      <th style="width:75px;text-align:right">Wt Before</th>
+      <th style="width:75px;text-align:right">Wt After</th>
+    </tr></thead>`;
+
+    const usageRows = sortedLogs.map(log => {
       const isRecovery = RECOVERY_TYPES.has((log.jobType || "").toLowerCase());
       const displayJobType = isRecovery ? log.jobType : (jobTypeFromPrefix(log.siteRef || job.siteRef) || log.jobType || "—");
-      const eqList: any[] = log.equipmentDetails || [];
-      const eqRow = eqList.length > 0 ? `
-        <tr style="background:#f8faff;">
-          <td colspan="8" style="padding:3px 12px 5px 22px;font-size:8px;color:#4a5568;border-bottom:1px solid #e2e8f0;">
-            ${eqList.map(eq => {
-              const name = [eq.model].filter(Boolean).join(" ") || "Unknown unit";
-              const sn = eq.serial ? ` · SN: ${eq.serial}` : "";
-              return `<span style="margin-right:14px">${name}${sn}</span>`;
-            }).join("")}
-          </td>
-        </tr>` : "";
-      return `
-        <tr>
-          <td style="white-space:nowrap">${new Date(log.date).toLocaleDateString("en-GB")}</td>
-          <td style="font-family:monospace;font-weight:600">${log.serial}</td>
-          <td>${gasType(log.serial)}</td>
-          <td>${log.engineer || "—"}</td>
-          <td><span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:${isRecovery ? "#fff3cd" : "#d4edda"};color:${isRecovery ? "#856404" : "#155724"}">${displayJobType}</span></td>
-          <td style="text-align:right;font-weight:600;color:${isRecovery ? "#856404" : "#155724"}">${(log.weightUsed || 0).toFixed(2)} kg</td>
-          <td style="text-align:right">${log.weightBefore?.toFixed(2) || "—"} kg</td>
-          <td style="text-align:right">${log.weightAfter?.toFixed(2) || "—"} kg</td>
-        </tr>${eqRow}
-      `;
+      return `<tr>
+        <td style="white-space:nowrap">${new Date(log.date).toLocaleDateString("en-GB")}</td>
+        <td style="font-family:monospace;font-weight:600">${log.serial}</td>
+        <td>${gasType(log.serial)}</td>
+        <td>${log.engineer || "—"}</td>
+        <td>—</td><td>—</td><td>—</td>
+        <td><span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:${isRecovery ? "#fff3cd" : "#d4edda"};color:${isRecovery ? "#856404" : "#155724"}">${displayJobType}</span></td>
+        <td style="text-align:right;font-weight:600;color:${isRecovery ? "#856404" : "#155724"}">${(log.weightUsed || 0).toFixed(2)}</td>
+        <td style="text-align:right">${log.weightBefore?.toFixed(2) ?? "—"}</td>
+        <td style="text-align:right">${log.weightAfter?.toFixed(2) ?? "—"}</td>
+      </tr>`;
     }).join("");
 
-    const html = `
-      <html>
-        <head>
-          <style>
-            @page { margin: 0; size: A4 landscape; }
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 10mm; color: #333; line-height: 1.4; }
-            .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
-            .logo-section { display: flex; gap: 15px; align-items: flex-end; }
-            .company-info { font-size: 10px; line-height: 1.4; color: #555; }
-            .report-info { text-align: right; }
-            .report-title { font-size: 22px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; color: #1a202c; }
-            .report-meta { font-size: 11px; color: #666; }
-            .summary-table { width: 100%; margin-bottom: 20px; border-collapse: separate; border-spacing: 0; background: #f9fafb; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
-            .summary-cell { padding: 12px 15px; border-right: 1px solid #e2e8f0; vertical-align: top; }
-            .summary-cell:last-child { border-right: none; }
-            .summary-label { font-size: 8px; color: #718096; text-transform: uppercase; margin-bottom: 4px; font-weight: 700; letter-spacing: 0.1em; }
-            .summary-value { font-size: 14px; font-weight: bold; color: #1a202c; white-space: nowrap; }
-            table.log { width: 100%; border-collapse: collapse; margin-top: 10px; }
-            table.log th, table.log td { border: 1px solid #e2e8f0; padding: 8px 10px; text-align: left; vertical-align: middle; font-size: 10px; }
-            table.log th { background: #f8f9fa; font-weight: bold; text-transform: uppercase; color: #4a5568; font-size: 8px; letter-spacing: 0.05em; border-bottom: 2px solid #cbd5e0; }
-            .total-row { font-weight: 700; background: #f9fafb; }
-            .footer { margin-top: 20px; font-size: 8px; color: #a0aec0; text-align: center; border-top: 1px solid #edf2f7; padding-top: 10px; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="logo-section">
-              <img src="/21-degrees-logo-reports.png" style="width: 100px; height: auto;" />
-              <div class="company-info">
-                <strong>21 Degrees Ltd</strong><br />
-                Unit 10, Apollo Court, Monkton Business Park<br />
-                Hebburn, Tyne &amp; Wear, NE31 2ES<br />
-                Tel: 0191 495 7224
-              </div>
-            </div>
-            <div class="report-info">
-              <div class="report-title">Job Cylinder Usage Report</div>
-              <div class="report-meta"><div>Generated: ${reportDate}</div><div>Job: ${job.siteRef}</div>${job.siteName && job.siteName !== "Unknown Site" ? `<div>${job.siteName}</div>` : ""}</div>
-            </div>
-          </div>
-          <table class="summary-table"><tr>
-            <td class="summary-cell"><div class="summary-label">Job Reference</div><div class="summary-value">${job.siteRef}</div></td>
-            ${job.customer ? `<td class="summary-cell"><div class="summary-label">Customer</div><div class="summary-value">${job.customer}</div></td>` : ""}
-            ${job.siteName && job.siteName !== "Unknown Site" ? `<td class="summary-cell"><div class="summary-label">Site</div><div class="summary-value">${job.siteName}</div></td>` : ""}
-            ${job.siteAddress ? `<td class="summary-cell"><div class="summary-label">Address</div><div class="summary-value" style="font-size:12px">${job.siteAddress}</div></td>` : ""}
-            <td class="summary-cell"><div class="summary-label">Cylinders Used</div><div class="summary-value">${uniqueBottles}</div></td>
-            <td class="summary-cell"><div class="summary-label">Total Gas Dispensed</div><div class="summary-value">${(totalUsed - totalReclaim).toFixed(2)} kg</div></td>
-            <td class="summary-cell"><div class="summary-label">Total Reclaimed</div><div class="summary-value">${totalReclaim.toFixed(2)} kg</div></td>
-            <td class="summary-cell"><div class="summary-label">Net Usage</div><div class="summary-value">${totalUsed.toFixed(2)} kg</div></td>
-          </tr></table>
-          <table class="log">
-            <thead><tr>
-              <th style="width:80px">Date</th>
-              <th style="width:110px">Bottle Serial</th>
-              <th style="width:80px">Gas Type</th>
-              <th style="width:130px">Engineer</th>
-              <th style="width:90px">Job Type</th>
-              <th style="width:80px;text-align:right">Qty Used</th>
-              <th style="width:90px;text-align:right">Wt. Before</th>
-              <th style="width:90px;text-align:right">Wt. After</th>
-            </tr></thead>
-            <tbody>
-              ${rows}
-              <tr class="total-row">
-                <td colspan="5" style="text-align:right">Total</td>
-                <td style="text-align:right;color:#155724">${totalUsed.toFixed(2)} kg</td>
-                <td colspan="2"></td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="footer">21 Degrees F-Gas Tracker Pro | Official Audit Document | &copy; 2026 21 Degrees Ltd | Job: ${job.siteRef}</div>
-        </body>
-      </html>
-    `;
+    const decomRows = decomFlatRows.map((r: any) => `<tr>
+      <td style="white-space:nowrap">${r.date ? new Date(r.date).toLocaleDateString("en-GB") : "—"}</td>
+      <td style="font-family:monospace;font-weight:600">${r.bottleSerial || "—"}</td>
+      <td>${r.gasType || "—"}</td>
+      <td>${r.engineer || "—"}</td>
+      <td>${r.eqManufacturer || "—"}</td>
+      <td>${r.eqModel || "—"}</td>
+      <td style="font-family:monospace;font-weight:600">${r.eqSerial || "—"}</td>
+      <td><span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:#fde8ec;color:#9b1c1c">Decom</span></td>
+      <td style="text-align:right;font-weight:600">${(r.eqWeight || 0).toFixed(2)}</td>
+      <td>—</td><td>—</td>
+    </tr>`).join("");
+
+    const html = `<!DOCTYPE html><html><head><style>
+      @page { margin: 0; size: A4 landscape; }
+      body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 10mm; color: #333; line-height: 1.4; }
+      .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
+      .logo-section { display: flex; gap: 15px; align-items: flex-end; }
+      .company-info { font-size: 10px; line-height: 1.4; color: #555; }
+      .report-info { text-align: right; }
+      .report-title { font-size: 22px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; color: #1a202c; }
+      .report-meta { font-size: 11px; color: #666; }
+      .summary-table { width: 100%; margin-bottom: 20px; border-collapse: separate; border-spacing: 0; background: #f9fafb; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+      .summary-cell { padding: 12px 15px; border-right: 1px solid #e2e8f0; vertical-align: top; }
+      .summary-cell:last-child { border-right: none; }
+      .summary-label { font-size: 8px; color: #718096; text-transform: uppercase; margin-bottom: 4px; font-weight: 700; letter-spacing: 0.1em; }
+      .summary-value { font-size: 13px; font-weight: bold; color: #1a202c; }
+      .section-title { font-size: 13px; font-weight: 700; text-transform: uppercase; color: #2d3748; border-left: 4px solid #a3e635; padding-left: 10px; margin: 20px 0 8px; }
+      table { width: 100%; border-collapse: collapse; }
+      table th, table td { border: 1px solid #e2e8f0; padding: 8px 10px; text-align: left; vertical-align: middle; font-size: 10px; }
+      table th { background: #f8f9fa; font-weight: bold; text-transform: uppercase; color: #4a5568; font-size: 8px; letter-spacing: 0.05em; border-bottom: 2px solid #cbd5e0; }
+      .total-row { font-weight: 700; background: #f9fafb; }
+      .footer { margin-top: 20px; font-size: 8px; color: #a0aec0; text-align: center; border-top: 1px solid #edf2f7; padding-top: 10px; }
+    </style></head><body>
+    <div class="header">
+      <div class="logo-section">
+        <img src="/21-degrees-logo-reports.png" style="width: 100px; height: auto;" />
+        <div class="company-info">
+          <strong>21 Degrees Ltd</strong><br />
+          Unit 10, Apollo Court, Monkton Business Park<br />
+          Hebburn, Tyne &amp; Wear, NE31 2ES<br />
+          Tel: 0191 495 7224
+        </div>
+      </div>
+      <div class="report-info">
+        <div class="report-title">Full Job Report</div>
+        <div class="report-meta"><div>Generated: ${reportDate}</div><div>Job: ${job.siteRef}</div>${job.siteName && job.siteName !== "Unknown Site" ? `<div>${job.siteName}</div>` : ""}</div>
+      </div>
+    </div>
+    <table class="summary-table"><tr>
+      <td class="summary-cell"><div class="summary-label">Job Reference</div><div class="summary-value">${job.siteRef}</div></td>
+      ${job.customer ? `<td class="summary-cell"><div class="summary-label">Customer</div><div class="summary-value">${job.customer}</div></td>` : ""}
+      ${job.siteName && job.siteName !== "Unknown Site" ? `<td class="summary-cell"><div class="summary-label">Site</div><div class="summary-value">${job.siteName}</div></td>` : ""}
+      ${job.siteAddress ? `<td class="summary-cell"><div class="summary-label">Address</div><div class="summary-value" style="font-size:11px">${job.siteAddress}</div></td>` : ""}
+      ${hasUsage ? `<td class="summary-cell"><div class="summary-label">Cylinders Used</div><div class="summary-value">${uniqueBottles}</div></td>
+      <td class="summary-cell"><div class="summary-label">Gas Dispensed</div><div class="summary-value">${(totalUsed - totalReclaim).toFixed(2)} kg</div></td>
+      <td class="summary-cell"><div class="summary-label">Gas Reclaimed</div><div class="summary-value">${totalReclaim.toFixed(2)} kg</div></td>` : ""}
+      ${hasDecom ? `<td class="summary-cell"><div class="summary-label">Decom Items</div><div class="summary-value">${decomFlatRows.length} (${totalDecomWt.toFixed(2)} kg)</div></td>` : ""}
+    </tr></table>
+    ${hasUsage ? `
+    <div class="section-title">Refrigerant Usage</div>
+    <table>${THEAD}<tbody>
+      ${usageRows}
+      <tr class="total-row"><td colspan="8" style="text-align:right">Total</td>
+        <td style="text-align:right">${totalUsed.toFixed(2)}</td>
+        <td colspan="2"></td></tr>
+    </tbody></table>` : ""}
+    ${hasDecom ? `
+    <div class="section-title">Decommissioned Equipment</div>
+    <table>${THEAD}<tbody>
+      ${decomRows}
+      <tr class="total-row"><td colspan="8" style="text-align:right">Total Recovered</td>
+        <td style="text-align:right">${totalDecomWt.toFixed(2)}</td>
+        <td colspan="2"></td></tr>
+    </tbody></table>` : ""}
+    <div class="footer">21 Degrees F-Gas Tracker Pro | Official Audit Document | &copy; 2026 21 Degrees Ltd | Job: ${job.siteRef}</div>
+    </body></html>`;
+
     const win = window.open("", "_blank");
     win?.document.write(html);
     win?.document.close();
