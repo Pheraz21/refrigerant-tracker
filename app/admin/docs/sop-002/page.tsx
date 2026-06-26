@@ -126,7 +126,10 @@ export default function Sop002Page() {
         <h2>5. Procedure</h2>
 
         <h3>5.1 Recovery Cylinder Registration and Van Allocation</h3>
-        <p>Recovery cylinders must be registered in F-Gas Tracker Pro before being issued to an engineer. Office staff register the cylinder on receipt, or the engineer registers it directly on the mobile app if collecting from the supplier. The following information is recorded:</p>
+        <p>Recovery cylinders must be registered in F-Gas Tracker Pro before being issued to an engineer. Cylinders enter 21 Degrees Ltd's possession by one of two routes:</p>
+        <p><strong>Route A — Delivery to HQ Stores:</strong> Where a cylinder is delivered to Unit 10, Apollo Court, Hebburn, office staff inspect the cylinder on receipt and register it in F-Gas Tracker Pro. The cylinder is assigned to Stores and becomes available for allocation to engineers.</p>
+        <p><strong>Route B — Direct Collection from Supplier:</strong> Where an engineer collects a cylinder directly from the supplier, the engineer registers the cylinder in the F-Gas Tracker Pro mobile application at the point of collection.</p>
+        <p>In both cases, the following information is recorded at registration:</p>
         <table>
           <thead><tr><th>Field</th><th>Description</th><th>Example</th></tr></thead>
           <tbody>
