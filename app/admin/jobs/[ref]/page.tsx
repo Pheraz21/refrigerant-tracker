@@ -139,6 +139,9 @@ export default function JobDetailPage() {
     ${companyHeader("Used Refrigerant Log", `<div>Generated: ${reportDate}</div><div>Job: ${ref}</div>${crmJob?.siteTitle ? `<div>${crmJob.siteTitle}</div>` : ""}`)}
     <table class="summary-table"><tr>
       <td class="summary-cell"><div class="summary-label">Job Reference</div><div class="summary-value">${ref}</div></td>
+      ${crmJob?.customer ? `<td class="summary-cell"><div class="summary-label">Customer</div><div class="summary-value">${crmJob.customer}</div></td>` : ""}
+      ${crmJob?.siteTitle ? `<td class="summary-cell"><div class="summary-label">Site</div><div class="summary-value">${crmJob.siteTitle}</div></td>` : ""}
+      ${(crmJob?.siteAddress || crmJob?.sitePostcode) ? `<td class="summary-cell"><div class="summary-label">Address</div><div class="summary-value" style="font-size:12px">${[crmJob.siteAddress, crmJob.sitePostcode].filter(Boolean).join(", ")}</div></td>` : ""}
       <td class="summary-cell"><div class="summary-label">Cylinders</div><div class="summary-value">${uniqueBottles}</div></td>
       <td class="summary-cell"><div class="summary-label">Gas Dispensed</div><div class="summary-value">${totalNewGas.toFixed(2)} kg</div></td>
       <td class="summary-cell"><div class="summary-label">Gas Recovered</div><div class="summary-value">${totalRecovered.toFixed(2)} kg</div></td>
@@ -177,7 +180,7 @@ export default function JobDetailPage() {
     win.document.write(`<!DOCTYPE html><html><head><style>
       @page{margin:10mm;size:A4 portrait;}${PDF_BASE_STYLES}
     </style></head><body>
-    ${companyHeader("Decommissioned Equipment", `<div>Generated: ${reportDate}</div><div>Job: ${ref}</div>`)}
+    ${companyHeader("Decommissioned Equipment", `<div>Generated: ${reportDate}</div><div>Job: ${ref}</div>${crmJob?.siteTitle ? `<div>${crmJob.siteTitle}</div>` : ""}${crmJob?.customer ? `<div>${crmJob.customer}</div>` : ""}${(crmJob?.siteAddress || crmJob?.sitePostcode) ? `<div>${[crmJob.siteAddress, crmJob.sitePostcode].filter(Boolean).join(", ")}</div>` : ""}`)}
     ${Object.values(grouped).map(({ rec, eqs }) => {
       const total = eqs.reduce((s, e) => s + (e.weightRecovered || 0), 0);
       return `<div class="job-block">

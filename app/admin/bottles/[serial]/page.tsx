@@ -261,6 +261,7 @@ export default function ViewBottlePage() {
           <td class="summary-cell"><div class="summary-label">Cylinder Capacity</div><div class="summary-value">${(bottle.initialWeight ?? 0).toFixed(2)} kg</div></td>
           <td class="summary-cell"><div class="summary-label">Current Balance</div><div class="summary-value">${(bottle.currentWeight ?? 0).toFixed(2)} kg</div></td>
           <td class="summary-cell"><div class="summary-label">Total Used</div><div class="summary-value">${totalUsed.toFixed(2)} kg</div></td>
+          ${bottle.poNumber ? `<td class="summary-cell"><div class="summary-label">PO Number</div><div class="summary-value">${bottle.poNumber}</div></td>` : ""}
         </tr></table>
         <table class="log"><thead><tr>
           <th style="width: 80px">Date</th><th style="width: 100px">Job Ref</th><th>Site</th>
@@ -369,6 +370,7 @@ export default function ViewBottlePage() {
           <td class="summary-cell"><div class="summary-label">Refrigerant</div><div class="summary-value">${bottle.gasType}</div></td>
           <td class="summary-cell"><div class="summary-label">Weight Balance</div><div class="summary-value">${(bottle.currentWeight ?? 0).toFixed(2)} / ${(bottle.initialWeight ?? 0).toFixed(2)} kg</div></td>
           <td class="summary-cell"><div class="summary-label">Current Location</div><div class="summary-value">${bottle.locationId}</div></td>
+          ${bottle.poNumber ? `<td class="summary-cell"><div class="summary-label">PO Number</div><div class="summary-value">${bottle.poNumber}</div></td>` : ""}
         </tr></table>
         <h3 style="font-size: 14px; margin-bottom: 12px; color: #2d3748; border-left: 5px solid #a3e635; padding-left: 12px;">Full Audit History</h3>
         <table><thead><tr>
