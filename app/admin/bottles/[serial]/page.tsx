@@ -304,16 +304,23 @@ export default function ViewBottlePage() {
   const exportPDF = () => {
     if (!bottle) return;
     const reportDate = new Date().toLocaleDateString("en-GB");
+    // Pre-compute which log ID represents the supplier return event, so the map
+    // doesn't have to guess via field equality (which can fail for batch-HWCN returns).
+    const returnLogId: string | null = (() => {
+      if (bottle.status !== "returned") return null;
+      const explicit = logs.find(l => l.action === "returned_to_supplier");
+      if (explicit) return explicit.id;
+      const lastReceived = [...logs].filter(l => l.action === "received").pop();
+      if (lastReceived) return lastReceived.id;
+      const lastMove = [...logs].filter(l => (l as any).logType === "movement").pop();
+      return lastMove?.id ?? null;
+    })();
     const rows = logs.map(log => {
       const qty = (log as any).qty;
       const balance = (log as any).balance;
       const eqList: any[] = (log as any).equipmentDetails || [];
       const isUsage = log.action === "Gas Used" || log.action === "Gas Recovered";
-      // Two code paths log a supplier return: batch HWCN ("returned_to_supplier") and
-      // single transit completion ("received" with to_location = the supplier destination)
-      const isReturnedToSupplier =
-        log.action === "returned_to_supplier" ||
-        (log.action === "received" && bottle.status === "returned" && log.to === bottle.locationId);
+      const isReturnedToSupplier = !!returnLogId && log.id === returnLogId;
       const isRegistered = log.action === "registered" || log.action === "re_registered";
       const effectiveFrom = isRegistered && (!log.from || log.from === "—") ? "Supplier" : log.from;
       const fromSite = effectiveFrom ? crmJobMap.get(effectiveFrom)?.siteTitle : null;

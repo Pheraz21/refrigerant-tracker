@@ -111,7 +111,7 @@ const COLUMN_DEFS = [
   { key: "reclaim",  label: "Reclaim"                      },
   { key: "bottles",  label: "Bottles"                      },
   { key: "decomPdf", label: "Decom PDF"                    },
-  { key: "refPdf",   label: "Ref. Log PDF"                 },
+  { key: "refPdf",   label: "Job Cylinder Report"           },
   { key: "hwcn",     label: "HWCN"                         },
 ] as const;
 
@@ -678,7 +678,7 @@ export default function RefrigerantJobsPage() {
       case "reclaim":  return <th key={key} style={{ ...s, textAlign: "right" }} onClick={() => handleSort("reclaim")}>Reclaim <SortIcon col="reclaim" /></th>;
       case "bottles":  return <th key={key} style={{ ...s, textAlign: "center" }} onClick={() => handleSort("bottles")}>Bottles <SortIcon col="bottles" /></th>;
       case "decomPdf": return <th key={key} style={{ ...n, textAlign: "center" }}>Decom PDF</th>;
-      case "refPdf":   return <th key={key} style={{ ...n, textAlign: "center" }}>Ref. Log PDF</th>;
+      case "refPdf":   return <th key={key} style={{ ...n, textAlign: "center" }}>Job Cylinder Report</th>;
       case "hwcn":     return <th key={key} style={n}>HWCN</th>;
       default:         return null;
     }
