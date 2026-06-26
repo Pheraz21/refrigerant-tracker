@@ -309,7 +309,11 @@ export default function ViewBottlePage() {
       const balance = (log as any).balance;
       const eqList: any[] = (log as any).equipmentDetails || [];
       const isUsage = log.action === "Gas Used" || log.action === "Gas Recovered";
-      const isReturnedToSupplier = log.action === "returned_to_supplier";
+      // Two code paths log a supplier return: batch HWCN ("returned_to_supplier") and
+      // single transit completion ("received" with to_location = the supplier destination)
+      const isReturnedToSupplier =
+        log.action === "returned_to_supplier" ||
+        (log.action === "received" && bottle.status === "returned" && log.to === bottle.locationId);
       const isRegistered = log.action === "registered" || log.action === "re_registered";
       const effectiveFrom = isRegistered && (!log.from || log.from === "—") ? "Supplier" : log.from;
       const fromSite = effectiveFrom ? crmJobMap.get(effectiveFrom)?.siteTitle : null;
