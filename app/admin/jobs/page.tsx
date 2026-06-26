@@ -430,7 +430,7 @@ export default function RefrigerantJobsPage() {
   };
 
   const DECOM_PDF_STYLES = `
-    @page { margin: 0; size: A4 portrait; }
+    @page { margin: 0; size: A4 landscape; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Segoe UI', Arial, sans-serif; padding: 10mm; color: #333; line-height: 1.4; }
     .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }

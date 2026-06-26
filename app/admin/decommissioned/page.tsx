@@ -99,7 +99,7 @@ export default function DecommissionedEquipmentPage() {
       <head>
         <title>Decommissioned Equipment Report</title>
         <style>
-          @page { margin: 10mm; size: A4 portrait; }
+          @page { margin: 10mm; size: A4 landscape; }
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #333; line-height: 1.4; }
           .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
@@ -209,7 +209,7 @@ export default function DecommissionedEquipmentPage() {
       <head>
         <title>Decommission Report — ${jobNo}</title>
         <style>
-          @page { margin: 10mm; size: A4 portrait; }
+          @page { margin: 10mm; size: A4 landscape; }
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #333; line-height: 1.4; }
           .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }

@@ -178,7 +178,7 @@ export default function JobDetailPage() {
     const win = window.open("", "_blank");
     if (!win) return;
     win.document.write(`<!DOCTYPE html><html><head><style>
-      ${PDF_BASE_STYLES}@page{margin:0;size:A4 portrait;}
+      ${PDF_BASE_STYLES}@page{margin:0;size:A4 landscape;}
     </style></head><body>
     ${companyHeader("Decommissioned Equipment", `<div>Generated: ${reportDate}</div><div>Job: ${ref}</div>${crmJob?.siteTitle ? `<div>${crmJob.siteTitle}</div>` : ""}${crmJob?.customer ? `<div>${crmJob.customer}</div>` : ""}${(crmJob?.siteAddress || crmJob?.sitePostcode) ? `<div>${[crmJob.siteAddress, crmJob.sitePostcode].filter(Boolean).join(", ")}</div>` : ""}`)}
     ${Object.values(grouped).map(({ rec, eqs }) => {
