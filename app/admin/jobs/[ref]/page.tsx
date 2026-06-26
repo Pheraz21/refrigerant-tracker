@@ -171,6 +171,7 @@ export default function JobDetailPage() {
     const allUsageLogs = [...newGasLogs, ...recoveryLogs, ...nitrogenLogs].sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     );
+    console.log("[PDF debug] allUsageLogs:", allUsageLogs.map(l => ({ id: l.id, equipmentDetails: l.equipmentDetails })));
     const decomFlatRows = decomRecords.flatMap(rec =>
       (rec.equipment || []).map((eq: any) => ({ ...rec, eq }))
     );
