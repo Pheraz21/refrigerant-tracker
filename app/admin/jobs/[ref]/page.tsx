@@ -360,16 +360,6 @@ export default function JobDetailPage() {
               <Printer size={14} /> Full Job Report
             </button>
           )}
-          {hasRefLog && (
-            <button onClick={printRefrigerantLog} style={pdfBtn("255,170,0")}>
-              <Printer size={14} /> Ref. Log PDF
-            </button>
-          )}
-          {decomRecords.length > 0 && (
-            <button onClick={printDecomPdf} style={pdfBtn("255,51,102")}>
-              <Printer size={14} /> Decom PDF
-            </button>
-          )}
         </div>
       </div>
 
