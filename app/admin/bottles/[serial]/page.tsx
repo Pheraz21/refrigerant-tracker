@@ -276,7 +276,7 @@ export default function ViewBottlePage() {
             <td colspan="2"></td>
           </tr>
         </tbody></table>
-        <div class="footer">Cylinder Usage Report | F-Gas Tracker Pro | &copy; 2024 21 Degrees Ltd</div>
+        <div class="footer">21 Degrees F-Gas Tracker Pro | Official Audit Document | &copy; 2026 21 Degrees Ltd</div>
       </body></html>
     `;
     const win = window.open("", "_blank");
@@ -403,7 +403,7 @@ export default function ViewBottlePage() {
           <th style="width: 70px; text-align: center;">Qty (kg)</th>
           <th style="width: 70px; text-align: center;">Balance</th><th>User</th>
         </tr></thead><tbody>${rows}</tbody></table>
-        <div class="footer">Printed from F-Gas Tracker Pro | Official Audit Document | &copy; 2024 21 Degrees Ltd</div>
+        <div class="footer">21 Degrees F-Gas Tracker Pro | Official Audit Document | &copy; 2026 21 Degrees Ltd</div>
       </body></html>
     `;
     const win = window.open("", "_blank");

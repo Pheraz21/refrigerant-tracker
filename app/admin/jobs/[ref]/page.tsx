@@ -160,7 +160,7 @@ export default function JobDetailPage() {
           <td colspan="2"></td></tr>
       </tbody>
     </table>
-    <div class="footer">Job Cylinder Usage Report | 21 Degrees Ltd | Job: ${ref}</div>
+    <div class="footer">21 Degrees F-Gas Tracker Pro | Official Audit Document | &copy; 2026 21 Degrees Ltd | Job: ${ref}</div>
     </body></html>`);
     win.document.close();
     setTimeout(() => win.print(), 500);
@@ -201,7 +201,7 @@ export default function JobDetailPage() {
         </tbody></table>
       </div>`;
     }).join("")}
-    <div class="footer">Decommissioned Equipment Report | 21 Degrees Ltd | ${flatRows.length} item(s) for job ${ref}</div>
+    <div class="footer">21 Degrees F-Gas Tracker Pro | Official Audit Document | &copy; 2026 21 Degrees Ltd | ${flatRows.length} item(s) for job ${ref}</div>
     </body></html>`);
     win.document.close();
     setTimeout(() => win.print(), 500);

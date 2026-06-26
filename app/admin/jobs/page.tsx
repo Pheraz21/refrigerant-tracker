@@ -521,7 +521,7 @@ export default function RefrigerantJobsPage() {
             </tbody></table>
           </div>`;
       }).join("")}
-      <div class="footer">21 Degrees — Refrigerant Compliance System | ${flatRows.length} equipment item(s) for job ${siteRef}</div>
+      <div class="footer">21 Degrees F-Gas Tracker Pro | Official Audit Document | &copy; 2026 21 Degrees Ltd | ${flatRows.length} item(s) for job ${siteRef}</div>
       </body></html>`;
 
     printWindow.document.write(html);
@@ -641,7 +641,7 @@ export default function RefrigerantJobsPage() {
               </tr>
             </tbody>
           </table>
-          <div class="footer">Job Cylinder Usage Report | 21 Degrees Ltd | Job: ${job.siteRef}</div>
+          <div class="footer">21 Degrees F-Gas Tracker Pro | Official Audit Document | &copy; 2026 21 Degrees Ltd | Job: ${job.siteRef}</div>
         </body>
       </html>
     `;
