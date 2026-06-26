@@ -546,6 +546,17 @@ export default function RefrigerantJobsPage() {
     const rows = sortedLogs.map(log => {
       const isRecovery = RECOVERY_TYPES.has((log.jobType || "").toLowerCase());
       const displayJobType = isRecovery ? log.jobType : (jobTypeFromPrefix(log.siteRef || job.siteRef) || log.jobType || "—");
+      const eqList: any[] = log.equipmentDetails || [];
+      const eqRow = eqList.length > 0 ? `
+        <tr style="background:#f8faff;">
+          <td colspan="8" style="padding:3px 12px 5px 22px;font-size:8px;color:#4a5568;border-bottom:1px solid #e2e8f0;">
+            ${eqList.map(eq => {
+              const name = [eq.model].filter(Boolean).join(" ") || "Unknown unit";
+              const sn = eq.serial ? ` · SN: ${eq.serial}` : "";
+              return `<span style="margin-right:14px">${name}${sn}</span>`;
+            }).join("")}
+          </td>
+        </tr>` : "";
       return `
         <tr>
           <td style="white-space:nowrap">${new Date(log.date).toLocaleDateString("en-GB")}</td>
@@ -556,7 +567,7 @@ export default function RefrigerantJobsPage() {
           <td style="text-align:right;font-weight:600;color:${isRecovery ? "#856404" : "#155724"}">${(log.weightUsed || 0).toFixed(2)} kg</td>
           <td style="text-align:right">${log.weightBefore?.toFixed(2) || "—"} kg</td>
           <td style="text-align:right">${log.weightAfter?.toFixed(2) || "—"} kg</td>
-        </tr>
+        </tr>${eqRow}
       `;
     }).join("");
 
