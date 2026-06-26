@@ -488,39 +488,33 @@ export default function RefrigerantJobsPage() {
       }))
     );
 
-    const grouped: Record<string, any[]> = {};
-    flatRows.forEach(row => {
-      if (!grouped[row.id]) grouped[row.id] = [];
-      grouped[row.id].push(row);
-    });
-
+    const first = flatRows[0];
+    const totalWeight = flatRows.reduce((sum, r) => sum + (r.eqWeight || 0), 0);
     const reportDate = new Date().toLocaleDateString("en-GB", { dateStyle: "long" });
 
     const html = `<!DOCTYPE html><html><head><title>Decommissioned Equipment — ${siteRef}</title>
       <style>${DECOM_PDF_STYLES}</style></head><body>
       ${COMPANY_HEADER("Decommissioned Equipment", `<div>Generated: ${reportDate}</div><div>Job: ${siteRef}</div>`)}
-      ${Object.entries(grouped).map(([, rows]) => {
-        const first = rows[0];
-        const totalWeight = rows.reduce((sum, r) => sum + (r.eqWeight || 0), 0);
-        return `
-          <div class="job-block">
-            <div class="job-header">
-              <h3>${first.jobNumber || "Unknown Job"} — ${first.siteName || "Unknown Site"}</h3>
-              <p>${first.siteAddress || ""}${first.sitePostcode ? `, ${first.sitePostcode}` : ""} | Engineer: ${first.engineer || "—"} | Date: ${first.date ? new Date(first.date).toLocaleDateString("en-GB") : "—"} | Bottle: ${first.bottleSerial || "—"} | Gas: ${first.gasType || "—"}</p>
-            </div>
-            <table><thead><tr>
-              <th>Manufacturer</th><th>Model</th><th>Serial No.</th><th style="text-align:right">Weight Recovered</th>
-            </tr></thead><tbody>
-              ${rows.map(r => `<tr>
-                <td>${r.eqManufacturer || "—"}</td>
-                <td>${r.eqModel || "—"}</td>
-                <td style="font-family:monospace;font-weight:600">${r.eqSerial || "—"}</td>
-                <td style="text-align:right">${(r.eqWeight || 0).toFixed(2)} kg</td>
-              </tr>`).join("")}
-              <tr class="total-row"><td colspan="3">Total Recovered</td><td style="text-align:right">${totalWeight.toFixed(2)} kg</td></tr>
-            </tbody></table>
-          </div>`;
-      }).join("")}
+      <div class="job-block">
+        <div class="job-header">
+          <h3>${first?.jobNumber || siteRef} — ${first?.siteName || "Unknown Site"}</h3>
+          <p>${[first?.siteAddress, first?.sitePostcode].filter(Boolean).join(", ") || "—"}</p>
+        </div>
+        <table><thead><tr>
+          <th>Date</th><th>Gas</th><th>Engineer</th><th>Manufacturer</th><th>Model</th><th>Serial No.</th><th style="text-align:right">Weight Recovered</th>
+        </tr></thead><tbody>
+          ${flatRows.map(r => `<tr>
+            <td style="white-space:nowrap">${r.date ? new Date(r.date).toLocaleDateString("en-GB") : "—"}</td>
+            <td>${r.gasType || "—"}</td>
+            <td>${r.engineer || "—"}</td>
+            <td>${r.eqManufacturer || "—"}</td>
+            <td>${r.eqModel || "—"}</td>
+            <td style="font-family:monospace;font-weight:600">${r.eqSerial || "—"}</td>
+            <td style="text-align:right">${(r.eqWeight || 0).toFixed(2)} kg</td>
+          </tr>`).join("")}
+          <tr class="total-row"><td colspan="6">Total Recovered</td><td style="text-align:right">${totalWeight.toFixed(2)} kg</td></tr>
+        </tbody></table>
+      </div>
       <div class="footer">21 Degrees F-Gas Tracker Pro | Official Audit Document | &copy; 2026 21 Degrees Ltd | ${flatRows.length} item(s) for job ${siteRef}</div>
       </body></html>`;
 

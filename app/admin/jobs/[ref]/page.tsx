@@ -172,8 +172,8 @@ export default function JobDetailPage() {
     const flatRows = decomRecords.flatMap(rec =>
       (rec.equipment || []).map((eq: any) => ({ ...rec, eq }))
     );
-    const grouped: Record<string, { rec: any; eqs: any[] }> = {};
-    decomRecords.forEach(rec => { grouped[rec.id] = { rec, eqs: rec.equipment || [] }; });
+    const first = decomRecords[0];
+    const totalWeight = flatRows.reduce((s, r) => s + (r.eq?.weightRecovered || 0), 0);
 
     const win = window.open("", "_blank");
     if (!win) return;
@@ -181,26 +181,26 @@ export default function JobDetailPage() {
       ${PDF_BASE_STYLES}@page{margin:0;size:A4 landscape;}
     </style></head><body>
     ${companyHeader("Decommissioned Equipment", `<div>Generated: ${reportDate}</div><div>Job: ${ref}</div>${crmJob?.siteTitle ? `<div>${crmJob.siteTitle}</div>` : ""}${crmJob?.customer ? `<div>${crmJob.customer}</div>` : ""}${(crmJob?.siteAddress || crmJob?.sitePostcode) ? `<div>${[crmJob.siteAddress, crmJob.sitePostcode].filter(Boolean).join(", ")}</div>` : ""}`)}
-    ${Object.values(grouped).map(({ rec, eqs }) => {
-      const total = eqs.reduce((s, e) => s + (e.weightRecovered || 0), 0);
-      return `<div class="job-block">
-        <div class="job-header">
-          <h3>${rec.jobNumber || ref} — ${rec.siteName || "Unknown Site"}</h3>
-          <p>${rec.siteAddress || ""}${rec.sitePostcode ? `, ${rec.sitePostcode}` : ""} | Engineer: ${rec.engineer || "—"} | Date: ${rec.date ? new Date(rec.date).toLocaleDateString("en-GB") : "—"} | Gas: ${rec.gasType || "—"}</p>
-        </div>
-        <table><thead><tr>
-          <th>Manufacturer</th><th>Model</th><th>Serial No.</th><th style="text-align:right">Weight Recovered</th>
-        </tr></thead><tbody>
-          ${eqs.map(e => `<tr>
-            <td>${e.manufacturer || "—"}</td>
-            <td>${e.model || "—"}</td>
-            <td style="font-family:monospace;font-weight:600">${e.serial || "—"}</td>
-            <td style="text-align:right">${(e.weightRecovered || 0).toFixed(2)} kg</td>
-          </tr>`).join("")}
-          <tr class="total-row"><td colspan="3">Total Recovered</td><td style="text-align:right">${total.toFixed(2)} kg</td></tr>
-        </tbody></table>
-      </div>`;
-    }).join("")}
+    <div class="job-block">
+      <div class="job-header">
+        <h3>${first?.jobNumber || ref} — ${first?.siteName || crmJob?.siteTitle || "Unknown Site"}</h3>
+        <p>${[first?.siteAddress || crmJob?.siteAddress, first?.sitePostcode || crmJob?.sitePostcode].filter(Boolean).join(", ") || "—"}</p>
+      </div>
+      <table><thead><tr>
+        <th>Date</th><th>Gas</th><th>Engineer</th><th>Manufacturer</th><th>Model</th><th>Serial No.</th><th style="text-align:right">Weight Recovered</th>
+      </tr></thead><tbody>
+        ${flatRows.map(({ eq, ...rec }) => `<tr>
+          <td style="white-space:nowrap">${rec.date ? new Date(rec.date).toLocaleDateString("en-GB") : "—"}</td>
+          <td>${rec.gasType || "—"}</td>
+          <td>${rec.engineer || "—"}</td>
+          <td>${eq?.manufacturer || "—"}</td>
+          <td>${eq?.model || "—"}</td>
+          <td style="font-family:monospace;font-weight:600">${eq?.serial || "—"}</td>
+          <td style="text-align:right">${(eq?.weightRecovered || 0).toFixed(2)} kg</td>
+        </tr>`).join("")}
+        <tr class="total-row"><td colspan="6">Total Recovered</td><td style="text-align:right">${totalWeight.toFixed(2)} kg</td></tr>
+      </tbody></table>
+    </div>
     <div class="footer">21 Degrees F-Gas Tracker Pro | Official Audit Document | &copy; 2026 21 Degrees Ltd | ${flatRows.length} item(s) for job ${ref}</div>
     </body></html>`);
     win.document.close();
