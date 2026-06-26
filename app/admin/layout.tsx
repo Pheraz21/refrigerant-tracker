@@ -29,7 +29,8 @@ import {
   UserCircle,
   ChevronLeft,
   ChevronRight,
-  Wrench
+  Wrench,
+  BookOpen
 } from "lucide-react";
 
 const navGroups = [
@@ -67,6 +68,12 @@ const navGroups = [
       { href: "/admin/all-hwcns", label: "All HWCNs", icon: FileText },
       { href: "/admin/haz-waste-summary", label: "Haz Waste In Company", icon: ShieldAlert },
       { href: "/admin/supplier-returns", label: "Waste Return from Office to Supplier", icon: Building2 },
+    ]
+  },
+  {
+    title: "Compliance",
+    items: [
+      { href: "/admin/docs", label: "Procedures & SOPs", icon: BookOpen },
     ]
   },
   {
