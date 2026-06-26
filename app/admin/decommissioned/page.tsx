@@ -86,11 +86,12 @@ export default function DecommissionedEquipmentPage() {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
-    // Group rows back by record ID for the PDF
+    // Group by job number so each site appears once
     const grouped: Record<string, any[]> = {};
     filtered.forEach(row => {
-      if (!grouped[row.id]) grouped[row.id] = [];
-      grouped[row.id].push(row);
+      const key = row.jobNumber || row.id;
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(row);
     });
 
     const html = `
@@ -140,19 +141,22 @@ export default function DecommissionedEquipmentPage() {
             </div>
           </div>
         </div>
-        
-        ${Object.entries(grouped).map(([id, rows]) => {
+
+        ${Object.entries(grouped).map(([, rows]) => {
           const first = rows[0];
           const totalWeight = rows.reduce((sum, r) => sum + (r.eqWeight || 0), 0);
           return `
             <div class="job-block">
               <div class="job-header">
                 <h3>${first.jobNumber || "Unknown Job"} — ${first.siteName || "Unknown Site"}</h3>
-                <p>${first.siteAddress || ""}${first.sitePostcode ? `, ${first.sitePostcode}` : ""} | Engineer: ${first.engineer || "—"} | Date: ${first.date ? new Date(first.date).toLocaleDateString("en-GB") : "—"} | Bottle: ${first.bottleSerial || "—"} | Gas: ${first.gasType || "—"}</p>
+                <p>${[first.siteAddress, first.sitePostcode].filter(Boolean).join(", ") || "—"}</p>
               </div>
               <table>
                 <thead>
                   <tr>
+                    <th>Date</th>
+                    <th>Gas</th>
+                    <th>Engineer</th>
                     <th>Manufacturer</th>
                     <th>Model</th>
                     <th>Serial No.</th>
@@ -162,14 +166,17 @@ export default function DecommissionedEquipmentPage() {
                 <tbody>
                   ${rows.map(r => `
                     <tr>
+                      <td style="white-space:nowrap">${r.date ? new Date(r.date).toLocaleDateString("en-GB") : "—"}</td>
+                      <td>${r.gasType || "—"}</td>
+                      <td>${r.engineer || "—"}</td>
                       <td>${r.eqManufacturer || "—"}</td>
                       <td>${r.eqModel || "—"}</td>
-                      <td style="font-family: monospace; font-weight: 600">${r.eqSerial || "—"}</td>
+                      <td style="font-family:monospace;font-weight:600">${r.eqSerial || "—"}</td>
                       <td style="text-align:right">${(r.eqWeight || 0).toFixed(2)} kg</td>
                     </tr>
                   `).join("")}
                   <tr class="total-row">
-                    <td colspan="3">Total Recovered</td>
+                    <td colspan="6">Total Recovered</td>
                     <td style="text-align:right">${totalWeight.toFixed(2)} kg</td>
                   </tr>
                 </tbody>
@@ -179,7 +186,7 @@ export default function DecommissionedEquipmentPage() {
         }).join("")}
 
         <div class="footer">
-          21 Degrees — Refrigerant Compliance System | ${filtered.length} equipment item(s) across ${Object.keys(grouped).length} decommission record(s)
+          21 Degrees F-Gas Tracker Pro | Official Audit Document | &copy; 2026 21 Degrees Ltd | ${filtered.length} item(s) across ${Object.keys(grouped).length} site(s)
         </div>
       </body>
       </html>
@@ -197,11 +204,8 @@ export default function DecommissionedEquipmentPage() {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
-    const grouped: Record<string, any[]> = {};
-    jobRows.forEach(row => {
-      if (!grouped[row.id]) grouped[row.id] = [];
-      grouped[row.id].push(row);
-    });
+    const first = jobRows[0];
+    const totalWeight = jobRows.reduce((sum, r) => sum + (r.eqWeight || 0), 0);
 
     const html = `
       <!DOCTYPE html>
@@ -218,8 +222,7 @@ export default function DecommissionedEquipmentPage() {
           .report-info { text-align: right; }
           .report-title { font-size: 20px; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; color: #1a202c; }
           .report-meta { font-size: 11px; color: #666; }
-          .subtitle { color: #666; font-size: 13px; margin-bottom: 24px; }
-          .job-block { margin-bottom: 24px; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; page-break-inside: avoid; }
+          .job-block { margin-bottom: 24px; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; }
           .job-header { background: #f5f5f5; padding: 12px 16px; border-bottom: 1px solid #ddd; }
           .job-header h3 { font-size: 14px; margin-bottom: 4px; }
           .job-header p { font-size: 12px; color: #666; }
@@ -228,7 +231,7 @@ export default function DecommissionedEquipmentPage() {
           td { padding: 8px 12px; font-size: 12px; border-bottom: 1px solid #f0f0f0; }
           .total-row { font-weight: 700; background: #f9f9f9; }
           .footer { margin-top: 30px; font-size: 11px; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 10px; }
-          @media print { body { padding: 15px; } .job-block { break-inside: avoid; } }
+          @media print { body { padding: 15px; } }
         </style>
       </head>
       <body>
@@ -250,44 +253,44 @@ export default function DecommissionedEquipmentPage() {
             </div>
           </div>
         </div>
-        ${Object.entries(grouped).map(([, rows]) => {
-          const first = rows[0];
-          const totalWeight = rows.reduce((sum, r) => sum + (r.eqWeight || 0), 0);
-          return `
-            <div class="job-block">
-              <div class="job-header">
-                <h3>${first.jobNumber || "Unknown Job"} — ${first.siteName || "Unknown Site"}</h3>
-                <p>${first.siteAddress || ""}${first.sitePostcode ? `, ${first.sitePostcode}` : ""} | Engineer: ${first.engineer || "—"} | Date: ${first.date ? new Date(first.date).toLocaleDateString("en-GB") : "—"} | Bottle: ${first.bottleSerial || "—"} | Gas: ${first.gasType || "—"}</p>
-              </div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Manufacturer</th>
-                    <th>Model</th>
-                    <th>Serial No.</th>
-                    <th style="text-align:right">Weight Recovered</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${rows.map(r => `
-                    <tr>
-                      <td>${r.eqManufacturer || "—"}</td>
-                      <td>${r.eqModel || "—"}</td>
-                      <td style="font-family: monospace; font-weight: 600">${r.eqSerial || "—"}</td>
-                      <td style="text-align:right">${(r.eqWeight || 0).toFixed(2)} kg</td>
-                    </tr>
-                  `).join("")}
-                  <tr class="total-row">
-                    <td colspan="3">Total Recovered</td>
-                    <td style="text-align:right">${totalWeight.toFixed(2)} kg</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          `;
-        }).join("")}
+        <div class="job-block">
+          <div class="job-header">
+            <h3>${first?.jobNumber || jobNo} — ${first?.siteName || "Unknown Site"}</h3>
+            <p>${[first?.siteAddress, first?.sitePostcode].filter(Boolean).join(", ") || "—"}</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Gas</th>
+                <th>Engineer</th>
+                <th>Manufacturer</th>
+                <th>Model</th>
+                <th>Serial No.</th>
+                <th style="text-align:right">Weight Recovered</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${jobRows.map(r => `
+                <tr>
+                  <td style="white-space:nowrap">${r.date ? new Date(r.date).toLocaleDateString("en-GB") : "—"}</td>
+                  <td>${r.gasType || "—"}</td>
+                  <td>${r.engineer || "—"}</td>
+                  <td>${r.eqManufacturer || "—"}</td>
+                  <td>${r.eqModel || "—"}</td>
+                  <td style="font-family:monospace;font-weight:600">${r.eqSerial || "—"}</td>
+                  <td style="text-align:right">${(r.eqWeight || 0).toFixed(2)} kg</td>
+                </tr>
+              `).join("")}
+              <tr class="total-row">
+                <td colspan="6">Total Recovered</td>
+                <td style="text-align:right">${totalWeight.toFixed(2)} kg</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <div class="footer">
-          21 Degrees — Refrigerant Compliance System | ${jobRows.length} equipment item(s) for job ${jobNo}
+          21 Degrees F-Gas Tracker Pro | Official Audit Document | &copy; 2026 21 Degrees Ltd | ${jobRows.length} item(s) for job ${jobNo}
         </div>
       </body>
       </html>
