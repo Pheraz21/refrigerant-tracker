@@ -48,12 +48,42 @@ function exportVanCSV(bottles: Bottle[], engineer: string) {
 
 function exportVanPDF(bottles: Bottle[], engineer: string, engineerProfiles: AppUser[]) {
   const reportDate = new Date().toLocaleDateString("en-GB");
-  const rows = bottles.map(b => {
-    const catLabel = b.category === "new" ? "New" : b.category === "reclaim" ? "Reclaim / Haz" : "Nitrogen";
+
+  const resolveEngineer = (b: Bottle) => {
     const idOrName = b.locationId.replace(" - Van", "");
     const user = engineerProfiles.find(e => e.id === idOrName || e.name === idOrName);
-    const engineerName = user ? user.name : idOrName;
-    const reg = b.vehicleReg || user?.vehicleReg || "—";
+    return { name: user ? user.name : idOrName, reg: b.vehicleReg || user?.vehicleReg || "—" };
+  };
+
+  // Type summary counts
+  const newCount     = bottles.filter(b => b.category === "new").length;
+  const reclaimCount = bottles.filter(b => b.category === "reclaim").length;
+  const n2Count      = bottles.filter(b => b.category === "nitrogen").length;
+
+  // Per-engineer breakdown
+  const engMap = new Map<string, { name: string; reg: string; new: number; reclaim: number; nitrogen: number }>();
+  bottles.forEach(b => {
+    const { name, reg } = resolveEngineer(b);
+    if (!engMap.has(name)) engMap.set(name, { name, reg, new: 0, reclaim: 0, nitrogen: 0 });
+    const entry = engMap.get(name)!;
+    if (b.category === "new")      entry.new++;
+    else if (b.category === "reclaim") entry.reclaim++;
+    else                            entry.nitrogen++;
+  });
+  const engRows = Array.from(engMap.values())
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(e => `<tr>
+      <td>${e.name}</td>
+      <td style="font-family:monospace">${e.reg}</td>
+      <td style="text-align:center;font-weight:bold">${e.new}</td>
+      <td style="text-align:center;font-weight:bold">${e.reclaim}</td>
+      <td style="text-align:center;font-weight:bold">${e.nitrogen}</td>
+      <td style="text-align:center;font-weight:bold">${e.new + e.reclaim + e.nitrogen}</td>
+    </tr>`).join("");
+
+  const rows = bottles.map(b => {
+    const catLabel = b.category === "new" ? "New" : b.category === "reclaim" ? "Reclaim / Haz" : "Nitrogen";
+    const { name: engineerName, reg } = resolveEngineer(b);
     return `<tr>
       <td style="font-weight:bold">${b.serial}</td>
       <td>${catLabel}</td><td>${b.gasType}</td>
@@ -64,6 +94,7 @@ function exportVanPDF(bottles: Bottle[], engineer: string, engineerProfiles: App
       <td style="font-family:monospace">${reg}</td>
     </tr>`;
   }).join("");
+
   const html = `
     <html><head><style>
       body{font-family:sans-serif;padding:20px;color:#333}
@@ -73,10 +104,15 @@ function exportVanPDF(bottles: Bottle[], engineer: string, engineerProfiles: App
       .report-info{text-align:right}
       .report-title{font-size:20px;font-weight:bold;margin-bottom:5px;text-transform:uppercase}
       .report-meta{font-size:11px;color:#666}
-      table{width:100%;border-collapse:collapse;margin-top:10px}
+      .summary-boxes{display:flex;gap:12px;margin-bottom:20px}
+      .summary-box{flex:1;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;background:#f9fafb}
+      .summary-box .label{font-size:8px;text-transform:uppercase;color:#718096;font-weight:700;letter-spacing:0.08em;margin-bottom:4px}
+      .summary-box .value{font-size:20px;font-weight:bold;color:#1a202c}
+      .section-title{font-size:12px;font-weight:700;text-transform:uppercase;color:#2d3748;border-left:4px solid #a3e635;padding-left:8px;margin:20px 0 6px}
+      table{width:100%;border-collapse:collapse;margin-top:6px}
       th,td{border:1px solid #ddd;padding:6px 8px;text-align:left;font-size:10px}
       th{background:#f8f9fa;font-weight:bold;text-transform:uppercase;color:#555}
-      .footer{margin-top:20px;font-size:9px;color:#999;text-align:center}
+      .footer{margin-top:20px;font-size:9px;color:#999;text-align:center;border-top:1px solid #eee;padding-top:10px}
     </style></head><body>
       <div class="header">
         <div class="logo-section">
@@ -88,13 +124,22 @@ function exportVanPDF(bottles: Bottle[], engineer: string, engineerProfiles: App
           <div class="report-meta">
             <div>Engineer: ${engineer==="all"?"All Engineers / Fleet":engineer}</div>
             <div>Generated: ${reportDate}</div>
-            <div>Results: ${bottles.length} Bottles</div>
           </div>
         </div>
       </div>
+      <div class="summary-boxes">
+        <div class="summary-box"><div class="label">Total Cylinders</div><div class="value">${bottles.length}</div></div>
+        <div class="summary-box"><div class="label">New Gas</div><div class="value">${newCount}</div></div>
+        <div class="summary-box"><div class="label">Reclaim / Haz</div><div class="value">${reclaimCount}</div></div>
+        <div class="summary-box"><div class="label">Nitrogen</div><div class="value">${n2Count}</div></div>
+      </div>
+      <div class="section-title">Engineer Summary</div>
+      <table><thead><tr><th>Engineer</th><th>Vehicle Reg</th><th style="text-align:center">New Gas</th><th style="text-align:center">Reclaim / Haz</th><th style="text-align:center">Nitrogen</th><th style="text-align:center">Total</th></tr></thead>
+      <tbody>${engRows}</tbody></table>
+      <div class="section-title">Cylinder Detail</div>
       <table><thead><tr><th>Serial</th><th>Category</th><th>Gas Type</th><th>Capacity</th><th>Current</th><th>Since</th><th>Engineer</th><th>Vehicle Reg</th></tr></thead>
       <tbody>${rows}</tbody></table>
-      <div class="footer">Printed from F-Gas Tracker Pro | &copy; 21 Degrees Ltd</div>
+      <div class="footer">21 Degrees F-Gas Tracker Pro | Official Audit Document | &copy; 2026 21 Degrees Ltd</div>
     </body></html>
   `;
   const w = window.open("", "_blank");
