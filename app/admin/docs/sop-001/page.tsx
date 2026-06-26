@@ -172,8 +172,13 @@ export default function Sop001Page() {
         </table>
 
         <h3>5.5 Return of Empty or Depleted Cylinders</h3>
-        <p>When a cylinder is empty or no longer required, it is returned to the supplier. Office staff record the return in F-Gas Tracker Pro, entering the supplier's name, branch, and their reference number for the return. A photo of the supplier's returns documentation may also be uploaded. The cylinder is marked as returned and a permanent movement log entry is created.</p>
-        <p>The cylinder exits active tracking and appears in the <strong>Returned to Supplier</strong> register.</p>
+        <p>When a cylinder is empty or no longer required on a van, it is returned to the supplier by one of two routes:</p>
+
+        <p><strong>Route A — Direct Return to Supplier by Engineer:</strong> The engineer takes the cylinder directly to the supplier's premises. On completion of the return, the engineer records the movement in F-Gas Tracker Pro, entering the supplier's name, branch, and the supplier's reference number for the return. A photo of the supplier's returns documentation may also be uploaded. The cylinder is marked as returned and a permanent movement log entry is created.</p>
+
+        <p><strong>Route B — Return to Stores, Office Arranges Collection:</strong> The engineer moves the cylinder back to HQ Stores and records this movement in F-Gas Tracker Pro. The cylinder is shown as located in Stores. Office staff then organise the return to the supplier. When the cylinder leaves for the supplier, office staff record the final movement in F-Gas Tracker Pro, entering the supplier's name, branch, and the supplier's reference number. The cylinder is marked as returned and a permanent movement log entry is created.</p>
+
+        <p>In both routes, the cylinder exits active tracking and appears in the <strong>Returned to Supplier</strong> register once the return is recorded.</p>
         <blockquote><strong>Note:</strong> New (virgin gas) cylinders contain no hazardous waste. No Hazardous Waste Consignment Note (HWCN) is required for their return. Recovery cylinders require the full HWCN process — see SOP-002.</blockquote>
 
         {/* 6 */}
