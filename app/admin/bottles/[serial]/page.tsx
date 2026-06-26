@@ -306,13 +306,14 @@ export default function ViewBottlePage() {
     const reportDate = new Date().toLocaleDateString("en-GB");
     // Pre-compute which log ID represents the supplier return event, so the map
     // doesn't have to guess via field equality (which can fail for batch-HWCN returns).
+    // logs is reverse-chronological, so .find() returns the most recent match
     const returnLogId: string | null = (() => {
       if (bottle.status !== "returned") return null;
       const explicit = logs.find(l => l.action === "returned_to_supplier");
       if (explicit) return explicit.id;
-      const lastReceived = [...logs].filter(l => l.action === "received").pop();
+      const lastReceived = logs.find(l => l.action === "received");
       if (lastReceived) return lastReceived.id;
-      const lastMove = [...logs].filter(l => (l as any).logType === "movement").pop();
+      const lastMove = logs.find(l => (l as any).logType === "movement");
       return lastMove?.id ?? null;
     })();
     const rows = logs.map(log => {
