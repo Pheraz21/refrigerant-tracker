@@ -136,7 +136,7 @@ export default function JobDetailPage() {
       .summary-label{font-size:8px;color:#718096;text-transform:uppercase;margin-bottom:4px;font-weight:700;letter-spacing:0.1em;}
       .summary-value{font-size:14px;font-weight:bold;color:#1a202c;white-space:nowrap;}
     </style></head><body>
-    ${companyHeader("Job Refrigerant Log", `<div>Generated: ${reportDate}</div><div>Job: ${ref}</div>${crmJob?.siteTitle ? `<div>${crmJob.siteTitle}</div>` : ""}`)}
+    ${companyHeader("Job Cylinder Usage Report", `<div>Generated: ${reportDate}</div><div>Job: ${ref}</div>${crmJob?.siteTitle ? `<div>${crmJob.siteTitle}</div>` : ""}`)}
     <table class="summary-table"><tr>
       <td class="summary-cell"><div class="summary-label">Job Reference</div><div class="summary-value">${ref}</div></td>
       ${crmJob?.customer ? `<td class="summary-cell"><div class="summary-label">Customer</div><div class="summary-value">${crmJob.customer}</div></td>` : ""}
@@ -160,7 +160,7 @@ export default function JobDetailPage() {
           <td colspan="2"></td></tr>
       </tbody>
     </table>
-    <div class="footer">Job Refrigerant Log | 21 Degrees Ltd | Job: ${ref}</div>
+    <div class="footer">Job Cylinder Usage Report | 21 Degrees Ltd | Job: ${ref}</div>
     </body></html>`);
     win.document.close();
     setTimeout(() => win.print(), 500);

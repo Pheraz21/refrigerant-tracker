@@ -251,7 +251,7 @@ export default function ViewBottlePage() {
             <div class="company-info"><strong>21 Degrees Ltd</strong><br />Unit 10, Apollo Court, Monkton Business Park<br />Hebburn, Tyne &amp; Wear, NE31 2ES<br />Tel: 0191 495 7224</div>
           </div>
           <div class="report-info">
-            <div class="report-title">Cylinder Log</div>
+            <div class="report-title">Cylinder Report</div>
             <div class="report-meta"><div>Generated: ${reportDate}</div><div>Cylinder: ${bottle.serial}</div></div>
           </div>
         </div>
@@ -275,7 +275,7 @@ export default function ViewBottlePage() {
             <td colspan="2"></td>
           </tr>
         </tbody></table>
-        <div class="footer">Cylinder Log | F-Gas Tracker Pro | &copy; 2024 21 Degrees Ltd</div>
+        <div class="footer">Cylinder Report | F-Gas Tracker Pro | &copy; 2024 21 Degrees Ltd</div>
       </body></html>
     `;
     const win = window.open("", "_blank");
