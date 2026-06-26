@@ -201,27 +201,20 @@ export default function ViewBottlePage() {
 
     const rows = sorted.map(log => {
       const eqList: any[] = log.equipmentDetails || [];
-      const eqRow = eqList.length > 0 ? `
-        <tr style="background-color:#f0f4ff;">
-          <td colspan="7" style="padding:3px 12px 5px 22px; font-size:8px; color:#4a5568; border-bottom:1px solid #e2e8f0;">
-            ${eqList.map(eq => {
-              const name = [eq.manufacturer, eq.model].filter(Boolean).join(" ") || "Unknown unit";
-              const sn = eq.serial ? ` &nbsp;&middot;&nbsp; SN: ${eq.serial}` : "";
-              const wt = eq.weight > 0 ? ` &nbsp;&middot;&nbsp; ${Number(eq.weight).toFixed(2)} kg` : "";
-              return `<span style="margin-right:12px">${name}${sn}${wt}</span>`;
-            }).join("")}
-          </td>
-        </tr>` : "";
+      const eq = eqList[0] || null;
       return `
       <tr>
         <td style="white-space: nowrap">${new Date(log.date).toLocaleDateString("en-GB")}</td>
         <td style="font-family: monospace; font-weight: 600">${log.siteRef || "—"}</td>
         <td>${crmJobMap.get(log.siteRef || '')?.siteTitle || log.siteName || "—"}</td>
         <td>${log.engineer || "—"}</td>
+        <td>${eq?.manufacturer || "—"}</td>
+        <td>${eq?.model || "—"}</td>
+        <td style="font-family: monospace; font-size: 9px">${eq?.serial || "—"}</td>
         <td style="text-align: right; font-weight: 600; color: #e53e3e">${log.weightUsed?.toFixed(2) || "—"} kg</td>
         <td style="text-align: right">${log.weightBefore?.toFixed(2) || "—"} kg</td>
         <td style="text-align: right">${log.weightAfter?.toFixed(2) || "—"} kg</td>
-      </tr>${eqRow}`;
+      </tr>`;
     }).join("");
 
     const html = `
@@ -266,12 +259,14 @@ export default function ViewBottlePage() {
         </tr></table>
         <table class="log"><thead><tr>
           <th style="width: 80px">Date</th><th style="width: 100px">Job Ref</th><th>Site</th>
-          <th style="width: 130px">Engineer</th><th style="width: 80px; text-align: right">Qty Used</th>
+          <th style="width: 120px">Engineer</th><th style="width: 110px">Manufacturer</th>
+          <th style="width: 130px">Model</th><th style="width: 160px">Serial No.</th>
+          <th style="width: 80px; text-align: right">Qty Used</th>
           <th style="width: 90px; text-align: right">Wt. Before</th><th style="width: 90px; text-align: right">Wt. After</th>
         </tr></thead><tbody>
           ${rows}
           <tr class="total-row">
-            <td colspan="4" style="text-align: right">Total Gas Used</td>
+            <td colspan="7" style="text-align: right">Total Gas Used</td>
             <td style="text-align: right; color: #e53e3e">${totalUsed.toFixed(2)} kg</td>
             <td colspan="2"></td>
           </tr>
