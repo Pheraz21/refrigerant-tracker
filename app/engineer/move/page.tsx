@@ -109,9 +109,11 @@ export default function MoveBottlePage() {
       const finalDest = destination === "engineer" ? "van" : destination;
       let finalLocationId = "";
       
+      let effectiveEngineerName = user?.name;
       if (destination === "engineer") {
         const targetUser = engineers.find(e => e.id === selectedEngineer);
         finalLocationId = `${targetUser?.name || "Engineer"} - Van`;
+        effectiveEngineerName = targetUser?.name || user?.name;
       } else if (destination === "van") {
         finalLocationId = `${user?.name} - Van`;
       } else if (destination === "office") {
@@ -121,8 +123,8 @@ export default function MoveBottlePage() {
       } else {
         finalLocationId = locationId || (destination === "supplier" ? "Supplier" : `${user?.name} - Van`);
       }
-        
-      await db.updateBottleLocation(serialParam, finalDest as any, finalLocationId, undefined, undefined, undefined, user?.name);
+
+      await db.updateBottleLocation(serialParam, finalDest as any, finalLocationId, undefined, undefined, undefined, effectiveEngineerName);
       
       // If returning directly to supplier or office, also update status
       if (destination === "supplier" || destination === "office") {

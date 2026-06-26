@@ -118,10 +118,12 @@ export default function BottleActionHub() {
       if (!needsTransit) {
         const finalDest = destination === "engineer" ? "van" : destination;
         let finalLocationId = "";
-        
+        let effectiveEngineerName = user?.name;
+
         if (destination === "engineer") {
           const targetUser = engineers.find(e => e.id === selectedEngineer);
           finalLocationId = `${targetUser?.name || "Engineer"} - Van`;
+          effectiveEngineerName = targetUser?.name || user?.name;
         } else if (destination === "van") {
           finalLocationId = `${user?.name} - Van`;
         } else if (destination === "office") {
@@ -129,8 +131,8 @@ export default function BottleActionHub() {
         } else {
           finalLocationId = locationId || (destination === "supplier" ? "Supplier" : `${user?.name} - Van`);
         }
-          
-        await db.updateBottleLocation(serial, finalDest as any, finalLocationId, undefined, undefined, undefined, user?.name);
+
+        await db.updateBottleLocation(serial, finalDest as any, finalLocationId, undefined, undefined, undefined, effectiveEngineerName);
         
         if (destination === "supplier" || destination === "office") {
           const updates: any = { status: destination === "supplier" ? "returned" : "active" };
