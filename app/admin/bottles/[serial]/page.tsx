@@ -514,11 +514,11 @@ export default function ViewBottlePage() {
             <FileSpreadsheet size={18} /> Export Excel
           </button>
           <button onClick={exportPDF} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)", padding: "0.6rem 1rem", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.4rem" }}>
-            <FileText size={18} /> Print Audit PDF
+            <FileText size={18} /> Cylinder Audit
           </button>
           {bottle.category === "new" && (
             <button onClick={printRefrigerantLog} style={{ background: "rgba(255,170,0,0.08)", border: "1px solid rgba(255,170,0,0.3)", color: "#ffaa00", padding: "0.6rem 1rem", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.4rem" }}>
-              <FileText size={18} /> Refrigerant Log PDF
+              <FileText size={18} /> Cylinder Report
             </button>
           )}
           <Link href={`/admin/bottles/${serial}/edit`} style={{ textDecoration: "none" }}>
