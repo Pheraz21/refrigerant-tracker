@@ -131,7 +131,7 @@ export default function Sop001Page() {
           </tbody>
         </table>
         <ol start={4}>
-          <li>The system records: <code>registeredAt</code> timestamp, <code>registeredBy</code> (user ID), <code>locationType: &quot;office&quot;</code>, <code>status: &quot;active&quot;</code>, and an immutable movement log entry: action = <code>registered</code>.</li>
+          <li>The system creates a permanent cylinder record including the registration date and time, the staff member who registered it, gas type, initial weight, supplier and PO number. The cylinder is assigned to Stores and an entry is added to the permanent audit log.</li>
           <li>The cylinder is now tracked in the system and visible in the <strong>Stores Inventory</strong>.</li>
         </ol>
 
@@ -151,10 +151,10 @@ export default function Sop001Page() {
           </tbody>
         </table>
         <ol start={4}>
-          <li>The system records <code>locationType: &quot;van&quot;</code>, <code>locationId: &quot;&lt;Engineer Name&gt; - Van&quot;</code>, <code>vehicleReg</code>, and an immutable movement log entry (action = <code>moved</code>) with from/to location, engineer name, vehicle reg, and timestamp.</li>
+          <li>The system records the engineer's van as the new location, saves the vehicle registration plate against the cylinder, and creates a permanent movement log entry showing the engineer's name, vehicle registration, previous location, new location, and date/time of the move.</li>
           <li>The cylinder now appears in the engineer's <strong>Van Inventory</strong> in the mobile app.</li>
         </ol>
-        <blockquote><strong>Control:</strong> Only one engineer's van is associated with each cylinder at any time. If a cylinder is transferred between vans, a <code>handover</code> movement log entry is created recording both parties.</blockquote>
+        <blockquote><strong>Control:</strong> Only one engineer's van is associated with each cylinder at any time. If a cylinder is transferred between vans, a movement log entry is created recording both parties and the date/time of the handover.</blockquote>
 
         <h3>4.3 On-Site Usage</h3>
         <p>When refrigerant is dispensed to a customer's system on site:</p>
@@ -178,22 +178,25 @@ export default function Sop001Page() {
         </table>
         <ol start={3}>
           <li>The system <strong>automatically calculates</strong> quantity used: Weight Used = Weight Before − Weight After.</li>
-          <li><code>currentWeight</code> on the bottle is updated to reflect the post-usage weight.</li>
+          <li>The cylinder's current weight is updated in the system to reflect the remaining quantity after use.</li>
         </ol>
-        <p><strong>Records created automatically:</strong></p>
-        <ul>
-          <li>Immutable <strong>Usage Log</strong> entry capturing all fields above, timestamp, and engineer name</li>
-          <li>Immutable <strong>Movement Log</strong> entry: action = <code>usage</code>, site ref, vehicle reg</li>
-        </ul>
+        <p><strong>The system automatically creates the following records:</strong></p>
+        <table>
+          <thead><tr><th>Record</th><th>What is captured</th></tr></thead>
+          <tbody>
+            <tr><td>Usage Log</td><td>Job number, job type, site name and address, engineer name, weight before, weight after, quantity used, equipment details, date and time</td></tr>
+            <tr><td>Movement Log</td><td>Job site reference, engineer name, vehicle registration, date and time</td></tr>
+          </tbody>
+        </table>
         <blockquote><strong>Control:</strong> Weight before and after are recorded independently to provide a verifiable audit trail. The system does not allow retrospective editing of usage logs — corrections must be logged as separate adjustment entries.</blockquote>
 
         <h3>4.4 Cylinder Status Monitoring</h3>
         <table>
           <thead><tr><th>Status</th><th>Condition</th><th>Action Required</th></tr></thead>
           <tbody>
-            <tr><td>Active</td><td>currentWeight &gt; 0</td><td>Normal use — available for jobs</td></tr>
-            <tr><td>Low Gas</td><td>Below configured threshold weight</td><td>Admin and office notified automatically</td></tr>
-            <tr><td>Empty</td><td>currentWeight = 0</td><td>Return to stores or supplier</td></tr>
+            <tr><td>Active</td><td>Cylinder has remaining gas</td><td>Normal use — available for jobs</td></tr>
+            <tr><td>Low Gas</td><td>Remaining weight is below the minimum threshold</td><td>Admin and office notified automatically</td></tr>
+            <tr><td>Empty</td><td>No remaining gas</td><td>Return to stores or supplier</td></tr>
           </tbody>
         </table>
         <p>Cylinder status and weight history are visible at any time via the <strong>Cylinder Detail</strong> page, showing full usage history (date, job number, engineer, quantity used, equipment details) and all movement history (location changes with timestamps).</p>
@@ -217,24 +220,23 @@ export default function Sop001Page() {
           </tbody>
         </table>
         <ol start={4}>
-          <li>The system records: <code>status: &quot;returned&quot;</code>, <code>locationType: &quot;supplier&quot;</code>, <code>returnedAt</code> timestamp, <code>returnedBy</code>, <code>returnHwcnNumber</code>, and an immutable movement log entry: action = <code>returned_to_supplier</code>.</li>
-          <li>The cylinder exits active tracking and appears in the <strong>Returned to Supplier</strong> register.</li>
+          <li>The system marks the cylinder as returned, records the return date and time, the staff member who processed the return, and the supplier's reference number. A permanent entry is added to the movement log confirming the return. The cylinder exits active tracking and appears in the <strong>Returned to Supplier</strong> register.</li>
         </ol>
         <blockquote><strong>Note:</strong> New (virgin gas) cylinders contain no hazardous waste. No HWCN is required for their return. Recovery cylinders require the full HWCN process — see SOP-002.</blockquote>
 
         {/* 5 */}
         <h2>5. Records Generated and Retention</h2>
         <table>
-          <thead><tr><th>Record Type</th><th>Where Stored</th><th>Retention</th></tr></thead>
+          <thead><tr><th>Record Type</th><th>What it contains</th><th>Retention</th></tr></thead>
           <tbody>
-            <tr><td>Cylinder Registration Record</td><td>bottles table — F-Gas Tracker Pro database</td><td>Minimum 5 years (UK F-Gas Regulations)</td></tr>
-            <tr><td>Movement Log</td><td>movement_logs table — append-only</td><td>Minimum 5 years</td></tr>
-            <tr><td>Usage Log (per job visit)</td><td>usage_logs table — append-only</td><td>Minimum 5 years</td></tr>
-            <tr><td>Equipment Details (per usage log)</td><td>equipment_details field within usage log</td><td>Minimum 5 years</td></tr>
-            <tr><td>Return Record</td><td>bottles table — returnedAt, returnedBy, returnHwcnNumber</td><td>Minimum 5 years</td></tr>
+            <tr><td>Cylinder Registration Record</td><td>Serial number, gas type, initial weight, supplier, PO number, registration date, registering staff member</td><td>Minimum 5 years (UK F-Gas Regulations)</td></tr>
+            <tr><td>Movement Log</td><td>Every location change — from/to location, engineer, vehicle registration, date and time. Permanent and cannot be edited.</td><td>Minimum 5 years</td></tr>
+            <tr><td>Usage Log (per job visit)</td><td>Job number, job type, site name and address, engineer, weight before and after, quantity used, date and time</td><td>Minimum 5 years</td></tr>
+            <tr><td>Equipment Details (per usage log)</td><td>Manufacturer, model number and serial number of every system charged during the visit</td><td>Minimum 5 years</td></tr>
+            <tr><td>Return Record</td><td>Return date and time, staff member who processed the return, supplier name and branch, supplier's reference number, photo of supplier documentation</td><td>Minimum 5 years</td></tr>
           </tbody>
         </table>
-        <p>All records are <strong>immutable</strong> — the system does not permit deletion or editing of historical logs. All timestamps are recorded in ISO 8601 format (UTC).</p>
+        <p>All records are <strong>permanent and cannot be edited or deleted</strong>. The system maintains a complete, unbroken audit trail for every cylinder from registration through to return.</p>
         <p>The following reports can be generated from the system for audit purposes:</p>
         <ul>
           <li><strong>Cylinder Usage Report</strong> — per cylinder, full usage history with equipment details</li>

@@ -177,7 +177,7 @@ export default function Sop002Page() {
           </tbody>
         </table>
         <ol start={3}>
-          <li>The system updates <code>currentWeight</code>, creates an immutable Usage Log, appends the producer site (name, address, postcode) to the cylinder's <code>producerSites</code> array, and creates an immutable Movement Log entry.</li>
+          <li>The system updates the cylinder's current weight, creates a permanent usage log entry (including job details, weights recorded, producer site details and equipment information), and records a movement log entry for audit purposes.</li>
         </ol>
         <blockquote><strong>Important:</strong> If the gas type recovered differs from what is already in the cylinder (e.g. R410A added to a cylinder used for R32), the engineer must use a different, clean cylinder. Mixing refrigerant types is not permitted.</blockquote>
 
@@ -198,7 +198,7 @@ export default function Sop002Page() {
             <tr><td><strong>Multi-site</strong></td><td>Gas was recovered from <strong>two or more</strong> different customer sites</td><td>Cylinder <strong>must</strong> be returned to <strong>HQ-Stores</strong> first; cannot go direct to supplier</td></tr>
           </tbody>
         </table>
-        <p><strong>Multi-site trigger:</strong> When the engineer logs a recovery from a site different from any previously recorded producer site on that cylinder, the system displays a <strong>"2nd Waste Producer Detected"</strong> warning. The engineer must acknowledge this. The system then automatically generates an internal HWCN, sets the cylinder's intended destination to HQ-Stores, and records a movement log entry.</p>
+        <p><strong>Multi-site trigger:</strong> When the engineer logs a recovery from a site different from any previously recorded producer site on that cylinder, the system displays a <strong>"2nd Waste Producer Detected"</strong> warning. The engineer must acknowledge this. The system then automatically generates an internal HWCN, flags the cylinder for routing to HQ-Stores, and records this in the permanent audit log.</p>
         <blockquote><strong>Reason:</strong> The Hazardous Waste Regulations require that where waste is collected from multiple producers in a single vehicle journey, a separate consignment note is required. Aggregating multi-site waste must go through the registered consignee at HQ before onward transfer to the supplier.</blockquote>
 
         <h3>5.5 Internal HWCN Generation (Multi-Site Route)</h3>
@@ -206,13 +206,13 @@ export default function Sop002Page() {
         <p><strong>Part A — Notification Details:</strong> All producer sites (name, address, postcode, weight recovered from each); destination (HQ-Stores); total waste quantity (kg); waste description: EWC Code <strong>14 06 01</strong>; gas type.</p>
         <p><strong>Part C — Carrier's Certificate:</strong> Engineer (carrier) name; vehicle registration; 21 Degrees Ltd carrier registration <strong>CBDU368286</strong>; date and time of collection.</p>
         <p><strong>Part E — Consignee's Certificate</strong> (completed on delivery, see Section 5.6): Receiving staff member name; waste exemption number <strong>31Z 3725 34</strong>; date received; accepted/rejected status.</p>
-        <p>The HWCN can be printed from the admin panel at any time and <strong>must travel with the cylinder during transport</strong>.</p>
+        <p>The HWCN can be printed at any time from the office web portal and <strong>must travel with the cylinder during transport</strong>.</p>
 
         <h3>5.6 Transit to HQ-Stores and Part E Sign-Off (Multi-Site Route)</h3>
         <ol>
           <li>The engineer loads the cylinder into their vehicle. The HWCN (printed or digital) must accompany the waste during transit.</li>
           <li>On arrival at HQ-Stores, the engineer opens the cylinder record on the mobile app and taps <strong>Complete Transit</strong>.</li>
-          <li>The system sets HWCN status from <code>draft</code> → <code>awaiting_consignee</code>, records <code>deliveredAt</code> timestamp, clears the cylinder's transit state, and updates cylinder location to HQ-Stores.</li>
+          <li>The system records the delivery date and time, updates the HWCN to show it is awaiting Part E sign-off, and confirms the cylinder's location as HQ-Stores.</li>
           <li>An office staff member navigates to the HWCN in the admin panel and completes <strong>Part E</strong>:</li>
         </ol>
         <table>
@@ -226,9 +226,9 @@ export default function Sop002Page() {
           </tbody>
         </table>
         <ol start={5}>
-          <li>On completion: HWCN status → <code>complete</code>; <code>partECompletedAt</code> timestamp recorded; <code>accepted: true</code>. The digital HWCN is now legally complete and stored in the system.</li>
+          <li>On completion, the HWCN is marked as complete, the sign-off date and time are recorded, and the consignment note is permanently stored in the system. The digital HWCN is now legally complete.</li>
         </ol>
-        <blockquote><strong>Rejected Consignment:</strong> If Part E is rejected, the office staff enters rejection details. The HWCN is retained with <code>accepted: false</code>. The cylinder remains at HQ-Stores pending resolution.</blockquote>
+        <blockquote><strong>Rejected Consignment:</strong> If Part E is rejected, the office staff records the reason for rejection. The HWCN is retained with the rejection details noted. The cylinder remains at HQ-Stores pending resolution.</blockquote>
 
         <h3>5.7 Direct Supplier Return (Single-Site Route)</h3>
         <p>Where a cylinder contains gas from a <strong>single producer site only</strong>, it may be returned directly to the supplier without transiting through HQ-Stores.</p>
@@ -249,7 +249,7 @@ export default function Sop002Page() {
           </tbody>
         </table>
         <ol start={4}>
-          <li>On clicking <strong>Complete Supplier Return</strong>, the system sets <code>status: &quot;returned&quot;</code>, records <code>returnedAt</code> timestamp, <code>returnedBy</code>, <code>returnHwcnNumber</code>, <code>supplierHwcnPhotoUrl</code>, and creates an immutable movement log entry: action = <code>returned_to_supplier</code>.</li>
+          <li>On clicking <strong>Complete Supplier Return</strong>, the system marks the cylinder as returned, records the return date and time, the staff member who processed it, the supplier's HWCN reference number, and creates a permanent movement log entry confirming the return. The photo of the supplier's documentation is stored against the cylinder record.</li>
         </ol>
         <blockquote><strong>Supplier Lock:</strong> Once the first cylinder is added to a return batch, all subsequent cylinders in that batch must be from the <strong>same supplier</strong>. The system enforces this automatically to prevent cross-supplier HWCN errors.</blockquote>
 
@@ -273,17 +273,15 @@ export default function Sop002Page() {
         {/* 7 */}
         <h2>7. Records Generated and Retention</h2>
         <table>
-          <thead><tr><th>Record Type</th><th>Where Stored</th><th>Retention</th></tr></thead>
+          <thead><tr><th>Record Type</th><th>What it contains</th><th>Retention</th></tr></thead>
           <tbody>
-            <tr><td>Recovery Cylinder Registration</td><td>bottles table — F-Gas Tracker Pro database</td><td>Minimum 5 years</td></tr>
-            <tr><td>Movement Logs</td><td>movement_logs table — append-only</td><td>Minimum 5 years</td></tr>
-            <tr><td>Recovery / Usage Logs (per job)</td><td>usage_logs table — append-only, with producer site and equipment details</td><td>Minimum 5 years</td></tr>
-            <tr><td>Producer Sites Array</td><td>producer_sites JSONB field on bottle record</td><td>Retained for life of record</td></tr>
-            <tr><td>Internal HWCN (digital)</td><td>hwcns table — includes all parts, timestamps, signatures</td><td>Minimum 5 years</td></tr>
-            <tr><td>HWCN Part E Sign-Off</td><td>Within HWCN record: receivedBy, partECompletedAt, accepted</td><td>Minimum 5 years</td></tr>
-            <tr><td>Supplier Return Record</td><td>bottles table — returnedAt, returnHwcnNumber, supplierHwcnPhotoUrl</td><td>Minimum 5 years</td></tr>
-            <tr><td>Supplier HWCN Photo</td><td>Cloud storage (URL stored in supplierHwcnPhotoUrl)</td><td>Minimum 5 years</td></tr>
-            <tr><td>Decommissioned Equipment Records</td><td>decommissioned_equipment table</td><td>Minimum 5 years</td></tr>
+            <tr><td>Cylinder Registration Record</td><td>Serial number, gas type, capacity, supplier, registration date, registering staff member</td><td>Minimum 5 years</td></tr>
+            <tr><td>Movement Log</td><td>Every location change — from/to location, engineer, vehicle registration, date and time. Permanent and cannot be edited.</td><td>Minimum 5 years</td></tr>
+            <tr><td>Recovery / Usage Log (per job)</td><td>Job number, job type, producer site name, address and postcode, engineer, weight before and after, quantity recovered, equipment details, date and time</td><td>Minimum 5 years</td></tr>
+            <tr><td>Producer Site Record</td><td>Name, address and postcode of every customer site from which gas was recovered into the cylinder — retained against the cylinder throughout its lifecycle</td><td>Retained for life of record</td></tr>
+            <tr><td>Internal HWCN (digital)</td><td>All producer sites and weights, destination, engineer and vehicle details, Part C carrier certificate, Part E consignee sign-off name and date, accepted/rejected status</td><td>Minimum 5 years</td></tr>
+            <tr><td>Supplier Return Record</td><td>Return date and time, staff member who processed the return, supplier name and branch, supplier's HWCN reference number, photo of supplier's documentation</td><td>Minimum 5 years</td></tr>
+            <tr><td>Decommissioned Equipment Record</td><td>Job number, site details, engineer, equipment manufacturer/model/serial number, weight of gas recovered per unit, date and time</td><td>Minimum 5 years</td></tr>
           </tbody>
         </table>
         <p><strong>Reports available for audit:</strong></p>
