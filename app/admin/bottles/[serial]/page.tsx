@@ -226,8 +226,8 @@ export default function ViewBottlePage() {
 
     const html = `
       <html><head><style>
-        @page { margin: 10mm; size: A4 landscape; }
-        body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; color: #333; line-height: 1.4; }
+        @page { margin: 0; size: A4 landscape; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 10mm; color: #333; line-height: 1.4; }
         .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
         .logo-section { display: flex; gap: 15px; align-items: flex-end; }
         .company-info { font-size: 10px; line-height: 1.4; color: #555; }
@@ -337,8 +337,8 @@ export default function ViewBottlePage() {
     }).join("");
     const html = `
       <html><head><style>
-        @page { margin: 10mm; size: A4 portrait; }
-        body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 0; color: #333; line-height: 1.4; }
+        @page { margin: 0; size: A4 portrait; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 10mm; color: #333; line-height: 1.4; }
         .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
         .logo-section { display: flex; gap: 15px; align-items: flex-end; }
         .company-info { font-size: 10px; line-height: 1.4; color: #555; }
