@@ -261,6 +261,7 @@ export default function ViewBottlePage() {
           <td class="summary-cell"><div class="summary-label">Cylinder Capacity</div><div class="summary-value">${(bottle.initialWeight ?? 0).toFixed(2)} kg</div></td>
           <td class="summary-cell"><div class="summary-label">Current Balance</div><div class="summary-value">${(bottle.currentWeight ?? 0).toFixed(2)} kg</div></td>
           <td class="summary-cell"><div class="summary-label">Total Used</div><div class="summary-value">${totalUsed.toFixed(2)} kg</div></td>
+          ${bottle.supplier ? `<td class="summary-cell"><div class="summary-label">Supplier</div><div class="summary-value">${bottle.supplier}</div></td>` : ""}
           ${bottle.poNumber ? `<td class="summary-cell"><div class="summary-label">PO Number</div><div class="summary-value">${bottle.poNumber}</div></td>` : ""}
         </tr></table>
         <table class="log"><thead><tr>
@@ -337,7 +338,7 @@ export default function ViewBottlePage() {
     }).join("");
     const html = `
       <html><head><style>
-        @page { margin: 0; size: A4 portrait; }
+        @page { margin: 0; size: A4 landscape; }
         body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 10mm; color: #333; line-height: 1.4; }
         .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
         .logo-section { display: flex; gap: 15px; align-items: flex-end; }
@@ -370,6 +371,7 @@ export default function ViewBottlePage() {
           <td class="summary-cell"><div class="summary-label">Refrigerant</div><div class="summary-value">${bottle.gasType}</div></td>
           <td class="summary-cell"><div class="summary-label">Weight Balance</div><div class="summary-value">${(bottle.currentWeight ?? 0).toFixed(2)} / ${(bottle.initialWeight ?? 0).toFixed(2)} kg</div></td>
           <td class="summary-cell"><div class="summary-label">Current Location</div><div class="summary-value">${bottle.locationId}</div></td>
+          ${bottle.supplier ? `<td class="summary-cell"><div class="summary-label">Supplier</div><div class="summary-value">${bottle.supplier}</div></td>` : ""}
           ${bottle.poNumber ? `<td class="summary-cell"><div class="summary-label">PO Number</div><div class="summary-value">${bottle.poNumber}</div></td>` : ""}
         </tr></table>
         <h3 style="font-size: 14px; margin-bottom: 12px; color: #2d3748; border-left: 5px solid #a3e635; padding-left: 12px;">Full Audit History</h3>
