@@ -198,6 +198,7 @@ export default function ViewBottlePage() {
     const reportDate = new Date().toLocaleDateString("en-GB");
     const sorted = [...filteredUsageLogs].filter(l => l.jobType !== "recovery").sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const totalUsed = sorted.reduce((sum, l) => sum + (l.weightUsed || 0), 0);
+    console.log("[PDF debug] sorted logs:", sorted.map(l => ({ id: l.id, jobType: l.jobType, equipmentDetails: l.equipmentDetails })));
 
     const rows = sorted.map(log => {
       const eqList: any[] = log.equipmentDetails || [];
