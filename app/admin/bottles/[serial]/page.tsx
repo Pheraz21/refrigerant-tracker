@@ -310,13 +310,15 @@ export default function ViewBottlePage() {
       const eqList: any[] = (log as any).equipmentDetails || [];
       const isUsage = log.action === "Gas Used" || log.action === "Gas Recovered";
       const isReturnedToSupplier = log.action === "returned_to_supplier";
-      const fromSite = log.from ? crmJobMap.get(log.from)?.siteTitle : null;
+      const isRegistered = log.action === "registered" || log.action === "re_registered";
+      const effectiveFrom = !log.from && isRegistered ? "Supplier" : log.from;
+      const fromSite = effectiveFrom ? crmJobMap.get(effectiveFrom)?.siteTitle : null;
       // to_location is stored as generic "supplier" — substitute the real name from bottle.locationId
       const effectiveTo = isReturnedToSupplier && log.to === "supplier"
         ? (bottle.locationId && bottle.locationId !== "Supplier (Returned)" ? bottle.locationId : log.to)
         : log.to;
       const toSite = effectiveTo ? crmJobMap.get(effectiveTo)?.siteTitle : null;
-      const fromCell = log.from ? (fromSite ? `${log.from}<br/><span style="color:#718096;font-size:8px">${fromSite}</span>` : log.from) : '—';
+      const fromCell = effectiveFrom ? (fromSite ? `${effectiveFrom}<br/><span style="color:#718096;font-size:8px">${fromSite}</span>` : effectiveFrom) : '—';
       const toCellBase = effectiveTo ? (toSite ? `${effectiveTo}<br/><span style="color:#718096;font-size:8px">${toSite}</span>` : effectiveTo) : '—';
       const toCell = isReturnedToSupplier
         ? `${toCellBase}<br/><span style="color:#a855f7;font-size:8px;font-weight:600">(Returned to Supplier)</span>`
