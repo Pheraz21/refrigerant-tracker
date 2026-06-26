@@ -251,7 +251,7 @@ export default function ViewBottlePage() {
             <div class="company-info"><strong>21 Degrees Ltd</strong><br />Unit 10, Apollo Court, Monkton Business Park<br />Hebburn, Tyne &amp; Wear, NE31 2ES<br />Tel: 0191 495 7224</div>
           </div>
           <div class="report-info">
-            <div class="report-title">Cylinder Report</div>
+            <div class="report-title">Cylinder Usage Report</div>
             <div class="report-meta"><div>Generated: ${reportDate}</div><div>Cylinder: ${bottle.serial}</div></div>
           </div>
         </div>
@@ -276,7 +276,7 @@ export default function ViewBottlePage() {
             <td colspan="2"></td>
           </tr>
         </tbody></table>
-        <div class="footer">Cylinder Report | F-Gas Tracker Pro | &copy; 2024 21 Degrees Ltd</div>
+        <div class="footer">Cylinder Usage Report | F-Gas Tracker Pro | &copy; 2024 21 Degrees Ltd</div>
       </body></html>
     `;
     const win = window.open("", "_blank");
@@ -526,7 +526,7 @@ export default function ViewBottlePage() {
           </button>
           {bottle.category === "new" && (
             <button onClick={printRefrigerantLog} style={{ background: "rgba(255,170,0,0.08)", border: "1px solid rgba(255,170,0,0.3)", color: "#ffaa00", padding: "0.6rem 1rem", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.4rem" }}>
-              <FileText size={18} /> Cylinder Report
+              <FileText size={18} /> Cylinder Usage Report
             </button>
           )}
           <Link href={`/admin/bottles/${serial}/edit`} style={{ textDecoration: "none" }}>
