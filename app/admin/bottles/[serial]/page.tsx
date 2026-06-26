@@ -311,7 +311,7 @@ export default function ViewBottlePage() {
       const isUsage = log.action === "Gas Used" || log.action === "Gas Recovered";
       const isReturnedToSupplier = log.action === "returned_to_supplier";
       const isRegistered = log.action === "registered" || log.action === "re_registered";
-      const effectiveFrom = !log.from && isRegistered ? "Supplier" : log.from;
+      const effectiveFrom = isRegistered && (!log.from || log.from === "—") ? "Supplier" : log.from;
       const fromSite = effectiveFrom ? crmJobMap.get(effectiveFrom)?.siteTitle : null;
       // to_location is stored as generic "supplier" — substitute the real name from bottle.locationId
       const effectiveTo = isReturnedToSupplier && log.to === "supplier"
