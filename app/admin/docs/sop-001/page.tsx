@@ -136,7 +136,7 @@ export default function Sop001Page() {
         <p>The system creates a permanent cylinder record and an entry in the audit log at the time of registration.</p>
 
         <h3>5.2 Allocation to Engineer's Van</h3>
-        <p>When a cylinder is to be issued from Stores to a field engineer, this allocation is recorded in F-Gas Tracker Pro by office staff. The engineer's name and vehicle registration plate are recorded against the cylinder, and a movement log entry is created. The cylinder then appears in the engineer's Van Inventory on the mobile app.</p>
+        <p>When a cylinder is to be issued from Stores to a field engineer, this allocation is recorded in F-Gas Tracker Pro by the Engineer. The engineer's name and vehicle registration plate are recorded against the cylinder, and a movement log entry is created. The cylinder then appears in the engineer's Van Inventory on the mobile app.</p>
         <blockquote><strong>Control:</strong> Only one engineer's van is associated with each cylinder at any time. If a cylinder is transferred between vans, both parties and the date/time of the handover are recorded in the movement log.</blockquote>
 
         <h3>5.3 On-Site Usage</h3>
