@@ -137,6 +137,7 @@ export default function BottlesOnSitePage() {
         <td>${b.serial}</td><td>${b.gasType}</td>
         <td>${(b.initialWeight||0).toFixed(2)} kg</td><td>${(b.currentWeight||0).toFixed(2)} kg</td>
         <td>${b.locationId}</td><td>${b.locationChangedAt?new Date(b.locationChangedAt).toLocaleDateString("en-GB"):'—'}</td>
+        <td>${b.lastEngineer||'—'}</td><td style="font-family:monospace">${b.vehicleReg||'—'}</td>
       </tr>
     `).join("");
     const html = `
@@ -163,7 +164,7 @@ export default function BottlesOnSitePage() {
             <div class="report-meta"><div>Generated: ${reportDate}</div><div>Coverage: ${dateRange}</div><div>Results: ${filtered.length} Bottles</div></div>
           </div>
         </div>
-        <table><thead><tr><th>Serial</th><th>Gas</th><th>Capacity</th><th>Current</th><th>Site / Job Ref</th><th>On Site Since</th></tr></thead>
+        <table><thead><tr><th>Serial</th><th>Gas</th><th>Capacity</th><th>Current</th><th>Site / Job Ref</th><th>On Site Since</th><th>Last Engineer</th><th>Vehicle Reg</th></tr></thead>
         <tbody>${rows}</tbody></table>
         <div class="footer">Printed from F-Gas Tracker Pro | &copy; 21 Degrees Ltd</div>
       </body></html>

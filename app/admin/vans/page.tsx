@@ -46,16 +46,22 @@ function exportVanCSV(bottles: Bottle[], engineer: string) {
   downloadFile([header, ...rows].join("\n"), fileName, "text/csv");
 }
 
-function exportVanPDF(bottles: Bottle[], engineer: string) {
+function exportVanPDF(bottles: Bottle[], engineer: string, engineerProfiles: AppUser[]) {
   const reportDate = new Date().toLocaleDateString("en-GB");
   const rows = bottles.map(b => {
     const catLabel = b.category === "new" ? "New" : b.category === "reclaim" ? "Reclaim / Haz" : "Nitrogen";
+    const idOrName = b.locationId.replace(" - Van", "");
+    const user = engineerProfiles.find(e => e.id === idOrName || e.name === idOrName);
+    const engineerName = user ? user.name : idOrName;
+    const reg = b.vehicleReg || user?.vehicleReg || "—";
     return `<tr>
       <td style="font-weight:bold">${b.serial}</td>
       <td>${catLabel}</td><td>${b.gasType}</td>
       <td>${(b.initialWeight||0).toFixed(2)} kg</td>
       <td style="font-weight:bold">${b.category==="nitrogen"?"N/A":(b.currentWeight||0).toFixed(2)+" kg"}</td>
       <td>${b.locationChangedAt?new Date(b.locationChangedAt).toLocaleDateString("en-GB"):"—"}</td>
+      <td>${engineerName}</td>
+      <td style="font-family:monospace">${reg}</td>
     </tr>`;
   }).join("");
   const html = `
@@ -86,7 +92,7 @@ function exportVanPDF(bottles: Bottle[], engineer: string) {
           </div>
         </div>
       </div>
-      <table><thead><tr><th>Serial</th><th>Category</th><th>Gas Type</th><th>Capacity</th><th>Current</th><th>Since</th></tr></thead>
+      <table><thead><tr><th>Serial</th><th>Category</th><th>Gas Type</th><th>Capacity</th><th>Current</th><th>Since</th><th>Engineer</th><th>Vehicle Reg</th></tr></thead>
       <tbody>${rows}</tbody></table>
       <div class="footer">Printed from F-Gas Tracker Pro | &copy; 21 Degrees Ltd</div>
     </body></html>
@@ -371,7 +377,7 @@ export default function VanInventoryPage() {
           </div>
 
           <div style={{display: "flex", gap: "0.5rem"}}>
-            <button onClick={() => exportVanPDF(filtered, selectedEngineer)} style={exportBtnStyle}><FileText size={16} /> PDF</button>
+            <button onClick={() => exportVanPDF(filtered, selectedEngineer, engineers)} style={exportBtnStyle}><FileText size={16} /> PDF</button>
             <button onClick={() => exportVanCSV(filtered, selectedEngineer)} style={exportBtnStyle}><FileSpreadsheet size={16} /> Excel</button>
             <button onClick={() => setCustOpen(true)} style={exportBtnStyle}><Settings2 size={16} /> Columns</button>
           </div>
