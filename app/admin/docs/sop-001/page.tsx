@@ -135,9 +135,11 @@ export default function Sop001Page() {
         </table>
         <p>The system creates a permanent cylinder record and an entry in the audit log at the time of registration.</p>
 
-        <h3>5.2 Allocation to Engineer's Van</h3>
-        <p>When a cylinder is to be issued from Stores to a field engineer, this allocation is recorded in F-Gas Tracker Pro by the Engineer. The engineer's name and vehicle registration plate are recorded against the cylinder, and a movement log entry is created. The cylinder then appears in the engineer's Van Inventory on the mobile app.</p>
+        <h3>5.2 Cylinder Movements</h3>
+        <p><strong>Stores to Van:</strong> When a cylinder is to be issued from Stores to a field engineer, this allocation is recorded in F-Gas Tracker Pro by the Engineer. The engineer's name and vehicle registration plate are recorded against the cylinder, and a movement log entry is created. The cylinder then appears in the engineer's Van Inventory on the mobile app.</p>
         <blockquote><strong>Control:</strong> Only one engineer's van is associated with each cylinder at any time. If a cylinder is transferred between vans, both parties and the date/time of the handover are recorded in the movement log.</blockquote>
+        <p><strong>Van to Site:</strong> When an engineer takes a cylinder from their van to a customer job site, this movement is recorded in F-Gas Tracker Pro by the Engineer. The job reference and site details are recorded against the cylinder, and a movement log entry is created. The cylinder is shown as located at that job site until it is moved again.</p>
+        <p><strong>Site back to Van:</strong> On completion of work at the site — whether the cylinder is fully used or has remaining gas — the engineer records the movement of the cylinder back to their van in F-Gas Tracker Pro. A movement log entry is created. The cylinder returns to the engineer's Van Inventory.</p>
 
         <h3>5.3 On-Site Usage</h3>
         <p>When refrigerant is dispensed to a customer's system on site, the engineer records the usage in the F-Gas Tracker Pro mobile application before leaving site. The following information is captured:</p>
