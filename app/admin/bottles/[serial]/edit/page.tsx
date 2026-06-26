@@ -44,7 +44,14 @@ export default function EditBottlePage() {
     e.preventDefault();
     if (!bottle) return;
     setIsSaving(true);
-    await db.updateBottle(bottle.serial, bottle);
+    // Strip any accidental work-order / notes text that gets appended to engineer name
+    const sanitised = {
+      ...bottle,
+      lastEngineer: bottle.lastEngineer
+        ? bottle.lastEngineer.replace(/\s*[-–]\s*(work order|job|ref|wo)[^\n]*/i, "").trim()
+        : bottle.lastEngineer,
+    };
+    await db.updateBottle(bottle.serial, sanitised);
     setIsSaving(false);
     alert("Bottle data updated successfully.");
     router.back();
