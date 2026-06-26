@@ -508,22 +508,23 @@ export const db = {
       if (intendedLocationType !== undefined) updates.intended_location_type = intendedLocationType;
       if (activeHWCN !== undefined) updates.active_hwcn = activeHWCN;
       if (engineerName) updates.last_engineer = engineerName;
-      
+
+      let logVehicleReg: string | null = null;
+      if (engineerName) {
+        const { data: engData } = await supabase.from('users').select('vehicle_reg').eq('name', engineerName).single();
+        logVehicleReg = engData?.vehicle_reg || null;
+        if (logVehicleReg) updates.vehicle_reg = logVehicleReg;
+      }
+
       const { error: updateError } = await supabase.from('bottles').update(updates).eq('serial', serial);
       if (updateError) {
         console.error(`Error updating bottle ${serial}:`, updateError);
         throw updateError;
       }
-      
+
       let action = "moved";
       if (locationId.includes(" - Van") && from && from.includes(" - Van") && locationId !== from) {
         action = "handover";
-      }
-
-      let logVehicleReg: string | null = null;
-      if (locationType === "van" && engineerName) {
-        const { data: engData } = await supabase.from('users').select('vehicle_reg').eq('name', engineerName).single();
-        logVehicleReg = engData?.vehicle_reg || null;
       }
 
       const { error: logError } = await supabase.from('movement_logs').insert({
@@ -619,7 +620,11 @@ export const db = {
     bottleUpdatePayload.status = newStatus;
     bottleUpdatePayload.location_type = newLocType;
     bottleUpdatePayload.location_id = newLocId;
-    if (engineerName && engineerName !== "Unknown") bottleUpdatePayload.last_engineer = engineerName;
+    if (engineerName && engineerName !== "Unknown") {
+      bottleUpdatePayload.last_engineer = engineerName;
+      const { data: engData } = await supabase.from('users').select('vehicle_reg').eq('name', engineerName).single();
+      if (engData?.vehicle_reg) bottleUpdatePayload.vehicle_reg = engData.vehicle_reg;
+    }
 
     const { error: updateErr } = await supabase.from('bottles').update(bottleUpdatePayload).eq('serial', serial);
     
