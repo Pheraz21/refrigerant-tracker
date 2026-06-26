@@ -97,7 +97,8 @@ function exportVanPDF(bottles: Bottle[], engineer: string, engineerProfiles: App
 
   const html = `
     <html><head><style>
-      body{font-family:sans-serif;padding:20px;color:#333}
+      @page{margin:0;size:A4 landscape;}
+      body{font-family:sans-serif;margin:0;padding:10mm;color:#333}
       .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #333;padding-bottom:15px;margin-bottom:20px}
       .logo-section{display:flex;gap:15px;align-items:flex-end}
       .company-info{font-size:10px;line-height:1.4;color:#555}
