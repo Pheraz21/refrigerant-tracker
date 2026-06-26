@@ -100,9 +100,9 @@ export default function DecommissionedEquipmentPage() {
       <head>
         <title>Decommissioned Equipment Report</title>
         <style>
-          @page { margin: 10mm; size: A4 landscape; }
+          @page { margin: 0; size: A4 landscape; }
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #333; line-height: 1.4; }
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 10mm; color: #333; line-height: 1.4; }
           .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
           .logo-section { display: flex; gap: 15px; align-items: flex-end; }
           .company-info { font-size: 10px; line-height: 1.4; color: #555; }
@@ -213,9 +213,9 @@ export default function DecommissionedEquipmentPage() {
       <head>
         <title>Decommission Report — ${jobNo}</title>
         <style>
-          @page { margin: 10mm; size: A4 landscape; }
+          @page { margin: 0; size: A4 landscape; }
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #333; line-height: 1.4; }
+          body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 10mm; color: #333; line-height: 1.4; }
           .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
           .logo-section { display: flex; gap: 15px; align-items: flex-end; }
           .company-info { font-size: 10px; line-height: 1.4; color: #555; }

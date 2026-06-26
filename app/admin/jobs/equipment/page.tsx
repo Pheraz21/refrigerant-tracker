@@ -192,9 +192,9 @@ export default function EquipmentRegisterPage() {
 
     const html = `<!DOCTYPE html><html><head><title>Equipment Register — 21 Degrees</title>
       <style>
-        @page { margin: 10mm; size: A4 portrait; }
+        @page { margin: 0; size: A4 portrait; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; color: #333; line-height: 1.4; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; padding: 10mm; color: #333; line-height: 1.4; }
         .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 12px; margin-bottom: 16px; }
         .logo-section { display: flex; gap: 12px; align-items: flex-end; }
         .company-info { font-size: 9px; line-height: 1.5; color: #555; }
@@ -218,7 +218,7 @@ export default function EquipmentRegisterPage() {
         </div>
       </div>
       ${rows}
-      <div class="footer">Equipment Register | 21 Degrees Refrigerant Compliance System</div>
+      <div class="footer">21 Degrees F-Gas Tracker Pro | Official Audit Document | &copy; 2026 21 Degrees Ltd</div>
     </body></html>`;
 
     const win = window.open("", "_blank");
