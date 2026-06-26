@@ -209,12 +209,15 @@ export default function JobDetailPage() {
       <tbody>
         ${allUsageLogs.map(log => {
           const isRec = RECOVERY_TYPES.has((log.jobType || "").toLowerCase());
+          const eq = (log.equipmentDetails || [])[0] || null;
           return `<tr>
             <td style="white-space:nowrap">${new Date(log.date).toLocaleDateString("en-GB")}</td>
             <td style="font-family:monospace;font-weight:600">${log.serial}</td>
             <td>${gasType(log.serial)}</td>
             <td>${log.engineer || "—"}</td>
-            <td>—</td><td>—</td><td>—</td>
+            <td>${eq?.manufacturer || "—"}</td>
+            <td>${eq?.model || "—"}</td>
+            <td style="font-family:monospace;font-size:9px">${eq?.serial || "—"}</td>
             <td><span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:${isRec ? "#fff3cd" : "#d4edda"};color:${isRec ? "#856404" : "#155724"}">${log.jobType || "—"}</span></td>
             <td style="text-align:right;font-weight:600">${(log.weightUsed || 0).toFixed(2)}</td>
             <td style="text-align:right">${log.weightBefore?.toFixed(2) ?? "—"}</td>
