@@ -312,7 +312,9 @@ export default function ViewBottlePage() {
       const fromSite = log.from ? crmJobMap.get(log.from)?.siteTitle : null;
       const toSite = log.to ? crmJobMap.get(log.to)?.siteTitle : null;
       const fromCell = log.from ? (fromSite ? `${log.from}<br/><span style="color:#718096;font-size:8px">${fromSite}</span>` : log.from) : '—';
-      const toCell = log.to ? (toSite ? `${log.to}<br/><span style="color:#718096;font-size:8px">${toSite}</span>` : log.to) : '—';
+      const isReturnedToSupplier = log.action === "returned_to_supplier";
+      const toCellBase = log.to ? (toSite ? `${log.to}<br/><span style="color:#718096;font-size:8px">${toSite}</span>` : log.to) : '—';
+      const toCell = (isReturnedToSupplier && log.to) ? `${toCellBase}<br/><span style="color:#a855f7;font-size:8px;font-weight:600">(Returned to Supplier)</span>` : toCellBase;
       const eqRow = eqList.length > 0 ? `
         <tr style="background-color:#f0f4ff;">
           <td colspan="7" style="padding:3px 12px 5px 22px; font-size:8px; color:#4a5568; border-bottom:1px solid #e2e8f0;">
