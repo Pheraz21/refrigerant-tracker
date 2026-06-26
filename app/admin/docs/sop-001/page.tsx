@@ -79,6 +79,7 @@ export default function Sop001Page() {
         {/* 1 */}
         <h2>1. Purpose and Scope</h2>
         <p>This procedure describes the controlled process by which <strong>21 Degrees Ltd</strong> receives new virgin refrigerant cylinders from suppliers, allocates them to certified engineers, records their use on site, and manages their return when empty or partially depleted. It establishes the audit trail maintained within the <strong>F-Gas Tracker Pro</strong> system to demonstrate compliance with UK F-Gas regulations.</p>
+        <p>21 Degrees Ltd utilises a bespoke <strong>F-Gas Tracker Pro</strong> application for the management of all refrigerant cylinders. This system consists of a <strong>web portal</strong> (used by office staff and administrators to register cylinders, manage movements, process returns and generate compliance reports) and a <strong>mobile application</strong> (used by field engineers on site to record bottle movements, log usage, capture equipment details, and manage the HWCN process). All records are stored centrally and are available for audit at any time.</p>
         <p><strong>Scope:</strong> Applies to all refrigerant cylinders categorised as <strong>New</strong> (virgin gas) within the F-Gas Tracker Pro system. This includes all hydrofluorocarbons (HFCs), hydrochlorofluorocarbons (HCFCs), and other fluorinated gases purchased for use in refrigeration and air conditioning equipment.</p>
         <p>This procedure does <strong>not</strong> cover recovery cylinders (see SOP-002).</p>
 
@@ -101,7 +102,7 @@ export default function Sop001Page() {
           <thead><tr><th>Role</th><th>Responsibility</th></tr></thead>
           <tbody>
             <tr><td>Office / Admin</td><td>Register new cylinders on receipt; process returns to supplier; maintain supplier and PO records in the system</td></tr>
-            <tr><td>Engineer</td><td>Collect allocated cylinders; record all on-site usage accurately and promptly; return cylinders to the van/stores after job completion</td></tr>
+            <tr><td>Engineer</td><td>Use the F-Gas Tracker Pro mobile application to: register new bottles upon receipt; record all bottle movements (including van loading, site delivery and returns); record all on-site usage accurately and promptly with weight before and after; capture equipment details (manufacturer, model, serial number) at every usage event; and return cylinders to the supplier once usage is complete. Engineers must not handle refrigerant without logging the event in the system.</td></tr>
             <tr><td>Office Manager / Director</td><td>Approve this procedure; ensure all engineers hold valid F-Gas qualifications before handling refrigerant</td></tr>
           </tbody>
         </table>

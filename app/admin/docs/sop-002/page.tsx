@@ -82,6 +82,7 @@ export default function Sop002Page() {
         {/* 1 */}
         <h2>1. Purpose and Scope</h2>
         <p>This procedure describes the controlled process by which <strong>21 Degrees Ltd</strong> manages the recovery of fluorinated greenhouse gases from customer equipment, raises Hazardous Waste Consignment Notes (HWCNs), transports waste refrigerant, and returns recovery cylinders to the authorised supplier for reclamation or destruction.</p>
+        <p>21 Degrees Ltd utilises a bespoke <strong>F-Gas Tracker Pro</strong> application for the management of all refrigerant cylinders. This system consists of a <strong>web portal</strong> (used by office staff and administrators to register cylinders, manage movements, process HWCN Part E sign-offs, process supplier returns and generate compliance reports) and a <strong>mobile application</strong> (used by field engineers on site to register new bottles, record all bottle movements, log recovery weights, capture producer site details and equipment information, and initiate the HWCN process). All records are stored centrally and are available for audit at any time.</p>
         <p><strong>Scope:</strong> Applies to all cylinders categorised as <strong>Reclaim / Recovery</strong> within the F-Gas Tracker Pro system. These cylinders contain recovered refrigerant classified as <strong>hazardous waste</strong> under the Hazardous Waste (England and Wales) Regulations 2005 and must not be treated as new product.</p>
         <p>This procedure covers: single-site recovery, multi-site recovery (mandatory HWCN routing via HQ-Stores), equipment decommissioning associated with recovery events, and the full HWCN lifecycle: generation, transit, Part E sign-off, and supplier return.</p>
 
@@ -123,7 +124,7 @@ export default function Sop002Page() {
         <table>
           <thead><tr><th>Role</th><th>Responsibility</th></tr></thead>
           <tbody>
-            <tr><td>Engineer</td><td>Perform recovery on site; record all weights, producer site details and equipment details accurately; initiate transit and carry cylinder to HQ-Stores or supplier; hold current F-Gas Category I qualification</td></tr>
+            <tr><td>Engineer</td><td>Use the F-Gas Tracker Pro mobile application to: register new bottles upon receipt; record all bottle movements (including van loading, site delivery and returns); perform recovery on site and record all weights, producer site details (name, address, postcode) and equipment details accurately and promptly; initiate the HWCN transit process in the app and carry the cylinder (with HWCN documentation) to HQ-Stores or supplier; return cylinders to the supplier once usage or recovery is complete. Engineers must hold a current F-Gas Category I qualification and must not handle refrigerant without logging the event in the system.</td></tr>
             <tr><td>Office / Admin</td><td>Generate and print HWCNs; complete Part E sign-off on receipt at HQ-Stores; process supplier returns; record supplier HWCN reference numbers; manage waste exemption documentation</td></tr>
             <tr><td>Office Manager / Director</td><td>Ensure carrier registration (CBDU368286) and waste exemption (31Z 3725 34) remain current; approve this procedure; maintain REFCOM registration REF1010728</td></tr>
           </tbody>
