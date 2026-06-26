@@ -430,9 +430,9 @@ export default function RefrigerantJobsPage() {
   };
 
   const DECOM_PDF_STYLES = `
-    @page { margin: 10mm; size: A4 portrait; }
+    @page { margin: 0; size: A4 portrait; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #333; line-height: 1.4; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; padding: 10mm; color: #333; line-height: 1.4; }
     .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
     .logo-section { display: flex; gap: 15px; align-items: flex-end; }
     .company-info { font-size: 10px; line-height: 1.4; color: #555; }
@@ -558,8 +558,8 @@ export default function RefrigerantJobsPage() {
       <html>
         <head>
           <style>
-            @page { margin: 10mm; size: A4 landscape; }
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; color: #333; line-height: 1.4; }
+            @page { margin: 0; size: A4 landscape; }
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 10mm; color: #333; line-height: 1.4; }
             .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
             .logo-section { display: flex; gap: 15px; align-items: flex-end; }
             .company-info { font-size: 10px; line-height: 1.4; color: #555; }
@@ -590,12 +590,15 @@ export default function RefrigerantJobsPage() {
               </div>
             </div>
             <div class="report-info">
-              <div class="report-title">Used Refrigerant Log</div>
-              <div class="report-meta"><div>Generated: ${reportDate}</div><div>Job: ${job.siteRef}</div></div>
+              <div class="report-title">Job Cylinder Usage Report</div>
+              <div class="report-meta"><div>Generated: ${reportDate}</div><div>Job: ${job.siteRef}</div>${job.siteName && job.siteName !== "Unknown Site" ? `<div>${job.siteName}</div>` : ""}</div>
             </div>
           </div>
           <table class="summary-table"><tr>
             <td class="summary-cell"><div class="summary-label">Job Reference</div><div class="summary-value">${job.siteRef}</div></td>
+            ${job.customer ? `<td class="summary-cell"><div class="summary-label">Customer</div><div class="summary-value">${job.customer}</div></td>` : ""}
+            ${job.siteName && job.siteName !== "Unknown Site" ? `<td class="summary-cell"><div class="summary-label">Site</div><div class="summary-value">${job.siteName}</div></td>` : ""}
+            ${job.siteAddress ? `<td class="summary-cell"><div class="summary-label">Address</div><div class="summary-value" style="font-size:12px">${job.siteAddress}</div></td>` : ""}
             <td class="summary-cell"><div class="summary-label">Cylinders Used</div><div class="summary-value">${uniqueBottles}</div></td>
             <td class="summary-cell"><div class="summary-label">Total Gas Dispensed</div><div class="summary-value">${(totalUsed - totalReclaim).toFixed(2)} kg</div></td>
             <td class="summary-cell"><div class="summary-label">Total Reclaimed</div><div class="summary-value">${totalReclaim.toFixed(2)} kg</div></td>
@@ -620,7 +623,7 @@ export default function RefrigerantJobsPage() {
               </tr>
             </tbody>
           </table>
-          <div class="footer">Used Refrigerant Log | F-Gas Tracker Pro | &copy; 2024 21 Degrees Ltd</div>
+          <div class="footer">Job Cylinder Usage Report | 21 Degrees Ltd | Job: ${job.siteRef}</div>
         </body>
       </html>
     `;
