@@ -46,6 +46,7 @@ export default function BottleActionHub() {
   const [associatedHWCNs, setAssociatedHWCNs] = useState<any[]>([]);
   const [showNitrogenUsage, setShowNitrogenUsage] = useState(false);
   const [isSubmittingNitrogen, setIsSubmittingNitrogen] = useState(false);
+  const [showMismatchConfirm, setShowMismatchConfirm] = useState(false);
 
   const handleNitrogenUsage = async (isEmpty: boolean) => {
     if (!bottle) return;
@@ -907,17 +908,53 @@ export default function BottleActionHub() {
 
               {/* DISCREPANCY BUTTON - Only for non-supplier bottles */}
               {bottle.locationType !== 'supplier' && !transferSuccess && (
-                <div style={{marginTop: "1.5rem", display: "flex", justifyContent: "center"}}>
-                  <button 
-                    onClick={() => router.push(`/engineer/move?serial=${bottle.serial}&discrepancy=true`)}
-                    style={{
-                      background: "rgba(255, 187, 0, 0.05)", border: "1px solid rgba(255, 187, 0, 0.2)",
-                      color: "rgba(255, 187, 0, 0.6)", padding: "0.6rem 1rem", borderRadius: "8px", fontSize: "0.85rem",
-                      display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", fontWeight: 500
-                    }}
-                  >
-                    <AlertTriangle size={16} /> Is Current Location Incorrect?
-                  </button>
+                <div style={{marginTop: "1.5rem", display: "flex", flexDirection: "column", alignItems: "center", gap: "0.75rem"}}>
+                  {!showMismatchConfirm ? (
+                    <button
+                      onClick={() => setShowMismatchConfirm(true)}
+                      style={{
+                        background: "rgba(255, 187, 0, 0.05)", border: "1px solid rgba(255, 187, 0, 0.2)",
+                        color: "rgba(255, 187, 0, 0.6)", padding: "0.6rem 1rem", borderRadius: "8px", fontSize: "0.85rem",
+                        display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", fontWeight: 500
+                      }}
+                    >
+                      <AlertTriangle size={16} /> Is Current Location Incorrect?
+                    </button>
+                  ) : (
+                    <div style={{
+                      background: "rgba(255, 187, 0, 0.06)", border: "1px solid rgba(255, 187, 0, 0.25)",
+                      borderRadius: "10px", padding: "1rem 1.25rem", textAlign: "center", width: "100%"
+                    }}>
+                      <p style={{color: "rgba(255, 187, 0, 0.9)", fontSize: "0.9rem", fontWeight: 600, margin: "0 0 0.25rem"}}>
+                        Report a location mismatch?
+                      </p>
+                      <p style={{color: "rgba(255,255,255,0.45)", fontSize: "0.8rem", margin: "0 0 1rem"}}>
+                        This will notify the office. Only continue if the app location is genuinely wrong.
+                      </p>
+                      <div style={{display: "flex", gap: "0.75rem", justifyContent: "center"}}>
+                        <button
+                          onClick={() => setShowMismatchConfirm(false)}
+                          style={{
+                            background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+                            color: "rgba(255,255,255,0.6)", padding: "0.55rem 1.25rem", borderRadius: "8px",
+                            fontSize: "0.85rem", cursor: "pointer"
+                          }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => router.push(`/engineer/move?serial=${bottle.serial}&discrepancy=true`)}
+                          style={{
+                            background: "rgba(255, 187, 0, 0.12)", border: "1px solid rgba(255, 187, 0, 0.35)",
+                            color: "#ffbb00", padding: "0.55rem 1.25rem", borderRadius: "8px",
+                            fontSize: "0.85rem", cursor: "pointer", fontWeight: 600
+                          }}
+                        >
+                          Yes, report mismatch
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
