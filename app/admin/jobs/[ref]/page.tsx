@@ -199,11 +199,12 @@ export default function JobDetailPage() {
     <div class="section-title">Refrigerant Usage</div>
     <table>
       <thead><tr>
-        <th style="width:80px">Date</th><th style="width:110px">Bottle</th><th>Gas Type</th>
-        <th>Engineer</th><th style="width:80px">Type</th>
-        <th style="width:80px;text-align:right">Qty (kg)</th>
-        <th style="width:90px;text-align:right">Wt Before</th>
-        <th style="width:90px;text-align:right">Wt After</th>
+        <th style="width:75px">Date</th><th style="width:105px">Bottle</th><th style="width:70px">Gas Type</th>
+        <th>Engineer</th><th>Manufacturer</th><th>Model</th><th>Serial No.</th>
+        <th style="width:70px">Type</th>
+        <th style="width:70px;text-align:right">Qty (kg)</th>
+        <th style="width:75px;text-align:right">Wt Before</th>
+        <th style="width:75px;text-align:right">Wt After</th>
       </tr></thead>
       <tbody>
         ${allUsageLogs.map(log => {
@@ -213,13 +214,14 @@ export default function JobDetailPage() {
             <td style="font-family:monospace;font-weight:600">${log.serial}</td>
             <td>${gasType(log.serial)}</td>
             <td>${log.engineer || "—"}</td>
+            <td>—</td><td>—</td><td>—</td>
             <td><span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:${isRec ? "#fff3cd" : "#d4edda"};color:${isRec ? "#856404" : "#155724"}">${log.jobType || "—"}</span></td>
             <td style="text-align:right;font-weight:600">${(log.weightUsed || 0).toFixed(2)}</td>
             <td style="text-align:right">${log.weightBefore?.toFixed(2) ?? "—"}</td>
             <td style="text-align:right">${log.weightAfter?.toFixed(2) ?? "—"}</td>
           </tr>`;
         }).join("")}
-        <tr class="total-row"><td colspan="5" style="text-align:right">Total</td>
+        <tr class="total-row"><td colspan="8" style="text-align:right">Total</td>
           <td style="text-align:right">${(totalNewGas + totalRecovered + totalNitrogen).toFixed(2)}</td>
           <td colspan="2"></td></tr>
       </tbody>
@@ -228,19 +230,29 @@ export default function JobDetailPage() {
     <div class="section-title">Decommissioned Equipment</div>
     <table>
       <thead><tr>
-        <th>Date</th><th>Gas</th><th>Engineer</th><th>Manufacturer</th><th>Model</th><th>Serial No.</th><th style="text-align:right">Wt Recovered (kg)</th>
+        <th style="width:75px">Date</th><th style="width:105px">Bottle</th><th style="width:70px">Gas Type</th>
+        <th>Engineer</th><th>Manufacturer</th><th>Model</th><th>Serial No.</th>
+        <th style="width:70px">Type</th>
+        <th style="width:70px;text-align:right">Qty (kg)</th>
+        <th style="width:75px;text-align:right">Wt Before</th>
+        <th style="width:75px;text-align:right">Wt After</th>
       </tr></thead>
       <tbody>
         ${decomFlatRows.map(({ eq, ...rec }) => `<tr>
           <td style="white-space:nowrap">${rec.date ? new Date(rec.date).toLocaleDateString("en-GB") : "—"}</td>
+          <td style="font-family:monospace;font-weight:600">${rec.bottleSerial || "—"}</td>
           <td>${rec.gasType || "—"}</td>
           <td>${rec.engineer || "—"}</td>
           <td>${eq?.manufacturer || "—"}</td>
           <td>${eq?.model || "—"}</td>
           <td style="font-family:monospace;font-weight:600">${eq?.serial || "—"}</td>
-          <td style="text-align:right">${(eq?.weightRecovered || 0).toFixed(2)}</td>
+          <td><span style="font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:#fde8ec;color:#9b1c1c">Decom</span></td>
+          <td style="text-align:right;font-weight:600">${(eq?.weightRecovered || 0).toFixed(2)}</td>
+          <td>—</td><td>—</td>
         </tr>`).join("")}
-        <tr class="total-row"><td colspan="6">Total Recovered</td><td style="text-align:right">${totalDecomWt.toFixed(2)}</td></tr>
+        <tr class="total-row"><td colspan="8" style="text-align:right">Total Recovered</td>
+          <td style="text-align:right">${totalDecomWt.toFixed(2)}</td>
+          <td colspan="2"></td></tr>
       </tbody>
     </table>` : ""}
     <div class="footer">21 Degrees F-Gas Tracker Pro | Official Audit Document | &copy; 2026 21 Degrees Ltd | Job: ${ref}</div>
