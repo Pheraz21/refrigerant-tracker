@@ -531,7 +531,7 @@ export const db = {
         serial,
         action: action as any,
         from_location: from || "Unknown",
-        to_location: locationId,
+        to_location: activeHWCN ? (intendedDestination || locationId) : locationId,
         engineer: engineerName || "system",
         notes: activeHWCN
           ? `Consignment ${activeHWCN} generated. Destination: ${intendedDestination}.`
