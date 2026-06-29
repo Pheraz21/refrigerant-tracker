@@ -32,12 +32,12 @@ export default function Sop001Page() {
         boxShadow: "0 4px 32px rgba(0,0,0,0.4)"
       }}>
         <style>{`
-          @page { margin: 1.5cm; }
+          @page { margin: 0; }
           @media print {
             .no-print { display: none !important; }
             html, body, body > div { background: #fff !important; overflow: visible !important; height: auto !important; }
             main { margin: 0 !important; padding: 0 !important; overflow: visible !important; height: auto !important; }
-            #sop-document { box-shadow: none; border-radius: 0; padding: 0; max-width: none; width: 100%; margin: 0; }
+            #sop-document { box-shadow: none; border-radius: 0; padding: 2.5cm 3cm; max-width: none; width: 100%; margin: 0; box-sizing: border-box; }
           }
           #sop-document h1 { font-size: 1.6rem; font-weight: 700; margin: 0 0 0.25rem; color: #0a0a0a; }
           #sop-document h2 { font-size: 1.1rem; font-weight: 700; margin: 2rem 0 0.75rem; padding-bottom: 0.35rem; border-bottom: 2px solid #0a0a0a; color: #0a0a0a; text-transform: uppercase; letter-spacing: 0.04em; }
