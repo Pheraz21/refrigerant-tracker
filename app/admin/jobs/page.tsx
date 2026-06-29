@@ -131,6 +131,7 @@ function groupJobEquipment(logs: UsageLog[]) {
   const grouped = new Map<string, {
     manufacturer: string; model: string; equipmentSerial: string;
     totalWeight: number; dates: string[]; engineers: Set<string>;
+    actions: { log: UsageLog; eq: any }[];
   }>();
   logs.forEach(log => {
     const eqList: any[] = (log as any).equipmentDetails || [];
@@ -141,15 +142,17 @@ function groupJobEquipment(logs: UsageLog[]) {
       if (!mfr && !mdl && !sn) return;
       const key = sn ? `sn:${sn.toLowerCase()}` : `mm:${mfr.toLowerCase()}|${mdl.toLowerCase()}`;
       if (!grouped.has(key)) {
-        grouped.set(key, { manufacturer: mfr, model: mdl, equipmentSerial: sn, totalWeight: 0, dates: [], engineers: new Set() });
+        grouped.set(key, { manufacturer: mfr, model: mdl, equipmentSerial: sn, totalWeight: 0, dates: [], engineers: new Set(), actions: [] });
       }
       const e = grouped.get(key)!;
       e.totalWeight += (parseFloat(String(eq.weight)) || 0);
       if (log.date) e.dates.push(log.date);
       if (log.engineer) e.engineers.add(log.engineer);
+      e.actions.push({ log, eq });
     });
   });
-  return Array.from(grouped.values()).map(e => ({
+  return Array.from(grouped.entries()).map(([key, e]) => ({
+    key,
     manufacturer: e.manufacturer,
     model: e.model,
     equipmentSerial: e.equipmentSerial,
@@ -158,6 +161,7 @@ function groupJobEquipment(logs: UsageLog[]) {
     engineers: Array.from(e.engineers),
     firstDate: [...e.dates].sort()[0] || "",
     lastDate: [...e.dates].sort().reverse()[0] || "",
+    actions: e.actions,
   }));
 }
 
@@ -175,6 +179,11 @@ export default function RefrigerantJobsPage() {
   const [categoryFilter, setCategoryFilter] = useState<"all" | "service" | "recovery">("all");
   const [expandedJobs, setExpandedJobs] = useState<Set<string>>(new Set());
   const [expandedJobTabs, setExpandedJobTabs] = useState<Record<string, "bottles" | "equipment">>({});
+  const [expandedEqRows, setExpandedEqRows] = useState<Set<string>>(new Set());
+  const toggleEqRow = (siteRef: string, eqKey: string) => {
+    const k = `${siteRef}::${eqKey}`;
+    setExpandedEqRows(prev => { const next = new Set(prev); next.has(k) ? next.delete(k) : next.add(k); return next; });
+  };
   const [sortKey, setSortKey] = useState<SortKey>("jobRef");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [customizerOpen, setCustOpen] = useState(false);
@@ -1111,34 +1120,115 @@ export default function RefrigerantJobsPage() {
                               </tr>
                             </thead>
                             <tbody>
-                              {eqGroups.map((eq, i) => (
-                                <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
-                                  <td style={{ padding: "0.5rem 1rem", fontFamily: "var(--font-geist-mono)", color: eq.equipmentSerial ? "#00e5ff" : "rgba(255,255,255,0.3)", fontWeight: eq.equipmentSerial ? 600 : 400 }}>
-                                    {eq.equipmentSerial || <span style={{ fontStyle: "italic" }}>No serial</span>}
-                                  </td>
-                                  <td style={{ padding: "0.5rem 1rem", color: "rgba(255,255,255,0.75)" }}>
-                                    {eq.manufacturer || <span style={{ color: "rgba(255,255,255,0.25)" }}>—</span>}
-                                  </td>
-                                  <td style={{ padding: "0.5rem 1rem", color: "rgba(255,255,255,0.75)" }}>
-                                    {eq.model || <span style={{ color: "rgba(255,255,255,0.25)" }}>—</span>}
-                                  </td>
-                                  <td style={{ padding: "0.5rem 1rem", textAlign: "center", color: "rgba(255,255,255,0.5)" }}>
-                                    {eq.serviceCount}
-                                  </td>
-                                  <td style={{ padding: "0.5rem 1rem", color: "rgba(255,255,255,0.45)", whiteSpace: "nowrap" }}>
-                                    {eq.firstDate ? new Date(eq.firstDate).toLocaleDateString("en-GB") : "—"}
-                                  </td>
-                                  <td style={{ padding: "0.5rem 1rem", color: "rgba(255,255,255,0.45)", whiteSpace: "nowrap" }}>
-                                    {eq.lastDate ? new Date(eq.lastDate).toLocaleDateString("en-GB") : "—"}
-                                  </td>
-                                  <td style={{ padding: "0.5rem 1rem", textAlign: "right", fontWeight: 600, color: eq.totalWeight > 0 ? "#22c55e" : "rgba(255,255,255,0.3)" }}>
-                                    {eq.totalWeight > 0 ? `${eq.totalWeight.toFixed(2)} kg` : "—"}
-                                  </td>
-                                  <td style={{ padding: "0.5rem 1rem", color: "rgba(255,255,255,0.5)", fontSize: "0.78rem" }}>
-                                    {eq.engineers.join(", ") || "—"}
-                                  </td>
-                                </tr>
-                              ))}
+                              {eqGroups.map((eq) => {
+                                const isEqExp = expandedEqRows.has(`${job.siteRef}::${eq.key}`);
+                                return (
+                                  <React.Fragment key={eq.key}>
+                                    <tr
+                                      onClick={e => { e.stopPropagation(); toggleEqRow(job.siteRef, eq.key); }}
+                                      style={{ borderBottom: isEqExp ? "none" : "1px solid rgba(255,255,255,0.03)", cursor: "pointer", background: isEqExp ? "rgba(0,229,255,0.04)" : "transparent" }}
+                                    >
+                                      <td style={{ padding: "0.5rem 1rem", fontFamily: "var(--font-geist-mono)", color: eq.equipmentSerial ? "#00e5ff" : "rgba(255,255,255,0.3)", fontWeight: eq.equipmentSerial ? 600 : 400 }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                                          {isEqExp ? <ChevronDown size={12} style={{ color: "rgba(0,229,255,0.6)", flexShrink: 0 }} /> : <ChevronRight size={12} style={{ color: "rgba(255,255,255,0.25)", flexShrink: 0 }} />}
+                                          {eq.equipmentSerial || <span style={{ fontStyle: "italic" }}>No serial</span>}
+                                        </div>
+                                      </td>
+                                      <td style={{ padding: "0.5rem 1rem", color: "rgba(255,255,255,0.75)" }}>
+                                        {eq.manufacturer || <span style={{ color: "rgba(255,255,255,0.25)" }}>—</span>}
+                                      </td>
+                                      <td style={{ padding: "0.5rem 1rem", color: "rgba(255,255,255,0.75)" }}>
+                                        {eq.model || <span style={{ color: "rgba(255,255,255,0.25)" }}>—</span>}
+                                      </td>
+                                      <td style={{ padding: "0.5rem 1rem", textAlign: "center", color: "rgba(255,255,255,0.5)" }}>
+                                        {eq.serviceCount}
+                                      </td>
+                                      <td style={{ padding: "0.5rem 1rem", color: "rgba(255,255,255,0.45)", whiteSpace: "nowrap" }}>
+                                        {eq.firstDate ? new Date(eq.firstDate).toLocaleDateString("en-GB") : "—"}
+                                      </td>
+                                      <td style={{ padding: "0.5rem 1rem", color: "rgba(255,255,255,0.45)", whiteSpace: "nowrap" }}>
+                                        {eq.lastDate ? new Date(eq.lastDate).toLocaleDateString("en-GB") : "—"}
+                                      </td>
+                                      <td style={{ padding: "0.5rem 1rem", textAlign: "right", fontWeight: 600, color: eq.totalWeight > 0 ? "#22c55e" : "rgba(255,255,255,0.3)" }}>
+                                        {eq.totalWeight > 0 ? `${eq.totalWeight.toFixed(2)} kg` : "—"}
+                                      </td>
+                                      <td style={{ padding: "0.5rem 1rem", color: "rgba(255,255,255,0.5)", fontSize: "0.78rem" }}>
+                                        {eq.engineers.join(", ") || "—"}
+                                      </td>
+                                    </tr>
+                                    {isEqExp && (
+                                      <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(0,0,0,0.15)" }}>
+                                        <td colSpan={8} style={{ padding: "0 1rem 0.75rem 3.5rem" }}>
+                                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
+                                            <thead>
+                                              <tr style={{ background: "rgba(255,255,255,0.02)" }}>
+                                                <th style={{ ...thBase, fontSize: "0.62rem" }}>Bottle</th>
+                                                <th style={{ ...thBase, fontSize: "0.62rem" }}>Date</th>
+                                                <th style={{ ...thBase, fontSize: "0.62rem" }}>Job Type</th>
+                                                <th style={{ ...thBase, fontSize: "0.62rem", textAlign: "right" }}>Qty</th>
+                                                <th style={{ ...thBase, fontSize: "0.62rem" }}>Before → After</th>
+                                                <th style={{ ...thBase, fontSize: "0.62rem" }}>HWCNs</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {eq.actions.map((action, ai) => {
+                                                const { log: aLog, eq: eqDetail } = action;
+                                                const aHwcn = hwcns.find(h => h.serial === aLog.serial);
+                                                const aReturn = supplierReturnGroups.find(g => g.serials.includes(aLog.serial));
+                                                const aDirect = directReturns.find(b => b.serial === aLog.serial && b.supplierHwcnPhotoUrl);
+                                                const rawType = (aLog.jobType || "").toLowerCase();
+                                                const isRec = RECOVERY_TYPES.has(rawType);
+                                                const dispType = isRec ? aLog.jobType : (jobTypeFromPrefix(aLog.siteRef || job.siteRef) || aLog.jobType || "—");
+                                                return (
+                                                  <tr key={ai} style={{ borderBottom: "1px solid rgba(255,255,255,0.02)" }}>
+                                                    <td style={{ padding: "0.35rem 0.75rem", fontFamily: "var(--font-geist-mono)", color: "#00e5ff", fontWeight: 600 }}>
+                                                      <Link href={`/admin/bottles/${aLog.serial}`} style={{ color: "#00e5ff", textDecoration: "none" }}>{aLog.serial}</Link>
+                                                    </td>
+                                                    <td style={{ padding: "0.35rem 0.75rem", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                                                      {aLog.date ? new Date(aLog.date).toLocaleDateString("en-GB") : "—"}
+                                                    </td>
+                                                    <td style={{ padding: "0.35rem 0.75rem" }}>
+                                                      <span style={{ fontSize: "0.65rem", fontWeight: 700, padding: "0.1rem 0.4rem", borderRadius: "3px", background: isRec ? "rgba(255,170,0,0.1)" : "rgba(34,197,94,0.1)", color: isRec ? "#ffaa00" : "#22c55e", textTransform: "capitalize" }}>
+                                                        {dispType}
+                                                      </span>
+                                                    </td>
+                                                    <td style={{ padding: "0.35rem 0.75rem", textAlign: "right", fontWeight: 600, color: isRec ? "#ffaa00" : "#22c55e" }}>
+                                                      {(parseFloat(String(eqDetail.weight)) || 0).toFixed(2)} kg
+                                                    </td>
+                                                    <td style={{ padding: "0.35rem 0.75rem", color: "rgba(255,255,255,0.5)", fontFamily: "var(--font-geist-mono)", fontSize: "0.75rem" }}>
+                                                      {aLog.weightBefore?.toFixed(2) ?? "?"} → {aLog.weightAfter?.toFixed(2) ?? "?"}
+                                                    </td>
+                                                    <td style={{ padding: "0.35rem 0.75rem" }}>
+                                                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
+                                                        {aHwcn && (
+                                                          <Link href={`/admin/hwcn/${encodeURIComponent(aHwcn.id)}`} title="Internal HWCN" style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.2)", color: "#00e5ff", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.7rem", fontWeight: 600, textDecoration: "none" }}>
+                                                            <ExternalLink size={10} /> {aHwcn.id?.slice(0, 8) || "HWCN"}
+                                                          </Link>
+                                                        )}
+                                                        {aReturn && (
+                                                          <Link href={`/admin/supplier-hwcn/${encodeURIComponent(aReturn.hwcnNumber)}`} title={`Return note: ${aReturn.hwcnNumber}`} style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.25)", color: "#a855f7", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.7rem", fontWeight: 600, textDecoration: "none" }}>
+                                                            <ExternalLink size={10} /> {aReturn.hwcnNumber}
+                                                          </Link>
+                                                        )}
+                                                        {aDirect && (
+                                                          <button onClick={e => { e.stopPropagation(); setViewPhoto({ url: aDirect.supplierHwcnPhotoUrl!, serial: aDirect.serial }); }} title="Direct return — view HWCN photo" style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(255,107,107,0.1)", border: "1px solid rgba(255,107,107,0.25)", color: "#ff6b6b", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.7rem", fontWeight: 600, cursor: "pointer" }}>
+                                                            <Camera size={10} /> Direct Return
+                                                          </button>
+                                                        )}
+                                                        {!aHwcn && !aReturn && !aDirect && <span style={{ color: "var(--text-muted)" }}>—</span>}
+                                                      </div>
+                                                    </td>
+                                                  </tr>
+                                                );
+                                              })}
+                                            </tbody>
+                                          </table>
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </React.Fragment>
+                                );
+                              })}
                             </tbody>
                           </table>
                           ))}
