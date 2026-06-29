@@ -35,8 +35,8 @@ export default function Sop002Page() {
           @page { margin: 1.5cm; }
           @media print {
             .no-print { display: none !important; }
-            body, body > div { background: #fff !important; }
-            main { margin: 0 !important; padding: 0 !important; }
+            html, body, body > div { background: #fff !important; overflow: visible !important; height: auto !important; }
+            main { margin: 0 !important; padding: 0 !important; overflow: visible !important; height: auto !important; }
             #sop-document { box-shadow: none; border-radius: 0; padding: 0; max-width: none; width: 100%; margin: 0; }
           }
           #sop-document h1 { font-size: 1.6rem; font-weight: 700; margin: 0 0 0.25rem; color: #0a0a0a; }
