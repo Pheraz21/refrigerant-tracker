@@ -61,7 +61,7 @@ export default function MoveBottlePage() {
       } else if (action === "divert") {
         setReclaimFlowStep("divert_destination");
       } else {
-        if (b?.locationType === 'van' && b?.intendedDestination) {
+        if (b?.activeHWCN && b?.intendedDestination) {
           setReclaimFlowStep("in_transit");
         } else if (b?.category === "reclaim" && b?.currentWeight > 0) {
           setReclaimFlowStep("ask_supplier");
@@ -375,9 +375,24 @@ export default function MoveBottlePage() {
             {/* §3.2 — HQ-Stores Intended Destination */}
             {bottle?.intendedLocationType !== "supplier" && (
               <>
-                <button 
+                {/* Bottle is at a site (picked up from a job) — load back to van to continue transit */}
+                {bottle?.locationType !== 'van' && (
+                  <button
+                    type="button"
+                    className={styles.primaryBtn}
+                    style={{ background: 'var(--primary)', color: '#000' }}
+                    onClick={async () => {
+                      const intLocType = bottle?.intendedDestination === "HQ-Stores" ? "office" : "site";
+                      await db.updateBottleLocation(serialParam, "van", `${user?.name} - Van`, bottle.intendedDestination, intLocType as any, bottle.activeHWCN, user?.name);
+                      router.push("/engineer");
+                    }}
+                  >
+                    <Truck size={18} /> Loaded — Continue Transit to {bottle?.intendedDestination}
+                  </button>
+                )}
+                <button
                   type="button"
-                  className={styles.primaryBtn} 
+                  className={styles.primaryBtn}
                   style={{background: 'var(--warning)', color: '#000'}}
                   onClick={async () => {
                     await db.completeTransit(serialParam, undefined, user?.name);
@@ -386,9 +401,9 @@ export default function MoveBottlePage() {
                 >
                   <CheckCircle2 size={18} /> Complete Transfer to HQ-Stores
                 </button>
-                <button 
+                <button
                   type="button"
-                  className={styles.primaryBtn} 
+                  className={styles.primaryBtn}
                   style={{ background: 'transparent', color: 'var(--text-main)', border: '1px solid var(--border)' }}
                   onClick={() => setReclaimFlowStep("divert_destination")}
                 >
