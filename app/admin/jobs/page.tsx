@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useMemo } from "react";
-import { db, UsageLog, SupplierReturnGroup, CrmJob, Bottle } from "@/lib/db";
+import { db, UsageLog, SupplierReturnGroup, CrmJob, Bottle, BottleCategory } from "@/lib/db";
 import {
   Briefcase, Search, ChevronDown, ChevronRight, Calendar, X,
   ExternalLink, Settings2, ArrowUpDown, ArrowUp, ArrowDown, Printer,
@@ -212,6 +212,7 @@ export default function RefrigerantJobsPage() {
     const k = `${siteRef}::${eqKey}`;
     setExpandedEqRows(prev => { const next = new Set(prev); next.has(k) ? next.delete(k) : next.add(k); return next; });
   };
+  const [bottleMap, setBottleMap] = useState<Map<string, { category: BottleCategory; gasType: string }>>(new Map());
   const [expandedBottleRows, setExpandedBottleRows] = useState<Set<string>>(new Set());
   const toggleBottleRow = (siteRef: string, bottleKey: string) => {
     const k = `${siteRef}::${bottleKey}`;
@@ -262,6 +263,11 @@ export default function RefrigerantJobsPage() {
     setDecommissions(decom);
     setSupplierReturnGroups(returnGroups);
     setDirectReturns(dirReturns);
+    const serials = [...new Set(logs.map((l: UsageLog) => l.serial).filter(Boolean))];
+    if (serials.length) {
+      const bottles = await db.getBottlesBySerials(serials);
+      setBottleMap(new Map(bottles.map(b => [b.serial, { category: b.category, gasType: b.gasType || "" }])));
+    }
     await loadCrmMap(logs, decom);
     setLoading(false);
   };
@@ -1058,6 +1064,8 @@ export default function RefrigerantJobsPage() {
                               <thead>
                                 <tr style={{ background: "rgba(255,255,255,0.03)" }}>
                                   <th style={{ ...thBase, fontSize: "0.65rem" }}>Serial</th>
+                                  <th style={{ ...thBase, fontSize: "0.65rem" }}>Type</th>
+                                  <th style={{ ...thBase, fontSize: "0.65rem" }}>Gas Type</th>
                                   <th style={{ ...thBase, fontSize: "0.65rem", textAlign: "center" }}>Uses</th>
                                   <th style={{ ...thBase, fontSize: "0.65rem" }}>First Use</th>
                                   <th style={{ ...thBase, fontSize: "0.65rem" }}>Last Use</th>
@@ -1082,6 +1090,20 @@ export default function RefrigerantJobsPage() {
                                             </Link>
                                           </div>
                                         </td>
+                                        {(() => {
+                                          const bInfo = bottleMap.get(bottle.serial);
+                                          const cat = bInfo?.category;
+                                          const catColor = cat === "new" ? "#22c55e" : cat === "reclaim" ? "#ffaa00" : cat === "nitrogen" ? "#3b82f6" : "rgba(255,255,255,0.3)";
+                                          const catBg = cat === "new" ? "rgba(34,197,94,0.1)" : cat === "reclaim" ? "rgba(255,170,0,0.1)" : cat === "nitrogen" ? "rgba(59,130,246,0.1)" : "transparent";
+                                          return (<>
+                                            <td style={{ padding: "0.5rem 1rem" }}>
+                                              {cat ? <span style={{ fontSize: "0.65rem", fontWeight: 700, padding: "0.1rem 0.4rem", borderRadius: "3px", background: catBg, color: catColor, textTransform: "capitalize" }}>{cat}</span> : <span style={{ color: "rgba(255,255,255,0.2)" }}>—</span>}
+                                            </td>
+                                            <td style={{ padding: "0.5rem 1rem", color: "rgba(255,255,255,0.6)", fontSize: "0.78rem" }}>
+                                              {bInfo?.gasType || <span style={{ color: "rgba(255,255,255,0.2)" }}>—</span>}
+                                            </td>
+                                          </>);
+                                        })()}
                                         <td style={{ padding: "0.5rem 1rem", textAlign: "center", color: "rgba(255,255,255,0.5)" }}>
                                           {bottle.useCount}
                                         </td>
@@ -1100,7 +1122,7 @@ export default function RefrigerantJobsPage() {
                                       </tr>
                                       {isBotExp && (
                                         <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(0,0,0,0.15)" }}>
-                                          <td colSpan={6} style={{ padding: "0 1rem 0.75rem 3.5rem" }}>
+                                          <td colSpan={8} style={{ padding: "0 1rem 0.75rem 3.5rem" }}>
                                             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
                                               <thead>
                                                 <tr style={{ background: "rgba(255,255,255,0.02)" }}>
@@ -1247,6 +1269,8 @@ export default function RefrigerantJobsPage() {
                                             <thead>
                                               <tr style={{ background: "rgba(255,255,255,0.02)" }}>
                                                 <th style={{ ...thBase, fontSize: "0.62rem" }}>Bottle</th>
+                                                <th style={{ ...thBase, fontSize: "0.62rem" }}>Type</th>
+                                                <th style={{ ...thBase, fontSize: "0.62rem" }}>Gas Type</th>
                                                 <th style={{ ...thBase, fontSize: "0.62rem" }}>Date</th>
                                                 <th style={{ ...thBase, fontSize: "0.62rem" }}>Job Type</th>
                                                 <th style={{ ...thBase, fontSize: "0.62rem", textAlign: "right" }}>Qty</th>
@@ -1268,6 +1292,20 @@ export default function RefrigerantJobsPage() {
                                                     <td style={{ padding: "0.35rem 0.75rem", fontFamily: "var(--font-geist-mono)", color: "#00e5ff", fontWeight: 600 }}>
                                                       <Link href={`/admin/bottles/${aLog.serial}`} style={{ color: "#00e5ff", textDecoration: "none" }}>{aLog.serial}</Link>
                                                     </td>
+                                                    {(() => {
+                                                      const bInfo = bottleMap.get(aLog.serial);
+                                                      const cat = bInfo?.category;
+                                                      const catColor = cat === "new" ? "#22c55e" : cat === "reclaim" ? "#ffaa00" : cat === "nitrogen" ? "#3b82f6" : "rgba(255,255,255,0.3)";
+                                                      const catBg = cat === "new" ? "rgba(34,197,94,0.1)" : cat === "reclaim" ? "rgba(255,170,0,0.1)" : cat === "nitrogen" ? "rgba(59,130,246,0.1)" : "transparent";
+                                                      return (<>
+                                                        <td style={{ padding: "0.35rem 0.75rem" }}>
+                                                          {cat ? <span style={{ fontSize: "0.63rem", fontWeight: 700, padding: "0.1rem 0.35rem", borderRadius: "3px", background: catBg, color: catColor, textTransform: "capitalize" }}>{cat}</span> : <span style={{ color: "rgba(255,255,255,0.2)" }}>—</span>}
+                                                        </td>
+                                                        <td style={{ padding: "0.35rem 0.75rem", color: "rgba(255,255,255,0.6)", fontSize: "0.75rem" }}>
+                                                          {bInfo?.gasType || <span style={{ color: "rgba(255,255,255,0.2)" }}>—</span>}
+                                                        </td>
+                                                      </>);
+                                                    })()}
                                                     <td style={{ padding: "0.35rem 0.75rem", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
                                                       {aLog.date ? new Date(aLog.date).toLocaleDateString("en-GB") : "—"}
                                                     </td>
