@@ -165,6 +165,34 @@ function groupJobEquipment(logs: UsageLog[]) {
   }));
 }
 
+function groupJobBottles(logs: UsageLog[]) {
+  const grouped = new Map<string, {
+    serial: string; totalWeight: number; dates: string[];
+    engineers: Set<string>; actions: UsageLog[];
+  }>();
+  logs.forEach(log => {
+    const serial = log.serial || "unknown";
+    if (!grouped.has(serial)) {
+      grouped.set(serial, { serial, totalWeight: 0, dates: [], engineers: new Set(), actions: [] });
+    }
+    const g = grouped.get(serial)!;
+    g.totalWeight += log.weightUsed || 0;
+    if (log.date) g.dates.push(log.date);
+    if (log.engineer) g.engineers.add(log.engineer);
+    g.actions.push(log);
+  });
+  return Array.from(grouped.entries()).map(([key, g]) => ({
+    key,
+    serial: g.serial,
+    totalWeight: g.totalWeight,
+    useCount: g.actions.length,
+    engineers: Array.from(g.engineers),
+    firstDate: [...g.dates].sort()[0] || "",
+    lastDate: [...g.dates].sort().reverse()[0] || "",
+    actions: g.actions,
+  }));
+}
+
 export default function RefrigerantJobsPage() {
   const [usageLogs, setUsageLogs] = useState<UsageLog[]>([]);
   const [hwcns, setHwcns] = useState<any[]>([]);
@@ -183,6 +211,11 @@ export default function RefrigerantJobsPage() {
   const toggleEqRow = (siteRef: string, eqKey: string) => {
     const k = `${siteRef}::${eqKey}`;
     setExpandedEqRows(prev => { const next = new Set(prev); next.has(k) ? next.delete(k) : next.add(k); return next; });
+  };
+  const [expandedBottleRows, setExpandedBottleRows] = useState<Set<string>>(new Set());
+  const toggleBottleRow = (siteRef: string, bottleKey: string) => {
+    const k = `${siteRef}::${bottleKey}`;
+    setExpandedBottleRows(prev => { const next = new Set(prev); next.has(k) ? next.delete(k) : next.add(k); return next; });
   };
   const [sortKey, setSortKey] = useState<SortKey>("jobRef");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -990,6 +1023,7 @@ export default function RefrigerantJobsPage() {
                     {isExpanded && (() => {
                       const activeTab = expandedJobTabs[job.siteRef] || "bottles";
                       const eqGroups = groupJobEquipment(job.logs);
+                      const bottleGroupCount = new Set(job.logs.map(l => l.serial)).size;
                       return (
                       <tr style={{ background: "rgba(0,229,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                         <td colSpan={visibleCols.length + 1} style={{ padding: "0 0 0.75rem 3rem" }}>
@@ -1002,6 +1036,9 @@ export default function RefrigerantJobsPage() {
                                 style={{ padding: "0.2rem 0.7rem", borderRadius: "4px", fontSize: "0.72rem", fontWeight: 600, cursor: "pointer", border: "1px solid", transition: "all 0.15s", background: activeTab === tab ? "rgba(0,229,255,0.12)" : "transparent", borderColor: activeTab === tab ? "rgba(0,229,255,0.35)" : "rgba(255,255,255,0.1)", color: activeTab === tab ? "#00e5ff" : "rgba(255,255,255,0.4)" }}
                               >
                                 {tab === "bottles" ? "By Bottle" : "By Equipment"}
+                                {tab === "bottles" && bottleGroupCount > 0 && (
+                                  <span style={{ marginLeft: "0.3rem", background: activeTab === tab ? "rgba(0,229,255,0.2)" : "rgba(255,255,255,0.08)", padding: "0.05rem 0.3rem", borderRadius: "3px", fontSize: "0.68rem" }}>{bottleGroupCount}</span>
+                                )}
                                 {tab === "equipment" && eqGroups.length > 0 && (
                                   <span style={{ marginLeft: "0.3rem", background: activeTab === tab ? "rgba(0,229,255,0.2)" : "rgba(255,255,255,0.08)", padding: "0.05rem 0.3rem", borderRadius: "3px", fontSize: "0.68rem" }}>{eqGroups.length}</span>
                                 )}
@@ -1010,94 +1047,141 @@ export default function RefrigerantJobsPage() {
                           </div>
 
                           {/* By Bottle tab */}
-                          {activeTab === "bottles" && (
-                          job.logs.length === 0 ? (
-                            <div style={{ padding: "0.75rem 1rem", fontSize: "0.82rem", color: "rgba(255,255,255,0.35)", fontStyle: "italic" }}>
-                              No gas log entries for this job — decommissioned equipment only.
-                            </div>
-                          ) : (
-                          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
-                            <thead>
-                              <tr style={{ background: "rgba(255,255,255,0.03)" }}>
-                                <th style={{ ...thBase, fontSize: "0.65rem" }}>Serial</th>
-                                <th style={{ ...thBase, fontSize: "0.65rem" }}>Date</th>
-                                <th style={{ ...thBase, fontSize: "0.65rem" }}>Job Type</th>
-                                <th style={{ ...thBase, fontSize: "0.65rem", textAlign: "right" }}>Qty Used</th>
-                                <th style={{ ...thBase, fontSize: "0.65rem" }}>Before → After</th>
-                                <th style={{ ...thBase, fontSize: "0.65rem" }}>HWCNs</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {job.logs.map(log => {
-                                const logHwcn = hwcns.find(h => h.serial === log.serial);
-                                const logReturnNote = supplierReturnGroups.find(g => g.serials.includes(log.serial));
-                                const logDirectReturn = directReturns.find(b => b.serial === log.serial && b.supplierHwcnPhotoUrl);
-                                const rawJobType = (log.jobType || "").toLowerCase();
-                                const isRecovery = RECOVERY_TYPES.has(rawJobType);
-                                const displayJobType = isRecovery
-                                  ? log.jobType
-                                  : (jobTypeFromPrefix(log.siteRef || job.siteRef) || log.jobType || "—");
-                                return (
-                                  <tr key={log.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
-                                    <td style={{ padding: "0.5rem 1rem", fontFamily: "var(--font-geist-mono)", color: "#00e5ff", fontWeight: 600 }}>
-                                      <Link href={`/admin/bottles/${log.serial}`} style={{ color: "#00e5ff", textDecoration: "none" }}>
-                                        {log.serial}
-                                      </Link>
-                                    </td>
-                                    <td style={{ padding: "0.5rem 1rem", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
-                                      {log.date ? new Date(log.date).toLocaleDateString("en-GB") : "—"}
-                                    </td>
-                                    <td style={{ padding: "0.5rem 1rem" }}>
-                                      <span style={{ fontSize: "0.7rem", fontWeight: 700, padding: "0.1rem 0.4rem", borderRadius: "3px", background: isRecovery ? "rgba(255,170,0,0.1)" : "rgba(34,197,94,0.1)", color: isRecovery ? "#ffaa00" : "#22c55e", textTransform: "capitalize" }}>
-                                        {displayJobType}
-                                      </span>
-                                    </td>
-                                    <td style={{ padding: "0.5rem 1rem", textAlign: "right", fontWeight: 600, color: isRecovery ? "#ffaa00" : "#22c55e" }}>
-                                      {log.weightUsed?.toFixed(2) || "—"} kg
-                                    </td>
-                                    <td style={{ padding: "0.5rem 1rem", color: "rgba(255,255,255,0.5)", fontFamily: "var(--font-geist-mono)", fontSize: "0.78rem" }}>
-                                      {log.weightBefore?.toFixed(2) ?? "?"} → {log.weightAfter?.toFixed(2) ?? "?"}
-                                    </td>
-                                    <td style={{ padding: "0.5rem 1rem" }}>
-                                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
-                                        {logHwcn && (
-                                          <Link
-                                            href={`/admin/hwcn/${encodeURIComponent(logHwcn.id)}`}
-                                            title="Internal HWCN (job → office)"
-                                            style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.2)", color: "#00e5ff", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600, textDecoration: "none" }}
-                                          >
-                                            <ExternalLink size={11} /> {logHwcn.id?.slice(0, 8) || "HWCN"}
-                                          </Link>
-                                        )}
-                                        {logReturnNote && (
-                                          <Link
-                                            href={`/admin/supplier-hwcn/${encodeURIComponent(logReturnNote.hwcnNumber)}`}
-                                            title={`Return note (office → supplier): ${logReturnNote.hwcnNumber}`}
-                                            style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.25)", color: "#a855f7", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600, textDecoration: "none" }}
-                                          >
-                                            <ExternalLink size={11} /> {logReturnNote.hwcnNumber}
-                                          </Link>
-                                        )}
-                                        {logDirectReturn && (
-                                          <button
-                                            onClick={e => { e.stopPropagation(); setViewPhoto({ url: logDirectReturn.supplierHwcnPhotoUrl!, serial: logDirectReturn.serial }); }}
-                                            title={`Direct engineer return to supplier — view HWCN photo for ${logDirectReturn.serial}`}
-                                            style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(255,107,107,0.1)", border: "1px solid rgba(255,107,107,0.25)", color: "#ff6b6b", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer" }}
-                                          >
-                                            <Camera size={11} /> Direct Return
-                                          </button>
-                                        )}
-                                        {!logHwcn && !logReturnNote && !logDirectReturn && (
-                                          <span style={{ color: "var(--text-muted)" }}>—</span>
-                                        )}
-                                      </div>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                          ))}
+                          {activeTab === "bottles" && (() => {
+                            const bottleGroups = groupJobBottles(job.logs);
+                            return job.logs.length === 0 ? (
+                              <div style={{ padding: "0.75rem 1rem", fontSize: "0.82rem", color: "rgba(255,255,255,0.35)", fontStyle: "italic" }}>
+                                No gas log entries for this job — decommissioned equipment only.
+                              </div>
+                            ) : (
+                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+                              <thead>
+                                <tr style={{ background: "rgba(255,255,255,0.03)" }}>
+                                  <th style={{ ...thBase, fontSize: "0.65rem" }}>Serial</th>
+                                  <th style={{ ...thBase, fontSize: "0.65rem", textAlign: "center" }}>Uses</th>
+                                  <th style={{ ...thBase, fontSize: "0.65rem" }}>First Use</th>
+                                  <th style={{ ...thBase, fontSize: "0.65rem" }}>Last Use</th>
+                                  <th style={{ ...thBase, fontSize: "0.65rem", textAlign: "right" }}>Total Gas</th>
+                                  <th style={{ ...thBase, fontSize: "0.65rem" }}>Engineers</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {bottleGroups.map((bottle) => {
+                                  const isBotExp = expandedBottleRows.has(`${job.siteRef}::${bottle.key}`);
+                                  return (
+                                    <React.Fragment key={bottle.key}>
+                                      <tr
+                                        onClick={e => { e.stopPropagation(); toggleBottleRow(job.siteRef, bottle.key); }}
+                                        style={{ borderBottom: isBotExp ? "none" : "1px solid rgba(255,255,255,0.03)", cursor: "pointer", background: isBotExp ? "rgba(0,229,255,0.04)" : "transparent" }}
+                                      >
+                                        <td style={{ padding: "0.5rem 1rem", fontFamily: "var(--font-geist-mono)", color: "#00e5ff", fontWeight: 600 }}>
+                                          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                                            {isBotExp ? <ChevronDown size={12} style={{ color: "rgba(0,229,255,0.6)", flexShrink: 0 }} /> : <ChevronRight size={12} style={{ color: "rgba(255,255,255,0.25)", flexShrink: 0 }} />}
+                                            <Link href={`/admin/bottles/${bottle.serial}`} onClick={e => e.stopPropagation()} style={{ color: "#00e5ff", textDecoration: "none" }}>
+                                              {bottle.serial}
+                                            </Link>
+                                          </div>
+                                        </td>
+                                        <td style={{ padding: "0.5rem 1rem", textAlign: "center", color: "rgba(255,255,255,0.5)" }}>
+                                          {bottle.useCount}
+                                        </td>
+                                        <td style={{ padding: "0.5rem 1rem", color: "rgba(255,255,255,0.45)", whiteSpace: "nowrap" }}>
+                                          {bottle.firstDate ? new Date(bottle.firstDate).toLocaleDateString("en-GB") : "—"}
+                                        </td>
+                                        <td style={{ padding: "0.5rem 1rem", color: "rgba(255,255,255,0.45)", whiteSpace: "nowrap" }}>
+                                          {bottle.lastDate ? new Date(bottle.lastDate).toLocaleDateString("en-GB") : "—"}
+                                        </td>
+                                        <td style={{ padding: "0.5rem 1rem", textAlign: "right", fontWeight: 600, color: bottle.totalWeight > 0 ? "#22c55e" : "rgba(255,255,255,0.3)" }}>
+                                          {bottle.totalWeight > 0 ? `${bottle.totalWeight.toFixed(2)} kg` : "—"}
+                                        </td>
+                                        <td style={{ padding: "0.5rem 1rem", color: "rgba(255,255,255,0.5)", fontSize: "0.78rem" }}>
+                                          {bottle.engineers.join(", ") || "—"}
+                                        </td>
+                                      </tr>
+                                      {isBotExp && (
+                                        <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(0,0,0,0.15)" }}>
+                                          <td colSpan={6} style={{ padding: "0 1rem 0.75rem 3.5rem" }}>
+                                            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
+                                              <thead>
+                                                <tr style={{ background: "rgba(255,255,255,0.02)" }}>
+                                                  <th style={{ ...thBase, fontSize: "0.62rem" }}>Date</th>
+                                                  <th style={{ ...thBase, fontSize: "0.62rem" }}>Job Type</th>
+                                                  <th style={{ ...thBase, fontSize: "0.62rem", textAlign: "right" }}>Qty Used</th>
+                                                  <th style={{ ...thBase, fontSize: "0.62rem" }}>Before → After</th>
+                                                  <th style={{ ...thBase, fontSize: "0.62rem" }}>Equipment</th>
+                                                  <th style={{ ...thBase, fontSize: "0.62rem" }}>HWCNs</th>
+                                                </tr>
+                                              </thead>
+                                              <tbody>
+                                                {bottle.actions.map(log => {
+                                                  const logHwcn = hwcns.find(h => h.serial === log.serial);
+                                                  const logReturnNote = supplierReturnGroups.find(g => g.serials.includes(log.serial));
+                                                  const logDirectReturn = directReturns.find(b => b.serial === log.serial && b.supplierHwcnPhotoUrl);
+                                                  const rawJobType = (log.jobType || "").toLowerCase();
+                                                  const isRecovery = RECOVERY_TYPES.has(rawJobType);
+                                                  const displayJobType = isRecovery
+                                                    ? log.jobType
+                                                    : (jobTypeFromPrefix(log.siteRef || job.siteRef) || log.jobType || "—");
+                                                  const eqList: any[] = (log as any).equipmentDetails || [];
+                                                  return (
+                                                    <tr key={log.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.02)" }}>
+                                                      <td style={{ padding: "0.35rem 0.75rem", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                                                        {log.date ? new Date(log.date).toLocaleDateString("en-GB") : "—"}
+                                                      </td>
+                                                      <td style={{ padding: "0.35rem 0.75rem" }}>
+                                                        <span style={{ fontSize: "0.65rem", fontWeight: 700, padding: "0.1rem 0.4rem", borderRadius: "3px", background: isRecovery ? "rgba(255,170,0,0.1)" : "rgba(34,197,94,0.1)", color: isRecovery ? "#ffaa00" : "#22c55e", textTransform: "capitalize" }}>
+                                                          {displayJobType}
+                                                        </span>
+                                                      </td>
+                                                      <td style={{ padding: "0.35rem 0.75rem", textAlign: "right", fontWeight: 600, color: isRecovery ? "#ffaa00" : "#22c55e" }}>
+                                                        {log.weightUsed?.toFixed(2) || "—"} kg
+                                                      </td>
+                                                      <td style={{ padding: "0.35rem 0.75rem", color: "rgba(255,255,255,0.5)", fontFamily: "var(--font-geist-mono)", fontSize: "0.75rem" }}>
+                                                        {log.weightBefore?.toFixed(2) ?? "?"} → {log.weightAfter?.toFixed(2) ?? "?"}
+                                                      </td>
+                                                      <td style={{ padding: "0.35rem 0.75rem", color: "rgba(255,255,255,0.5)", fontSize: "0.75rem" }}>
+                                                        {eqList.length === 0 ? <span style={{ color: "rgba(255,255,255,0.2)" }}>—</span> : eqList.map((eq: any, ei: number) => (
+                                                          <span key={ei} style={{ display: "inline-block", marginRight: "0.4rem", whiteSpace: "nowrap" }}>
+                                                            {[eq.manufacturer, eq.model].filter(Boolean).join(" ")}
+                                                            {eq.serial && <span style={{ fontFamily: "var(--font-geist-mono)", color: "#00e5ff", marginLeft: "0.3rem" }}>({eq.serial})</span>}
+                                                          </span>
+                                                        ))}
+                                                      </td>
+                                                      <td style={{ padding: "0.35rem 0.75rem" }}>
+                                                        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
+                                                          {logHwcn && (
+                                                            <Link href={`/admin/hwcn/${encodeURIComponent(logHwcn.id)}`} title="Internal HWCN" style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.2)", color: "#00e5ff", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.7rem", fontWeight: 600, textDecoration: "none" }}>
+                                                              <ExternalLink size={10} /> {logHwcn.id?.slice(0, 8) || "HWCN"}
+                                                            </Link>
+                                                          )}
+                                                          {logReturnNote && (
+                                                            <Link href={`/admin/supplier-hwcn/${encodeURIComponent(logReturnNote.hwcnNumber)}`} title={`Return note: ${logReturnNote.hwcnNumber}`} style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.25)", color: "#a855f7", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.7rem", fontWeight: 600, textDecoration: "none" }}>
+                                                              <ExternalLink size={10} /> {logReturnNote.hwcnNumber}
+                                                            </Link>
+                                                          )}
+                                                          {logDirectReturn && (
+                                                            <button onClick={e => { e.stopPropagation(); setViewPhoto({ url: logDirectReturn.supplierHwcnPhotoUrl!, serial: logDirectReturn.serial }); }} title="Direct return — view HWCN photo" style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(255,107,107,0.1)", border: "1px solid rgba(255,107,107,0.25)", color: "#ff6b6b", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.7rem", fontWeight: 600, cursor: "pointer" }}>
+                                                              <Camera size={10} /> Direct Return
+                                                            </button>
+                                                          )}
+                                                          {!logHwcn && !logReturnNote && !logDirectReturn && <span style={{ color: "var(--text-muted)" }}>—</span>}
+                                                        </div>
+                                                      </td>
+                                                    </tr>
+                                                  );
+                                                })}
+                                              </tbody>
+                                            </table>
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </React.Fragment>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                            );
+                          })()}
 
                           {/* By Equipment tab */}
                           {activeTab === "equipment" && (
