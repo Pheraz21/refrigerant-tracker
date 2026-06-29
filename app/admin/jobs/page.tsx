@@ -145,7 +145,7 @@ function groupJobEquipment(logs: UsageLog[]) {
         grouped.set(key, { manufacturer: mfr, model: mdl, equipmentSerial: sn, totalWeight: 0, dates: [], engineers: new Set(), actions: [] });
       }
       const e = grouped.get(key)!;
-      e.totalWeight += (parseFloat(String(eq.weight)) || 0);
+      e.totalWeight += (parseFloat(String(eq.weight)) || log.weightUsed || 0);
       if (log.date) e.dates.push(log.date);
       if (log.engineer) e.engineers.add(log.engineer);
       e.actions.push({ log, eq });
@@ -1193,7 +1193,7 @@ export default function RefrigerantJobsPage() {
                                                       </span>
                                                     </td>
                                                     <td style={{ padding: "0.35rem 0.75rem", textAlign: "right", fontWeight: 600, color: isRec ? "#ffaa00" : "#22c55e" }}>
-                                                      {(parseFloat(String(eqDetail.weight)) || 0).toFixed(2)} kg
+                                                      {(parseFloat(String(eqDetail.weight)) || aLog.weightUsed || 0).toFixed(2)} kg
                                                     </td>
                                                     <td style={{ padding: "0.35rem 0.75rem", color: "rgba(255,255,255,0.5)", fontFamily: "var(--font-geist-mono)", fontSize: "0.75rem" }}>
                                                       {aLog.weightBefore?.toFixed(2) ?? "?"} → {aLog.weightAfter?.toFixed(2) ?? "?"}
