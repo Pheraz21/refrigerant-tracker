@@ -25,25 +25,8 @@ const COLUMN_DEFS = [
   { key: "expiry",       label: "Expiry Date"                 },
 ] as const;
 
-function matchColFilter(key: string, b: Bottle, val: string): boolean {
-  if (!val) return true;
-  const v = val.toLowerCase().trim();
-  switch (key) {
-    case "serial":       return b.serial.toLowerCase().includes(v);
-    case "category":     return b.category === val;
-    case "gasType":      return b.gasType === val;
-    case "capacity":     return (b.initialWeight ?? 0).toFixed(2).includes(v);
-    case "gasInBottle":  return (b.currentWeight ?? 0).toFixed(2).includes(v);
-    case "balance":      return ((b.initialWeight ?? 0) - (b.currentWeight ?? 0)).toFixed(2).includes(v);
-    case "returnedBy":   return (b.returnedBy || "") === val;
-    case "dateReceived": return b.locationChangedAt ? new Date(b.locationChangedAt).toLocaleDateString("en-GB").toLowerCase().includes(v) : v === "—";
-    case "supplier":     return (b.supplier || "") === val;
-    case "poNumber":     return (b.poNumber || "").toLowerCase().includes(v);
-    case "registered":   return b.registeredAt ? new Date(b.registeredAt).toLocaleDateString("en-GB").toLowerCase().includes(v) : v === "—";
-    case "expiry":       return b.rentalExpiryDate ? new Date(b.rentalExpiryDate).toLocaleDateString("en-GB").toLowerCase().includes(v) : v === "—";
-    default:             return true;
-  }
-}
+// Columns that use multi-select checkboxes vs text input
+const MULTI_SELECT_COLS = new Set(["category", "gasType", "supplier", "returnedBy"]);
 
 export default function StoresInventoryPage() {
   const router = useRouter();
@@ -55,7 +38,12 @@ export default function StoresInventoryPage() {
   const [sortKey, setSortKey] = useState<SortKey>("locationChangedAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [customizerOpen, setCustOpen] = useState(false);
+
+  // Text filters (partial match)
   const [colFilters, setColFilters] = useState<Record<string, string>>({});
+  // Multi-select filters: colKey -> array of selected values (empty = no filter)
+  const [colMultiFilters, setColMultiFilters] = useState<Record<string, string[]>>({});
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
   const { visibleCols, hidden, order, toggleCol, moveCol, reset } =
     useTablePrefs("stores", COLUMN_DEFS.map(c => c.key));
@@ -70,6 +58,14 @@ export default function StoresInventoryPage() {
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!openDropdown) return;
+    const close = () => setOpenDropdown(null);
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [openDropdown]);
 
   const distinctVals = useMemo(() => {
     const sets: Record<string, Set<string>> = {
@@ -86,7 +82,9 @@ export default function StoresInventoryPage() {
     return result;
   }, [bottles]);
 
-  const activeColFilters = Object.values(colFilters).filter(Boolean).length;
+  const activeColFilters =
+    Object.values(colFilters).filter(Boolean).length +
+    Object.values(colMultiFilters).filter(v => v.length > 0).length;
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -100,6 +98,33 @@ export default function StoresInventoryPage() {
       : <ArrowDown size={12} style={{opacity: 0.8, marginLeft: "0.3rem", flexShrink: 0}} />;
   };
 
+  function matchTextFilter(key: string, b: Bottle, val: string): boolean {
+    if (!val) return true;
+    const v = val.toLowerCase().trim();
+    switch (key) {
+      case "serial":       return b.serial.toLowerCase().includes(v);
+      case "capacity":     return (b.initialWeight ?? 0).toFixed(2).includes(v);
+      case "gasInBottle":  return (b.currentWeight ?? 0).toFixed(2).includes(v);
+      case "balance":      return ((b.initialWeight ?? 0) - (b.currentWeight ?? 0)).toFixed(2).includes(v);
+      case "dateReceived": return b.locationChangedAt ? new Date(b.locationChangedAt).toLocaleDateString("en-GB").toLowerCase().includes(v) : false;
+      case "poNumber":     return (b.poNumber || "").toLowerCase().includes(v);
+      case "registered":   return b.registeredAt ? new Date(b.registeredAt).toLocaleDateString("en-GB").toLowerCase().includes(v) : false;
+      case "expiry":       return b.rentalExpiryDate ? new Date(b.rentalExpiryDate).toLocaleDateString("en-GB").toLowerCase().includes(v) : false;
+      default:             return true;
+    }
+  }
+
+  function matchMultiFilter(key: string, b: Bottle, vals: string[]): boolean {
+    if (!vals || vals.length === 0) return true;
+    switch (key) {
+      case "category":   return vals.includes(b.category);
+      case "gasType":    return vals.includes(b.gasType);
+      case "supplier":   return vals.includes(b.supplier || "");
+      case "returnedBy": return vals.includes(b.returnedBy || "");
+      default:           return true;
+    }
+  }
+
   const filtered = bottles
     .filter(b => !search || b.serial.toLowerCase().includes(search.toLowerCase()) || b.gasType.toLowerCase().includes(search.toLowerCase()) || (b.returnedBy || "").toLowerCase().includes(search.toLowerCase()))
     .filter(b => {
@@ -107,7 +132,8 @@ export default function StoresInventoryPage() {
       const bottleDate = b.locationChangedAt || b.registeredAt;
       return bottleDate && new Date(bottleDate) >= new Date(sinceDate);
     })
-    .filter(b => Object.entries(colFilters).every(([k, v]) => matchColFilter(k, b, v)))
+    .filter(b => Object.entries(colFilters).every(([k, v]) => matchTextFilter(k, b, v)))
+    .filter(b => Object.entries(colMultiFilters).every(([k, v]) => matchMultiFilter(k, b, v)))
     .sort((a, b) => {
       let av: any = a[sortKey] ?? "";
       let bv: any = b[sortKey] ?? "";
@@ -140,40 +166,131 @@ export default function StoresInventoryPage() {
     boxSizing: "border-box", fontWeight: 400, textTransform: "none", letterSpacing: "normal"
   };
 
-  const filterSelectStyle: React.CSSProperties = {
-    ...filterInputStyle, cursor: "pointer", colorScheme: "dark"
+  const optionLabel = (k: string, o: string) => {
+    if (k === "category") {
+      return o === "reclaim" ? "Reclaim / Haz" : o === "new" ? "New" : "N₂ (Nitrogen)";
+    }
+    return o || "(none)";
   };
 
   const setCol = (k: string, v: string) => setColFilters(f => ({ ...f, [k]: v }));
 
-  const textFilter = (k: string, ph = "Filter…") => (
-    <input
-      type="text"
-      value={colFilters[k] || ""}
-      onChange={e => setCol(k, e.target.value)}
-      onClick={e => e.stopPropagation()}
-      placeholder={ph}
-      style={{
-        ...filterInputStyle,
-        borderColor: colFilters[k] ? "rgba(0,229,255,0.45)" : "rgba(255,255,255,0.1)"
-      }}
-    />
-  );
+  function textFilter(k: string, ph = "Filter…") {
+    return (
+      <input
+        type="text"
+        value={colFilters[k] || ""}
+        onChange={e => setCol(k, e.target.value)}
+        onClick={e => e.stopPropagation()}
+        placeholder={ph}
+        style={{
+          ...filterInputStyle,
+          borderColor: colFilters[k] ? "rgba(0,229,255,0.45)" : "rgba(255,255,255,0.1)"
+        }}
+      />
+    );
+  }
 
-  const selectFilter = (k: string, opts: string[]) => (
-    <select
-      value={colFilters[k] || ""}
-      onChange={e => setCol(k, e.target.value)}
-      onClick={e => e.stopPropagation()}
-      style={{
-        ...filterSelectStyle,
-        borderColor: colFilters[k] ? "rgba(0,229,255,0.45)" : "rgba(255,255,255,0.1)"
-      }}
-    >
-      <option value="">All</option>
-      {opts.map(o => <option key={o} value={o}>{o === "reclaim" ? "Reclaim / Haz" : o === "new" ? "New" : o === "nitrogen" ? "N₂ (Nitrogen)" : o}</option>)}
-    </select>
-  );
+  function multiSelect(k: string, opts: string[]) {
+    const selected = colMultiFilters[k] || [];
+    const isOpen = openDropdown === k;
+    const hasFilter = selected.length > 0;
+
+    const toggleVal = (o: string) => {
+      setColMultiFilters(f => {
+        const cur = f[k] || [];
+        const next = cur.includes(o) ? cur.filter(v => v !== o) : [...cur, o];
+        return { ...f, [k]: next };
+      });
+    };
+
+    const toggleAll = () => {
+      setColMultiFilters(f => ({
+        ...f,
+        [k]: selected.length === opts.length ? [] : [...opts]
+      }));
+    };
+
+    return (
+      <div
+        style={{ position: "relative", marginTop: "0.4rem" }}
+        onMouseDown={e => e.stopPropagation()}
+      >
+        <div
+          onClick={e => { e.stopPropagation(); setOpenDropdown(isOpen ? null : k); }}
+          style={{
+            padding: "0.22rem 0.6rem 0.22rem 0.45rem",
+            background: hasFilter ? "rgba(0,229,255,0.1)" : "rgba(255,255,255,0.07)",
+            border: `1px solid ${hasFilter ? "rgba(0,229,255,0.45)" : "rgba(255,255,255,0.1)"}`,
+            borderRadius: "4px",
+            color: hasFilter ? "#00e5ff" : "rgba(255,255,255,0.35)",
+            fontSize: "0.7rem", cursor: "pointer", userSelect: "none",
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.3rem",
+            fontWeight: hasFilter ? 700 : 400, textTransform: "none", letterSpacing: "normal",
+            minWidth: "80px"
+          }}
+        >
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {selected.length === 0
+              ? "All"
+              : selected.length === 1
+                ? optionLabel(k, selected[0])
+                : `${selected.length} selected`}
+          </span>
+          <span style={{ opacity: 0.55, flexShrink: 0 }}>{isOpen ? "▴" : "▾"}</span>
+        </div>
+
+        {isOpen && (
+          <div
+            style={{
+              position: "absolute", top: "calc(100% + 3px)", left: 0, zIndex: 300,
+              background: "#0d1422", border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: "6px", minWidth: "170px", maxHeight: "220px", overflowY: "auto",
+              boxShadow: "0 8px 28px rgba(0,0,0,0.6)"
+            }}
+          >
+            <div
+              onClick={toggleAll}
+              style={{
+                padding: "0.4rem 0.75rem", fontSize: "0.7rem",
+                color: "rgba(255,255,255,0.45)", cursor: "pointer",
+                borderBottom: "1px solid rgba(255,255,255,0.07)", fontWeight: 600,
+                textTransform: "uppercase", letterSpacing: "0.04em"
+              }}
+            >
+              {selected.length === opts.length ? "Clear all" : "Select all"}
+            </div>
+            {opts.map(o => {
+              const checked = selected.includes(o);
+              return (
+                <label
+                  key={o}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "0.5rem",
+                    padding: "0.45rem 0.75rem", cursor: "pointer",
+                    fontSize: "0.78rem",
+                    color: checked ? "#fff" : "rgba(255,255,255,0.65)",
+                    background: checked ? "rgba(0,229,255,0.06)" : "transparent",
+                    transition: "background 0.1s"
+                  }}
+                  onMouseEnter={e => { if (!checked) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
+                  onMouseLeave={e => { if (!checked) e.currentTarget.style.background = "transparent"; }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleVal(o)}
+                    style={{ accentColor: "#00e5ff", flexShrink: 0 }}
+                  />
+                  {optionLabel(k, o)}
+                </label>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   const exportBtnStyle: React.CSSProperties = {
     display: "flex", alignItems: "center", gap: "0.4rem",
@@ -260,14 +377,14 @@ export default function StoresInventoryPage() {
         return (
           <th key={key} style={thBase}>
             <div style={labelStyle} onClick={() => handleSort("category")}>Category <SortIcon col="category" /></div>
-            {selectFilter("category", distinctVals.category || [])}
+            {multiSelect("category", distinctVals.category || [])}
           </th>
         );
       case "gasType":
         return (
           <th key={key} style={thBase}>
             <div style={labelStyle} onClick={() => handleSort("gasType")}>Gas Type <SortIcon col="gasType" /></div>
-            {selectFilter("gasType", distinctVals.gasType || [])}
+            {multiSelect("gasType", distinctVals.gasType || [])}
           </th>
         );
       case "capacity":
@@ -295,7 +412,7 @@ export default function StoresInventoryPage() {
         return (
           <th key={key} style={thBase}>
             <div style={labelStyle} onClick={() => handleSort("returnedBy")}>Returned By <SortIcon col="returnedBy" /></div>
-            {selectFilter("returnedBy", distinctVals.returnedBy || [])}
+            {multiSelect("returnedBy", distinctVals.returnedBy || [])}
           </th>
         );
       case "dateReceived":
@@ -309,7 +426,7 @@ export default function StoresInventoryPage() {
         return (
           <th key={key} style={thBase}>
             <div style={labelStyle} onClick={() => handleSort("supplier")}>Supplier <SortIcon col="supplier" /></div>
-            {selectFilter("supplier", distinctVals.supplier || [])}
+            {multiSelect("supplier", distinctVals.supplier || [])}
           </th>
         );
       case "poNumber":
@@ -475,7 +592,7 @@ export default function StoresInventoryPage() {
 
         {activeColFilters > 0 && (
           <button
-            onClick={() => setColFilters({})}
+            onClick={() => { setColFilters({}); setColMultiFilters({}); }}
             style={{
               display: "flex", alignItems: "center", gap: "0.35rem",
               padding: "0.45rem 0.85rem", borderRadius: "6px",
