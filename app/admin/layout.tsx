@@ -67,7 +67,7 @@ const navGroups = [
       { href: "/admin/hwcn", label: "HWCN Await Part E Queue", icon: ClipboardList },
       { href: "/admin/all-hwcns", label: "All HWCNs", icon: FileText },
       { href: "/admin/haz-waste-summary", label: "Haz Waste In Company", icon: ShieldAlert },
-      { href: "/admin/supplier-returns", label: "Waste Return from Office to Supplier", icon: Building2 },
+      { href: "/admin/supplier-returns-waste", label: "Waste Return from Office to Supplier", icon: Building2, subLabel: "Office Returns to Supplier" },
     ]
   },
   {
@@ -194,8 +194,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   : item.label === "User Management" && pendingUsersCount > 0 ? pendingUsersCount
                   : 0;
                 return (
+                  <div key={item.href}>
+                    {'subLabel' in item && item.subLabel && !collapsed && (
+                      <div style={{
+                        padding: "0.5rem 1rem 0.2rem",
+                        fontSize: "0.68rem",
+                        fontWeight: 600,
+                        color: "rgba(255,255,255,0.25)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        marginTop: "0.4rem"
+                      }}>
+                        {item.subLabel}
+                      </div>
+                    )}
                   <Link
-                    key={item.href}
                     href={item.href}
                     title={collapsed ? item.label : undefined}
                     style={{
@@ -238,6 +251,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       </span>
                     )}
                   </Link>
+                  </div>
                 );
               })}
             </div>

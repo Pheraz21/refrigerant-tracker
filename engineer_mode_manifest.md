@@ -163,7 +163,7 @@ Card headers must show **`Supplier - Branch`** format (e.g., "Kooltech - Glasgow
 
 ### 4.5 — Supplier Returns (Admin)
 
-Admin/office can process supplier returns via `/admin/supplier-returns`. This calls `db.returnBottleToSupplier()` which:
+Admin/office can process supplier returns via `/admin/supplier-returns-waste`. This calls `db.returnBottleToSupplier()` which:
 1. Sets bottle `status: "returned"`, `locationType: "supplier"`, `locationId: "Supplier (Returned)"`.
 2. Records the HWCN paper number (`returnHwcnNumber`) and optional photo URL.
 3. Logs a `returned_to_supplier` movement.
@@ -288,7 +288,7 @@ The system matches recovery logs to HWCN line items using Site Name matches, ens
 | `/admin/hwcn` | HWCN list — filterable by status |
 | `/admin/hwcn/[id]` | HWCN detail + Part E sign-off |
 | `/admin/haz-waste-summary` | Hazardous waste aggregated summary view |
-| `/admin/supplier-returns` | Process physical returns to suppliers |
+| `/admin/supplier-returns-waste` | Process physical returns to suppliers |
 | `/admin/decommissioned` | Decommissioned equipment log |
 | `/admin/notifications` | Notification management |
 | `/admin/actions` | Daily actions / outstanding tasks list |
