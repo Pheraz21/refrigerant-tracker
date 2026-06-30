@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { db, Bottle } from "@/lib/db";
-import { Warehouse, ArrowUpDown, ArrowUp, ArrowDown, Search, Calendar, Filter as FilterIcon, FileText, FileSpreadsheet, Settings2 } from "lucide-react";
+import { Warehouse, ArrowUpDown, ArrowUp, ArrowDown, Search, Calendar, Filter as FilterIcon, FileText, FileSpreadsheet, Settings2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTablePrefs } from "@/lib/useTablePrefs";
 import { ColumnCustomizer } from "@/app/components/ColumnCustomizer";
@@ -22,8 +22,28 @@ const COLUMN_DEFS = [
   { key: "supplier",     label: "Supplier"                    },
   { key: "poNumber",     label: "PO Number"                   },
   { key: "registered",   label: "Registered"                  },
-  { key: "expiry",      label: "Expiry Date"                    },
+  { key: "expiry",       label: "Expiry Date"                 },
 ] as const;
+
+function matchColFilter(key: string, b: Bottle, val: string): boolean {
+  if (!val) return true;
+  const v = val.toLowerCase().trim();
+  switch (key) {
+    case "serial":       return b.serial.toLowerCase().includes(v);
+    case "category":     return b.category === val;
+    case "gasType":      return b.gasType === val;
+    case "capacity":     return (b.initialWeight ?? 0).toFixed(2).includes(v);
+    case "gasInBottle":  return (b.currentWeight ?? 0).toFixed(2).includes(v);
+    case "balance":      return ((b.initialWeight ?? 0) - (b.currentWeight ?? 0)).toFixed(2).includes(v);
+    case "returnedBy":   return (b.returnedBy || "") === val;
+    case "dateReceived": return b.locationChangedAt ? new Date(b.locationChangedAt).toLocaleDateString("en-GB").toLowerCase().includes(v) : v === "—";
+    case "supplier":     return (b.supplier || "") === val;
+    case "poNumber":     return (b.poNumber || "").toLowerCase().includes(v);
+    case "registered":   return b.registeredAt ? new Date(b.registeredAt).toLocaleDateString("en-GB").toLowerCase().includes(v) : v === "—";
+    case "expiry":       return b.rentalExpiryDate ? new Date(b.rentalExpiryDate).toLocaleDateString("en-GB").toLowerCase().includes(v) : v === "—";
+    default:             return true;
+  }
+}
 
 export default function StoresInventoryPage() {
   const router = useRouter();
@@ -35,6 +55,7 @@ export default function StoresInventoryPage() {
   const [sortKey, setSortKey] = useState<SortKey>("locationChangedAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [customizerOpen, setCustOpen] = useState(false);
+  const [colFilters, setColFilters] = useState<Record<string, string>>({});
 
   const { visibleCols, hidden, order, toggleCol, moveCol, reset } =
     useTablePrefs("stores", COLUMN_DEFS.map(c => c.key));
@@ -50,16 +71,33 @@ export default function StoresInventoryPage() {
     }).catch(() => setLoading(false));
   }, []);
 
+  const distinctVals = useMemo(() => {
+    const sets: Record<string, Set<string>> = {
+      category: new Set(), gasType: new Set(), supplier: new Set(), returnedBy: new Set()
+    };
+    for (const b of bottles) {
+      if (b.category) sets.category.add(b.category);
+      if (b.gasType) sets.gasType.add(b.gasType);
+      if (b.supplier) sets.supplier.add(b.supplier);
+      if (b.returnedBy) sets.returnedBy.add(b.returnedBy);
+    }
+    const result: Record<string, string[]> = {};
+    for (const k of Object.keys(sets)) result[k] = Array.from(sets[k]).sort();
+    return result;
+  }, [bottles]);
+
+  const activeColFilters = Object.values(colFilters).filter(Boolean).length;
+
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortKey(key); setSortDir("asc"); }
   };
 
   const SortIcon = ({ col }: { col: SortKey }) => {
-    if (sortKey !== col) return <ArrowUpDown size={12} style={{opacity: 0.3, marginLeft: "0.3rem"}} />;
+    if (sortKey !== col) return <ArrowUpDown size={12} style={{opacity: 0.3, marginLeft: "0.3rem", flexShrink: 0}} />;
     return sortDir === "asc"
-      ? <ArrowUp size={12} style={{opacity: 0.8, marginLeft: "0.3rem"}} />
-      : <ArrowDown size={12} style={{opacity: 0.8, marginLeft: "0.3rem"}} />;
+      ? <ArrowUp size={12} style={{opacity: 0.8, marginLeft: "0.3rem", flexShrink: 0}} />
+      : <ArrowDown size={12} style={{opacity: 0.8, marginLeft: "0.3rem", flexShrink: 0}} />;
   };
 
   const filtered = bottles
@@ -69,6 +107,7 @@ export default function StoresInventoryPage() {
       const bottleDate = b.locationChangedAt || b.registeredAt;
       return bottleDate && new Date(bottleDate) >= new Date(sinceDate);
     })
+    .filter(b => Object.entries(colFilters).every(([k, v]) => matchColFilter(k, b, v)))
     .sort((a, b) => {
       let av: any = a[sortKey] ?? "";
       let bv: any = b[sortKey] ?? "";
@@ -90,8 +129,51 @@ export default function StoresInventoryPage() {
   const thBase: React.CSSProperties = {
     padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.78rem", color: "rgba(255,255,255,0.5)",
     fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em",
-    borderBottom: "1px solid rgba(255,255,255,0.06)", userSelect: "none", whiteSpace: "nowrap"
+    borderBottom: "1px solid rgba(255,255,255,0.06)", userSelect: "none", whiteSpace: "nowrap",
+    verticalAlign: "top"
   };
+
+  const filterInputStyle: React.CSSProperties = {
+    width: "100%", padding: "0.22rem 0.45rem", marginTop: "0.4rem",
+    background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: "4px", color: "#fff", fontSize: "0.7rem", outline: "none",
+    boxSizing: "border-box", fontWeight: 400, textTransform: "none", letterSpacing: "normal"
+  };
+
+  const filterSelectStyle: React.CSSProperties = {
+    ...filterInputStyle, cursor: "pointer", colorScheme: "dark"
+  };
+
+  const setCol = (k: string, v: string) => setColFilters(f => ({ ...f, [k]: v }));
+
+  const textFilter = (k: string, ph = "Filter…") => (
+    <input
+      type="text"
+      value={colFilters[k] || ""}
+      onChange={e => setCol(k, e.target.value)}
+      onClick={e => e.stopPropagation()}
+      placeholder={ph}
+      style={{
+        ...filterInputStyle,
+        borderColor: colFilters[k] ? "rgba(0,229,255,0.45)" : "rgba(255,255,255,0.1)"
+      }}
+    />
+  );
+
+  const selectFilter = (k: string, opts: string[]) => (
+    <select
+      value={colFilters[k] || ""}
+      onChange={e => setCol(k, e.target.value)}
+      onClick={e => e.stopPropagation()}
+      style={{
+        ...filterSelectStyle,
+        borderColor: colFilters[k] ? "rgba(0,229,255,0.45)" : "rgba(255,255,255,0.1)"
+      }}
+    >
+      <option value="">All</option>
+      {opts.map(o => <option key={o} value={o}>{o === "reclaim" ? "Reclaim / Haz" : o === "new" ? "New" : o === "nitrogen" ? "N₂ (Nitrogen)" : o}</option>)}
+    </select>
+  );
 
   const exportBtnStyle: React.CSSProperties = {
     display: "flex", alignItems: "center", gap: "0.4rem",
@@ -159,22 +241,100 @@ export default function StoresInventoryPage() {
   };
 
   function renderHeader(key: string) {
-    const s: React.CSSProperties = { ...thBase, cursor: "pointer" };
-    const ns: React.CSSProperties = { ...thBase, cursor: "default" };
+    const labelStyle: React.CSSProperties = {
+      display: "flex", alignItems: "center", cursor: "pointer", marginBottom: "0.1rem"
+    };
+    const labelStyleNoSort: React.CSSProperties = {
+      display: "flex", alignItems: "center", marginBottom: "0.1rem", cursor: "default"
+    };
+
     switch (key) {
-      case "serial":       return <th key={key} style={s} onClick={() => handleSort("serial")}>Serial <SortIcon col="serial" /></th>;
-      case "category":     return <th key={key} style={s} onClick={() => handleSort("category")}>Category <SortIcon col="category" /></th>;
-      case "gasType":      return <th key={key} style={s} onClick={() => handleSort("gasType")}>Gas Type <SortIcon col="gasType" /></th>;
-      case "capacity":     return <th key={key} style={s} onClick={() => handleSort("initialWeight")}>Capacity <SortIcon col="initialWeight" /></th>;
-      case "gasInBottle":  return <th key={key} style={s} onClick={() => handleSort("currentWeight")}>Gas In Bottle <SortIcon col="currentWeight" /></th>;
-      case "balance":      return <th key={key} style={ns}>Balance</th>;
-      case "returnedBy":   return <th key={key} style={s} onClick={() => handleSort("returnedBy")}>Returned By <SortIcon col="returnedBy" /></th>;
-      case "dateReceived": return <th key={key} style={s} onClick={() => handleSort("locationChangedAt")}>Date Received <SortIcon col="locationChangedAt" /></th>;
-      case "supplier":     return <th key={key} style={s} onClick={() => handleSort("supplier")}>Supplier <SortIcon col="supplier" /></th>;
-      case "poNumber":     return <th key={key} style={ns}>PO Number</th>;
-      case "registered":   return <th key={key} style={s} onClick={() => handleSort("registeredAt")}>Registered <SortIcon col="registeredAt" /></th>;
-      case "expiry":      return <th key={key} style={s} onClick={() => handleSort("rentalExpiryDate")}>Expiry Date <SortIcon col="rentalExpiryDate" /></th>;
-      default:             return null;
+      case "serial":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("serial")}>Serial <SortIcon col="serial" /></div>
+            {textFilter("serial")}
+          </th>
+        );
+      case "category":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("category")}>Category <SortIcon col="category" /></div>
+            {selectFilter("category", distinctVals.category || [])}
+          </th>
+        );
+      case "gasType":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("gasType")}>Gas Type <SortIcon col="gasType" /></div>
+            {selectFilter("gasType", distinctVals.gasType || [])}
+          </th>
+        );
+      case "capacity":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("initialWeight")}>Capacity <SortIcon col="initialWeight" /></div>
+            {textFilter("capacity", "e.g. 10.00")}
+          </th>
+        );
+      case "gasInBottle":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("currentWeight")}>Gas In Bottle <SortIcon col="currentWeight" /></div>
+            {textFilter("gasInBottle", "e.g. 8.50")}
+          </th>
+        );
+      case "balance":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyleNoSort}>Balance</div>
+            {textFilter("balance", "e.g. 1.50")}
+          </th>
+        );
+      case "returnedBy":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("returnedBy")}>Returned By <SortIcon col="returnedBy" /></div>
+            {selectFilter("returnedBy", distinctVals.returnedBy || [])}
+          </th>
+        );
+      case "dateReceived":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("locationChangedAt")}>Date Received <SortIcon col="locationChangedAt" /></div>
+            {textFilter("dateReceived", "e.g. Jun 2026")}
+          </th>
+        );
+      case "supplier":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("supplier")}>Supplier <SortIcon col="supplier" /></div>
+            {selectFilter("supplier", distinctVals.supplier || [])}
+          </th>
+        );
+      case "poNumber":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyleNoSort}>PO Number</div>
+            {textFilter("poNumber")}
+          </th>
+        );
+      case "registered":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("registeredAt")}>Registered <SortIcon col="registeredAt" /></div>
+            {textFilter("registered", "e.g. Jan 2026")}
+          </th>
+        );
+      case "expiry":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("rentalExpiryDate")}>Expiry Date <SortIcon col="rentalExpiryDate" /></div>
+            {textFilter("expiry", "e.g. Dec 2026")}
+          </th>
+        );
+      default:
+        return null;
     }
   }
 
@@ -312,6 +472,20 @@ export default function StoresInventoryPage() {
             />
           </div>
         </div>
+
+        {activeColFilters > 0 && (
+          <button
+            onClick={() => setColFilters({})}
+            style={{
+              display: "flex", alignItems: "center", gap: "0.35rem",
+              padding: "0.45rem 0.85rem", borderRadius: "6px",
+              border: "1px solid rgba(0,229,255,0.3)", background: "rgba(0,229,255,0.08)",
+              color: "#00e5ff", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600
+            }}
+          >
+            <X size={14} /> Clear {activeColFilters} column filter{activeColFilters !== 1 ? "s" : ""}
+          </button>
+        )}
 
         <div style={{display: "flex", gap: "0.5rem"}}>
           <button onClick={exportPDF} style={exportBtnStyle}><FileText size={16} /> Print PDF</button>
