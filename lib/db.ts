@@ -319,6 +319,36 @@ export const db = {
     }
   },
 
+  async confirmStoresCollection(data: {
+    serials: string[],
+    collectionDate: string,
+    collectedBy: string,
+    supplier: string,
+    supplierBranch: string,
+  }): Promise<void> {
+    const locationId = `${data.supplier} - ${data.supplierBranch}`;
+    for (const serial of data.serials) {
+      await supabase.from('bottles').update({
+        status: 'returned',
+        location_type: 'supplier',
+        location_id: locationId,
+        returned_by: data.collectedBy,
+        returned_at: new Date(data.collectionDate).toISOString(),
+        return_supplier: data.supplier,
+        return_supplier_branch: data.supplierBranch,
+      }).eq('serial', serial);
+
+      await supabase.from('movement_logs').insert({
+        serial,
+        action: 'collected_by_supplier',
+        from_location: 'office',
+        to_location: 'supplier',
+        engineer: data.collectedBy,
+        notes: `Collected by supplier: ${locationId} on ${data.collectionDate}`,
+      });
+    }
+  },
+
   async createHWCN(hwcnData: any): Promise<string> {
     const { data: existing } = await supabase
       .from('hwcns')
