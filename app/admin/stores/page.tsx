@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { db, Bottle } from "@/lib/db";
 import { Warehouse, ArrowUpDown, ArrowUp, ArrowDown, Search, Calendar, Filter as FilterIcon, FileText, FileSpreadsheet, Settings2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -44,6 +44,7 @@ export default function StoresInventoryPage() {
   // Multi-select filters: colKey -> array of selected values (empty = no filter)
   const [colMultiFilters, setColMultiFilters] = useState<Record<string, string[]>>({});
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const dropdownRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const { visibleCols, hidden, order, toggleCol, moveCol, reset } =
     useTablePrefs("stores", COLUMN_DEFS.map(c => c.key));
@@ -59,10 +60,14 @@ export default function StoresInventoryPage() {
     }).catch(() => setLoading(false));
   }, []);
 
-  // Close dropdown on outside click
+  // Close dropdown on outside click — check the ref so clicks inside don't close it
   useEffect(() => {
     if (!openDropdown) return;
-    const close = () => setOpenDropdown(null);
+    const close = (e: MouseEvent) => {
+      const el = dropdownRefs.current[openDropdown];
+      if (el && el.contains(e.target as Node)) return;
+      setOpenDropdown(null);
+    };
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, [openDropdown]);
@@ -213,8 +218,8 @@ export default function StoresInventoryPage() {
 
     return (
       <div
+        ref={el => { dropdownRefs.current[k] = el; }}
         style={{ position: "relative", marginTop: "0.4rem" }}
-        onMouseDown={e => e.stopPropagation()}
       >
         <div
           onClick={e => { e.stopPropagation(); setOpenDropdown(isOpen ? null : k); }}
