@@ -166,11 +166,6 @@ export default function Sop002Page() {
         <p>If the system being worked on is being <strong>permanently decommissioned</strong>, the engineer flags this when logging the recovery in F-Gas Tracker Pro. A separate decommissioning record is created capturing the job number, site details, engineer name, equipment manufacturer, model and serial number, weight of gas recovered per unit, and date and time.</p>
         <p>These records are available in the <strong>Decommissioned Equipment Register</strong> for regulatory submissions demonstrating refrigerant removal from circulation.</p>
 
-        <h3>5.5 Return of Recovery Cylinder to Supplier</h3>
-        <p>On completion of recovery work, the engineer transports the cylinder directly to the authorised supplier's premises. The company's waste carrier registration <strong>CBDU368286</strong> must be current when transporting waste refrigerant on public roads.</p>
-        <p>At the supplier, the supplier issues their Hazardous Waste Consignment Note (HWCN) documentation. The engineer retains a copy or photograph of this document.</p>
-        <p>Office staff then record the supplier return in F-Gas Tracker Pro, entering the supplier's name, branch, HWCN reference number, and uploading a photo of the supplier's HWCN documentation. The system marks the cylinder as returned and creates a permanent movement log entry. The cylinder exits active tracking and appears in the <strong>Returned to Supplier</strong> register.</p>
-
         {/* 6 */}
         <h2>6. Waste Transfer and Hazardous Waste Consignment Note (HWCN)</h2>
         <p>When an engineer has completed recovery work and the cylinder contains waste refrigerant, a controlled transfer process must be followed before the cylinder leaves the engineer's van. This section describes that process as it operates within F-Gas Tracker Pro.</p>
@@ -215,7 +210,6 @@ export default function Sop002Page() {
             <tr><td>Part A — Producer Sites</td><td>Name, address, and postcode for each site where gas was recovered</td><td>Auto-populated from recovery logs; engineer confirms or corrects</td></tr>
             <tr><td>Part C — Carrier Certificate</td><td>Carrier name</td><td>Auto-populated from engineer's profile; editable</td></tr>
             <tr><td>Part C — Carrier Certificate</td><td>Vehicle registration</td><td>Auto-populated from engineer's profile; editable</td></tr>
-            <tr><td>Part C — Carrier Certificate</td><td>Carrier registration number</td><td>Pre-populated: CBDU368286 (immutable)</td></tr>
           </tbody>
         </table>
         <ol start={2}>
@@ -254,9 +248,14 @@ export default function Sop002Page() {
           </tbody>
         </table>
         <ol start={4}>
-          <li>On submission, the system sets the HWCN status to <em>complete</em>, records the sign-off timestamp, and the cylinder becomes available for onward return to the supplier (see section 5.5).</li>
+          <li>On submission, the system sets the HWCN status to <em>complete</em>, records the sign-off timestamp, and the cylinder becomes available for onward collection by the supplier (see section 6.6).</li>
         </ol>
         <blockquote><strong>Note:</strong> The internal HWCN print template pre-populates all mandatory regulatory reference numbers (CBDU368286, waste exemption 31Z 3725 34, EWC Code 14 06 01). These values are immutable and cannot be changed by users.</blockquote>
+
+        <h3>6.6 Supplier Collection from HQ-Stores</h3>
+        <p>Once a waste cylinder has been received at HQ-Stores and Part E has been signed off, office staff contact the supplier to arrange collection of the cylinder.</p>
+        <p>When the supplier attends HQ-Stores to collect the waste cylinder, they bring their own HWCN paperwork. This is completed as part of the handover — covering the transfer of the waste from 21 Degrees Ltd to the supplier for reclamation or destruction.</p>
+        <p>Office staff photograph the completed supplier paperwork and upload it against the cylinder record in F-Gas Tracker Pro. The system marks the cylinder as returned to the supplier and the photo is stored permanently against the bottle, completing the audit trail.</p>
 
         {/* 7 */}
         <h2>7. Records Generated and Retention</h2>
