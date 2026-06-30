@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { db, Bottle } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
-import { PackageCheck, AlertCircle, CheckCircle2, Loader2, ArrowLeft, Search } from "lucide-react";
+import { PackageCheck, AlertCircle, CheckCircle2, Loader2, ArrowLeft, Search, Lock } from "lucide-react";
 import Link from "next/link";
 
 export default function StoresCollectionPage() {
@@ -17,6 +17,7 @@ export default function StoresCollectionPage() {
   const [filter, setFilter] = useState("");
 
   const [supplier, setSupplier] = useState("");
+  const [supplierLock, setSupplierLock] = useState("");
   const [supplierBranch, setSupplierBranch] = useState("");
   const [collectionDate, setCollectionDate] = useState(
     new Date().toISOString().split("T")[0]
@@ -42,11 +43,27 @@ export default function StoresCollectionPage() {
     (b.supplier || "").toLowerCase().includes(filter.toLowerCase())
   );
 
-  const toggleSelect = (serial: string) => {
+  const toggleSelect = (bottle: Bottle) => {
+    setError("");
     setSelected(prev => {
       const next = new Set(prev);
-      if (next.has(serial)) next.delete(serial);
-      else next.add(serial);
+      if (next.has(bottle.serial)) {
+        next.delete(bottle.serial);
+        if (next.size === 0) {
+          setSupplier("");
+          setSupplierLock("");
+        }
+      } else {
+        const bottleSupplier = bottle.supplier || "";
+        if (next.size === 0 && bottleSupplier) {
+          setSupplier(bottleSupplier);
+          setSupplierLock(bottleSupplier);
+        } else if (supplierLock && bottleSupplier && bottleSupplier.toLowerCase() !== supplierLock.toLowerCase()) {
+          setError(`Supplier mismatch: ${bottle.serial} belongs to "${bottleSupplier}" but you are collecting from "${supplierLock}".`);
+          return prev;
+        }
+        next.add(bottle.serial);
+      }
       return next;
     });
   };
@@ -54,7 +71,14 @@ export default function StoresCollectionPage() {
   const toggleAll = () => {
     if (selected.size === filtered.length && filtered.length > 0) {
       setSelected(new Set());
+      setSupplier("");
+      setSupplierLock("");
     } else {
+      const firstWithSupplier = filtered.find(b => b.supplier);
+      if (firstWithSupplier?.supplier) {
+        setSupplier(firstWithSupplier.supplier);
+        setSupplierLock(firstWithSupplier.supplier);
+      }
       setSelected(new Set(filtered.map(b => b.serial)));
     }
   };
@@ -169,7 +193,7 @@ export default function StoresCollectionPage() {
                 return (
                   <div
                     key={b.serial}
-                    onClick={() => toggleSelect(b.serial)}
+                    onClick={() => toggleSelect(b)}
                     style={{
                       padding: "0.9rem 1.1rem",
                       background: isSelected ? "rgba(0,229,255,0.08)" : "rgba(255,255,255,0.02)",
@@ -236,19 +260,27 @@ export default function StoresCollectionPage() {
             </div>
 
             <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.5rem", fontWeight: 600 }}>
-                Supplier Name <span style={{ color: "#ff3366" }}>*</span>
+              <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.5rem", fontWeight: 600 }}>
+                <span>Supplier Name <span style={{ color: "#ff3366" }}>*</span></span>
+                {supplierLock && (
+                  <span style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", color: "#22c55e", fontWeight: 600 }}>
+                    <Lock size={11} /> Auto-filled from bottle
+                  </span>
+                )}
               </label>
               <input
                 type="text"
                 required
-                placeholder="e.g. A-Gas, BOC"
+                placeholder="Select a bottle — supplier will auto-fill"
                 value={supplier}
-                onChange={e => setSupplier(e.target.value)}
+                onChange={e => !supplierLock && setSupplier(e.target.value)}
+                readOnly={!!supplierLock}
                 style={{
                   width: "100%", padding: "0.85rem 1rem",
-                  background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)",
-                  borderRadius: "10px", color: "#fff", outline: "none"
+                  background: supplierLock ? "rgba(34,197,94,0.06)" : "rgba(255,255,255,0.05)",
+                  border: `1px solid ${supplierLock ? "rgba(34,197,94,0.25)" : "rgba(255,255,255,0.12)"}`,
+                  borderRadius: "10px", color: "#fff", outline: "none",
+                  cursor: supplierLock ? "default" : "text"
                 }}
               />
             </div>
