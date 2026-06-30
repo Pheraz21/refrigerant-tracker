@@ -31,7 +31,10 @@ export default function StoresCollectionPage() {
   useEffect(() => {
     db.getBottlesByLocation("office").then(bottles => {
       // Exclude reclaim bottles — those have their own HWCN process
-      setStoresBottles(bottles.filter(b => b.category !== "reclaim"));
+      setStoresBottles(bottles.filter(b =>
+        b.category !== "reclaim" &&
+        (b.supplier || "").toLowerCase() !== "21 degrees"
+      ));
       setLoadingBottles(false);
     });
   }, []);
