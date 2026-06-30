@@ -123,7 +123,9 @@ export default function Sop001Page() {
 
         <p><strong>Route B — Direct Collection from Supplier:</strong> Where an engineer collects a cylinder directly from a supplier — for example when a specific gas type is needed immediately — the engineer registers the bottle in the F-Gas Tracker Pro mobile application at the point of collection. The same information is recorded as Route A.</p>
 
-        <p>In both cases, the following information is recorded at registration:</p>
+        <p><strong>Route C — Direct Delivery by Supplier to Job Site:</strong> Where the Supplier delivers the cylinder direct to the job site — for example when a specific gas type is needed immediately on site — the engineer registers the bottle in the F-Gas Tracker Pro mobile application at the point of delivery. The same information is recorded as Route A.</p>
+
+        <p>In all cases, the following information is recorded at registration:</p>
         <table>
           <thead><tr><th>Field</th><th>Description</th><th>Example</th></tr></thead>
           <tbody>

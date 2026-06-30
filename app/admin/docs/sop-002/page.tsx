@@ -99,7 +99,12 @@ export default function Sop002Page() {
         </table>
 
         {/* 3 */}
-        <h2>3. Roles and Responsibilities</h2>
+        <h2>3. Procurement</h2>
+        <p>All refrigerant cylinder purchases are initiated through <strong>Clik4</strong>, the company's CRM system. Purchase orders are raised within Clik4 and emailed directly to the relevant supplier. The purchase order number is recorded in F-Gas Tracker Pro when the cylinder is registered on receipt, maintaining a continuous chain from procurement through to disposal.</p>
+        <p>No refrigerant cylinder may enter service without a corresponding purchase order reference recorded in the system.</p>
+
+        {/* 4 */}
+        <h2>4. Roles and Responsibilities</h2>
         <table>
           <thead><tr><th>Role</th><th>Responsibility</th></tr></thead>
           <tbody>
@@ -110,14 +115,15 @@ export default function Sop002Page() {
         </table>
         <p>All engineers handling F-Gas must hold a current, relevant <strong>F-Gas qualification</strong> (Category I or appropriate category) and work under a company holding F-Gas certification <strong>REF1010728</strong>.</p>
 
-        {/* 4 */}
-        <h2>4. Procedure</h2>
+        {/* 5 */}
+        <h2>5. Procedure</h2>
 
-        <h3>4.1 Cylinder Receipt and Registration</h3>
+        <h3>5.1 Cylinder Receipt and Registration</h3>
         <p>Recovery cylinders enter 21 Degrees Ltd's possession by one of two routes:</p>
         <p><strong>Route A — Delivery to HQ Stores:</strong> Where a cylinder is delivered to Unit 10, Apollo Court, Hebburn, office staff inspect the cylinder on receipt and register it in F-Gas Tracker Pro. The cylinder is assigned to Stores and becomes available for allocation to engineers.</p>
-        <p><strong>Route B — Direct Collection from Supplier:</strong> Where an engineer collects a cylinder directly from the supplier, the engineer registers the cylinder in the F-Gas Tracker Pro mobile application at the point of collection.</p>
-        <p>In both cases, the following information is recorded at registration:</p>
+        <p><strong>Route B — Direct Collection from Supplier:</strong> Where an engineer collects a cylinder directly from the supplier, the engineer registers the cylinder in the F-Gas Tracker Pro mobile application at the point of collection. The same information is recorded as Route A.</p>
+        <p><strong>Route C — Direct Delivery by Supplier to Job Site:</strong> Where the Supplier delivers the cylinder direct to the job site — for example when a specific gas type is needed immediately on site — the engineer registers the bottle in the F-Gas Tracker Pro mobile application at the point of delivery. The same information is recorded as Route A.</p>
+        <p>In all cases, the following information is recorded at registration:</p>
         <table>
           <thead><tr><th>Field</th><th>Description</th><th>Example</th></tr></thead>
           <tbody>
@@ -130,13 +136,13 @@ export default function Sop002Page() {
         </table>
         <p>The system creates a permanent cylinder record and an entry in the audit log at the time of registration.</p>
 
-        <h3>4.2 Cylinder Movements</h3>
+        <h3>5.2 Cylinder Movements</h3>
         <p><strong>Stores to Van:</strong> When a cylinder is issued to a field engineer, the Engineer records this allocation in F-Gas Tracker Pro. The engineer's name and vehicle registration plate are recorded against the cylinder and a movement log entry is created.</p>
         <blockquote><strong>Control:</strong> Only one engineer's van is associated with each cylinder at any time. If a cylinder is transferred between vans, both parties and the date/time of the handover are recorded in the movement log.</blockquote>
         <p><strong>Van to Site:</strong> When the engineer takes the cylinder to a customer job site, this movement is recorded in F-Gas Tracker Pro. The job reference and site details are recorded and a movement log entry is created.</p>
         <p><strong>Site back to Van:</strong> On completion of recovery work, the engineer records the movement of the cylinder back to their van in F-Gas Tracker Pro. A movement log entry is created and the cylinder returns to the engineer's Van Inventory.</p>
 
-        <h3>4.3 On-Site Refrigerant Recovery</h3>
+        <h3>5.3 On-Site Refrigerant Recovery</h3>
         <p>When recovering refrigerant from a customer's system on site, the engineer records the recovery in F-Gas Tracker Pro before leaving site. The following information is captured:</p>
         <table>
           <thead><tr><th>Field</th><th>Description</th><th>Example</th></tr></thead>
@@ -156,17 +162,106 @@ export default function Sop002Page() {
         <p>The quantity recovered is calculated automatically as Weight After minus Weight Before. A permanent usage log and movement log entry are created in the system.</p>
         <blockquote><strong>Control:</strong> Weight before and after are recorded independently to provide a verifiable audit trail. If the gas type recovered differs from what is already in the cylinder, a different clean cylinder must be used. Mixing refrigerant types is not permitted.</blockquote>
 
-        <h3>4.4 Equipment Decommissioning Record (Where Applicable)</h3>
+        <h3>5.4 Equipment Decommissioning Record (Where Applicable)</h3>
         <p>If the system being worked on is being <strong>permanently decommissioned</strong>, the engineer flags this when logging the recovery in F-Gas Tracker Pro. A separate decommissioning record is created capturing the job number, site details, engineer name, equipment manufacturer, model and serial number, weight of gas recovered per unit, and date and time.</p>
         <p>These records are available in the <strong>Decommissioned Equipment Register</strong> for regulatory submissions demonstrating refrigerant removal from circulation.</p>
 
-        <h3>4.5 Return of Recovery Cylinder to Supplier</h3>
+        <h3>5.5 Return of Recovery Cylinder to Supplier</h3>
         <p>On completion of recovery work, the engineer transports the cylinder directly to the authorised supplier's premises. The company's waste carrier registration <strong>CBDU368286</strong> must be current when transporting waste refrigerant on public roads.</p>
         <p>At the supplier, the supplier issues their Hazardous Waste Consignment Note (HWCN) documentation. The engineer retains a copy or photograph of this document.</p>
         <p>Office staff then record the supplier return in F-Gas Tracker Pro, entering the supplier's name, branch, HWCN reference number, and uploading a photo of the supplier's HWCN documentation. The system marks the cylinder as returned and creates a permanent movement log entry. The cylinder exits active tracking and appears in the <strong>Returned to Supplier</strong> register.</p>
 
-        {/* 5 */}
-        <h2>5. Records Generated and Retention</h2>
+        {/* 6 */}
+        <h2>6. Waste Transfer and Hazardous Waste Consignment Note (HWCN)</h2>
+        <p>When an engineer has completed recovery work and the cylinder contains waste refrigerant, a controlled transfer process must be followed before the cylinder leaves the engineer's van. This section describes that process as it operates within F-Gas Tracker Pro.</p>
+
+        <h3>6.1 Initiating a Transfer</h3>
+        <p>The engineer opens the cylinder record in the F-Gas Tracker Pro mobile application and selects <strong>Move Cylinder</strong>. The system automatically determines the required transfer route based on the cylinder's contents:</p>
+        <ul>
+          <li>If the cylinder contains <strong>no gas</strong> (current weight = 0 kg), a simple location update is performed with no HWCN required.</li>
+          <li>If the cylinder contains <strong>waste refrigerant</strong> (current weight &gt; 0 kg), the system routes the transfer through the appropriate HWCN process described below.</li>
+        </ul>
+
+        <h3>6.2 Transfer Routes</h3>
+        <p>The system determines the permitted destination based on how many producer sites are associated with the cylinder:</p>
+        <table>
+          <thead><tr><th>Scenario</th><th>Permitted Destination</th><th>HWCN Type</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Single producer site</strong> — all gas recovered from one customer site</td><td>Direct to supplier <em>or</em> HQ-Stores</td><td>Supplier's physical HWCN paperwork</td></tr>
+            <tr><td><strong>Multiple producer sites</strong> — gas recovered from two or more different customer sites</td><td>HQ-Stores only — direct supplier return is blocked</td><td>System-generated internal HWCN</td></tr>
+          </tbody>
+        </table>
+        <blockquote><strong>Control:</strong> The Hazardous Waste Regulations require a separate consignment note where waste has been collected from multiple producers in a single journey. The system enforces this automatically — a cylinder containing waste from two or more producer sites cannot be returned directly to a supplier and must transit through HQ-Stores first.</blockquote>
+
+        <h3>6.3 Route A — Direct Transfer to Supplier</h3>
+        <p>Where the cylinder contains waste from a single producer site, the engineer may transfer it directly to the supplier.</p>
+        <ol>
+          <li>The engineer selects <strong>Supplier</strong> as the destination and enters the supplier branch name (e.g. <em>A-Gas Newcastle</em>).</li>
+          <li>The system records the cylinder as <em>in transit</em> to the supplier and creates a movement log entry.</li>
+          <li>The engineer transports the cylinder to the supplier's premises. The company waste carrier registration <strong>CBDU368286</strong> must be current for the legal transport of waste refrigerant on public roads.</li>
+          <li>At the supplier, the supplier issues their physical HWCN paperwork. The engineer photographs this document.</li>
+          <li>The engineer taps <strong>Complete Transit</strong> in the mobile application and uploads the photo of the supplier's HWCN.</li>
+          <li>The system marks the cylinder as <em>returned</em>, records the delivery timestamp, and stores the supplier's HWCN photo. A permanent movement log entry is created.</li>
+          <li>Office staff record the supplier's HWCN reference number in F-Gas Tracker Pro via the <strong>Supplier Returns</strong> screen in the admin panel. The cylinder then appears in the Returned to Supplier register with its full audit trail.</li>
+        </ol>
+
+        <h3>6.4 Route B — Transfer to HQ-Stores with Internal HWCN (Multi-Site)</h3>
+        <p>Where the cylinder contains waste from two or more producer sites, the engineer must transfer it to HQ-Stores. The system generates an internal HWCN automatically.</p>
+        <ol>
+          <li>When the engineer attempts to move the cylinder, the system detects multiple producer sites and displays a warning. The destination is set to <strong>HQ-Stores</strong> and cannot be changed to a supplier.</li>
+          <li>The engineer reviews and confirms the following information before proceeding:</li>
+        </ol>
+        <table>
+          <thead><tr><th>Section</th><th>Field</th><th>Source</th></tr></thead>
+          <tbody>
+            <tr><td>Part A — Producer Sites</td><td>Name, address, and postcode for each site where gas was recovered</td><td>Auto-populated from recovery logs; engineer confirms or corrects</td></tr>
+            <tr><td>Part C — Carrier Certificate</td><td>Carrier name</td><td>Auto-populated from engineer's profile; editable</td></tr>
+            <tr><td>Part C — Carrier Certificate</td><td>Vehicle registration</td><td>Auto-populated from engineer's profile; editable</td></tr>
+            <tr><td>Part C — Carrier Certificate</td><td>Carrier registration number</td><td>Pre-populated: CBDU368286 (immutable)</td></tr>
+          </tbody>
+        </table>
+        <ol start={3}>
+          <li>The engineer confirms the transfer. The system:
+            <ul>
+              <li>Generates an internal HWCN with a unique reference number in the format <strong>21Degr-XXXXXX</strong></li>
+              <li>Sets the HWCN status to <em>draft</em></li>
+              <li>Records the cylinder's intended destination as HQ-Stores</li>
+              <li>Creates a movement log entry referencing the HWCN number</li>
+            </ul>
+          </li>
+          <li>The engineer transports the cylinder to HQ-Stores (Unit 10, Apollo Court, Hebburn). The internal HWCN can be printed from the admin panel if a paper copy is required during transit.</li>
+          <li>On arrival at HQ-Stores, the engineer taps <strong>Complete Transit</strong> in the mobile application. The system:
+            <ul>
+              <li>Updates the cylinder location to HQ-Stores</li>
+              <li>Advances the HWCN status to <em>awaiting consignee sign-off</em></li>
+              <li>Records the delivery timestamp</li>
+              <li>Creates a movement log entry</li>
+            </ul>
+          </li>
+        </ol>
+
+        <h3>6.5 Part E Sign-Off by Office Staff (Route B)</h3>
+        <p>Once a cylinder has been delivered to HQ-Stores under Route B, office staff must complete the consignee section (Part E) of the internal HWCN before the cylinder can proceed to the supplier.</p>
+        <ol>
+          <li>Office staff navigate to the <strong>HWCN Queue</strong> in the admin panel. Consignment notes awaiting sign-off are displayed with an <em>Awaiting Part E</em> status.</li>
+          <li>Staff open the relevant HWCN record and verify the details shown (cylinder serial, gas type, weight, producer sites, carrier details, and delivery timestamp).</li>
+          <li>Staff complete Part E by entering the following:</li>
+        </ol>
+        <table>
+          <thead><tr><th>Field</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td>Received By</td><td>Name of the office staff member accepting the waste cylinder</td></tr>
+            <tr><td>Waste Exemption Number</td><td>Pre-populated: <strong>31Z 3725 34</strong> (immutable)</td></tr>
+            <tr><td>Acceptance Decision</td><td>Accept or Reject. If rejected, a reason must be entered and the cylinder remains at HQ-Stores pending resolution.</td></tr>
+          </tbody>
+        </table>
+        <ol start={4}>
+          <li>On submission, the system sets the HWCN status to <em>complete</em>, records the sign-off timestamp, and the cylinder becomes available for onward return to the supplier (see section 5.5).</li>
+        </ol>
+        <blockquote><strong>Note:</strong> The internal HWCN print template pre-populates all mandatory regulatory reference numbers (CBDU368286, waste exemption 31Z 3725 34, EWC Code 14 06 01). These values are immutable and cannot be changed by users.</blockquote>
+
+        {/* 7 */}
+        <h2>7. Records Generated and Retention</h2>
         <table>
           <thead><tr><th>Record Type</th><th>What it contains</th><th>Retention</th></tr></thead>
           <tbody>
@@ -188,8 +283,8 @@ export default function Sop002Page() {
           <li><strong>Returned to Supplier Register</strong> — all returned cylinders with supplier HWCN references</li>
         </ul>
 
-        {/* 6 */}
-        <h2>6. Compliance Controls</h2>
+        {/* 8 */}
+        <h2>8. Compliance Controls</h2>
         <table>
           <thead><tr><th>Control</th><th>How Enforced</th></tr></thead>
           <tbody>
