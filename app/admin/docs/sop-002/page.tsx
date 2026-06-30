@@ -69,8 +69,8 @@ export default function Sop002Page() {
           </div>
           <table className="control-table">
             <tbody>
-              <tr><td>Document Number</td><td>SOP-002</td><td>Version</td><td>1.0</td></tr>
-              <tr><td>Issue Date</td><td>26 June 2026</td><td>Next Review</td><td>26 June 2027</td></tr>
+              <tr><td>Document Number</td><td>SOP-002</td><td>Version</td><td>3.0</td></tr>
+              <tr><td>Issue Date</td><td>25 April 2026</td><td>Next Review</td><td>25 April 2027</td></tr>
               <tr><td>Author</td><td>_________________________</td><td>Approved By</td><td>_________________________</td></tr>
               <tr><td>F-Gas Certification No.</td><td>REF1010728</td><td>System</td><td>21 Degrees F-Gas Tracker Pro</td></tr>
               <tr><td>Carrier Registration (CBDU)</td><td>CBDU368286</td><td>EWC Waste Code</td><td>14 06 01</td></tr>
