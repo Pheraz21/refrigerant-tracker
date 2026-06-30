@@ -1,11 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { db, Bottle } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
-import { PackageCheck, AlertCircle, CheckCircle2, Loader2, ArrowLeft, Search, Lock } from "lucide-react";
+import { PackageCheck, AlertCircle, CheckCircle2, Loader2, ArrowLeft, Search, Lock, ArrowUp, ArrowDown } from "lucide-react";
 import Link from "next/link";
+
+function fmtDate(iso: string | undefined | null) {
+  if (!iso) return null;
+  return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
 
 export default function StoresCollectionPage() {
   const { user } = useAuth();
@@ -15,6 +20,9 @@ export default function StoresCollectionPage() {
   const [loadingBottles, setLoadingBottles] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState("");
+  const [supplierFilter, setSupplierFilter] = useState("");
+  const [sortKey, setSortKey] = useState<"date" | "weight" | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const [supplier, setSupplier] = useState("");
   const [supplierLock, setSupplierLock] = useState("");
@@ -30,7 +38,6 @@ export default function StoresCollectionPage() {
 
   useEffect(() => {
     db.getBottlesByLocation("office").then(bottles => {
-      // Exclude reclaim bottles — those have their own HWCN process
       setStoresBottles(bottles.filter(b =>
         b.category !== "reclaim" &&
         (b.supplier || "").toLowerCase() !== "21 degrees"
@@ -39,12 +46,49 @@ export default function StoresCollectionPage() {
     });
   }, []);
 
-  const filtered = storesBottles.filter(b =>
-    filter === "" ||
-    b.serial.toLowerCase().includes(filter.toLowerCase()) ||
-    b.gasType.toLowerCase().includes(filter.toLowerCase()) ||
-    (b.supplier || "").toLowerCase().includes(filter.toLowerCase())
-  );
+  const supplierOptions = useMemo(() => {
+    const seen = new Set<string>();
+    storesBottles.forEach(b => { if (b.supplier) seen.add(b.supplier); });
+    return Array.from(seen).sort();
+  }, [storesBottles]);
+
+  const toggleSort = (key: "date" | "weight") => {
+    if (sortKey === key) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
+  const SortIcon = ({ k }: { k: "date" | "weight" }) => {
+    if (sortKey !== k) return null;
+    return sortDir === "asc"
+      ? <ArrowUp size={12} style={{ display: "inline", marginLeft: "3px" }} />
+      : <ArrowDown size={12} style={{ display: "inline", marginLeft: "3px" }} />;
+  };
+
+  const filtered = useMemo(() => {
+    let list = storesBottles.filter(b =>
+      (filter === "" ||
+        b.serial.toLowerCase().includes(filter.toLowerCase()) ||
+        b.gasType.toLowerCase().includes(filter.toLowerCase()) ||
+        (b.supplier || "").toLowerCase().includes(filter.toLowerCase())) &&
+      (supplierFilter === "" || (b.supplier || "") === supplierFilter)
+    );
+    if (sortKey === "date") {
+      list = [...list].sort((a, bb) => {
+        const da = new Date(a.locationChangedAt || 0).getTime();
+        const db2 = new Date(bb.locationChangedAt || 0).getTime();
+        return sortDir === "asc" ? da - db2 : db2 - da;
+      });
+    } else if (sortKey === "weight") {
+      list = [...list].sort((a, bb) =>
+        sortDir === "asc" ? a.currentWeight - bb.currentWeight : bb.currentWeight - a.currentWeight
+      );
+    }
+    return list;
+  }, [storesBottles, filter, supplierFilter, sortKey, sortDir]);
 
   const toggleSelect = (bottle: Bottle) => {
     setError("");
@@ -164,7 +208,27 @@ export default function StoresCollectionPage() {
             )}
           </div>
 
-          <div style={{ position: "relative", marginBottom: "1.25rem" }}>
+          {/* Supplier filter */}
+          {supplierOptions.length > 1 && (
+            <select
+              value={supplierFilter}
+              onChange={e => setSupplierFilter(e.target.value)}
+              style={{
+                width: "100%", padding: "0.75rem 1rem", marginBottom: "0.75rem",
+                background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+                borderRadius: "8px", color: supplierFilter ? "#fff" : "rgba(255,255,255,0.4)", outline: "none",
+                fontSize: "0.9rem", cursor: "pointer", colorScheme: "dark"
+              }}
+            >
+              <option value="">All suppliers</option>
+              {supplierOptions.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          )}
+
+          {/* Text search */}
+          <div style={{ position: "relative", marginBottom: "0.75rem" }}>
             <Search size={16} style={{ position: "absolute", left: "0.9rem", top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)" }} />
             <input
               type="text"
@@ -177,6 +241,36 @@ export default function StoresCollectionPage() {
                 borderRadius: "8px", color: "#fff", outline: "none", fontSize: "0.9rem"
               }}
             />
+          </div>
+
+          {/* Sort controls */}
+          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.25rem" }}>
+            <button
+              type="button"
+              onClick={() => toggleSort("date")}
+              style={{
+                fontSize: "0.75rem", padding: "0.3rem 0.75rem", borderRadius: "6px", border: "none",
+                background: sortKey === "date" ? "rgba(0,229,255,0.15)" : "rgba(255,255,255,0.06)",
+                color: sortKey === "date" ? "#00e5ff" : "rgba(255,255,255,0.5)",
+                cursor: "pointer", fontWeight: sortKey === "date" ? 700 : 400,
+                display: "flex", alignItems: "center", gap: "2px"
+              }}
+            >
+              Date in Stores <SortIcon k="date" />
+            </button>
+            <button
+              type="button"
+              onClick={() => toggleSort("weight")}
+              style={{
+                fontSize: "0.75rem", padding: "0.3rem 0.75rem", borderRadius: "6px", border: "none",
+                background: sortKey === "weight" ? "rgba(0,229,255,0.15)" : "rgba(255,255,255,0.06)",
+                color: sortKey === "weight" ? "#00e5ff" : "rgba(255,255,255,0.5)",
+                cursor: "pointer", fontWeight: sortKey === "weight" ? 700 : 400,
+                display: "flex", alignItems: "center", gap: "2px"
+              }}
+            >
+              Weight <SortIcon k="weight" />
+            </button>
           </div>
 
           {loadingBottles ? (
@@ -193,6 +287,7 @@ export default function StoresCollectionPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
               {filtered.map(b => {
                 const isSelected = selected.has(b.serial);
+                const inStoresSince = fmtDate(b.locationChangedAt);
                 return (
                   <div
                     key={b.serial}
@@ -217,19 +312,38 @@ export default function StoresCollectionPage() {
                     }}>
                       {isSelected && <span style={{ color: "#000", fontSize: "0.75rem", fontWeight: 900 }}>✓</span>}
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 700, color: isSelected ? "var(--primary)" : "#fff", fontSize: "0.95rem" }}>{b.serial}</div>
-                      <div style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.45)", marginTop: "0.15rem" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <Link
+                        href={`/admin/bottles/${b.serial}`}
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                          fontWeight: 700,
+                          color: isSelected ? "var(--primary)" : "#fff",
+                          fontSize: "0.95rem",
+                          textDecoration: "none",
+                          borderBottom: "1px solid rgba(255,255,255,0.2)",
+                          paddingBottom: "1px"
+                        }}
+                      >
+                        {b.serial}
+                      </Link>
+                      <div style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.45)", marginTop: "0.25rem" }}>
                         {b.gasType}
                         {b.category === "nitrogen" && " (Nitrogen)"}
                         {" • "}{b.currentWeight} kg
                         {b.supplier && ` • ${b.supplier}`}
+                        {inStoresSince && (
+                          <span style={{ marginLeft: "0.5rem", color: "rgba(255,255,255,0.3)" }}>
+                            — in stores {inStoresSince}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div style={{
                       fontSize: "0.72rem", fontWeight: 600, padding: "0.2rem 0.6rem", borderRadius: "6px",
                       background: b.category === "nitrogen" ? "rgba(168,85,247,0.15)" : "rgba(0,229,255,0.1)",
-                      color: b.category === "nitrogen" ? "#a855f7" : "#00e5ff"
+                      color: b.category === "nitrogen" ? "#a855f7" : "#00e5ff",
+                      flexShrink: 0
                     }}>
                       {b.category}
                     </div>
