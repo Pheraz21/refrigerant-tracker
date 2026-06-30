@@ -5,9 +5,9 @@
 | | |
 |---|---|
 | **Document Number** | SOP-001 |
-| **Version** | 1.0 |
-| **Issue Date** | 26 June 2026 |
-| **Next Review Date** | 26 June 2027 |
+| **Version** | 3.0 |
+| **Issue Date** | 25 April 2026 |
+| **Next Review Date** | 25 April 2027 |
 | **Author** | _________________________ |
 | **Approved By** | _________________________ |
 | **REFCOM Registration** | REF1010728 |
@@ -37,7 +37,15 @@ This procedure does **not** cover recovery cylinders (see SOP-002).
 
 ---
 
-## 3. Roles and Responsibilities
+## 3. Procurement
+
+All refrigerant cylinder purchases are initiated through **Clik4**, the company's CRM system. Purchase orders are raised within Clik4 and emailed directly to the relevant supplier. The purchase order number is recorded in F-Gas Tracker Pro when the cylinder is registered on receipt, maintaining a continuous chain from procurement through to disposal.
+
+No refrigerant cylinder may enter service without a corresponding purchase order reference recorded in the system.
+
+---
+
+## 4. Roles and Responsibilities
 
 | Role | Responsibility |
 |---|---|
@@ -49,15 +57,19 @@ All engineers handling F-Gas must hold a current, relevant **F-Gas qualification
 
 ---
 
-## 4. Procedure
+## 5. Procedure
 
-### 4.1 Cylinder Receipt and Registration
+### 5.1 Cylinder Receipt and Registration
 
-When a new refrigerant cylinder is received from a supplier:
+New refrigerant cylinders enter 21 Degrees Ltd's possession by one of three routes:
 
-1. Inspect the cylinder physically — check for damage, correct labelling, and that the weight label matches the delivery note.
-2. Log into the **F-Gas Tracker Pro** admin panel and navigate to **Register Cylinder** (or use **Bulk Receive** for multiple cylinders).
-3. Enter the following mandatory fields:
+**Route A — Delivery to HQ Stores:** Where a cylinder is delivered to Unit 10, Apollo Court, Hebburn, office staff inspect the cylinder on receipt (checking for damage, correct labelling, and that the weight matches the delivery note) and register it in F-Gas Tracker Pro. The cylinder is assigned to Stores and becomes available for allocation to engineers.
+
+**Route B — Direct Collection from Supplier:** Where an engineer collects a cylinder directly from a supplier — for example when a specific gas type is needed immediately — the engineer registers the bottle in the F-Gas Tracker Pro mobile application at the point of collection. The same information is recorded as Route A.
+
+**Route C — Direct Delivery by Supplier to Job Site:** Where the Supplier delivers the cylinder direct to the job site — for example when a specific gas type is needed immediately on site — the engineer registers the bottle in the F-Gas Tracker Pro mobile application at the point of delivery. The same information is recorded as Route A.
+
+In all cases, the following mandatory fields are recorded at registration:
 
 | Field | Description | Example |
 |---|---|---|
@@ -69,18 +81,16 @@ When a new refrigerant cylinder is received from a supplier:
 | PO Number | Purchase order reference | `PO-2026-0441` |
 | Rental Expiry (if applicable) | Date rental agreement expires | `31/12/2026` |
 
-4. The system records:
-   - `registeredAt` timestamp
-   - `registeredBy` (user ID of admin performing registration)
-   - `locationType: "office"` (cylinder enters stores)
-   - `status: "active"`
-   - An immutable **movement log** entry: action = `registered`
-
-5. The cylinder is now tracked in the system and visible in the **Stores Inventory**.
+The system records:
+- `registeredAt` timestamp
+- `registeredBy` (user ID of admin or engineer performing registration)
+- `locationType: "office"` or `"van"` depending on route
+- `status: "active"`
+- An immutable **movement log** entry: action = `registered`
 
 ---
 
-### 4.2 Allocation to Engineer's Van
+### 5.2 Allocation to Engineer's Van
 
 When a cylinder is to be issued to a field engineer:
 
@@ -105,7 +115,7 @@ When a cylinder is to be issued to a field engineer:
 
 ---
 
-### 4.3 On-Site Usage
+### 5.3 On-Site Usage
 
 When refrigerant is dispensed to a customer's system on site:
 
@@ -135,7 +145,7 @@ When refrigerant is dispensed to a customer's system on site:
 
 ---
 
-### 4.4 Cylinder Status Monitoring
+### 5.4 Cylinder Status Monitoring
 
 The system continuously tracks cylinder status:
 
@@ -152,7 +162,7 @@ Cylinder status and weight history are visible at any time via the **Cylinder De
 
 ---
 
-### 4.5 Return of Empty or Partially Depleted Cylinders
+### 5.5 Return of Empty or Partially Depleted Cylinders
 
 **When a cylinder is empty or no longer required on a van:**
 
@@ -181,7 +191,7 @@ Cylinder status and weight history are visible at any time via the **Cylinder De
 
 ---
 
-## 5. Records Generated and Retention
+## 6. Records Generated and Retention
 
 The following records are generated automatically by the F-Gas Tracker Pro system for each new refrigerant cylinder:
 
@@ -203,10 +213,11 @@ The following reports can be generated from the system for audit purposes:
 
 ---
 
-## 6. Compliance Controls
+## 7. Compliance Controls
 
 | Control | How Enforced |
 |---|---|
+| Procurement trail | Every cylinder is linked to a Clik4 purchase order number at registration |
 | Weight reconciliation | Every usage log records weight before and after independently; quantity used is system-calculated, not manually entered |
 | Engineer qualification | Only registered, approved users can log usage in the system; role-based access control enforced at login |
 | Immutable audit trail | `usage_logs` and `movement_logs` tables are append-only; no UPDATE or DELETE operations permitted on historical records |

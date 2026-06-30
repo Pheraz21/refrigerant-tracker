@@ -5,9 +5,9 @@
 | | |
 |---|---|
 | **Document Number** | SOP-002 |
-| **Version** | 1.0 |
-| **Issue Date** | 26 June 2026 |
-| **Next Review Date** | 26 June 2027 |
+| **Version** | 3.0 |
+| **Issue Date** | 25 April 2026 |
+| **Next Review Date** | 25 April 2027 |
 | **Author** | _________________________ |
 | **Approved By** | _________________________ |
 | **REFCOM Registration** | REF1010728 |
@@ -26,7 +26,7 @@ This procedure describes the controlled process by which **21 Degrees Ltd** mana
 
 This procedure covers:
 - Single-site recovery (gas recovered from one customer site only)
-- Multi-site recovery (gas aggregated from more than one customer site — mandatory HWCN routing via HQ-Stores)
+- Multi-site recovery (gas aggregated from more than one customer site)
 - Equipment decommissioning associated with recovery events
 - The full HWCN lifecycle: generation, transit, Part E sign-off, and supplier return
 
@@ -45,7 +45,15 @@ This procedure covers:
 
 ---
 
-## 3. Definitions
+## 3. Procurement
+
+All refrigerant cylinder purchases are initiated through **Clik4**, the company's CRM system. Purchase orders are raised within Clik4 and emailed directly to the relevant supplier. The purchase order number is recorded in F-Gas Tracker Pro when the cylinder is registered on receipt, maintaining a continuous chain from procurement through to disposal.
+
+No refrigerant cylinder may enter service without a corresponding purchase order reference recorded in the system.
+
+---
+
+## 4. Definitions
 
 | Term | Definition |
 |---|---|
@@ -63,40 +71,57 @@ This procedure covers:
 
 ---
 
-## 4. Roles and Responsibilities
+## 5. Roles and Responsibilities
 
 | Role | Responsibility |
 |---|---|
-| **Engineer** | Perform recovery on site; record all weights, producer site details and equipment details accurately in the system; initiate transit and carry cylinder to HQ-Stores or supplier; hold current F-Gas Category I qualification |
-| **Office / Admin** | Generate and print HWCNs; complete Part E sign-off on receipt at HQ-Stores; process supplier returns; record supplier HWCN reference numbers; manage waste exemption documentation |
-| **Office Manager / Director** | Ensure carrier registration (CBDU368286) and waste exemption (31Z 3725 34) remain current; approve this procedure; maintain REFCOM registration REF1010728 |
+| **Engineer** | Use the F-Gas Tracker Pro mobile application to: register new recovery cylinders upon receipt; record all cylinder movements; record all on-site recovery accurately including weights, producer site details and equipment details; complete supplier HWCN paperwork at point of transfer; transport cylinders to the supplier on completion and obtain the supplier's HWCN documentation. Engineers must hold a current F-Gas Category I qualification. |
+| **Office / Admin** | Register recovery cylinders received at HQ; complete Part E sign-off on internal HWCNs; record supplier returns including the supplier's HWCN reference number and photo; generate compliance reports for audit purposes |
+| **Office Manager / Director** | Ensure the company's waste carrier registration (CBDU368286) and waste exemption (31Z 3725 34) remain current; approve this procedure; maintain REFCOM registration REF1010728 |
+
+All engineers handling F-Gas must hold a current, relevant **F-Gas qualification** (Category I or appropriate category) and work under a company holding F-Gas certification **REF1010728**.
 
 ---
 
-## 5. Procedure
+## 6. Procedure
 
-### 5.1 Recovery Cylinder Registration and Van Allocation
+### 6.1 Cylinder Receipt and Registration
 
-Recovery cylinders must be registered in the system **before** being issued to an engineer.
+Recovery cylinders enter 21 Degrees Ltd's possession by one of three routes:
 
-1. Office admin navigates to **Register Cylinder** in the F-Gas Tracker Pro admin panel.
-2. Enter the following mandatory fields:
+**Route A — Delivery to HQ Stores:** Where a cylinder is delivered to Unit 10, Apollo Court, Hebburn, office staff inspect the cylinder on receipt and register it in F-Gas Tracker Pro. The cylinder is assigned to Stores and becomes available for allocation to engineers.
+
+**Route B — Direct Collection from Supplier:** Where an engineer collects a cylinder directly from the supplier, the engineer registers the cylinder in the F-Gas Tracker Pro mobile application at the point of collection. The same information is recorded as Route A.
+
+**Route C — Direct Delivery by Supplier to Job Site:** Where the Supplier delivers the cylinder direct to the job site — for example when a specific gas type is needed immediately on site — the engineer registers the bottle in the F-Gas Tracker Pro mobile application at the point of delivery. The same information is recorded as Route A.
+
+In all cases, the following mandatory fields are recorded at registration:
 
 | Field | Description | Example |
 |---|---|---|
 | Serial Number | Unique cylinder identifier | `REC-402` |
 | Category | Select **Reclaim** | Reclaim |
 | Gas Type | Leave as `Mixed/Recovery` (updated when gas type is confirmed on site) | `Mixed/Recovery` |
-| Initial Weight (capacity) | Maximum fill weight in kg (cylinder capacity) | `10.00 kg` |
-| Current Weight | `0.00 kg` (cylinder is empty on issue) | `0.00 kg` |
+| Capacity (kg) | Maximum fill weight in kg (cylinder capacity) | `10.00 kg` |
 | Supplier | Supplier from whom this cylinder was obtained | `A-Gas` |
 
-3. The system records the cylinder as `active`, `locationType: "office"`, `status: "active"`.
-4. Allocate the cylinder to the engineer's van using the **Move Cylinder** function (see SOP-001, Section 4.2). The engineer's name, vehicle registration, and timestamp are recorded.
+The system creates a permanent cylinder record and an entry in the audit log at the time of registration.
 
 ---
 
-### 5.2 On-Site Refrigerant Recovery
+### 6.2 Cylinder Movements
+
+**Stores to Van:** When a cylinder is issued to a field engineer, the Engineer records this allocation in F-Gas Tracker Pro. The engineer's name and vehicle registration plate are recorded against the cylinder and a movement log entry is created. The cylinder then appears in the engineer's Van Inventory on the mobile app.
+
+> **Control:** Only one engineer's van is associated with each cylinder at any time. If a cylinder is transferred between vans, both parties and the date/time of the handover are recorded in the movement log.
+
+**Van to Site:** When the engineer takes the cylinder to a customer job site, this movement is recorded in F-Gas Tracker Pro. The job reference and site details are recorded and a movement log entry is created.
+
+**Site back to Van:** On completion of recovery work, the engineer records the movement of the cylinder back to their van in F-Gas Tracker Pro. A movement log entry is created and the cylinder returns to the engineer's Van Inventory.
+
+---
+
+### 6.3 On-Site Refrigerant Recovery
 
 When recovering refrigerant from a customer's system on site:
 
@@ -116,7 +141,6 @@ When recovering refrigerant from a customer's system on site:
 | Equipment Manufacturer | Manufacturer of the system recovered from | `Daikin` |
 | Equipment Model | Model number | `FDTC50VF` |
 | Equipment Serial | Equipment serial number | `9948201B` |
-| Weight Recovered from this Unit (kg) | Gas removed from this specific unit | `2.70 kg` |
 
 3. The system:
    - Updates `currentWeight` on the cylinder (increases by quantity recovered)
@@ -128,7 +152,7 @@ When recovering refrigerant from a customer's system on site:
 
 ---
 
-### 5.3 Equipment Decommissioning Record (Where Applicable)
+### 6.4 Equipment Decommissioning Record (Where Applicable)
 
 If the system being worked on is being **permanently decommissioned** (i.e. equipment is being removed from service):
 
@@ -149,123 +173,104 @@ If the system being worked on is being **permanently decommissioned** (i.e. equi
 
 ---
 
-### 5.4 Single-Site vs. Multi-Site Determination
+### 6.5 Return of Recovery Cylinder to Supplier
 
-After recovery is logged, the system automatically determines the required return route based on the number of producer sites associated with the cylinder:
+On completion of recovery work, the engineer transports the cylinder to the authorised supplier's premises. The company's waste carrier registration **CBDU368286** must be current when transporting waste refrigerant on public roads.
 
-| Scenario | Definition | Required Route |
+At the supplier, the supplier issues their Hazardous Waste Consignment Note (HWCN) documentation. The engineer retains a copy or photograph of this document.
+
+Office staff then record the supplier return in F-Gas Tracker Pro, entering the supplier's name, branch, HWCN reference number, and uploading a photo of the supplier's HWCN documentation. The system marks the cylinder as returned and creates a permanent movement log entry. The cylinder exits active tracking and appears in the **Returned to Supplier** register.
+
+---
+
+## 7. Waste Transfer and Hazardous Waste Consignment Note (HWCN)
+
+When an engineer has completed recovery work and the cylinder contains waste refrigerant, a controlled transfer process must be followed before the cylinder leaves the engineer's van. This section describes that process as it operates within F-Gas Tracker Pro.
+
+### 7.1 Initiating a Transfer
+
+The engineer opens the cylinder record in the F-Gas Tracker Pro mobile application and selects **Move Cylinder**. The system automatically determines the required transfer route based on the cylinder's contents:
+
+- If the cylinder contains **no gas**, a simple location update is performed with no HWCN required.
+- If the cylinder contains **waste refrigerant**, the system routes the transfer through the appropriate HWCN process described below.
+
+### 7.2 Transfer Routes
+
+The system determines the permitted destination based on how many producer sites are associated with the cylinder:
+
+| Scenario | Permitted Destination | HWCN Type |
 |---|---|---|
-| **Single-site** | All gas in the cylinder was recovered from **one** customer site | Cylinder may be returned **directly to supplier** |
-| **Multi-site** | Gas was recovered from **two or more** different customer sites | Cylinder **must** be returned to **HQ-Stores** first; cannot go direct to supplier |
+| **Single producer site** — all gas recovered from one customer site | Direct to supplier *or* HQ-Stores | Supplier's physical HWCN paperwork *or* System-generated internal HWCN |
+| **Multiple producer sites** — gas recovered from two or more different customer sites | HQ-Stores only — direct supplier return is blocked | System-generated internal HWCN |
 
-**Multi-site trigger:** When the engineer logs a recovery from a site that is different from any previously recorded producer site on that cylinder, the system displays a **"2nd Waste Producer Detected"** warning overlay. The engineer must acknowledge this. The system then:
+### 7.3 Route A — Direct Transfer to Supplier
 
-- Automatically generates an internal **HWCN** (consignment note)
-- Sets the cylinder's `intendedDestination` to `"HQ-Stores"`
-- Sets `activeHWCN` to the new consignment note ID (e.g. `21Degr-100005`)
-- Records an entry in the movement log
+Where the cylinder contains waste from a single producer site, the engineer may transfer it directly to the supplier.
 
-> **Reason:** The Hazardous Waste Regulations require that where waste is collected from multiple producers in a single vehicle journey, a separate consignment note is required. Aggregating multi-site waste must go through the registered consignee at HQ before onward transfer to the supplier.
+1. The engineer selects **Supplier** as the destination and enters the supplier branch name (e.g. *A-Gas Newcastle*).
+2. Before confirming the transfer in the app, the engineer completes the supplier's paper HWCN — filling in the Producer, Consignor, and Carrier sections. The app prompts the engineer to confirm this has been done before the transfer can proceed.
+3. The system records the cylinder as *in transit* to the supplier and creates a movement log entry.
+4. The engineer transports the cylinder to the supplier's premises. The company waste carrier registration **CBDU368286** must be current for the legal transport of waste refrigerant on public roads.
+5. At the supplier, the engineer hands over the cylinder with the paperwork, where the supplier completes the Consignee section and accepts receipt of the waste cylinder.
+6. The engineer taps **Complete Transit** in the mobile application and uploads a photo of the completed supplier HWCN.
+7. The system marks the cylinder as *returned*, records the delivery timestamp, and stores the supplier's HWCN photo. A permanent movement log entry is created.
+8. The cylinder then appears in the Returned to Supplier register with its full audit trail.
 
----
+### 7.4 Route B — Transfer to HQ-Stores with Internal HWCN
 
-### 5.5 Internal HWCN Generation (Multi-Site Route)
+The engineer has the option to return the waste bottle to 21 Degrees HQ-Stores. The system generates an internal HWCN automatically.
 
-When the multi-site route is triggered, a digital HWCN is generated automatically by the system. The consignment note contains:
+1. The engineer reviews and confirms the following information before proceeding:
 
-**Part A — Notification Details:**
-- All producer sites (name, address, postcode, weight recovered from each)
-- Destination: HQ-Stores (21 Degrees Ltd, Unit 10, Apollo Court, Hebburn, NE31 2ES)
-- Total waste quantity (kg)
-- Waste description: EWC Code **14 06 01** — Halogenated refrigerants
-- Gas type
+| Section | Field | Source |
+|---|---|---|
+| Part A — Producer Sites | Name, address, and postcode for each site where gas was recovered | Auto-populated from recovery logs; engineer confirms or corrects |
+| Part C — Carrier Certificate | Carrier name | Auto-populated from engineer's profile; editable |
+| Part C — Carrier Certificate | Vehicle registration | Auto-populated from engineer's profile; editable |
 
-**Part C — Carrier's Certificate:**
-- Engineer (carrier) name
-- Vehicle registration
-- 21 Degrees Ltd carrier registration: **CBDU368286**
-- Date and time of collection
+2. The engineer confirms the transfer. The system:
+   - Generates an internal HWCN with a unique reference number in the format **21Degr-XXXXXX**
+   - Sets the HWCN status to *In Transit*
+   - Records the cylinder's intended destination as HQ-Stores
+   - Creates a movement log entry referencing the HWCN number
 
-**Part E — Consignee's Certificate** (completed on delivery, see Section 5.6):
-- Receiving staff member name
-- Waste exemption number: **31Z 3725 34**
-- Date received
-- Accepted / Rejected status
+3. The engineer transports the cylinder to HQ-Stores (Unit 10, Apollo Court, Hebburn). The internal HWCN can be printed from the admin panel if a paper copy is required during transit.
 
-The HWCN can be printed from the admin panel (`/admin/hwcn/[id]`) at any time and must travel with the cylinder during transport.
+4. On arrival at HQ-Stores, the engineer taps **Complete Transit** in the mobile application. The system:
+   - Updates the cylinder location to HQ-Stores
+   - Advances the HWCN status to *awaiting consignee sign-off*
+   - Records the delivery timestamp
+   - Creates a movement log entry
 
----
+### 7.5 Part E Sign-Off by Office Staff (Route B)
 
-### 5.6 Transit to HQ-Stores and Part E Sign-Off (Multi-Site Route)
+Once a cylinder has been delivered to HQ-Stores under Route B, office staff must complete the consignee section (Part E) of the internal HWCN before the cylinder can proceed to the supplier.
 
-1. The engineer loads the cylinder into their vehicle. The HWCN (printed or digital) must accompany the waste during transit.
-2. On arrival at HQ-Stores (Unit 10, Apollo Court, Hebburn), the engineer opens the cylinder record on the mobile app and taps **Complete Transit**.
-3. The system:
-   - Sets HWCN status from `draft` → `awaiting_consignee`
-   - Records `deliveredAt` timestamp on the HWCN
-   - Clears the cylinder's transit state (`intendedDestination`, `activeHWCN` → null)
-   - Updates cylinder location to `locationType: "office"`, `locationId: "HQ-Stores"`
-
-4. An office staff member navigates to the HWCN in the admin panel (`/admin/hwcn/[id]`) and completes **Part E**:
+1. Office staff navigate to the **HWCN Queue** in the admin panel. Consignment notes awaiting sign-off are displayed with an *Awaiting Part E* status.
+2. Staff open the relevant HWCN record and verify the details shown (cylinder serial, gas type, weight, producer sites, carrier details, and delivery timestamp).
+3. Staff complete Part E by entering the following:
 
 | Field | Description |
 |---|---|
-| Received By | Name of the staff member accepting the waste |
-| Date Received | Confirmed automatically from `deliveredAt` timestamp |
-| Accepted | Confirm acceptance (or reject with reason) |
-| Waste Exemption Number | **31Z 3725 34** (pre-populated) |
-| Vehicle Reg (Consignee) | If applicable |
+| Received By | Name of the office staff member accepting the waste cylinder |
+| Waste Exemption Number | Pre-populated: **31Z 3725 34** (immutable) |
+| Acceptance Decision | Accept or Reject. If rejected, a reason must be entered and the cylinder remains at HQ-Stores pending resolution. |
 
-5. On completion:
-   - HWCN status → `complete`; `partECompletedAt` timestamp recorded
-   - `accepted: true` recorded on the HWCN
-   - The digital HWCN is now legally complete and stored in the system
+4. On submission, the system sets the HWCN status to *complete*, records the sign-off timestamp, and the cylinder becomes available for onward collection by the supplier (see section 7.6).
 
-6. The cylinder now sits at HQ-Stores and is ready for onward processing as a supplier return (Section 5.8).
+> **Note:** The internal HWCN print template pre-populates all mandatory regulatory reference numbers (CBDU368286, waste exemption 31Z 3725 34, EWC Code 14 06 01). These values are immutable and cannot be changed by users.
 
-> **Rejected Consignment:** If Part E is rejected (e.g. contaminated waste, incorrect cylinder), the office staff enters rejection details. The HWCN is retained with `accepted: false`. The cylinder remains at HQ-Stores pending resolution. No further system action is taken automatically.
+### 7.6 Supplier Collection from HQ-Stores
 
----
+Once a waste cylinder has been received at HQ-Stores and Part E has been signed off, office staff contact the supplier to arrange collection of the cylinder.
 
-### 5.7 Direct Supplier Return (Single-Site Route)
+When the supplier attends HQ-Stores to collect the waste cylinder, they bring their own HWCN paperwork. This is completed as part of the handover — covering the transfer of the waste from 21 Degrees Ltd to the supplier for reclamation or destruction.
 
-Where a cylinder contains gas from a **single producer site only**, it may be returned directly from the engineer's van to the supplier without transiting through HQ-Stores.
-
-1. The engineer (or office admin) drives the cylinder to the supplier's branch.
-2. At the supplier, the supplier issues their own HWCN paperwork. The engineer accepts and retains/photographs this document.
-3. On return, office admin navigates to **Supplier Returns** (`/admin/supplier-returns`) in the admin panel.
-4. Admin enters:
-
-| Field | Description | Example |
-|---|---|---|
-| Cylinder Serial(s) | All cylinders being returned in this batch | `REC-402` |
-| Supplier Name | Supplier receiving the waste | `A-Gas` |
-| Supplier Branch | Branch location | `Newcastle` |
-| Return Weight | Weight of cylinder at time of return | `5.20 kg` |
-| Supplier HWCN Reference | Reference number from the supplier's HWCN | `BJJ-123456` |
-| Supplier HWCN Photo | Photo of supplier's HWCN document | Upload |
-
-5. Admin clicks **Complete Supplier Return**. The system:
-   - Sets `status: "returned"`, `locationType: "supplier"`
-   - Records `returnedAt` timestamp and `returnedBy` (admin name)
-   - Stores `returnHwcnNumber` (supplier's reference) and `supplierHwcnPhotoUrl`
-   - Creates immutable **movement log** entry: action = `returned_to_supplier`
-
-> **Supplier Lock:** Once the first cylinder is added to a return batch, all subsequent cylinders in that batch must be from the **same supplier**. The system enforces this automatically to prevent cross-supplier HWCN errors.
+Office staff photograph the completed supplier paperwork and upload it against the cylinder record in F-Gas Tracker Pro. The system marks the cylinder as returned to the supplier and the photo is stored permanently against the bottle, completing the audit trail.
 
 ---
 
-### 5.8 Supplier Return Following HQ-Stores Transit (Multi-Site Route Completion)
-
-After a multi-site cylinder has been received at HQ-Stores and Part E signed off:
-
-1. Office admin batches cylinders for onward return to the supplier when operationally appropriate.
-2. Follow the same process as Section 5.7 (Supplier Returns). The supplier's HWCN reference and photo are recorded in the system against each cylinder.
-3. The cylinder's lifecycle is complete. It is visible in the **Returned to Supplier** register with its full audit trail: registration → recovery events (with producer sites) → internal HWCN → Part E sign-off → supplier return.
-
----
-
-## 6. HWCN Reference Data
+## 8. HWCN Reference Data
 
 The following regulatory reference numbers must appear on all HWCN documents generated by or for 21 Degrees Ltd:
 
@@ -281,7 +286,7 @@ These values are pre-populated in the F-Gas Tracker Pro HWCN print template.
 
 ---
 
-## 7. Records Generated and Retention
+## 9. Records Generated and Retention
 
 | Record Type | Where Stored | Retention |
 |---|---|---|
@@ -299,30 +304,31 @@ These values are pre-populated in the F-Gas Tracker Pro HWCN print template.
 - **Full Job Report** (per job — all recovery events, quantities, producer sites, equipment details)
 - **Cylinder Usage / Audit Trail** (per cylinder — complete lifecycle from registration to return)
 - **Decommissioned Equipment Register** (all decommissioning events by date, site, engineer, equipment)
-- **HWCN Print** (printable four-part consignment note per consignment, `/admin/hwcn/[id]`)
+- **HWCN Print** (printable consignment note per consignment, `/admin/hwcn/[id]`)
 - **Returned to Supplier Register** (all returned cylinders with supplier HWCN references)
 - **On-Site Inventory Report** (cylinders currently at customer sites)
 - **Van Inventory Report** (cylinders on each engineer's van)
 
 ---
 
-## 8. Compliance Controls
+## 10. Compliance Controls
 
 | Control | How Enforced |
 |---|---|
 | Mandatory weight recording | Engineer cannot submit a recovery log without entering weight before and weight after; quantity recovered is system-calculated |
 | Producer site capture | Site name, address and postcode are mandatory fields for all recovery log entries |
-| Multi-site routing enforcement | System automatically detects and flags second producer site; cylinder is locked to HQ-Stores routing — cannot be changed to direct supplier |
-| HWCN generation | HWCN is generated automatically by the system on multi-site trigger; cannot be bypassed |
-| Part E sign-off required | HWCN remains in `awaiting_consignee` status until office staff completes Part E; appears as open item in admin panel |
-| Supplier lock on returns | All cylinders in a return batch must match the same supplier — enforced by the system |
+| HWCN paperwork confirmation | App requires engineer to confirm supplier HWCN paperwork is completed before transfer proceeds |
+| HWCN generation | Internal HWCN is generated automatically by the system on Route B transfer; cannot be bypassed |
+| Part E sign-off required | HWCN remains in *awaiting consignee* status until office staff completes Part E; appears as open item in admin panel |
+| Supplier HWCN photo required | Photo of supplier's completed HWCN must be uploaded to complete the return record |
 | Immutable audit trail | All logs are append-only; no records can be deleted or edited retrospectively |
 | Equipment traceability | Manufacturer, model and serial number recorded at every recovery event |
 | F-Gas qualification | Only system-approved, REFCOM-registered engineers can log recovery events |
+| Waste carrier registration | Company waste carrier registration CBDU368286 must remain current; required for legal transport of waste refrigerant on public roads |
 
 ---
 
-## 9. Process Summary Diagram
+## 11. Process Summary Diagram
 
 ```
 Recovery Cylinder Issued to Engineer (Van)
@@ -332,45 +338,44 @@ Recovery Cylinder Issued to Engineer (Van)
      (weight before → after, producer site recorded)
               │
               ▼
-  ┌───────────────────────────┐
-  │  More than one producer   │
-  │  site on this cylinder?   │
-  └───────────────────────────┘
-         │           │
-        YES          NO
-         │           │
-         ▼           ▼
-  Internal HWCN    Cylinder ready
-  Generated        for direct
-  (destination:    supplier return
-  HQ-Stores)
-         │
-         ▼
-  Engineer transits to HQ-Stores
-  (HWCN travels with cylinder)
-         │
-         ▼
-  Engineer completes transit in app
-  (HWCN status: awaiting_consignee)
-         │
-         ▼
-  Office staff completes HWCN Part E
-  (received by, accepted, exemption no.)
-  (HWCN status: complete)
-         │
-         ▼
-  Cylinder at HQ-Stores
-         │
-         ▼
-  ┌─────────────────────────────────┐
-  │ Admin processes Supplier Return │
-  │ Enters supplier HWCN ref + photo│
-  └─────────────────────────────────┘
-         │
-         ▼
-  Cylinder status → "returned"
-  Lifecycle complete — full audit trail
-  preserved in F-Gas Tracker Pro
+  ┌───────────────────────────────────┐
+  │  Transfer route selection         │
+  │  Direct to Supplier / HQ-Stores   │
+  └───────────────────────────────────┘
+         │                   │
+    SUPPLIER             HQ-STORES
+         │                   │
+         ▼                   ▼
+  Engineer completes    Internal HWCN
+  supplier paper HWCN   Generated
+  (Producer/Carrier     (In Transit)
+  sections)
+         │                   │
+         ▼                   ▼
+  Engineer transits     Engineer transits
+  to supplier           to HQ-Stores
+         │                   │
+         ▼                   ▼
+  Supplier completes    Engineer completes
+  Consignee section     transit in app
+  accepts waste         (HWCN: awaiting Part E)
+         │                   │
+         ▼                   ▼
+  Engineer uploads      Office staff
+  photo of HWCN         completes Part E
+         │                   │
+         ▼                   ▼
+  Cylinder status →     Supplier collects
+  "returned"            from HQ-Stores
+                              │
+                              ▼
+                        Office staff upload
+                        supplier HWCN photo
+                              │
+                              ▼
+                        Cylinder status →
+                        "returned"
+                        Lifecycle complete
 ```
 
 ---
