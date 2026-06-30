@@ -178,8 +178,8 @@ export default function Sop002Page() {
         <h3>6.1 Initiating a Transfer</h3>
         <p>The engineer opens the cylinder record in the F-Gas Tracker Pro mobile application and selects <strong>Move Cylinder</strong>. The system automatically determines the required transfer route based on the cylinder's contents:</p>
         <ul>
-          <li>If the cylinder contains <strong>no gas</strong> (current weight = 0 kg), a simple location update is performed with no HWCN required.</li>
-          <li>If the cylinder contains <strong>waste refrigerant</strong> (current weight &gt; 0 kg), the system routes the transfer through the appropriate HWCN process described below.</li>
+          <li>If the cylinder contains <strong>no gas</strong>, a simple location update is performed with no HWCN required.</li>
+          <li>If the cylinder contains <strong>waste refrigerant</strong>, the system routes the transfer through the appropriate HWCN process described below.</li>
         </ul>
 
         <h3>6.2 Transfer Routes</h3>
@@ -187,28 +187,26 @@ export default function Sop002Page() {
         <table>
           <thead><tr><th>Scenario</th><th>Permitted Destination</th><th>HWCN Type</th></tr></thead>
           <tbody>
-            <tr><td><strong>Single producer site</strong> — all gas recovered from one customer site</td><td>Direct to supplier <em>or</em> HQ-Stores</td><td>Supplier's physical HWCN paperwork</td></tr>
+            <tr><td><strong>Single producer site</strong> — all gas recovered from one customer site</td><td>Direct to supplier <em>or</em> HQ-Stores</td><td>Supplier's physical HWCN paperwork <em>or</em> System-generated internal HWCN</td></tr>
             <tr><td><strong>Multiple producer sites</strong> — gas recovered from two or more different customer sites</td><td>HQ-Stores only — direct supplier return is blocked</td><td>System-generated internal HWCN</td></tr>
           </tbody>
         </table>
-        <blockquote><strong>Control:</strong> The Hazardous Waste Regulations require a separate consignment note where waste has been collected from multiple producers in a single journey. The system enforces this automatically — a cylinder containing waste from two or more producer sites cannot be returned directly to a supplier and must transit through HQ-Stores first.</blockquote>
-
         <h3>6.3 Route A — Direct Transfer to Supplier</h3>
         <p>Where the cylinder contains waste from a single producer site, the engineer may transfer it directly to the supplier.</p>
         <ol>
           <li>The engineer selects <strong>Supplier</strong> as the destination and enters the supplier branch name (e.g. <em>A-Gas Newcastle</em>).</li>
+          <li>Before confirming the transfer in the app, the engineer completes the supplier's paper HWCN — filling in the Producer, Consignor, and Carrier sections. The app prompts the engineer to confirm this has been done before the transfer can proceed.</li>
           <li>The system records the cylinder as <em>in transit</em> to the supplier and creates a movement log entry.</li>
           <li>The engineer transports the cylinder to the supplier's premises. The company waste carrier registration <strong>CBDU368286</strong> must be current for the legal transport of waste refrigerant on public roads.</li>
-          <li>At the supplier, the supplier issues their physical HWCN paperwork. The engineer photographs this document.</li>
+          <li>At the supplier, the engineer hands over the cylinder with the paperwork, where the supplier completes the Consignee section and accepts receipt of the waste cylinder.</li>
           <li>The engineer taps <strong>Complete Transit</strong> in the mobile application and uploads the photo of the supplier's HWCN.</li>
           <li>The system marks the cylinder as <em>returned</em>, records the delivery timestamp, and stores the supplier's HWCN photo. A permanent movement log entry is created.</li>
-          <li>Office staff record the supplier's HWCN reference number in F-Gas Tracker Pro via the <strong>Supplier Returns</strong> screen in the admin panel. The cylinder then appears in the Returned to Supplier register with its full audit trail.</li>
+          <li>The cylinder then appears in the Returned to Supplier register with its full audit trail.</li>
         </ol>
 
-        <h3>6.4 Route B — Transfer to HQ-Stores with Internal HWCN (Multi-Site)</h3>
-        <p>Where the cylinder contains waste from two or more producer sites, the engineer must transfer it to HQ-Stores. The system generates an internal HWCN automatically.</p>
+        <h3>6.4 Route B — Transfer to HQ-Stores with Internal HWCN</h3>
+        <p>The engineer has the option to return the waste bottle to 21 Degrees HQ-Stores. The system generates an internal HWCN automatically.</p>
         <ol>
-          <li>When the engineer attempts to move the cylinder, the system detects multiple producer sites and displays a warning. The destination is set to <strong>HQ-Stores</strong> and cannot be changed to a supplier.</li>
           <li>The engineer reviews and confirms the following information before proceeding:</li>
         </ol>
         <table>
@@ -220,11 +218,11 @@ export default function Sop002Page() {
             <tr><td>Part C — Carrier Certificate</td><td>Carrier registration number</td><td>Pre-populated: CBDU368286 (immutable)</td></tr>
           </tbody>
         </table>
-        <ol start={3}>
+        <ol start={2}>
           <li>The engineer confirms the transfer. The system:
             <ul>
               <li>Generates an internal HWCN with a unique reference number in the format <strong>21Degr-XXXXXX</strong></li>
-              <li>Sets the HWCN status to <em>draft</em></li>
+              <li>Sets the HWCN status to <em>In Transit</em></li>
               <li>Records the cylinder's intended destination as HQ-Stores</li>
               <li>Creates a movement log entry referencing the HWCN number</li>
             </ul>
