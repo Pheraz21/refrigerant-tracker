@@ -675,8 +675,21 @@ export const db = {
       engineer: engineerName,
       ...(equipmentDetails && equipmentDetails.length > 0 ? { equipment_details: equipmentDetails } : {}),
     });
-    
+
     if (logErr) console.error("Error inserting usage log:", logErr);
+
+    const locationLabel = siteRef || producerSite?.name || bottle.location_id || bottle.locationId || '—';
+    const { error: movErr } = await supabase.from('movement_logs').insert({
+      serial,
+      action: 'usage',
+      from_location: locationLabel,
+      to_location: locationLabel,
+      engineer: engineerName,
+      vehicle_reg: bottleUpdatePayload.vehicle_reg || bottle.vehicle_reg || null,
+      notes: `${weightChange} kg used (${jobType}). Before: ${parseFloat(bottle.current_weight || 0).toFixed(2)} kg → After: ${newWeight.toFixed(2)} kg.`,
+    });
+
+    if (movErr) console.error("Error inserting usage movement log:", movErr);
   },
 
   async completeTransit(serial: string, supplierPhotoUrl?: string, engineerName?: string, altDestination?: string): Promise<void> {
