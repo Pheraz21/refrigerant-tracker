@@ -497,10 +497,14 @@ export const db = {
       throw bottleError;
     }
 
+    const regFromLocation = data.locationType === "site"
+      ? `${data.supplier ? data.supplier + " \u2014 " : ""}Direct Delivery to Site`
+      : "\u2014";
+
     const { error: logError } = await supabase.from('movement_logs').insert({
       serial: data.serial,
       action: "registered",
-      from_location: "\u2014",
+      from_location: regFromLocation,
       to_location: data.locationId,
       engineer: data.lastEngineer || "system",
       notes: "Initial registration"
