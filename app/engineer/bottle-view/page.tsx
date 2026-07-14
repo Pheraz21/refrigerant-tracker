@@ -11,12 +11,10 @@ import Link from "next/link";
 import { ArrowLeft, PackageSearch, Wrench, Truck, AlertTriangle } from "lucide-react";
 import { db, type Bottle } from "@/lib/db";
 import { getCachedBottle, cacheBottle } from "@/lib/offline/bottleCache";
-import { useOffline } from "@/lib/offline/OfflineContext";
 
 export default function OfflineBottleView() {
   const searchParams = useSearchParams();
   const serial = searchParams.get("serial") || "";
-  const { isOnline } = useOffline();
   const [bottle, setBottle] = useState<Bottle | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -103,26 +101,17 @@ export default function OfflineBottleView() {
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            <Link href={`/engineer/log?serial=${encodeURIComponent(bottle.serial)}`} style={{ textDecoration: "none" }}>
+            {/* Hard navigations (<a>) so these open reliably offline from cached docs. */}
+            <a href={`/engineer/log?serial=${encodeURIComponent(bottle.serial)}`} style={{ textDecoration: "none" }}>
               <button className="glass-panel" style={{ width: "100%", padding: "1rem", borderRadius: "10px", border: "1px solid var(--primary)", background: "rgba(0,229,255,0.06)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem", fontSize: "1rem", fontWeight: 600, cursor: "pointer" }}>
                 <Wrench size={18} /> {isReclaim ? "Log Recovery" : "Log Gas Usage"}
               </button>
-            </Link>
-            {isOnline ? (
-              <Link href={`/engineer/move?serial=${encodeURIComponent(bottle.serial)}`} style={{ textDecoration: "none" }}>
-                <button className="glass-panel" style={{ width: "100%", padding: "1rem", borderRadius: "10px", border: "1px solid var(--border)", background: "rgba(255,255,255,0.03)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem", fontSize: "1rem", fontWeight: 600, cursor: "pointer" }}>
-                  <Truck size={18} /> Move Bottle
-                </button>
-              </Link>
-            ) : (
-              <button
-                disabled
-                title="Moving a bottle needs a signal for now"
-                style={{ width: "100%", padding: "1rem", borderRadius: "10px", border: "1px solid var(--border)", background: "rgba(255,255,255,0.02)", color: "var(--text-muted)", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem", fontSize: "1rem", fontWeight: 600, cursor: "not-allowed", opacity: 0.6 }}
-              >
-                <Truck size={18} /> Move Bottle (needs signal)
+            </a>
+            <a href={`/engineer/move?serial=${encodeURIComponent(bottle.serial)}`} style={{ textDecoration: "none" }}>
+              <button className="glass-panel" style={{ width: "100%", padding: "1rem", borderRadius: "10px", border: "1px solid var(--border)", background: "rgba(255,255,255,0.03)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem", fontSize: "1rem", fontWeight: 600, cursor: "pointer" }}>
+                <Truck size={18} /> Move Bottle
               </button>
-            )}
+            </a>
           </div>
 
           <p style={{ display: "flex", gap: "0.4rem", alignItems: "flex-start", marginTop: "1.25rem", fontSize: "0.8rem", color: "var(--text-muted)" }}>

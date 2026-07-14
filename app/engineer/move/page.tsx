@@ -8,6 +8,9 @@ import { db } from "@/lib/db";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthContext";
 import { compressImage } from "@/lib/utils";
+import { submitMove } from "@/lib/offline/actions";
+import { getCachedBottle, cacheBottle } from "@/lib/offline/bottleCache";
+import { useOffline } from "@/lib/offline/OfflineContext";
 
 export default function MoveBottlePage() {
   const router = useRouter();
@@ -19,6 +22,7 @@ export default function MoveBottlePage() {
   const [locationId, setLocationId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [offlineBlock, setOfflineBlock] = useState<string | null>(null);
   const [generatedHWCN, setGeneratedHWCN] = useState<string | null>(null);
   const [customDestination, setCustomDestination] = useState({ name: "", address: "", postcode: "" });
   const [engineers, setEngineers] = useState<any[]>([]);
@@ -41,20 +45,37 @@ export default function MoveBottlePage() {
   const [hwcnSites, setHwcnSites] = useState<any[]>([]);
 
   const { user } = useAuth();
+  const { isOnline } = useOffline();
 
   useEffect(() => {
-    db.getCompanySettings().then(s => { if (s?.carrierReg) setCarrierRegNo(s.carrierReg); });
+    const online = typeof navigator === "undefined" ? true : navigator.onLine;
 
-    db.getBottle(serialParam).then(b => {
+    // Carrier reg is only needed for HWCN generation (online-only).
+    if (online) {
+      db.getCompanySettings().then(s => { if (s?.carrierReg) setCarrierRegNo(s.carrierReg); }).catch(() => {});
+    }
+
+    async function loadBottle() {
+      let b: any = null;
+      if (online) {
+        try {
+          b = await db.getBottle(serialParam);
+          if (b) cacheBottle(b);
+        } catch {
+          b = await getCachedBottle(serialParam);
+        }
+      } else {
+        b = await getCachedBottle(serialParam);
+      }
       setBottle(b);
       if (b?.producerSites && b.producerSites.length > 0) {
         setHwcnSites(b.producerSites);
       } else {
         setHwcnSites([{ name: "", address: "", postcode: "" }]);
       }
-      
+
       const action = searchParams.get("action");
-      
+
       if (isDiscrepancy) {
         setReclaimFlowStep("standard");
         setReclaimFlowPath("normal");
@@ -74,23 +95,21 @@ export default function MoveBottlePage() {
       if (b?.locationType === 'site' || b?.locationType === 'office') {
         setDestination("van");
       }
-    });
+    }
+    loadBottle();
 
     if (user?.id) {
       if (user?.vehicleReg) setVehicleReg(user.vehicleReg);
       if (user?.name) setCarrierName(user.name);
-      db.getEngineerProfiles().then(profiles => {
-        // Filter out current user
-        setEngineers(profiles.filter(p => p.id !== user.id));
-        
-        const myProfile = profiles.find(p => p.id === user.id);
-        if (myProfile?.vehicleReg) {
-          setVehicleReg(myProfile.vehicleReg);
-        }
-        if (myProfile?.name) {
-          setCarrierName(myProfile.name);
-        }
-      });
+      // Engineer list (for handover) is online-only — handovers require a signal.
+      if (online) {
+        db.getEngineerProfiles().then(profiles => {
+          setEngineers(profiles.filter(p => p.id !== user.id));
+          const myProfile = profiles.find(p => p.id === user.id);
+          if (myProfile?.vehicleReg) setVehicleReg(myProfile.vehicleReg);
+          if (myProfile?.name) setCarrierName(myProfile.name);
+        }).catch(() => {});
+      }
     }
   }, [serialParam, user]);
 
@@ -104,6 +123,18 @@ export default function MoveBottlePage() {
     const requiresInternalHWCN = isReclaimWithGas && destination !== "supplier";
     const requiresSupplierHWCN = isReclaimWithGas && (destination === "supplier");
     const needsTransit = requiresInternalHWCN || requiresSupplierHWCN;
+
+    // Offline gate: only plain location moves (to Van, Job Site, or Other) can be
+    // queued offline. Supplier/HQ-Stores returns, handovers, and hazardous-waste
+    // consignments create server records and must be done with a signal.
+    const online = typeof navigator === "undefined" ? true : navigator.onLine;
+    const offlineAllowed = !needsTransit && (destination === "site" || destination === "van" || destination === "other");
+    if (!online && !offlineAllowed) {
+      setIsSubmitting(false);
+      setOfflineBlock("This move needs a signal — returns to a supplier or HQ-Stores, handovers, and hazardous-waste consignments must be done online. Offline you can move to your Van, a Job Site, or another location.");
+      return;
+    }
+    setOfflineBlock(null);
 
     if (!needsTransit) {
       const finalDest = destination === "engineer" ? "van" : destination;
@@ -124,9 +155,11 @@ export default function MoveBottlePage() {
         finalLocationId = locationId || (destination === "supplier" ? "Supplier" : `${user?.name} - Van`);
       }
 
-      await db.updateBottleLocation(serialParam, finalDest as any, finalLocationId, undefined, undefined, undefined, effectiveEngineerName);
-      
-      // If returning directly to supplier or office, also update status
+      // Offline-aware: queues + syncs when offline, else writes immediately.
+      await submitMove(serialParam, finalDest as any, finalLocationId, effectiveEngineerName);
+
+      // If returning directly to supplier or office, also update status (online-only
+      // destinations, so this never runs offline).
       if (destination === "supplier" || destination === "office") {
         const updates: any = { status: destination === "supplier" ? "returned" : "active" };
         if (destination === "supplier") {
@@ -165,7 +198,7 @@ export default function MoveBottlePage() {
       await db.updateBottleLocation(serialParam, "van", `${user?.name} - Van`, intendedDest || fullDestinationString, intendedLocType as any, hwcnId, user?.name);
     }
 
-    if (isDiscrepancy) {
+    if (isDiscrepancy && online) {
       await db.createNotification({
         type: "location_discrepancy",
         title: "Location Discrepancy Reported",
@@ -1095,9 +1128,22 @@ export default function MoveBottlePage() {
             </div>
           )}
 
-          <button 
-            type="submit" 
-            className={styles.submitBtn} 
+          {!isOnline && (
+            <p style={{fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', gap: '0.4rem', alignItems: 'flex-start', marginTop: '1rem'}}>
+              <AlertTriangle size={14} style={{flexShrink: 0, marginTop: '0.15rem', color: 'var(--warning)'}} />
+              Offline: you can move to your Van, a Job Site, or another location. Supplier/HQ-Stores returns and handovers need a signal.
+            </p>
+          )}
+
+          {offlineBlock && (
+            <div style={{marginTop: '1rem', background: 'rgba(255,170,0,0.12)', border: '1px solid var(--warning)', padding: '0.75rem', borderRadius: '8px', color: 'var(--warning)', display: 'flex', gap: '0.5rem', alignItems: 'flex-start', fontSize: '0.85rem'}}>
+              <AlertTriangle size={18} style={{flexShrink: 0}} /> {offlineBlock}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className={styles.submitBtn}
             disabled={isSubmitting || (destination === "site" && !locationId) || (destination === "engineer" && !selectedEngineer)}
             style={{marginTop: "1rem"}}
           >
