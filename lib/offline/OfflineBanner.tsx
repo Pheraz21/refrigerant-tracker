@@ -9,7 +9,7 @@ import { useOffline } from "./OfflineContext";
 const DIAG_PAGES = ["/engineer/bottle-view", "/engineer/log", "/engineer/move"];
 
 // Bump on every deploy — proves which build of the PAGE code the device is running.
-const APP_BUILD = "app-17";
+const APP_BUILD = "app-18";
 
 export function OfflineBanner() {
   const { isOnline, pendingCount } = useOffline();
@@ -49,13 +49,19 @@ export function OfflineBanner() {
       // Probe: fetch the offline page THROUGH the service worker while offline.
       // 200 = the SW handler serves it fine (problem is navigation-specific);
       // ERR = the handler itself fails (its error message tells us why).
-      let probe = "";
-      try {
-        const r = await fetch("/engineer/bottle-view", { cache: "no-store" });
-        probe = `probe:${r.status}${r.redirected ? "R" : ""}`;
-      } catch (e) {
-        probe = `probe:ERR(${String(e).slice(0, 60)})`;
-      }
+      // Content probe: compare what the SW serves for a page that RENDERS offline
+      // (/engineer) vs the one that fails (bottle-view) — length + leading bytes.
+      const inspect = async (path: string) => {
+        try {
+          const r = await fetch(path, { cache: "no-store" });
+          const t = await r.text();
+          const head = t.slice(0, 24).replace(/\s+/g, " ");
+          return `${path.split("/").pop() || "engineer"}[${r.status} len=${t.length} "${head}"]`;
+        } catch (e) {
+          return `${path.split("/").pop() || "engineer"}[ERR ${String(e).slice(0, 40)}]`;
+        }
+      };
+      const probe = `probe: ${await inspect("/engineer")} ${await inspect("/engineer/bottle-view")}`;
       // Read the SW's rolling navigation log — shows what (if anything) the SW saw
       // for recent taps.
       let navlog = "navlog:none";

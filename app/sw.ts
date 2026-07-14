@@ -31,7 +31,7 @@ const OFFLINE_PAGES_CACHE = "engineer-offline-pages";
 
 // Bump on every SW change — shown on the diagnostic screen and reported to the app,
 // so we can always tell WHICH build of the service worker is actually in control.
-const SW_VERSION = "sw-2026-07-14-13";
+const SW_VERSION = "sw-2026-07-14-14";
 
 // TEMP: rolling log of navigations seen by the SW, readable by the app (banner
 // diagnostics). Lets us see on-device whether a failing tap ever reached the SW.
@@ -66,12 +66,15 @@ async function swLog(entry: Record<string, unknown>): Promise<void> {
 // Rebuilding strips that flag (and any other internal taint) so the cached copy is
 // always usable for navigations.
 async function sanitizeResponse(res: Response): Promise<Response> {
-  const body = await res.blob();
+  // Read as TEXT and rebuild as a string-bodied 200 — the most vanilla response a
+  // SW can produce (identical construction to synthetic pages that provably render).
+  const body = await res.text();
   return new Response(body, {
     status: 200,
     statusText: "OK",
     headers: {
       "Content-Type": res.headers.get("Content-Type") || "text/html; charset=utf-8",
+      "X-Served-By": "fgas-sw",
     },
   });
 }
@@ -152,10 +155,19 @@ self.addEventListener("fetch", (event) => {
           info.cachedStatus = String(cached.status);
           info.cachedRedirected = String(cached.redirected);
           info.cachedType = cached.type;
-          if (isNav) event.waitUntil(swLog({ served: url.pathname, via: own ? "own" : "any" }));
           // Sanitize on the way out — fallback matches from Workbox caches may carry
           // the redirected flag, which navigations reject.
-          return await sanitizeResponse(cached);
+          const clean = await sanitizeResponse(cached);
+          const size = (await clean.clone().text()).length;
+          info.cachedBytes = String(size);
+          if (size > 0) {
+            if (isNav) event.waitUntil(swLog({ served: url.pathname, via: own ? "own" : "any", bytes: size }));
+            return clean;
+          }
+          // Empty body would render as a broken page — treat as a failure instead.
+          info.result = "cached but EMPTY body";
+          if (isNav) event.waitUntil(swLog({ failed: url.pathname, why: "empty-body" }));
+          return isNav ? diagPage(info) : Response.error();
         }
         info.result = "no cache match anywhere";
         if (isNav) event.waitUntil(swLog({ failed: url.pathname, why: "no-match" }));
