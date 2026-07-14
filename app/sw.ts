@@ -56,12 +56,15 @@ self.addEventListener("fetch", (event) => {
         }
         return fresh;
       } catch {
-        // Serve ONLY from our own cache (refreshed every deploy) so we never hand back
-        // a stale copy left in a Workbox cache from an earlier build. ignoreVary is
-        // required because Next responses carry Vary: RSC headers that would otherwise
-        // block the match.
+        // Prefer our own cache (refreshed every deploy, so fresh JS refs). Fall back
+        // to any cache so we still serve something rather than fail outright. ignoreVary
+        // is required because Next responses carry Vary: RSC headers.
+        const opts = { ignoreVary: true, ignoreSearch: true } as CacheQueryOptions;
         const cache = await caches.open(OFFLINE_PAGES_CACHE);
-        const cached = await cache.match(url.pathname, { ignoreVary: true, ignoreSearch: true });
+        const cached =
+          (await cache.match(url.pathname, opts)) ||
+          (await caches.match(url.pathname, opts)) ||
+          (await caches.match(req, opts));
         if (cached) return cached;
         return Response.error();
       }

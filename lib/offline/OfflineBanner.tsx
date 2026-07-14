@@ -12,15 +12,21 @@ export function OfflineBanner() {
   const { isOnline, pendingCount } = useOffline();
   const [diag, setDiag] = useState<string>("checking…");
 
-  // TEMP diagnostic: report which offline pages are actually in the cache.
+  // TEMP diagnostic: report which offline pages are in OUR cache (o) vs any cache (a).
   useEffect(() => {
     if (isOnline || typeof caches === "undefined") return;
-    Promise.all(
-      DIAG_PAGES.map(async (p) => {
-        const hit = await caches.match(p);
-        return `${p.split("/").pop()}:${hit ? "✓" : "✗"}`;
-      }),
-    ).then((parts) => setDiag(parts.join(" ")));
+    const opts = { ignoreVary: true, ignoreSearch: true } as CacheQueryOptions;
+    (async () => {
+      const own = await caches.open("engineer-offline-pages");
+      const parts = await Promise.all(
+        DIAG_PAGES.map(async (p) => {
+          const inOwn = await own.match(p, opts);
+          const inAny = await caches.match(p, opts);
+          return `${p.split("/").pop()}:o${inOwn ? "✓" : "✗"}a${inAny ? "✓" : "✗"}`;
+        }),
+      );
+      setDiag(parts.join(" "));
+    })();
   }, [isOnline]);
 
   if (!isOnline) {
