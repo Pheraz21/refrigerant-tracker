@@ -522,10 +522,13 @@ export const db = {
     }
   },
 
-  async updateBottleLocation(serial: string, locationType: LocationType, locationId: string, intendedDestination?: string, intendedLocationType?: LocationType, activeHWCN?: string, engineerName?: string): Promise<void> {
+  async updateBottleLocation(serial: string, locationType: LocationType, locationId: string, intendedDestination?: string, intendedLocationType?: LocationType, activeHWCN?: string, engineerName?: string, occurredAt?: string): Promise<void> {
     console.log(`Updating bottle ${serial} location to ${locationId} (${locationType})`);
+    // occurredAt lets a replayed offline move record when the engineer actually
+    // performed it, not when it synced. Defaults to now for live (online) moves.
+    const when = occurredAt || new Date().toISOString();
     const { data: bottle, error: fetchError } = await supabase.from('bottles').select('*').eq('serial', serial).single();
-    
+
     if (fetchError) {
       console.error(`Error fetching bottle ${serial} for move:`, fetchError);
       throw fetchError;
@@ -536,7 +539,7 @@ export const db = {
       const updates: any = {
         location_type: locationType,
         location_id: locationId,
-        location_changed_at: new Date().toISOString()
+        location_changed_at: when
       };
       if (intendedDestination !== undefined) updates.intended_destination = intendedDestination;
       if (intendedLocationType !== undefined) updates.intended_location_type = intendedLocationType;
@@ -563,6 +566,7 @@ export const db = {
 
       const { error: logError } = await supabase.from('movement_logs').insert({
         serial,
+        date: when,
         action: action as any,
         from_location: from || "Unknown",
         to_location: activeHWCN ? (intendedDestination || locationId) : locationId,
@@ -584,7 +588,10 @@ export const db = {
     }).eq('serial', serial);
   },
 
-  async logUsage(serial: string, jobType: string, weightChange: number, isWaste: boolean = false, producerSite?: { name: string, address: string, postcode: string }, gasType?: string, engineerName: string = "Unknown", siteRef?: string, equipmentDetails?: Array<{ manufacturer: string; model: string; serial: string; weight: number }>): Promise<void> {
+  async logUsage(serial: string, jobType: string, weightChange: number, isWaste: boolean = false, producerSite?: { name: string, address: string, postcode: string }, gasType?: string, engineerName: string = "Unknown", siteRef?: string, equipmentDetails?: Array<{ manufacturer: string; model: string; serial: string; weight: number }>, occurredAt?: string): Promise<void> {
+    // occurredAt lets a replayed offline usage/recovery record when the engineer
+    // actually performed it, not when it synced. Defaults to now for live logs.
+    const when = occurredAt || new Date().toISOString();
     const { data: bottle } = await supabase.from('bottles').select('*').eq('serial', serial).single();
     if (!bottle) return;
 
@@ -669,6 +676,7 @@ export const db = {
     
     const { error: logErr } = await supabase.from('usage_logs').insert({
       serial,
+      date: when,
       job_type: jobType,
       site_name: producerSite?.name || null,
       site_address: producerSite?.address || null,

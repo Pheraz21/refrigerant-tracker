@@ -8,6 +8,8 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { AlertTriangle } from "lucide-react";
+import { submitUsage } from "@/lib/offline/actions";
+import { cacheBottle, getCachedBottle } from "@/lib/offline/bottleCache";
 
 type JobType = "service" | "install" | "retrofit" | "recovery" | "waste";
 
@@ -55,50 +57,63 @@ export default function LogBottlePage() {
   };
 
   useEffect(() => {
-    db.getBottle(serialParam).then(b => {
-      if (b) {
-        setBottleCategory(b.category);
-        setBottleData(b);
-        if (b.category === "reclaim") {
-          setJobType("recovery");
-          setRefrigerantType("Mixed/Recovery");
-        } else {
-          setRefrigerantType(b.gasType || "R410A");
+    const online = typeof navigator === "undefined" ? true : navigator.onLine;
+    async function loadBottle() {
+      let b = null;
+      if (online) {
+        try {
+          b = await db.getBottle(serialParam);
+          if (b) cacheBottle(b); // keep the offline snapshot fresh
+        } catch {
+          b = await getCachedBottle(serialParam);
         }
-        // Track existing producer sites for multi-site detection
-        if (b.producerSites && b.producerSites.length > 0) {
-          setExistingProducerSites(b.producerSites);
-        }
-        // Check if an Internal HWCN already exists for this bottle
-        if (b.activeHWCN) {
-          setHasExistingHWCN(true);
-        } else {
-          // Also check DB for any HWCNs linked to this bottle
-          db.getHWCNsForBottle(serialParam).then(hwcns => {
+      } else {
+        b = await getCachedBottle(serialParam);
+      }
+      if (!b) return;
+
+      setBottleCategory(b.category);
+      setBottleData(b);
+      if (b.category === "reclaim") {
+        setJobType("recovery");
+        setRefrigerantType("Mixed/Recovery");
+      } else {
+        setRefrigerantType(b.gasType || "R410A");
+      }
+      // Track existing producer sites for multi-site detection
+      if (b.producerSites && b.producerSites.length > 0) {
+        setExistingProducerSites(b.producerSites);
+      }
+      // Check if an Internal HWCN already exists for this bottle
+      if (b.activeHWCN) {
+        setHasExistingHWCN(true);
+      } else if (online) {
+        // Network-only check; skip offline so it doesn't throw.
+        db.getHWCNsForBottle(serialParam)
+          .then(hwcns => {
             if (hwcns && hwcns.length > 0) setHasExistingHWCN(true);
-          });
-        }
-        // Auto-fill Job Number if bottle is on a site
-        if (b.locationType === "site" && b.locationId) {
-          setJobNumber(b.locationId);
-          // Only auto-fill producer site details if the bottle is still at the SAME site
-          // as a previous recovery. If it's at a NEW site, leave blank for the engineer.
-          if (b.producerSites && b.producerSites.length > 0) {
-            const matchingSite = b.producerSites.find(
-              (s: any) => s.name === b.locationId
-            );
-            if (matchingSite) {
-              setProducerSite({
-                name: matchingSite.name || "",
-                address: matchingSite.address || "",
-                postcode: matchingSite.postcode || ""
-              });
-            }
-            // If no match, leave producerSite blank — this is a new site
+          })
+          .catch(() => {});
+      }
+      // Auto-fill Job Number if bottle is on a site
+      if (b.locationType === "site" && b.locationId) {
+        setJobNumber(b.locationId);
+        // Only auto-fill producer site details if the bottle is still at the SAME site
+        // as a previous recovery. If it's at a NEW site, leave blank for the engineer.
+        if (b.producerSites && b.producerSites.length > 0) {
+          const matchingSite = b.producerSites.find((s: any) => s.name === b.locationId);
+          if (matchingSite) {
+            setProducerSite({
+              name: matchingSite.name || "",
+              address: matchingSite.address || "",
+              postcode: matchingSite.postcode || ""
+            });
           }
+          // If no match, leave producerSite blank — this is a new site
         }
       }
-    });
+    }
+    loadBottle();
   }, [serialParam]);
 
   useEffect(() => {
@@ -106,6 +121,7 @@ export default function LogBottlePage() {
       setCrmMatch(null);
       return;
     }
+    if (typeof navigator !== "undefined" && !navigator.onLine) return; // CRM lookup is online-only
     db.getCrmJobByNumber(jobNumber).then(crmJob => {
       if (crmJob) {
         setCrmMatch(crmJob.siteTitle || "");
@@ -184,7 +200,29 @@ export default function LogBottlePage() {
       return "service";
     })();
 
-    await db.logUsage(serialParam, derivedJobType, totalWeight, derivedJobType === "waste", derivedJobType === "recovery" ? producerSite : undefined, finalRefrigerant, user?.name || "Unknown", jobNumber || undefined, equipmentToSave.length > 0 ? equipmentToSave : undefined);
+    // Offline gate: usage and single-site recovery can be queued offline, but
+    // anything that creates a consignment note, supplier return, or decommission
+    // record must run online.
+    const online = typeof navigator === "undefined" ? true : navigator.onLine;
+    const willMultiSite = isRecovery && multiSiteAcknowledged;
+    const willDecom = isRecovery && equipmentList.some(eq => eq.decommissioned && eq.manufacturer);
+    if (!online && (derivedJobType === "waste" || willMultiSite || willDecom)) {
+      setIsSubmitting(false);
+      setValidationError("This needs a signal — it creates a consignment note, supplier return, or decommission record. Please submit when you're back online.");
+      return;
+    }
+
+    await submitUsage({
+      serial: serialParam,
+      jobType: derivedJobType,
+      weightChange: totalWeight,
+      isWaste: derivedJobType === "waste",
+      producerSite: derivedJobType === "recovery" ? producerSite : undefined,
+      gasType: finalRefrigerant,
+      engineerName: user?.name || "Unknown",
+      siteRef: jobNumber || undefined,
+      equipmentDetails: equipmentToSave.length > 0 ? equipmentToSave : undefined,
+    });
 
     // §4.2: If multi-site was acknowledged, auto-generate Internal HWCN and set dest to Office
     if (isRecovery && multiSiteAcknowledged && bottleData) {
