@@ -48,6 +48,7 @@ export default function BottleActionHub() {
   const [isSubmittingNitrogen, setIsSubmittingNitrogen] = useState(false);
   const [showMismatchConfirm, setShowMismatchConfirm] = useState(false);
   const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
+  const [returnConfirmed, setReturnConfirmed] = useState(false);
 
   const handleNitrogenUsage = async (isEmpty: boolean) => {
     if (!bottle) return;
@@ -166,6 +167,21 @@ export default function BottleActionHub() {
   }
 
   if (!bottle) return null;
+
+  if (returnConfirmed) {
+    return (
+      <div style={{position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '2rem', background: 'rgba(6, 10, 14, 0.97)', backdropFilter: 'blur(6px)'}}>
+        <div style={{width: '88px', height: '88px', borderRadius: '50%', background: 'rgba(34, 197, 94, 0.12)', border: '2px solid var(--success)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.75rem'}}>
+          <CheckCircle2 size={52} color="var(--success)" />
+        </div>
+        <h2 style={{color: 'var(--success)', margin: '0 0 0.75rem', fontSize: '1.4rem'}}>Return Completed</h2>
+        <p style={{color: 'var(--text-main)', fontSize: '1rem', maxWidth: '360px', lineHeight: 1.5, margin: 0}}>
+          HWCN photo has been saved and the bottle return to supplier has been confirmed and completed.
+        </p>
+        <p style={{color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '1.75rem'}}>Returning to home…</p>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.container}>
@@ -380,7 +396,8 @@ export default function BottleActionHub() {
                 setLoading(false);
                 return;
               }
-              router.push('/engineer');
+              setReturnConfirmed(true);
+              setTimeout(() => router.push('/engineer'), 3500);
             }}
             style={{width: '100%', background: 'var(--error)', color: '#fff'}}
           >
@@ -482,7 +499,8 @@ export default function BottleActionHub() {
                         setLoading(false);
                         return;
                       }
-                      router.push('/engineer');
+                      setReturnConfirmed(true);
+                      setTimeout(() => router.push('/engineer'), 3500);
                     }}
                   >
                     {loading ? <Loader2 size={18} className={styles.spinner} /> : "Upload & Complete Return"}
