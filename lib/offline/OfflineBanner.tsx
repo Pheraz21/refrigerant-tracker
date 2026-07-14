@@ -9,7 +9,7 @@ import { useOffline } from "./OfflineContext";
 const DIAG_PAGES = ["/engineer/bottle-view", "/engineer/log", "/engineer/move"];
 
 // Bump on every deploy — proves which build of the PAGE code the device is running.
-const APP_BUILD = "app-15";
+const APP_BUILD = "app-16";
 
 export function OfflineBanner() {
   const { isOnline, pendingCount } = useOffline();
@@ -67,7 +67,7 @@ export function OfflineBanner() {
           navlog =
             "navlog: " +
             entries
-              .slice(-4)
+              .slice(-10)
               .map((e) => Object.entries(e).map(([k, v]) => (k === "t" ? v : `${k}=${v}`)).join(" "))
               .join(" ‖ ");
         }
@@ -103,6 +103,13 @@ export function OfflineBanner() {
         </span>
         <span style={{ fontSize: "0.7rem", fontWeight: 400, opacity: 0.8 }}>
           offline cache → {diag}
+        </span>
+        <span style={{ fontSize: "0.7rem", fontWeight: 400 }}>
+          {/* TEMP: taps straight into the offline bottle screen via a plain browser
+              navigation — isolates the failing step from the bottle list entirely. */}
+          <a href="/engineer/bottle-view?serial=TEST" style={{ color: "#000", textDecoration: "underline" }}>
+            diagnostic: test offline page navigation
+          </a>
         </span>
       </div>
     );
