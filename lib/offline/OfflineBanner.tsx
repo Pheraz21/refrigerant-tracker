@@ -1,25 +1,12 @@
 "use client";
 
 // Amber bar shown across the engineer app whenever the device is offline, so an
-// engineer in a plantroom knows they are viewing a saved snapshot (and, from
-// Phase 2, that their actions are being queued).
+// engineer in a plantroom knows work is being saved locally and will sync later.
 import { CloudOff } from "lucide-react";
 import { useOffline } from "./OfflineContext";
 
-function timeAgo(iso: string | null): string {
-  if (!iso) return "not yet synced";
-  const then = new Date(iso).getTime();
-  const mins = Math.round((Date.now() - then) / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins} min ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs} hr${hrs > 1 ? "s" : ""} ago`;
-  const days = Math.round(hrs / 24);
-  return `${days} day${days > 1 ? "s" : ""} ago`;
-}
-
 export function OfflineBanner() {
-  const { isOnline, lastUpdated } = useOffline();
+  const { isOnline } = useOffline();
   if (isOnline) return null;
   return (
     <div
@@ -37,8 +24,12 @@ export function OfflineBanner() {
         position: "relative",
       }}
     >
-      <CloudOff size={18} />
-      <span>Offline — showing saved data from {timeAgo(lastUpdated)}. Changes will sync when you&apos;re back in signal.</span>
+      <CloudOff size={18} style={{ flexShrink: 0 }} />
+      <span>
+        Offline — You can use the app in offline mode for bottle usage and moves on
+        site. The updates are saved locally on your device. Once you return to signal
+        and open the app, the usage and moves will sync with the server.
+      </span>
     </div>
   );
 }
