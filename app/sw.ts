@@ -31,7 +31,33 @@ const OFFLINE_PAGES_CACHE = "engineer-offline-pages";
 
 // Bump on every SW change — shown on the diagnostic screen and reported to the app,
 // so we can always tell WHICH build of the service worker is actually in control.
-const SW_VERSION = "sw-2026-07-14-12";
+const SW_VERSION = "sw-2026-07-14-13";
+
+// TEMP: rolling log of navigations seen by the SW, readable by the app (banner
+// diagnostics). Lets us see on-device whether a failing tap ever reached the SW.
+const DIAG_LOG_CACHE = "sw-diag-log";
+async function swLog(entry: Record<string, unknown>): Promise<void> {
+  try {
+    const cache = await caches.open(DIAG_LOG_CACHE);
+    const prev = await cache.match("/__navlog");
+    let list: unknown[] = [];
+    if (prev) {
+      try {
+        list = await prev.json();
+      } catch {
+        /* corrupt log — start over */
+      }
+    }
+    list.push({ t: new Date().toISOString().slice(11, 19), ...entry });
+    if (list.length > 15) list = list.slice(-15);
+    await cache.put(
+      "/__navlog",
+      new Response(JSON.stringify(list), { headers: { "Content-Type": "application/json" } }),
+    );
+  } catch {
+    /* non-fatal */
+  }
+}
 
 // Rebuild a response as a plain 200 with a fresh body. CRITICAL: a response whose
 // `redirected` flag is set (e.g. one stored by install-time fetch warming) is
@@ -81,10 +107,14 @@ self.addEventListener("fetch", (event) => {
     return;
   }
   if (url.origin !== self.location.origin) return;
-  if (!OFFLINE_PAGES.includes(url.pathname)) return;
-  if (url.searchParams.has("_rsc")) return; // let RSC data requests go to Serwist
 
   const isNav = req.mode === "navigate";
+  // TEMP: record EVERY same-origin navigation the SW sees, even ones we don't
+  // handle — so a failing tap shows up here (or conspicuously doesn't).
+  if (isNav) event.waitUntil(swLog({ nav: url.pathname + url.search }));
+
+  if (!OFFLINE_PAGES.includes(url.pathname)) return;
+  if (url.searchParams.has("_rsc")) return; // let RSC data requests go to Serwist
 
   event.respondWith(
     (async () => {
@@ -122,14 +152,17 @@ self.addEventListener("fetch", (event) => {
           info.cachedStatus = String(cached.status);
           info.cachedRedirected = String(cached.redirected);
           info.cachedType = cached.type;
+          if (isNav) event.waitUntil(swLog({ served: url.pathname, via: own ? "own" : "any" }));
           // Sanitize on the way out — fallback matches from Workbox caches may carry
           // the redirected flag, which navigations reject.
           return await sanitizeResponse(cached);
         }
         info.result = "no cache match anywhere";
+        if (isNav) event.waitUntil(swLog({ failed: url.pathname, why: "no-match" }));
         return isNav ? diagPage(info) : Response.error();
       } catch (e) {
         info.handlerError = String(e && (e as Error).stack ? (e as Error).stack : e);
+        if (isNav) event.waitUntil(swLog({ failed: url.pathname, why: String(e).slice(0, 80) }));
         return isNav ? diagPage(info) : Response.error();
       }
     })(),
@@ -154,6 +187,23 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+// Navigation preload state is PER-REGISTRATION and sticky: an early build enabled it,
+// and merely configuring `navigationPreload: false` later does not switch it off.
+// A stuck-on preload can make offline navigations fail before our handler responds.
+// Disable it explicitly.
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        await self.registration.navigationPreload?.disable();
+        await swLog({ navPreload: "disabled" });
+      } catch (e) {
+        await swLog({ navPreload: `disable failed: ${String(e).slice(0, 60)}` });
+      }
+    })(),
+  );
+});
 
 // Warm the offline action pages into the cache during install (online, as the SW
 // updates) so they open offline regardless of client-side warming. Keyed by pathname

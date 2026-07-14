@@ -9,7 +9,7 @@ import { useOffline } from "./OfflineContext";
 const DIAG_PAGES = ["/engineer/bottle-view", "/engineer/log", "/engineer/move"];
 
 // Bump on every deploy — proves which build of the PAGE code the device is running.
-const APP_BUILD = "app-14";
+const APP_BUILD = "app-15";
 
 export function OfflineBanner() {
   const { isOnline, pendingCount } = useOffline();
@@ -56,7 +56,25 @@ export function OfflineBanner() {
       } catch (e) {
         probe = `probe:ERR(${String(e).slice(0, 60)})`;
       }
-      setDiag(`${APP_BUILD} ${swv} | ${parts.join(" ")} | ${probe}`);
+      // Read the SW's rolling navigation log — shows what (if anything) the SW saw
+      // for recent taps.
+      let navlog = "navlog:none";
+      try {
+        const logCache = await caches.open("sw-diag-log");
+        const logRes = await logCache.match("/__navlog");
+        if (logRes) {
+          const entries = (await logRes.json()) as Record<string, string>[];
+          navlog =
+            "navlog: " +
+            entries
+              .slice(-4)
+              .map((e) => Object.entries(e).map(([k, v]) => (k === "t" ? v : `${k}=${v}`)).join(" "))
+              .join(" ‖ ");
+        }
+      } catch {
+        navlog = "navlog:err";
+      }
+      setDiag(`${APP_BUILD} ${swv} | ${parts.join(" ")} | ${probe} | ${navlog}`);
     })();
   }, [isOnline]);
 
