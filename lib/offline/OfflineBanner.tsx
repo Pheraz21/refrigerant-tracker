@@ -12,11 +12,29 @@ export function OfflineBanner() {
   const { isOnline, pendingCount } = useOffline();
   const [diag, setDiag] = useState<string>("checking…");
 
-  // TEMP diagnostic: report which offline pages are in OUR cache (o) vs any cache (a).
+  // TEMP diagnostic: report which offline pages are in OUR cache (o) vs any cache (a),
+  // plus which service worker build is in control.
   useEffect(() => {
     if (isOnline || typeof caches === "undefined") return;
     const opts = { ignoreVary: true, ignoreSearch: true } as CacheQueryOptions;
     (async () => {
+      let swv = "sw:none";
+      try {
+        const ctrl = navigator.serviceWorker?.controller;
+        if (ctrl) {
+          swv = await new Promise<string>((resolve) => {
+            const ch = new MessageChannel();
+            const t = setTimeout(() => resolve("sw:old(no-reply)"), 1500);
+            ch.port1.onmessage = (e) => {
+              clearTimeout(t);
+              resolve(String(e.data));
+            };
+            ctrl.postMessage("GET_SW_VERSION", [ch.port2]);
+          });
+        }
+      } catch {
+        swv = "sw:err";
+      }
       const own = await caches.open("engineer-offline-pages");
       const parts = await Promise.all(
         DIAG_PAGES.map(async (p) => {
@@ -25,7 +43,7 @@ export function OfflineBanner() {
           return `${p.split("/").pop()}:o${inOwn ? "✓" : "✗"}a${inAny ? "✓" : "✗"}`;
         }),
       );
-      setDiag(parts.join(" "));
+      setDiag(`${swv} | ${parts.join(" ")}`);
     })();
   }, [isOnline]);
 

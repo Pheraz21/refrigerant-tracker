@@ -29,6 +29,10 @@ export const OFFLINE_PAGES = [
 ];
 const OFFLINE_PAGES_CACHE = "engineer-offline-pages";
 
+// Bump on every SW change — shown on the diagnostic screen and reported to the app,
+// so we can always tell WHICH build of the service worker is actually in control.
+const SW_VERSION = "sw-2026-07-14-12";
+
 // Rebuild a response as a plain 200 with a fresh body. CRITICAL: a response whose
 // `redirected` flag is set (e.g. one stored by install-time fetch warming) is
 // REJECTED by the browser when returned for a page navigation — surfacing as the
@@ -44,6 +48,23 @@ async function sanitizeResponse(res: Response): Promise<Response> {
       "Content-Type": res.headers.get("Content-Type") || "text/html; charset=utf-8",
     },
   });
+}
+
+// TEMP diagnostic error screen: rendered instead of the browser's generic offline
+// error so a failure tells us exactly what the SW saw. Remove once offline nav is
+// confirmed stable.
+function diagPage(info: Record<string, string>): Response {
+  const rows = Object.entries(info)
+    .map(([k, v]) => `<tr><td style="padding:4px 8px;color:#888">${k}</td><td style="padding:4px 8px">${v}</td></tr>`)
+    .join("");
+  const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Offline diagnostic</title></head>
+<body style="background:#0a0e14;color:#fff;font-family:sans-serif;padding:1.5rem">
+<h2 style="color:#ffaa00">Offline diagnostic (temporary)</h2>
+<p style="font-size:0.9rem">The offline page could not be served. Please screenshot this and share it.</p>
+<table style="font-size:0.85rem;border-collapse:collapse;background:rgba(255,255,255,0.04);border-radius:8px">${rows}</table>
+<p style="margin-top:1.5rem"><a href="/engineer/history" style="color:#00e5ff">← Back to My Bottles</a></p>
+</body></html>`;
+  return new Response(html, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
 }
 
 // Hand-rolled handler registered BEFORE Serwist so it wins event.respondWith for
@@ -63,32 +84,63 @@ self.addEventListener("fetch", (event) => {
   if (!OFFLINE_PAGES.includes(url.pathname)) return;
   if (url.searchParams.has("_rsc")) return; // let RSC data requests go to Serwist
 
+  const isNav = req.mode === "navigate";
+
   event.respondWith(
     (async () => {
+      const info: Record<string, string> = {
+        swVersion: SW_VERSION,
+        path: url.pathname + url.search,
+        mode: req.mode,
+      };
       try {
-        const fresh = await fetch(req);
-        if (fresh && fresh.ok) {
-          const cache = await caches.open(OFFLINE_PAGES_CACHE);
-          cache.put(url.pathname, await sanitizeResponse(fresh.clone()));
+        let fresh: Response | null = null;
+        try {
+          fresh = await fetch(req);
+        } catch (e) {
+          info.networkError = String(e);
         }
-        return fresh;
-      } catch {
-        // Prefer our own cache (refreshed every deploy, so fresh JS refs). Fall back
-        // to any cache so we still serve something rather than fail outright. ignoreVary
-        // is required because Next responses carry Vary: RSC headers.
+        if (fresh) {
+          if (fresh.ok) {
+            const cache = await caches.open(OFFLINE_PAGES_CACHE);
+            cache.put(url.pathname, await sanitizeResponse(fresh.clone()));
+          }
+          return fresh;
+        }
+        // Offline: prefer our own cache (refreshed every deploy), fall back to any.
+        // ignoreVary is required because Next responses carry Vary: RSC headers.
         const opts = { ignoreVary: true, ignoreSearch: true } as CacheQueryOptions;
         const cache = await caches.open(OFFLINE_PAGES_CACHE);
-        const cached =
-          (await cache.match(url.pathname, opts)) ||
-          (await caches.match(url.pathname, opts)) ||
-          (await caches.match(req, opts));
-        // Sanitize on the way out too — fallback matches from Workbox caches may
-        // carry the redirected flag, which navigations reject.
-        if (cached) return sanitizeResponse(cached);
-        return Response.error();
+        const own = await cache.match(url.pathname, opts);
+        info.ownCacheHit = own ? "yes" : "no";
+        let cached = own;
+        if (!cached) {
+          cached = (await caches.match(url.pathname, opts)) || (await caches.match(req, opts));
+          info.anyCacheHit = cached ? "yes" : "no";
+        }
+        if (cached) {
+          info.cachedStatus = String(cached.status);
+          info.cachedRedirected = String(cached.redirected);
+          info.cachedType = cached.type;
+          // Sanitize on the way out — fallback matches from Workbox caches may carry
+          // the redirected flag, which navigations reject.
+          return await sanitizeResponse(cached);
+        }
+        info.result = "no cache match anywhere";
+        return isNav ? diagPage(info) : Response.error();
+      } catch (e) {
+        info.handlerError = String(e && (e as Error).stack ? (e as Error).stack : e);
+        return isNav ? diagPage(info) : Response.error();
       }
     })(),
   );
+});
+
+// Lets the app ask which SW build is in control (shown in the offline banner diag).
+self.addEventListener("message", (event) => {
+  if (event.data === "GET_SW_VERSION" && event.ports?.[0]) {
+    event.ports[0].postMessage(SW_VERSION);
+  }
 });
 
 const serwist = new Serwist({
