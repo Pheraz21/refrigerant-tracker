@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { AlertTriangle, Truck, MapPin, RotateCcw, Building2, PackageSearch } from "lucide-react";
-import Link from "next/link";
 import { db, Bottle } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { useOffline } from "@/lib/offline/OfflineContext";
 import { cacheBottles, getCachedBottles } from "@/lib/offline/bottleCache";
+import { BottleLink } from "@/lib/offline/BottleLink";
 import styles from "./page.module.css";
 
 type Tab = "live" | "returned";
@@ -125,7 +125,7 @@ export default function HistoryPage() {
   };
 
   const renderBottle = (b: Bottle) => (
-    <Link key={b.serial} href={isOnline ? `/engineer/bottle/${b.serial}` : `/engineer/bottle-view?serial=${encodeURIComponent(b.serial)}`} style={{ textDecoration: "none" }}>
+    <BottleLink key={b.serial} serial={b.serial} style={{ textDecoration: "none" }}>
       <div className={`${styles.card} glass-panel`}>
         <div className={styles.cardHeader}>
           <div className={styles.cardType}>
@@ -180,7 +180,7 @@ export default function HistoryPage() {
           </div>
         )}
       </div>
-    </Link>
+    </BottleLink>
   );
 
   const renderEmpty = (message: string) => (

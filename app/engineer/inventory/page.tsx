@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, PackageSearch } from "lucide-react";
 import styles from "./page.module.css";
-import Link from "next/link";
 import { db, Bottle } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { useOffline } from "@/lib/offline/OfflineContext";
 import { cacheBottles, getCachedBottles } from "@/lib/offline/bottleCache";
+import { BottleLink } from "@/lib/offline/BottleLink";
 
 export default function InventoryPage() {
   const { user } = useAuth();
@@ -220,9 +220,9 @@ export default function InventoryPage() {
 
         <div className={styles.bottleList}>
           {displayedBottles.map(bottle => (
-            <Link
+            <BottleLink
               key={bottle.serial}
-              href={isOnline ? `/engineer/bottle/${bottle.serial}` : `/engineer/bottle-view?serial=${encodeURIComponent(bottle.serial)}`}
+              serial={bottle.serial}
               style={{ textDecoration: "none", color: "inherit" }}
             >
               <div 
@@ -332,7 +332,7 @@ export default function InventoryPage() {
                   </div>
                 )}
               </div>
-            </Link>
+            </BottleLink>
           ))}
         </div>
       </section>

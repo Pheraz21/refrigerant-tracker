@@ -37,7 +37,12 @@ function warmOfflinePages() {
 }
 
 export function OfflineProvider({ children }: { children: React.ReactNode }) {
-  const [isOnline, setIsOnline] = useState(true);
+  // Initialise synchronously from the browser so the very first client render already
+  // knows we're offline — otherwise links/guards briefly assume "online" and route to
+  // pages that can't load with no signal.
+  const [isOnline, setIsOnline] = useState(() =>
+    typeof navigator === "undefined" ? true : navigator.onLine,
+  );
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
 
