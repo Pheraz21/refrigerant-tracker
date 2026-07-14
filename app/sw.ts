@@ -56,12 +56,12 @@ self.addEventListener("fetch", (event) => {
         }
         return fresh;
       } catch {
-        // Match across ALL caches, ignoring query string and Vary headers — this is
-        // exactly what the on-device diagnostic did (and found the doc present),
-        // regardless of which cache (ours or a Workbox one) actually holds it.
-        const opts = { ignoreVary: true, ignoreSearch: true };
-        const cached =
-          (await caches.match(url.pathname, opts)) || (await caches.match(req, opts));
+        // Serve ONLY from our own cache (refreshed every deploy) so we never hand back
+        // a stale copy left in a Workbox cache from an earlier build. ignoreVary is
+        // required because Next responses carry Vary: RSC headers that would otherwise
+        // block the match.
+        const cache = await caches.open(OFFLINE_PAGES_CACHE);
+        const cached = await cache.match(url.pathname, { ignoreVary: true, ignoreSearch: true });
         if (cached) return cached;
         return Response.error();
       }
@@ -88,6 +88,9 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     (async () => {
       try {
+        // Drop any documents from an earlier build so we never serve stale JS refs,
+        // then re-warm with fresh copies matching this deploy's precached chunks.
+        await caches.delete(OFFLINE_PAGES_CACHE);
         const cache = await caches.open(OFFLINE_PAGES_CACHE);
         await Promise.all(
           OFFLINE_PAGES.map(async (path) => {
