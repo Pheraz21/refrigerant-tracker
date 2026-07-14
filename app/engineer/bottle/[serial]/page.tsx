@@ -9,6 +9,8 @@ import { db, Bottle } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { compressImage } from "@/lib/utils";
 import { supabase } from "@/lib/supabaseClient";
+import { withTimeout } from "@/lib/offline/withTimeout";
+import { cacheBottle } from "@/lib/offline/bottleCache";
 
 async function uploadHwcnPhotoToStorage(base64: string, serial: string): Promise<string> {
   const res = await fetch(base64);
@@ -76,9 +78,11 @@ export default function BottleActionHub() {
       }
       let b: Bottle | null = null;
       try {
-        b = await db.getBottle(serial);
+        // Timeout guards against flaky signal: onLine can be true while requests
+        // hang — don't leave the engineer on a spinner, bounce to the offline screen.
+        b = await withTimeout(db.getBottle(serial));
       } catch {
-        // Lost connection mid-load — fall back to the offline screen.
+        // Lost/dead connection mid-load — fall back to the offline screen.
         window.location.replace(offlineUrl);
         return;
       }
@@ -87,19 +91,26 @@ export default function BottleActionHub() {
         return;
       }
       setBottle(b);
-      
-      // Load engineers for handover
-      const profiles = await db.getEngineerProfiles();
-      setEngineers(profiles.filter(p => p.id !== user?.id));
+      cacheBottle(b); // keep the offline snapshot fresh
 
-      // Load vehicle reg
+      // Secondary loads: best-effort with timeouts so a dying connection can never
+      // hold the page hostage once the bottle itself is shown.
+      try {
+        const profiles = await withTimeout(db.getEngineerProfiles());
+        setEngineers(profiles.filter(p => p.id !== user?.id));
+      } catch { /* handover list unavailable on flaky signal */ }
+
       if (user?.id) {
-        const profile = await db.getEngineerById(user.id);
-        if (profile?.vehicleReg) setVehicleReg(profile.vehicleReg);
+        try {
+          const profile = await withTimeout(db.getEngineerById(user.id));
+          if (profile?.vehicleReg) setVehicleReg(profile.vehicleReg);
+        } catch { /* keep existing reg */ }
       }
 
-      const hwcns = await db.getHWCNsForBottle(serial);
-      setAssociatedHWCNs(hwcns);
+      try {
+        const hwcns = await withTimeout(db.getHWCNsForBottle(serial));
+        setAssociatedHWCNs(hwcns);
+      } catch { /* HWCN list unavailable on flaky signal */ }
 
       setLoading(false);
     }

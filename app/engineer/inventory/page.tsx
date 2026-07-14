@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { useOffline } from "@/lib/offline/OfflineContext";
 import { cacheBottles, getCachedBottles } from "@/lib/offline/bottleCache";
 import { BottleLink } from "@/lib/offline/BottleLink";
+import { withTimeout } from "@/lib/offline/withTimeout";
 
 export default function InventoryPage() {
   const { user } = useAuth();
@@ -35,9 +36,9 @@ export default function InventoryPage() {
           let list: Bottle[];
           if (u.canViewStores) {
             setSelectedGas("");
-            list = await db.getBottlesByLocation("office");
+            list = await withTimeout(db.getBottlesByLocation("office"));
           } else {
-            const all = await db.getAllBottles();
+            const all = await withTimeout(db.getAllBottles());
             list = all.filter(isMyVanBottle);
           }
           if (cancelled) return;

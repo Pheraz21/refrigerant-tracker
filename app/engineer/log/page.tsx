@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { AlertTriangle } from "lucide-react";
 import { submitUsage, submitDecommission, submitHwcnTransit } from "@/lib/offline/actions";
 import { cacheBottle, getCachedBottle } from "@/lib/offline/bottleCache";
+import { withTimeout } from "@/lib/offline/withTimeout";
 
 type JobType = "service" | "install" | "retrofit" | "recovery" | "waste";
 
@@ -62,7 +63,8 @@ export default function LogBottlePage() {
       let b = null;
       if (online) {
         try {
-          b = await db.getBottle(serialParam);
+          // Timeout: flaky signal reports online while requests hang.
+          b = await withTimeout(db.getBottle(serialParam));
           if (b) cacheBottle(b); // keep the offline snapshot fresh
         } catch {
           b = await getCachedBottle(serialParam);

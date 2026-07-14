@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { compressImage } from "@/lib/utils";
 import { submitMove, submitHwcnTransit } from "@/lib/offline/actions";
 import { getCachedBottle, cacheBottle } from "@/lib/offline/bottleCache";
+import { withTimeout } from "@/lib/offline/withTimeout";
 import { useOffline } from "@/lib/offline/OfflineContext";
 
 export default function MoveBottlePage() {
@@ -59,7 +60,8 @@ export default function MoveBottlePage() {
       let b: any = null;
       if (online) {
         try {
-          b = await db.getBottle(serialParam);
+          // Timeout: flaky signal reports online while requests hang.
+          b = await withTimeout(db.getBottle(serialParam));
           if (b) cacheBottle(b);
         } catch {
           b = await getCachedBottle(serialParam);

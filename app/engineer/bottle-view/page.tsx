@@ -11,6 +11,7 @@ import Link from "next/link";
 import { ArrowLeft, PackageSearch, Wrench, Truck, AlertTriangle } from "lucide-react";
 import { db, type Bottle } from "@/lib/db";
 import { getCachedBottle, cacheBottle } from "@/lib/offline/bottleCache";
+import { withTimeout } from "@/lib/offline/withTimeout";
 
 export default function OfflineBottleView() {
   const searchParams = useSearchParams();
@@ -29,7 +30,8 @@ export default function OfflineBottleView() {
       let b: Bottle | null = null;
       if (online) {
         try {
-          b = await db.getBottle(serial);
+          // Timeout: flaky signal reports online while requests hang.
+          b = await withTimeout(db.getBottle(serial));
           if (b) cacheBottle(b);
         } catch {
           b = await getCachedBottle(serial);

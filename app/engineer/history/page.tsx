@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { useOffline } from "@/lib/offline/OfflineContext";
 import { cacheBottles, getCachedBottles } from "@/lib/offline/bottleCache";
 import { BottleLink } from "@/lib/offline/BottleLink";
+import { withTimeout } from "@/lib/offline/withTimeout";
 import styles from "./page.module.css";
 
 type Tab = "live" | "returned";
@@ -26,7 +27,7 @@ export default function HistoryPage() {
     async function load() {
       if (online) {
         try {
-          const bottles = await db.getAllBottles();
+          const bottles = await withTimeout(db.getAllBottles());
           if (cancelled) return;
           setAllBottles(bottles);
           setLoading(false);
