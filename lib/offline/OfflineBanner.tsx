@@ -9,7 +9,7 @@ import { useOffline } from "./OfflineContext";
 const DIAG_PAGES = ["/engineer/bottle-view", "/engineer/log", "/engineer/move"];
 
 // Bump on every deploy — proves which build of the PAGE code the device is running.
-const APP_BUILD = "app-16";
+const APP_BUILD = "app-17";
 
 export function OfflineBanner() {
   const { isOnline, pendingCount } = useOffline();
@@ -104,11 +104,14 @@ export function OfflineBanner() {
         <span style={{ fontSize: "0.7rem", fontWeight: 400, opacity: 0.8 }}>
           offline cache → {diag}
         </span>
-        <span style={{ fontSize: "0.7rem", fontWeight: 400 }}>
-          {/* TEMP: taps straight into the offline bottle screen via a plain browser
-              navigation — isolates the failing step from the bottle list entirely. */}
+        <span style={{ fontSize: "0.7rem", fontWeight: 400, display: "flex", gap: "1rem" }}>
+          {/* TEMP: isolates whether navigations fail only when a query string is
+              present. Both go to the same offline page; only the URL shape differs. */}
+          <a href="/engineer/bottle-view" style={{ color: "#000", textDecoration: "underline" }}>
+            test A (no query)
+          </a>
           <a href="/engineer/bottle-view?serial=TEST" style={{ color: "#000", textDecoration: "underline" }}>
-            diagnostic: test offline page navigation
+            test B (with query)
           </a>
         </span>
       </div>
