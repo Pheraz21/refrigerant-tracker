@@ -203,3 +203,35 @@ ALTER TABLE gases DISABLE ROW LEVEL SECURITY;
 ALTER TABLE decommissioned_equipment DISABLE ROW LEVEL SECURITY;
 ALTER TABLE company_settings DISABLE ROW LEVEL SECURITY;
 ```
+
+## 4. Storage Buckets
+The app uploads photos of completed physical HWCN paperwork to Supabase Storage.
+This bucket is **required** — without it, supplier-return photo uploads throw
+`Bucket not found` and the "Upload & Complete Return" / office batch-return actions
+silently fail to complete.
+
+**Bucket:** `hwcn-photos` (public) — used by:
+- `app/engineer/bottle/[serial]/page.tsx` — engineer direct-to-supplier returns (`uploadHwcnPhotoToStorage`)
+- `app/admin/supplier-returns-waste/page.tsx` — office batch supplier returns
+
+Objects are written under the `supplier-returns/` prefix and read back via `getPublicUrl`
+(hence the bucket must be public so the photo renders on the admin bottle-detail HWCN tab).
+
+Users are logged in via `supabase.auth.signInWithPassword`, so uploads run as the
+`authenticated` role and need write policies on `storage.objects`.
+
+```sql
+-- Create the public bucket the app expects
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('hwcn-photos', 'hwcn-photos', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+-- Allow logged-in users (engineers + office) to upload the HWCN photos
+CREATE POLICY "hwcn-photos authenticated write"
+  ON storage.objects FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'hwcn-photos');
+
+CREATE POLICY "hwcn-photos authenticated update"
+  ON storage.objects FOR UPDATE TO authenticated
+  USING (bucket_id = 'hwcn-photos');
+```

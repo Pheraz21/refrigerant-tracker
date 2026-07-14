@@ -47,6 +47,7 @@ export default function BottleActionHub() {
   const [showNitrogenUsage, setShowNitrogenUsage] = useState(false);
   const [isSubmittingNitrogen, setIsSubmittingNitrogen] = useState(false);
   const [showMismatchConfirm, setShowMismatchConfirm] = useState(false);
+  const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
 
   const handleNitrogenUsage = async (isEmpty: boolean) => {
     if (!bottle) return;
@@ -369,11 +370,13 @@ export default function BottleActionHub() {
             disabled={!supplierPhoto || loading}
             onClick={async () => {
               setLoading(true);
+              setPhotoUploadError(null);
               try {
                 const photoUrl = await uploadHwcnPhotoToStorage(supplierPhoto!, bottle.serial);
                 await db.completeTransit(bottle.serial, photoUrl);
               } catch (err) {
                 console.error("HWCN photo upload failed:", err);
+                setPhotoUploadError(err instanceof Error ? err.message : "Photo upload failed. The return was not completed — please try again.");
                 setLoading(false);
                 return;
               }
@@ -383,6 +386,11 @@ export default function BottleActionHub() {
           >
             Upload Document
           </button>
+          {photoUploadError && (
+            <div style={{marginTop: '1rem', background: 'rgba(255,51,102,0.12)', border: '1px solid var(--error)', padding: '0.75rem', borderRadius: '8px', color: 'var(--error)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem'}}>
+              <AlertTriangle size={18} /> {photoUploadError}
+            </div>
+          )}
         </div>
       )}
 
@@ -464,11 +472,13 @@ export default function BottleActionHub() {
                     style={{background: 'var(--warning)', color: '#000', margin: 0, flex: 1}}
                     onClick={async () => {
                       setLoading(true);
+                      setPhotoUploadError(null);
                       try {
                         const photoUrl = await uploadHwcnPhotoToStorage(supplierPhoto!, bottle.serial);
                         await db.completeTransit(serial, photoUrl, user?.name, isAltBranch ? altBranchName : undefined);
                       } catch (err) {
                         console.error("HWCN photo upload failed:", err);
+                        setPhotoUploadError(err instanceof Error ? err.message : "Photo upload failed. The return was not completed — please try again.");
                         setLoading(false);
                         return;
                       }
@@ -488,6 +498,11 @@ export default function BottleActionHub() {
                     Back
                   </button>
                 </div>
+                {photoUploadError && (
+                  <div style={{background: 'rgba(255,51,102,0.12)', border: '1px solid var(--error)', padding: '0.75rem', borderRadius: '8px', color: 'var(--error)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem'}}>
+                    <AlertTriangle size={18} /> {photoUploadError}
+                  </div>
+                )}
               </div>
             ) : (
               <>
