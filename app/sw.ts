@@ -15,11 +15,18 @@ declare global {
 
 declare const self: ServiceWorkerGlobalScope;
 
-// Engineer action pages that take the bottle serial as a ?serial= query. They are
-// static routes, but page navigations are cached by FULL url — so a never-before-
-// seen serial would miss offline. We serve them from a cache keyed by pathname
-// (query stripped) so caching one serial makes every serial open offline.
-export const OFFLINE_QUERY_PAGES = ["/engineer/bottle-view", "/engineer/log", "/engineer/move"];
+// Engineer pages that must work offline. Includes the ?serial= action pages (served
+// by pathname so any serial works) and the list/home pages engineers navigate
+// between offline. We serve all of these ourselves so offline navigation never
+// depends on Workbox's navigation strategy.
+export const OFFLINE_PAGES = [
+  "/engineer",
+  "/engineer/history",
+  "/engineer/inventory",
+  "/engineer/bottle-view",
+  "/engineer/log",
+  "/engineer/move",
+];
 const OFFLINE_PAGES_CACHE = "engineer-offline-pages";
 
 // Hand-rolled handler registered BEFORE Serwist so it wins event.respondWith for
@@ -36,7 +43,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
   if (url.origin !== self.location.origin) return;
-  if (!OFFLINE_QUERY_PAGES.includes(url.pathname)) return;
+  if (!OFFLINE_PAGES.includes(url.pathname)) return;
   if (url.searchParams.has("_rsc")) return; // let RSC data requests go to Serwist
 
   event.respondWith(
@@ -83,7 +90,7 @@ self.addEventListener("install", (event) => {
       try {
         const cache = await caches.open(OFFLINE_PAGES_CACHE);
         await Promise.all(
-          OFFLINE_QUERY_PAGES.map(async (path) => {
+          OFFLINE_PAGES.map(async (path) => {
             try {
               const res = await fetch(path, { cache: "no-store", credentials: "same-origin" });
               if (res.ok) await cache.put(path, res.clone());

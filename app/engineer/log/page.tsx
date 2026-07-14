@@ -293,8 +293,20 @@ export default function LogBottlePage() {
         <CheckCircle2 size={64} color="var(--success)" />
         <h2>Log Saved Successfully!</h2>
         <p>REFCOM compliance data recorded.</p>
-        <button onClick={() => router.push("/engineer")} className={styles.primaryBtn}>
-          Return to Dashboard
+        <button
+          onClick={() => {
+            const online = typeof navigator === "undefined" ? true : navigator.onLine;
+            if (online) {
+              router.push("/engineer");
+            } else {
+              // Dashboard/scan isn't used offline — go to My Bottles (hard nav so it
+              // loads straight from cache).
+              window.location.href = "/engineer/history";
+            }
+          }}
+          className={styles.primaryBtn}
+        >
+          {typeof navigator !== "undefined" && !navigator.onLine ? "Back to My Bottles" : "Return to Dashboard"}
         </button>
       </div>
     );

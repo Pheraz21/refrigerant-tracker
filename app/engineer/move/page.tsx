@@ -115,6 +115,14 @@ export default function MoveBottlePage() {
 
   const requiresHWCN = bottle?.category === "reclaim" && (bottle?.currentWeight > 0) && destination !== "supplier";
 
+  // After an action: online → dashboard; offline → My Bottles (dashboard/scan isn't
+  // used offline). Hard nav offline so it loads straight from cache.
+  const goHome = () => {
+    const online = typeof navigator === "undefined" ? true : navigator.onLine;
+    if (online) router.push("/engineer");
+    else window.location.href = "/engineer/history";
+  };
+
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -226,7 +234,7 @@ export default function MoveBottlePage() {
     if (needsTransit && isReclaimWithGas && (destination === "office" || destination === "other")) {
       setIsSuccess(true);
     } else {
-      router.push("/engineer");
+      goHome();
     }
   };
 
@@ -249,12 +257,12 @@ export default function MoveBottlePage() {
                 View / Download Digital HWCN
               </button>
             </Link>
-            <button onClick={() => router.push("/engineer")} className={styles.primaryBtn} style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', border: '1px solid var(--border)', marginTop: '0' }}>
+            <button onClick={() => goHome()} className={styles.primaryBtn} style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', border: '1px solid var(--border)', marginTop: '0' }}>
               Return to Dashboard
             </button>
           </div>
         ) : (
-          <button onClick={() => router.push("/engineer")} className={styles.primaryBtn}>
+          <button onClick={() => goHome()} className={styles.primaryBtn}>
             Return to Dashboard
           </button>
         )}
@@ -430,7 +438,7 @@ export default function MoveBottlePage() {
                     onClick={async () => {
                       const intLocType = bottle?.intendedDestination === "HQ-Stores" ? "office" : "site";
                       await db.updateBottleLocation(serialParam, "van", `${user?.name} - Van`, bottle.intendedDestination, intLocType as any, bottle.activeHWCN, user?.name);
-                      router.push("/engineer");
+                      goHome();
                     }}
                   >
                     <Truck size={18} /> Loaded — Continue Transit to {bottle?.intendedDestination}
@@ -442,7 +450,7 @@ export default function MoveBottlePage() {
                   style={{background: 'var(--warning)', color: '#000'}}
                   onClick={async () => {
                     await db.completeTransit(serialParam, undefined, user?.name);
-                    router.push("/engineer");
+                    goHome();
                   }}
                 >
                   <CheckCircle2 size={18} /> Complete Transfer to HQ-Stores
@@ -524,7 +532,7 @@ export default function MoveBottlePage() {
                 await db.clearTransitState(serialParam);
                 await db.updateBottleLocation(serialParam, "site", divertSiteJobNo, undefined, undefined, undefined, user?.name);
                 setIsSubmitting(false);
-                router.push("/engineer");
+                goHome();
               }}
               style={{flex: 1}}
             >
@@ -656,7 +664,7 @@ export default function MoveBottlePage() {
                 // Use divertedBranch if set, otherwise original intended destination
                 const finalLocId = divertedBranch || bottle?.intendedDestination || "Supplier";
                 await db.completeTransit(serialParam, supplierPhoto || "/mock-url.jpg", user?.name, finalLocId);
-                router.push("/engineer");
+                goHome();
               }}
               style={{flex: 1, opacity: (!supplierPhoto && !isSubmitting) ? 0.5 : 1}}
             >

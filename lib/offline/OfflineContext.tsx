@@ -27,7 +27,14 @@ const OfflineContext = createContext<OfflineState>({
 // Static engineer pages that take ?serial=. Fetching them while online populates
 // the service worker's normalised (pathname-keyed) cache so ANY serial opens
 // offline — not just ones visited before. Must match OFFLINE_QUERY_PAGES in sw.ts.
-const OFFLINE_QUERY_PAGES = ["/engineer/bottle-view", "/engineer/log", "/engineer/move"];
+const OFFLINE_QUERY_PAGES = [
+  "/engineer",
+  "/engineer/history",
+  "/engineer/inventory",
+  "/engineer/bottle-view",
+  "/engineer/log",
+  "/engineer/move",
+];
 
 function warmOfflinePages() {
   if (typeof navigator === "undefined" || !navigator.onLine) return;
