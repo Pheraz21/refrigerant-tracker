@@ -6,6 +6,9 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { db } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
+import { OfflineProvider } from "@/lib/offline/OfflineContext";
+import { OfflineBanner } from "@/lib/offline/OfflineBanner";
+import { InstallPrompt } from "@/lib/offline/InstallPrompt";
 import styles from "./layout.module.css";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -18,14 +21,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [missingPhotos, setMissingPhotos] = useState<number>(0);
 
   useEffect(() => {
-    db.getAllBottles().then(bottles => {
-      const missing = bottles.filter(b => b.supplierHwcnPhotoPending).length;
-      setMissingPhotos(missing);
-    });
+    // Network-only alert; skip offline so it doesn't throw an unhandled rejection.
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
+    db.getAllBottles()
+      .then(bottles => {
+        const missing = bottles.filter(b => b.supplierHwcnPhotoPending).length;
+        setMissingPhotos(missing);
+      })
+      .catch(() => {});
   }, [pathname]);
 
   return (
+    <OfflineProvider>
     <div className={styles.layout}>
+      <OfflineBanner />
+      <InstallPrompt />
       {missingPhotos > 0 && (
         <Link href="/engineer/notifications" className="no-print" style={{textDecoration: 'none', display: 'block'}}>
           <div style={{background: 'var(--error)', color: '#fff', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', fontWeight: 'bold', zIndex: 100, position: 'relative'}}>
@@ -78,5 +88,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </Link>
       </nav>
     </div>
+    </OfflineProvider>
   );
 }

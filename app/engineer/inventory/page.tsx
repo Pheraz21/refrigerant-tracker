@@ -6,35 +6,65 @@ import styles from "./page.module.css";
 import Link from "next/link";
 import { db, Bottle } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
+import { useOffline } from "@/lib/offline/OfflineContext";
+import { cacheBottles, getCachedBottles } from "@/lib/offline/bottleCache";
 
 export default function InventoryPage() {
   const { user } = useAuth();
+  const { isOnline, refreshMeta } = useOffline();
   const [bottles, setBottles] = useState<Bottle[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGas, setSelectedGas] = useState<string>("");
 
   useEffect(() => {
     if (!user) return;
-    if (user.canViewStores) {
-      setSelectedGas("");
-      db.getBottlesByLocation("office").then(storesBottles => {
-        setBottles(storesBottles);
-        setLoading(false);
-      });
-    } else {
-      db.getAllBottles().then(all => {
-        // Match by vehicleReg (preferred) or name-in-locationId (fallback for older bottles)
-        const vanBottles = all.filter(b =>
-          b.locationType === "van" && (
-            (user.vehicleReg && b.vehicleReg === user.vehicleReg) ||
-            b.locationId?.toLowerCase().includes((user.name || "").toLowerCase())
-          )
-        );
-        setBottles(vanBottles);
-        setLoading(false);
-      });
+    const u = user;
+    let cancelled = false;
+
+    // Match by vehicleReg (preferred) or name-in-locationId (fallback for older bottles)
+    const isMyVanBottle = (b: Bottle) =>
+      b.locationType === "van" &&
+      ((!!u.vehicleReg && b.vehicleReg === u.vehicleReg) ||
+        !!b.locationId?.toLowerCase().includes((u.name || "").toLowerCase()));
+
+    const online = typeof navigator === "undefined" ? true : navigator.onLine;
+
+    async function load() {
+      if (online) {
+        try {
+          let list: Bottle[];
+          if (u.canViewStores) {
+            setSelectedGas("");
+            list = await db.getBottlesByLocation("office");
+          } else {
+            const all = await db.getAllBottles();
+            list = all.filter(isMyVanBottle);
+          }
+          if (cancelled) return;
+          setBottles(list);
+          setLoading(false);
+          // Save the snapshot so this list is viewable offline in a plantroom.
+          await cacheBottles(list);
+          refreshMeta();
+          return;
+        } catch {
+          /* network failed — fall back to the cached snapshot */
+        }
+      }
+      const cached = await getCachedBottles();
+      if (cancelled) return;
+      const list = u.canViewStores
+        ? cached.filter(b => b.locationType === "office")
+        : cached.filter(isMyVanBottle);
+      setBottles(list);
+      setLoading(false);
     }
-  }, [user]);
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, isOnline, refreshMeta]);
 
   const printReport = () => {
     const reportDate = new Date().toLocaleDateString("en-GB");
