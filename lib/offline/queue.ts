@@ -4,7 +4,7 @@
 // when the work actually happened, not when it synced). Idempotent by unique id.
 import { STORES, idbGetAll, idbPut, idbDelete } from "./idb";
 
-export type MutationType = "usage" | "move";
+export type MutationType = "usage" | "move" | "decommission";
 
 export interface QueuedMutation {
   id: string;

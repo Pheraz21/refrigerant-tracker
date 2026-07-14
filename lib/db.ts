@@ -1216,9 +1216,11 @@ export const db = {
     }>;
     gasType: string;
     totalWeightRecovered: number;
-  }): Promise<string> {
-    const id = `DECOM-${Math.floor(Math.random() * 100000)}`;
-    const { error } = await supabase.from('decommissioned_equipment').insert({
+  }, occurredAt?: string, presetId?: string): Promise<string> {
+    // presetId + occurredAt allow a decommission captured offline to replay
+    // idempotently (upsert on the same id) and keep its on-site timestamp.
+    const id = presetId || `DECOM-${Math.floor(Math.random() * 100000)}`;
+    const { error } = await supabase.from('decommissioned_equipment').upsert({
       id,
       bottle_serial: record.bottleSerial,
       job_number: record.jobNumber,
@@ -1229,8 +1231,8 @@ export const db = {
       equipment: record.equipment,
       gas_type: record.gasType,
       total_weight_recovered: record.totalWeightRecovered,
-      date: new Date().toISOString()
-    });
+      date: occurredAt || new Date().toISOString()
+    }, { onConflict: 'id' });
     if (error) {
       console.error('Error logging decommission:', error);
       throw error;

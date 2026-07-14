@@ -8,7 +8,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { AlertTriangle } from "lucide-react";
-import { submitUsage } from "@/lib/offline/actions";
+import { submitUsage, submitDecommission } from "@/lib/offline/actions";
 import { cacheBottle, getCachedBottle } from "@/lib/offline/bottleCache";
 
 type JobType = "service" | "install" | "retrofit" | "recovery" | "waste";
@@ -205,10 +205,10 @@ export default function LogBottlePage() {
     // record must run online.
     const online = typeof navigator === "undefined" ? true : navigator.onLine;
     const willMultiSite = isRecovery && multiSiteAcknowledged;
-    const willDecom = isRecovery && equipmentList.some(eq => eq.decommissioned && eq.manufacturer);
-    if (!online && (derivedJobType === "waste" || willMultiSite || willDecom)) {
+    // Decommission is queued offline (created on sync), so it no longer blocks.
+    if (!online && (derivedJobType === "waste" || willMultiSite)) {
       setIsSubmitting(false);
-      setValidationError("This needs a signal — it creates a consignment note, supplier return, or decommission record. Please submit when you're back online.");
+      setValidationError("This needs a signal — it creates a consignment note or supplier return. Please submit when you're back online.");
       return;
     }
 
@@ -250,7 +250,8 @@ export default function LogBottlePage() {
     const decomEquipment = equipmentList.filter(eq => eq.decommissioned && eq.manufacturer);
     if (decomEquipment.length > 0 && isRecovery) {
       try {
-        await db.logDecommission({
+        // Offline-aware: queued and created on the server when back in signal.
+        await submitDecommission({
           bottleSerial: serialParam,
           jobNumber: jobNumber,
           siteName: producerSite.name || jobNumber,

@@ -52,6 +52,38 @@ export async function submitUsage(input: UsageInput): Promise<{ queued: boolean 
   return { queued: true };
 }
 
+export interface DecommissionRecord {
+  bottleSerial: string;
+  jobNumber: string;
+  siteName: string;
+  siteAddress: string;
+  sitePostcode: string;
+  engineer: string;
+  equipment: Array<{ manufacturer: string; model: string; serial: string; weightRecovered: number }>;
+  gasType: string;
+  totalWeightRecovered: number;
+}
+
+// Decommission is an append-only compliance record captured on site. Offline it is
+// queued with a stable id (so replay is idempotent via upsert) and its on-site
+// timestamp, and created on the server when back online.
+export async function submitDecommission(record: DecommissionRecord): Promise<{ queued: boolean }> {
+  const occurredAt = new Date().toISOString();
+  const id = `DECOM-${crypto.randomUUID()}`;
+  if (isOnline()) {
+    await db.logDecommission(record, occurredAt, id);
+    return { queued: false };
+  }
+  await enqueueMutation({
+    type: "decommission",
+    serial: record.bottleSerial,
+    label: `Decommission ${record.equipment.length} item(s)`,
+    occurredAt,
+    args: [record, occurredAt, id],
+  });
+  return { queued: true };
+}
+
 export async function submitMove(
   serial: string,
   locationType: Bottle["locationType"],

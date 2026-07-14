@@ -24,6 +24,8 @@ export async function syncQueue(): Promise<{ synced: number; failed: number }> {
           await (db.logUsage as (...a: unknown[]) => Promise<void>)(...m.args);
         } else if (m.type === "move") {
           await (db.updateBottleLocation as (...a: unknown[]) => Promise<void>)(...m.args);
+        } else if (m.type === "decommission") {
+          await (db.logDecommission as (...a: unknown[]) => Promise<unknown>)(...m.args);
         }
         await removeMutation(m.id);
         synced++;
