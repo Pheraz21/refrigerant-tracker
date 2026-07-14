@@ -8,6 +8,9 @@ import { useOffline } from "./OfflineContext";
 
 const DIAG_PAGES = ["/engineer/bottle-view", "/engineer/log", "/engineer/move"];
 
+// Bump on every deploy — proves which build of the PAGE code the device is running.
+const APP_BUILD = "app-13";
+
 export function OfflineBanner() {
   const { isOnline, pendingCount } = useOffline();
   const [diag, setDiag] = useState<string>("checking…");
@@ -43,7 +46,7 @@ export function OfflineBanner() {
           return `${p.split("/").pop()}:o${inOwn ? "✓" : "✗"}a${inAny ? "✓" : "✗"}`;
         }),
       );
-      setDiag(`${swv} | ${parts.join(" ")}`);
+      setDiag(`${APP_BUILD} ${swv} | ${parts.join(" ")}`);
     })();
   }, [isOnline]);
 
