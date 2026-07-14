@@ -41,13 +41,20 @@ self.addEventListener("fetch", (event) => {
 
   event.respondWith(
     (async () => {
-      const cache = await caches.open(OFFLINE_PAGES_CACHE);
       try {
         const fresh = await fetch(req);
-        if (fresh && fresh.ok) cache.put(url.pathname, fresh.clone());
+        if (fresh && fresh.ok) {
+          const cache = await caches.open(OFFLINE_PAGES_CACHE);
+          cache.put(url.pathname, fresh.clone());
+        }
         return fresh;
       } catch {
-        const cached = await cache.match(url.pathname);
+        // Match across ALL caches, ignoring query string and Vary headers — this is
+        // exactly what the on-device diagnostic did (and found the doc present),
+        // regardless of which cache (ours or a Workbox one) actually holds it.
+        const opts = { ignoreVary: true, ignoreSearch: true };
+        const cached =
+          (await caches.match(url.pathname, opts)) || (await caches.match(req, opts));
         if (cached) return cached;
         return Response.error();
       }
