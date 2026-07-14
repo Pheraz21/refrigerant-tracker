@@ -220,9 +220,9 @@ export default function InventoryPage() {
 
         <div className={styles.bottleList}>
           {displayedBottles.map(bottle => (
-            <Link 
-              key={bottle.serial} 
-              href={`/engineer/bottle/${bottle.serial}`}
+            <Link
+              key={bottle.serial}
+              href={isOnline ? `/engineer/bottle/${bottle.serial}` : `/engineer/bottle-view?serial=${encodeURIComponent(bottle.serial)}`}
               style={{ textDecoration: "none", color: "inherit" }}
             >
               <div 

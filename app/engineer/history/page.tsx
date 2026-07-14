@@ -5,22 +5,56 @@ import { AlertTriangle, Truck, MapPin, RotateCcw, Building2, PackageSearch } fro
 import Link from "next/link";
 import { db, Bottle } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
+import { useOffline } from "@/lib/offline/OfflineContext";
+import { cacheBottles, getCachedBottles } from "@/lib/offline/bottleCache";
 import styles from "./page.module.css";
 
 type Tab = "live" | "returned";
 
 export default function HistoryPage() {
   const { user } = useAuth();
+  const { isOnline } = useOffline();
   const [activeTab, setActiveTab] = useState<Tab>("live");
   const [allBottles, setAllBottles] = useState<Bottle[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    db.getAllBottles().then(bottles => {
-      setAllBottles(bottles);
+    let cancelled = false;
+    const online = typeof navigator === "undefined" ? true : navigator.onLine;
+    const name = (user?.name || "").toLowerCase();
+
+    async function load() {
+      if (online) {
+        try {
+          const bottles = await db.getAllBottles();
+          if (cancelled) return;
+          setAllBottles(bottles);
+          setLoading(false);
+          // Save this engineer's van/site bottles so My Bottles works offline too.
+          const mine = bottles.filter(
+            b =>
+              (b.locationType === "van" || b.locationType === "site") &&
+              (b.locationId?.toLowerCase().includes(name) ||
+                b.lastEngineer?.toLowerCase() === name ||
+                b.registeredBy === user?.id),
+          );
+          cacheBottles(mine);
+          return;
+        } catch {
+          /* fall through to cache */
+        }
+      }
+      const cached = await getCachedBottles();
+      if (cancelled) return;
+      setAllBottles(cached);
       setLoading(false);
-    });
-  }, []);
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, isOnline]);
 
   const formatDate = (iso?: string) => {
     if (!iso) return null;
@@ -91,7 +125,7 @@ export default function HistoryPage() {
   };
 
   const renderBottle = (b: Bottle) => (
-    <Link key={b.serial} href={`/engineer/bottle/${b.serial}`} style={{ textDecoration: "none" }}>
+    <Link key={b.serial} href={isOnline ? `/engineer/bottle/${b.serial}` : `/engineer/bottle-view?serial=${encodeURIComponent(b.serial)}`} style={{ textDecoration: "none" }}>
       <div className={`${styles.card} glass-panel`}>
         <div className={styles.cardHeader}>
           <div className={styles.cardType}>
