@@ -9,7 +9,7 @@ import { useOffline } from "./OfflineContext";
 const DIAG_PAGES = ["/engineer/bottle-view", "/engineer/log", "/engineer/move"];
 
 // Bump on every deploy — proves which build of the PAGE code the device is running.
-const APP_BUILD = "app-13";
+const APP_BUILD = "app-14";
 
 export function OfflineBanner() {
   const { isOnline, pendingCount } = useOffline();
@@ -46,7 +46,17 @@ export function OfflineBanner() {
           return `${p.split("/").pop()}:o${inOwn ? "✓" : "✗"}a${inAny ? "✓" : "✗"}`;
         }),
       );
-      setDiag(`${APP_BUILD} ${swv} | ${parts.join(" ")}`);
+      // Probe: fetch the offline page THROUGH the service worker while offline.
+      // 200 = the SW handler serves it fine (problem is navigation-specific);
+      // ERR = the handler itself fails (its error message tells us why).
+      let probe = "";
+      try {
+        const r = await fetch("/engineer/bottle-view", { cache: "no-store" });
+        probe = `probe:${r.status}${r.redirected ? "R" : ""}`;
+      } catch (e) {
+        probe = `probe:ERR(${String(e).slice(0, 60)})`;
+      }
+      setDiag(`${APP_BUILD} ${swv} | ${parts.join(" ")} | ${probe}`);
     })();
   }, [isOnline]);
 
