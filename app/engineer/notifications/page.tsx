@@ -6,16 +6,20 @@ import styles from "./page.module.css";
 import Link from "next/link";
 import { db, Bottle } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
+import { useOffline } from "@/lib/offline/OfflineContext";
+import { OfflineUnavailable } from "@/lib/offline/OfflineUnavailable";
 
 export default function NotificationsPage() {
   const { user } = useAuth();
+  const { isOnline } = useOffline();
   const [loading, setLoading] = useState(true);
   const [missingPaperwork, setMissingPaperwork] = useState<Bottle[]>([]);
 
   useEffect(() => {
     async function loadNotifications() {
       if (!user) return;
-      
+      if (typeof navigator !== "undefined" && !navigator.onLine) return;
+
       const bottles = await db.getAllBottles();
       // Filter for bottles assigned to this engineer (or in their van) that are missing photos
       // Note: In this mock db, we'll just check for global ones or if there's an engineer ID field
@@ -26,6 +30,10 @@ export default function NotificationsPage() {
     }
     loadNotifications();
   }, [user]);
+
+  if (!isOnline) {
+    return <OfflineUnavailable title="Alerts aren't available offline" />;
+  }
 
   if (loading) {
     return (

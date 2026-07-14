@@ -8,6 +8,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { db } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
+import { useOffline } from "@/lib/offline/OfflineContext";
+import { OfflineUnavailable } from "@/lib/offline/OfflineUnavailable";
 
 interface ScanData {
   barcode: string;
@@ -19,6 +21,7 @@ export default function DashboardScannerPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
+  const { isOnline } = useOffline();
   const [scanResult, setScanResult] = useState<ScanData | null>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -29,8 +32,8 @@ export default function DashboardScannerPage() {
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
   useEffect(() => {
-    if (user?.id) {
-      db.getEngineerById(user.id).then(setEngineer);
+    if (user?.id && (typeof navigator === "undefined" || navigator.onLine)) {
+      db.getEngineerById(user.id).then(setEngineer).catch(() => {});
     }
   }, [user]);
 
@@ -117,6 +120,15 @@ export default function DashboardScannerPage() {
       router.push(`/engineer/bottle/register?serial=${encodeURIComponent(scanResult.barcode)}`);
     }
   };
+
+  if (!isOnline) {
+    return (
+      <OfflineUnavailable
+        title="Scanning needs a signal"
+        message="You can't scan or register bottles offline. Use My Bottles to find the cylinders on your van and site."
+      />
+    );
+  }
 
   return (
     <div className={styles.container}>

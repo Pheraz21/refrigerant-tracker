@@ -6,6 +6,8 @@ import { ArrowLeft, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
+import { useOffline } from "@/lib/offline/OfflineContext";
+import { OfflineUnavailable } from "@/lib/offline/OfflineUnavailable";
 
 const cell = (content: React.ReactNode, style: React.CSSProperties = {}) => (
   <td style={{ border: "1px solid #999", padding: "0.15rem 0.4rem", verticalAlign: "top", fontSize: "0.78rem", lineHeight: 1.1, ...style }}>
@@ -24,6 +26,7 @@ export default function HWCNViewPage() {
   const { id } = useParams();
   const hwcnId = decodeURIComponent(id as string);
   const { user } = useAuth();
+  const { isOnline } = useOffline();
   const [hwcn, setHwcn] = useState<any>(null);
   const [usageLogs, setUsageLogs] = useState<any[]>([]);
   const [bottle, setBottle] = useState<any>(null);
@@ -31,6 +34,7 @@ export default function HWCNViewPage() {
   const [companySettings, setCompanySettings] = useState<any>(null);
 
   const loadData = () => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
     db.getCompanySettings().then(setCompanySettings);
     db.getHWCN(hwcnId).then(data => {
       setHwcn(data);
@@ -62,6 +66,10 @@ export default function HWCNViewPage() {
       setIsSubmitting(false);
     }
   };
+
+  if (!isOnline) {
+    return <OfflineUnavailable title="Consignment notes need a signal" message="Viewing a consignment note (HWCN) needs a connection. It'll be available once you're back online." />;
+  }
 
   if (!hwcn) {
     return <div style={{ padding: "2rem", textAlign: "center" }}>Loading HWCN Data...</div>;

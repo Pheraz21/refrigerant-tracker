@@ -7,6 +7,8 @@ import { Html5QrcodeScanner, Html5QrcodeScanType } from "html5-qrcode";
 import Link from "next/link";
 import { db, BottleCategory } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
+import { useOffline } from "@/lib/offline/OfflineContext";
+import { OfflineUnavailable } from "@/lib/offline/OfflineUnavailable";
 import styles from "./page.module.css";
 
 interface BatchBottle {
@@ -19,6 +21,7 @@ interface BatchBottle {
 export default function BulkDeliveryPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { isOnline } = useOffline();
 
   // Step 1: Global PO Data
   const [step, setStep] = useState<1 | 2>(1);
@@ -93,6 +96,7 @@ export default function BulkDeliveryPage() {
   }, [step, isScanning]);
 
   useEffect(() => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
     db.getSuppliers().then(data => {
       setSuppliers(data);
       if (data.length > 0) setSupplier(data[0].name);
@@ -161,6 +165,10 @@ export default function BulkDeliveryPage() {
         </button>
       </div>
     );
+  }
+
+  if (!isOnline) {
+    return <OfflineUnavailable title="Bulk receive needs a signal" message="Receiving a delivery registers new bottles, which can't be done offline. Do this when you're back in signal." />;
   }
 
   return (

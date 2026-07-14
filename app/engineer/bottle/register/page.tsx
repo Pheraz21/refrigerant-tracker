@@ -7,12 +7,15 @@ import styles from "../../log/page.module.css"; // Reuse existing form styles
 import { db, BottleCategory } from "@/lib/db";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthContext";
+import { useOffline } from "@/lib/offline/OfflineContext";
+import { OfflineUnavailable } from "@/lib/offline/OfflineUnavailable";
 
 export default function RegisterBottlePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const serialParam = searchParams.get("serial") || "UNKNOWN";
   const { user } = useAuth();
+  const { isOnline } = useOffline();
 
   const [category, setCategory] = useState<BottleCategory>("new");
   const [gasType, setGasType] = useState("R410A");
@@ -61,6 +64,7 @@ export default function RegisterBottlePage() {
 
   useEffect(() => {
     async function loadPreferences() {
+      if (typeof navigator !== "undefined" && !navigator.onLine) return;
       const [allSuppliers, allGases] = await Promise.all([
         db.getSuppliers(),
         db.getGases(),
@@ -135,6 +139,10 @@ export default function RegisterBottlePage() {
       setIsSubmitting(false);
     }
   };
+
+  if (!isOnline) {
+    return <OfflineUnavailable title="Registering needs a signal" message="New bottles can't be registered offline. Register them when you're back in signal (usually at the van or stores)." />;
+  }
 
   if (isSuccess) {
     return (

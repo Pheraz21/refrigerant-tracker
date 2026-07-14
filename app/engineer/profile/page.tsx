@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
 import { db } from "@/lib/db";
+import { useOffline } from "@/lib/offline/OfflineContext";
+import { OfflineUnavailable } from "@/lib/offline/OfflineUnavailable";
 import { User, Truck, Building2, ArrowLeft, Save, CheckCircle2, AlertCircle, LogOut, Pencil, Mail, Phone, Lock, Eye, EyeOff } from "lucide-react";
 import styles from "../page.module.css";
 import Link from "next/link";
@@ -11,6 +13,7 @@ import { supabase } from "@/lib/supabaseClient";
 
 export default function ProfilePage() {
   const { user, logout, refreshUser } = useAuth();
+  const { isOnline } = useOffline();
   const router = useRouter();
   
   const [vehicleReg, setVehicleReg] = useState("");
@@ -55,12 +58,12 @@ export default function ProfilePage() {
   const [showPwNew, setShowPwNew] = useState(false);
 
   useEffect(() => {
-    if (user?.id) {
+    if (user?.id && (typeof navigator === "undefined" || navigator.onLine)) {
       db.getUserById(user.id).then(u => {
         if (u?.vehicleReg) setVehicleReg(u.vehicleReg);
         if (u?.employer) setEmployer(u.employer);
         if (u?.phone) setPhone(u.phone);
-      });
+      }).catch(() => {});
     }
   }, [user]);
 
@@ -163,6 +166,10 @@ export default function ProfilePage() {
       setIsSubmitting(false);
     }
   };
+
+  if (!isOnline) {
+    return <OfflineUnavailable title="Profile needs a signal" message="Your profile and account settings need a connection. They'll be available again when you're back online." />;
+  }
 
   return (
     <div className={styles.container} style={{height: "auto", minHeight: "auto"}}>
