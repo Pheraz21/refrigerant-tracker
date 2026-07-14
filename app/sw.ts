@@ -29,6 +29,23 @@ export const OFFLINE_PAGES = [
 ];
 const OFFLINE_PAGES_CACHE = "engineer-offline-pages";
 
+// Rebuild a response as a plain 200 with a fresh body. CRITICAL: a response whose
+// `redirected` flag is set (e.g. one stored by install-time fetch warming) is
+// REJECTED by the browser when returned for a page navigation — surfacing as the
+// generic "page couldn't load" error even though the cache clearly holds the page.
+// Rebuilding strips that flag (and any other internal taint) so the cached copy is
+// always usable for navigations.
+async function sanitizeResponse(res: Response): Promise<Response> {
+  const body = await res.blob();
+  return new Response(body, {
+    status: 200,
+    statusText: "OK",
+    headers: {
+      "Content-Type": res.headers.get("Content-Type") || "text/html; charset=utf-8",
+    },
+  });
+}
+
 // Hand-rolled handler registered BEFORE Serwist so it wins event.respondWith for
 // these pages. Network-first, falling back to the pathname-normalised cached
 // document. This is deterministic — Workbox's navigation strategy + navigationPreload
@@ -52,7 +69,7 @@ self.addEventListener("fetch", (event) => {
         const fresh = await fetch(req);
         if (fresh && fresh.ok) {
           const cache = await caches.open(OFFLINE_PAGES_CACHE);
-          cache.put(url.pathname, fresh.clone());
+          cache.put(url.pathname, await sanitizeResponse(fresh.clone()));
         }
         return fresh;
       } catch {
@@ -65,7 +82,9 @@ self.addEventListener("fetch", (event) => {
           (await cache.match(url.pathname, opts)) ||
           (await caches.match(url.pathname, opts)) ||
           (await caches.match(req, opts));
-        if (cached) return cached;
+        // Sanitize on the way out too — fallback matches from Workbox caches may
+        // carry the redirected flag, which navigations reject.
+        if (cached) return sanitizeResponse(cached);
         return Response.error();
       }
     })(),
@@ -99,7 +118,7 @@ self.addEventListener("install", (event) => {
           OFFLINE_PAGES.map(async (path) => {
             try {
               const res = await fetch(path, { cache: "no-store", credentials: "same-origin" });
-              if (res.ok) await cache.put(path, res.clone());
+              if (res.ok) await cache.put(path, await sanitizeResponse(res));
             } catch {
               /* offline or blocked — client warming will retry later */
             }
