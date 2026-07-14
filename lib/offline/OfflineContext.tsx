@@ -24,6 +24,18 @@ const OfflineContext = createContext<OfflineState>({
   refreshMeta: () => {},
 });
 
+// Static engineer pages that take ?serial=. Fetching them while online populates
+// the service worker's normalised (pathname-keyed) cache so ANY serial opens
+// offline — not just ones visited before. Must match OFFLINE_QUERY_PAGES in sw.ts.
+const OFFLINE_QUERY_PAGES = ["/engineer/bottle-view", "/engineer/log", "/engineer/move"];
+
+function warmOfflinePages() {
+  if (typeof navigator === "undefined" || !navigator.onLine) return;
+  OFFLINE_QUERY_PAGES.forEach(p => {
+    fetch(p, { cache: "no-store" }).catch(() => {});
+  });
+}
+
 export function OfflineProvider({ children }: { children: React.ReactNode }) {
   const [isOnline, setIsOnline] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
@@ -51,6 +63,7 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
     const goOnline = () => {
       setIsOnline(true);
       attemptSync();
+      warmOfflinePages();
     };
     const goOffline = () => setIsOnline(false);
     const onFocus = () => attemptSync();
@@ -64,6 +77,7 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
     refreshMeta();
     refreshPending();
     attemptSync(); // flush anything left from a previous offline session
+    warmOfflinePages(); // ensure ?serial= pages open offline for any bottle
 
     return () => {
       window.removeEventListener("online", goOnline);
