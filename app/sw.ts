@@ -49,3 +49,29 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+// Warm the offline action pages into the cache during install (which happens while
+// online, as soon as the service worker updates) so they open offline regardless of
+// whether the app's client-side warming ran. Keyed by pathname to match the runtime
+// rule above, so one cached copy serves every ?serial=.
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        const cache = await caches.open("engineer-offline-pages");
+        await Promise.all(
+          OFFLINE_QUERY_PAGES.map(async (path) => {
+            try {
+              const res = await fetch(path, { cache: "no-store", credentials: "same-origin" });
+              if (res.ok) await cache.put(path, res.clone());
+            } catch {
+              /* offline or blocked — runtime warming will retry later */
+            }
+          }),
+        );
+      } catch {
+        /* cache unavailable — non-fatal */
+      }
+    })(),
+  );
+});
