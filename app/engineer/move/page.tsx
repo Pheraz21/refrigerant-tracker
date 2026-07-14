@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthContext";
 import { compressImage } from "@/lib/utils";
-import { submitMove } from "@/lib/offline/actions";
+import { submitMove, submitHwcnTransit } from "@/lib/offline/actions";
 import { getCachedBottle, cacheBottle } from "@/lib/offline/bottleCache";
 import { useOffline } from "@/lib/offline/OfflineContext";
 
@@ -124,14 +124,17 @@ export default function MoveBottlePage() {
     const requiresSupplierHWCN = isReclaimWithGas && (destination === "supplier");
     const needsTransit = requiresInternalHWCN || requiresSupplierHWCN;
 
-    // Offline gate: only plain location moves (to Van, Job Site, or Other) can be
-    // queued offline. Supplier/HQ-Stores returns, handovers, and hazardous-waste
-    // consignments create server records and must be done with a signal.
+    // Offline gate. Offline you can do: plain location moves (Van/Job Site/Other) and
+    // internal consignments to HQ-Stores (the note is created on sync). A DIRECT-to-
+    // supplier return still needs a signal (it needs a photo of the paper note); so do
+    // plain returns to a supplier/office and handovers (server records / other engineers).
     const online = typeof navigator === "undefined" ? true : navigator.onLine;
-    const offlineAllowed = !needsTransit && (destination === "site" || destination === "van" || destination === "other");
+    const offlineAllowed =
+      requiresInternalHWCN ||
+      (!needsTransit && (destination === "site" || destination === "van" || destination === "other"));
     if (!online && !offlineAllowed) {
       setIsSubmitting(false);
-      setOfflineBlock("This move needs a signal — returns to a supplier or HQ-Stores, handovers, and hazardous-waste consignments must be done online. Offline you can move to your Van, a Job Site, or another location.");
+      setOfflineBlock("This needs a signal — direct-to-supplier returns, plain supplier/HQ-Stores returns, and handovers must be done online. Offline you can move to your Van, a Job Site, or another location, or send hazardous waste to HQ-Stores.");
       return;
     }
     setOfflineBlock(null);
@@ -174,28 +177,38 @@ export default function MoveBottlePage() {
          finalLocationId = intendedDest; // If they clicked 'Transfer to Van', the actual destination is their chosen intendedDest
       }
       const fullDestinationString = destination === "other" ? `${customDestination.name}, ${customDestination.address}, ${customDestination.postcode}` : finalLocationId;
-      
-      let hwcnId = undefined;
-      if (requiresInternalHWCN) {
-        hwcnId = await db.createHWCN({
-          serial: serialParam,
-          destination: intendedDest || fullDestinationString,
-          sites: hwcnSites,
-          vehicleReg,
-          engineer: carrierName || user?.name,
-          date: new Date().toISOString(),
-          gasType: bottle?.gasType || "Unknown",
-          fillWeight: bottle?.currentWeight
-        });
-        setGeneratedHWCN(hwcnId);
-      }
-      
+
       let intendedLocType = destination;
       if (destination === "van") {
         intendedLocType = intendedDest === "HQ-Stores" ? "office" : "site";
       }
 
-      await db.updateBottleLocation(serialParam, "van", `${user?.name} - Van`, intendedDest || fullDestinationString, intendedLocType as any, hwcnId, user?.name);
+      if (requiresInternalHWCN) {
+        // Digital consignment to HQ-Stores. Offline-aware: creates the numbered note
+        // on sync and shows the bottle in transit meanwhile.
+        const res = await submitHwcnTransit({
+          serial: serialParam,
+          hwcnData: {
+            serial: serialParam,
+            destination: intendedDest || fullDestinationString,
+            sites: hwcnSites,
+            vehicleReg,
+            engineer: carrierName || user?.name,
+            date: new Date().toISOString(),
+            gasType: bottle?.gasType || "Unknown",
+            fillWeight: bottle?.currentWeight,
+          },
+          locationType: "van",
+          locationId: `${user?.name} - Van`,
+          intendedDestination: intendedDest || fullDestinationString,
+          intendedLocationType: intendedLocType as any,
+          engineerName: user?.name,
+        });
+        if (res.hwcnId) setGeneratedHWCN(res.hwcnId);
+      } else {
+        // Direct-to-supplier (paper note) — online only, no digital HWCN.
+        await db.updateBottleLocation(serialParam, "van", `${user?.name} - Van`, intendedDest || fullDestinationString, intendedLocType as any, undefined, user?.name);
+      }
     }
 
     if (isDiscrepancy && online) {

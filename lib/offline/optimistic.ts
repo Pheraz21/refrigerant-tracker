@@ -36,3 +36,25 @@ export async function applyMoveOptimistic(
     locationChangedAt: new Date().toISOString(),
   });
 }
+
+// Show the bottle in transit locally after an offline HWCN consignment. activeHWCN
+// is a placeholder until sync assigns the real numbered note.
+export async function applyTransitOptimistic(
+  serial: string,
+  locationType: Bottle["locationType"],
+  locationId: string,
+  intendedDestination: string,
+  intendedLocationType: Bottle["locationType"],
+): Promise<void> {
+  const b = await getCachedBottle(serial);
+  if (!b) return;
+  await cacheBottle({
+    ...b,
+    locationType,
+    locationId,
+    intendedDestination,
+    intendedLocationType,
+    activeHWCN: "PENDING-SYNC",
+    locationChangedAt: new Date().toISOString(),
+  });
+}

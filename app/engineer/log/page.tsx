@@ -8,7 +8,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { AlertTriangle } from "lucide-react";
-import { submitUsage, submitDecommission } from "@/lib/offline/actions";
+import { submitUsage, submitDecommission, submitHwcnTransit } from "@/lib/offline/actions";
 import { cacheBottle, getCachedBottle } from "@/lib/offline/bottleCache";
 
 type JobType = "service" | "install" | "retrofit" | "recovery" | "waste";
@@ -204,11 +204,11 @@ export default function LogBottlePage() {
     // anything that creates a consignment note, supplier return, or decommission
     // record must run online.
     const online = typeof navigator === "undefined" ? true : navigator.onLine;
-    const willMultiSite = isRecovery && multiSiteAcknowledged;
-    // Decommission is queued offline (created on sync), so it no longer blocks.
-    if (!online && (derivedJobType === "waste" || willMultiSite)) {
+    // Decommission and multi-site consignment notes are now queued offline. Only a
+    // direct-to-supplier waste return (needs a photo of the paper note) still blocks.
+    if (!online && derivedJobType === "waste") {
       setIsSubmitting(false);
-      setValidationError("This needs a signal — it creates a consignment note or supplier return. Please submit when you're back online.");
+      setValidationError("A direct-to-supplier return needs a signal (it requires a photo of the paper consignment note). Please submit when you're back online.");
       return;
     }
 
@@ -224,26 +224,37 @@ export default function LogBottlePage() {
       equipmentDetails: equipmentToSave.length > 0 ? equipmentToSave : undefined,
     });
 
-    // §4.2: If multi-site was acknowledged, auto-generate Internal HWCN and set dest to Office
+    // §4.2: If multi-site was acknowledged, auto-generate Internal HWCN and set dest to Office.
+    // Offline-aware: queues the note + transit and creates the numbered note on sync.
     if (isRecovery && multiSiteAcknowledged && bottleData) {
       const sites = [...existingProducerSites, producerSite];
-      let vehicleReg = "";
-      if (user?.id) {
-        const profile = await db.getEngineerById(user.id);
-        if (profile?.vehicleReg) vehicleReg = profile.vehicleReg;
+      let vehicleReg = user?.vehicleReg || "";
+      if (online && user?.id) {
+        try {
+          const profile = await db.getEngineerById(user.id);
+          if (profile?.vehicleReg) vehicleReg = profile.vehicleReg;
+        } catch {
+          /* offline / unavailable — use the profile reg we already have */
+        }
       }
-      const hwcnId = await db.createHWCN({
+      await submitHwcnTransit({
         serial: serialParam,
-        destination: "HQ-Stores",
-        sites: sites,
-        vehicleReg: vehicleReg,
-        engineer: user?.name,
-        date: new Date().toISOString(),
-        gasType: finalRefrigerant || bottleData.gasType || "Unknown",
-        fillWeight: (bottleData.currentWeight || 0) + totalWeight
+        hwcnData: {
+          serial: serialParam,
+          destination: "HQ-Stores",
+          sites: sites,
+          vehicleReg: vehicleReg,
+          engineer: user?.name,
+          date: new Date().toISOString(),
+          gasType: finalRefrigerant || bottleData.gasType || "Unknown",
+          fillWeight: (bottleData.currentWeight || 0) + totalWeight,
+        },
+        locationType: bottleData.locationType,
+        locationId: bottleData.locationId,
+        intendedDestination: "HQ-Stores",
+        intendedLocationType: "office",
+        engineerName: user?.name,
       });
-      // Update bottle with new intended destination
-      await db.updateBottleLocation(serialParam, bottleData.locationType, bottleData.locationId, "HQ-Stores", "office" as any, hwcnId);
     }
 
     // Log decommissioned equipment if any are flagged

@@ -6,7 +6,7 @@
 // calling these when offline.
 import { db, type Bottle } from "@/lib/db";
 import { enqueueMutation } from "./queue";
-import { applyMoveOptimistic, applyUsageOptimistic } from "./optimistic";
+import { applyMoveOptimistic, applyTransitOptimistic, applyUsageOptimistic } from "./optimistic";
 
 function isOnline(): boolean {
   return typeof navigator === "undefined" ? true : navigator.onLine;
@@ -80,6 +80,64 @@ export async function submitDecommission(record: DecommissionRecord): Promise<{ 
     label: `Decommission ${record.equipment.length} item(s)`,
     occurredAt,
     args: [record, occurredAt, id],
+  });
+  return { queued: true };
+}
+
+export interface HwcnTransitInput {
+  serial: string;
+  hwcnData: Record<string, unknown>; // passed to db.createHWCN
+  // The bottle move that puts it in transit, referencing the new HWCN.
+  locationType: Bottle["locationType"];
+  locationId: string;
+  intendedDestination: string;
+  intendedLocationType: Bottle["locationType"];
+  engineerName?: string;
+}
+
+// Generate a consignment note (HWCN) and put the bottle in transit. Online → create
+// the numbered note now and attach it. Offline → show the bottle in transit with a
+// pending reference and queue an "hwcn_transit" mutation; on sync the real numbered
+// note is created (once) and attached. Returns the HWCN id when created online.
+export async function submitHwcnTransit(input: HwcnTransitInput): Promise<{ queued: boolean; hwcnId?: string }> {
+  if (isOnline()) {
+    const hwcnId = await db.createHWCN(input.hwcnData);
+    await db.updateBottleLocation(
+      input.serial,
+      input.locationType,
+      input.locationId,
+      input.intendedDestination,
+      input.intendedLocationType,
+      hwcnId,
+      input.engineerName,
+    );
+    return { queued: false, hwcnId };
+  }
+  const occurredAt = new Date().toISOString();
+  await applyTransitOptimistic(
+    input.serial,
+    input.locationType,
+    input.locationId,
+    input.intendedDestination,
+    input.intendedLocationType,
+  );
+  await enqueueMutation({
+    type: "hwcn_transit",
+    serial: input.serial,
+    label: `Consignment → ${input.intendedDestination}`,
+    occurredAt,
+    args: [
+      {
+        serial: input.serial,
+        hwcnData: { ...input.hwcnData, date: (input.hwcnData.date as string) || occurredAt },
+        locationType: input.locationType,
+        locationId: input.locationId,
+        intendedDestination: input.intendedDestination,
+        intendedLocationType: input.intendedLocationType,
+        engineerName: input.engineerName,
+      },
+      occurredAt,
+    ],
   });
   return { queued: true };
 }

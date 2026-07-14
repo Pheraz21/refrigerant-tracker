@@ -4,7 +4,7 @@
 // Full conflict detection/flagging is Phase 3 — for now a persistent failure keeps
 // the item queued and surfaces via the pending count.
 import { db } from "@/lib/db";
-import { getQueuedMutations, removeMutation } from "./queue";
+import { getQueuedMutations, removeMutation, updateMutation } from "./queue";
 
 let syncing = false;
 
@@ -26,6 +26,34 @@ export async function syncQueue(): Promise<{ synced: number; failed: number }> {
           await (db.updateBottleLocation as (...a: unknown[]) => Promise<void>)(...m.args);
         } else if (m.type === "decommission") {
           await (db.logDecommission as (...a: unknown[]) => Promise<unknown>)(...m.args);
+        } else if (m.type === "hwcn_transit") {
+          const payload = m.args[0] as {
+            serial: string;
+            hwcnData: Record<string, unknown>;
+            locationType: string;
+            locationId: string;
+            intendedDestination: string;
+            intendedLocationType: string;
+            engineerName?: string;
+          };
+          const occurredAt = m.args[1] as string;
+          // Create the numbered note only once — reuse the persisted id on retry so a
+          // partial failure can never produce a duplicate consignment note.
+          let hwcnId = m.result;
+          if (!hwcnId) {
+            hwcnId = await db.createHWCN(payload.hwcnData);
+            await updateMutation(m.id, { result: hwcnId });
+          }
+          await (db.updateBottleLocation as (...a: unknown[]) => Promise<void>)(
+            payload.serial,
+            payload.locationType,
+            payload.locationId,
+            payload.intendedDestination,
+            payload.intendedLocationType,
+            hwcnId,
+            payload.engineerName,
+            occurredAt,
+          );
         }
         await removeMutation(m.id);
         synced++;
