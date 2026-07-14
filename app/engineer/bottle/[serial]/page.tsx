@@ -65,7 +65,23 @@ export default function BottleActionHub() {
 
   useEffect(() => {
     async function loadInitialData() {
-      const b = await db.getBottle(serial);
+      // This is a dynamic route and can't work offline — bounce to the static
+      // offline bottle screen so the engineer never gets stuck on the spinner.
+      // Use a hard navigation so it's served from the cached document, not a
+      // client-side fetch that could hang with no signal.
+      const offlineUrl = `/engineer/bottle-view?serial=${encodeURIComponent(serial)}`;
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        window.location.replace(offlineUrl);
+        return;
+      }
+      let b: Bottle | null = null;
+      try {
+        b = await db.getBottle(serial);
+      } catch {
+        // Lost connection mid-load — fall back to the offline screen.
+        window.location.replace(offlineUrl);
+        return;
+      }
       if (!b) {
         router.push(`/engineer/bottle/register?serial=${serial}`);
         return;
