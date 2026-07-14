@@ -2,11 +2,26 @@
 
 // Amber bar shown across the engineer app whenever the device is offline, so an
 // engineer in a plantroom knows work is being saved locally and will sync later.
+import { useEffect, useState } from "react";
 import { CloudOff, RefreshCw } from "lucide-react";
 import { useOffline } from "./OfflineContext";
 
+const DIAG_PAGES = ["/engineer/bottle-view", "/engineer/log", "/engineer/move"];
+
 export function OfflineBanner() {
   const { isOnline, pendingCount } = useOffline();
+  const [diag, setDiag] = useState<string>("checking…");
+
+  // TEMP diagnostic: report which offline pages are actually in the cache.
+  useEffect(() => {
+    if (isOnline || typeof caches === "undefined") return;
+    Promise.all(
+      DIAG_PAGES.map(async (p) => {
+        const hit = await caches.match(p);
+        return `${p.split("/").pop()}:${hit ? "✓" : "✗"}`;
+      }),
+    ).then((parts) => setDiag(parts.join(" ")));
+  }, [isOnline]);
 
   if (!isOnline) {
     return (
@@ -17,19 +32,22 @@ export function OfflineBanner() {
           color: "#000",
           padding: "0.6rem 1rem",
           display: "flex",
-          alignItems: "center",
-          gap: "0.5rem",
+          flexDirection: "column",
+          gap: "0.25rem",
           fontSize: "0.85rem",
           fontWeight: 600,
           zIndex: 100,
           position: "relative",
         }}
       >
-        <CloudOff size={18} style={{ flexShrink: 0 }} />
-        <span>
+        <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <CloudOff size={18} style={{ flexShrink: 0 }} />
           Offline — You can use the app in offline mode for bottle usage and moves on
           site. The updates are saved locally on your device. Once you return to signal
           and open the app, the usage and moves will sync with the server.
+        </span>
+        <span style={{ fontSize: "0.7rem", fontWeight: 400, opacity: 0.8 }}>
+          offline cache → {diag}
         </span>
       </div>
     );
