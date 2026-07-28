@@ -12,6 +12,7 @@ interface ActionItem {
   date: string;
   jobRef: string | null;
   jobType: string;
+  gasType: string;
   engineer: string;
   bottleSerial: string;
   equipmentWeight: number;
@@ -119,11 +120,14 @@ function EquipmentReportContent() {
           if (eng !== "—") engineersSet.add(eng);
           if (logJobRef) jobsSet.add(logJobRef);
 
+          const resolvedGasType = bottleMap.get(log.serial)?.gasType || eq.gasType || eq.refrigerantType || log.gas_type || log.gasType || "R410A";
+
           actions.push({
             usageLogId: log.id,
             date: log.date,
             jobRef: logJobRef || null,
             jobType: log.job_type || log.jobType || "service",
+            gasType: resolvedGasType,
             engineer: eng,
             bottleSerial: log.serial,
             equipmentWeight: parseFloat(String(eq.weight)) || parseFloat(String(log.weight_used || log.weightUsed)) || 0,
@@ -139,6 +143,7 @@ function EquipmentReportContent() {
 
     let totalGasAdded = 0;
     let totalGasRecovered = 0;
+    let totalCo2e = 0;
 
     for (const act of actions) {
       const isRec = ["recovery", "retrofit", "waste", "reclaim"].includes((act.jobType || "").toLowerCase());
@@ -147,9 +152,16 @@ function EquipmentReportContent() {
       } else {
         totalGasAdded += (act.equipmentWeight || 0);
       }
+      totalCo2e += calculateCO2e(act.gasType, act.equipmentWeight);
     }
 
     const netGas = totalGasAdded - totalGasRecovered;
+
+    // Fallback: If totalCo2e is 0 (e.g. weight was not logged on individual actions but netGas exists), calculate from netGas with default R410A
+    if (totalCo2e === 0 && Math.abs(netGas) > 0) {
+      const primaryGas = actions[0]?.gasType || "R410A";
+      totalCo2e = calculateCO2e(primaryGas, Math.abs(netGas));
+    }
 
     const firstDate = actions.length > 0 ? actions[actions.length - 1].date : null;
     const lastDate = actions.length > 0 ? actions[0].date : null;
@@ -165,6 +177,7 @@ function EquipmentReportContent() {
         totalGasAdded,
         totalGasRecovered,
         netGas,
+        totalCo2e,
         serviceCount: actions.length,
         engineers: Array.from(engineersSet),
         jobsCount: jobsSet.size,
@@ -365,10 +378,10 @@ function EquipmentReportContent() {
           <div style={{ background: "rgba(168,85,247,0.06)", border: "1px solid rgba(168,85,247,0.2)", borderRadius: "8px", padding: "0.85rem 1rem" }}>
             <div style={{ fontSize: "0.7rem", color: "#a855f7", fontWeight: 700, textTransform: "uppercase" }}>CO₂ Equivalent (GWP)</div>
             <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "#a855f7", marginTop: "2px" }}>
-              {calculateCO2e(matchedActions[0]?.jobType || "R410A", Math.abs(stats.netGas))} t CO₂e
+              {stats.totalCo2e.toFixed(2)} t CO₂e
             </div>
             <div style={{ fontSize: "0.68rem", color: "#94a3b8", marginTop: "2px" }}>
-              Informational GWP metric
+              {matchedActions[0]?.gasType ? `${matchedActions[0].gasType} GWP metric` : "Informational GWP metric"}
             </div>
           </div>
 
