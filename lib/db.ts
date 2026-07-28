@@ -1588,6 +1588,21 @@ export const db = {
     return data ? data.map(mapBottle) : [];
   },
 
+  async purgeBottleWithLogs(serial: string): Promise<void> {
+    const s = (serial || "").trim();
+    if (!s) return;
+    try {
+      await Promise.all([
+        supabase.from('bottles').delete().ilike('serial', s),
+        supabase.from('usage_logs').delete().ilike('serial', s),
+        supabase.from('movement_logs').delete().ilike('serial', s),
+        supabase.from('hwcns').delete().ilike('serial', s),
+      ]);
+    } catch (err) {
+      console.error(`Error purging bottle ${s}:`, err);
+    }
+  },
+
   async deleteEquipmentItem(serialToDel: string, mfrToDel: string, mdlToDel: string): Promise<void> {
     const sTarget = (serialToDel || "").toLowerCase().trim();
     const mTarget = (mfrToDel || "").toLowerCase().trim();
@@ -1638,6 +1653,10 @@ export const db = {
     let deletedJobs = 0;
 
     try {
+      // Purge test bottles PHTEST1 and PHTEST3
+      await this.purgeBottleWithLogs("PHTEST1");
+      await this.purgeBottleWithLogs("PHTEST3");
+
       const { data: logs } = await supabase.from('usage_logs').select('*');
       if (logs && logs.length > 0) {
         for (const log of logs) {

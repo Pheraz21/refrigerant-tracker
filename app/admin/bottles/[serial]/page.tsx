@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db, Bottle, MovementLog, UsageLog, CrmJob } from "@/lib/db";
-import { ArrowLeft, Edit3, History, ArrowRight, User, Package, Calendar, MapPin, Truck, Building2, FileText, FileSpreadsheet, ClipboardList, Wrench, Tag, CheckCircle, RotateCcw, RefreshCw, Camera, ZoomIn, ZoomOut, Printer, Maximize2 } from "lucide-react";
+import { ArrowLeft, Edit3, History, ArrowRight, User, Package, Calendar, MapPin, Truck, Building2, FileText, FileSpreadsheet, ClipboardList, Wrench, Tag, CheckCircle, RotateCcw, RefreshCw, Camera, ZoomIn, ZoomOut, Printer, Maximize2, Trash2 } from "lucide-react";
 import Link from "next/link";
 
 type Lifecycle = { index: number; start: string; end: string | null };
@@ -529,6 +529,17 @@ export default function ViewBottlePage() {
               <Edit3 size={18} /> Edit
             </button>
           </Link>
+          <button
+            onClick={async () => {
+              if (confirm(`Are you sure you want to PERMANENTLY delete bottle ${serialStr} and all associated movement and usage logs? This action cannot be undone.`)) {
+                await db.purgeBottleWithLogs(serialStr);
+                router.push("/admin/bottles");
+              }
+            }}
+            style={{ background: "rgba(255,51,102,0.1)", border: "1px solid rgba(255,51,102,0.4)", color: "#ff3366", padding: "0.6rem 1rem", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.4rem" }}
+          >
+            <Trash2 size={18} /> Delete Bottle
+          </button>
         </div>
       </div>
 
