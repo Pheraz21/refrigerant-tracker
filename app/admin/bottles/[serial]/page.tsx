@@ -514,14 +514,9 @@ export default function ViewBottlePage() {
           <button onClick={exportCSV} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)", padding: "0.6rem 1rem", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.4rem" }}>
             <FileSpreadsheet size={18} /> Export Excel
           </button>
-          <button onClick={exportPDF} style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)", padding: "0.6rem 1rem", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.4rem" }}>
-            <FileText size={18} /> Cylinder Audit
+          <button onClick={() => router.push(`/admin/bottles/${serialStr}/report`)} style={{ background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.3)", color: "#00e5ff", padding: "0.6rem 1rem", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <FileText size={18} /> Cylinder Audit Report
           </button>
-          {bottle.category === "new" && (
-            <button onClick={printRefrigerantLog} style={{ background: "rgba(255,170,0,0.08)", border: "1px solid rgba(255,170,0,0.3)", color: "#ffaa00", padding: "0.6rem 1rem", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.4rem" }}>
-              <FileText size={18} /> Cylinder Usage Report
-            </button>
-          )}
           <Link href={`/admin/bottles/${serial}/edit`} style={{ textDecoration: "none" }}>
             <button style={{ background: "rgba(0,229,255,0.1)", border: "1px solid var(--primary)", color: "var(--primary)", padding: "0.6rem 1.2rem", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <Edit3 size={18} /> Edit

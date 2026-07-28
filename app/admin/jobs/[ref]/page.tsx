@@ -368,7 +368,7 @@ export default function JobDetailPage() {
         </Link>
         <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
           {(hasRefLog || decomRecords.length > 0) && (
-            <button onClick={printFullJobPdf} style={pdfBtn("0,229,255")}>
+            <button onClick={() => router.push(`/admin/jobs/${encodeURIComponent(ref)}/report`)} style={pdfBtn("0,229,255")}>
               <Printer size={14} /> Full Job Report
             </button>
           )}
