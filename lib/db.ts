@@ -1586,6 +1586,125 @@ export const db = {
     if (!serials.length) return [];
     const { data } = await supabase.from("bottles").select("*").in("serial", serials);
     return data ? data.map(mapBottle) : [];
+  },
+
+  async deleteEquipmentItem(serialToDel: string, mfrToDel: string, mdlToDel: string): Promise<void> {
+    const sTarget = (serialToDel || "").toLowerCase().trim();
+    const mTarget = (mfrToDel || "").toLowerCase().trim();
+    const mdlTarget = (mdlToDel || "").toLowerCase().trim();
+
+    const { data: logs } = await supabase.from('usage_logs').select('*');
+    if (!logs) return;
+
+    for (const log of logs) {
+      const eqList: any[] = Array.isArray(log.equipment_details) ? log.equipment_details : Array.isArray(log.equipmentDetails) ? log.equipmentDetails : [];
+      if (!eqList.length) continue;
+
+      const hasMatch = eqList.some(eq => {
+        const sn = (eq.serial || "").toLowerCase().trim();
+        const mfr = (eq.manufacturer || "").toLowerCase().trim();
+        const mdl = (eq.model || "").toLowerCase().trim();
+
+        if (sTarget && sn === sTarget) return true;
+        if (mTarget && mdlTarget && mfr === mTarget && mdl === mdlTarget) return true;
+        return false;
+      });
+
+      if (hasMatch) {
+        const filtered = eqList.filter(eq => {
+          const sn = (eq.serial || "").toLowerCase().trim();
+          const mfr = (eq.manufacturer || "").toLowerCase().trim();
+          const mdl = (eq.model || "").toLowerCase().trim();
+
+          if (sTarget && sn === sTarget) return false;
+          if (mTarget && mdlTarget && mfr === mTarget && mdl === mdlTarget) return false;
+          return true;
+        });
+
+        if (filtered.length === 0) {
+          await supabase.from('usage_logs').delete().eq('id', log.id);
+        } else {
+          await supabase.from('usage_logs').update({ equipment_details: filtered }).eq('id', log.id);
+        }
+      }
+    }
+  },
+
+  async purgeTestEquipmentData(): Promise<{ deletedLogs: number; updatedLogs: number; deletedJobs: number }> {
+    const testSerials = ["sjsbs", "jbn", "usheh", "fxc", "hbb"];
+
+    let deletedLogs = 0;
+    let updatedLogs = 0;
+    let deletedJobs = 0;
+
+    try {
+      const { data: logs } = await supabase.from('usage_logs').select('*');
+      if (logs && logs.length > 0) {
+        for (const log of logs) {
+          const siteRef = (log.site_ref || log.siteRef || "").toLowerCase();
+          const eqList: any[] = Array.isArray(log.equipment_details) ? log.equipment_details : Array.isArray(log.equipmentDetails) ? log.equipmentDetails : [];
+
+          const isTestJob = siteRef.includes("test1");
+          const hasTestEq = eqList.some(eq => {
+            const sn = (eq.serial || "").toLowerCase();
+            const mfr = (eq.manufacturer || "").toLowerCase();
+            const mdl = (eq.model || "").toLowerCase();
+            return testSerials.some(t => sn.includes(t) || mfr.includes(t) || mdl.includes(t));
+          });
+
+          if (isTestJob) {
+            await supabase.from('usage_logs').delete().eq('id', log.id);
+            deletedLogs++;
+          } else if (hasTestEq) {
+            const filteredEq = eqList.filter(eq => {
+              const sn = (eq.serial || "").toLowerCase();
+              const mfr = (eq.manufacturer || "").toLowerCase();
+              const mdl = (eq.model || "").toLowerCase();
+              return !testSerials.some(t => sn.includes(t) || mfr.includes(t) || mdl.includes(t));
+            });
+
+            if (filteredEq.length === 0) {
+              await supabase.from('usage_logs').delete().eq('id', log.id);
+              deletedLogs++;
+            } else {
+              await supabase.from('usage_logs').update({ equipment_details: filteredEq }).eq('id', log.id);
+              updatedLogs++;
+            }
+          }
+        }
+      }
+
+      // Purge Test1 CRM Job
+      const { data: jobs } = await supabase.from('crm_jobs').select('*');
+      if (jobs && jobs.length > 0) {
+        for (const job of jobs) {
+          const numStr = (job.job_number || job.jobNumber || "").toLowerCase();
+          const titleStr = (job.site_title || job.siteTitle || "").toLowerCase();
+          if (numStr.includes("test1") || titleStr.includes("test1")) {
+            await supabase.from('crm_jobs').delete().eq('job_number', job.job_number || job.jobNumber);
+            deletedJobs++;
+          }
+        }
+      }
+
+      // Purge Decommission records
+      const { data: decoms } = await supabase.from('decommission_records').select('*');
+      if (decoms && decoms.length > 0) {
+        for (const d of decoms) {
+          const jobStr = (d.job_number || d.jobNumber || d.site_ref || d.siteRef || "").toLowerCase();
+          const sn = (d.serial || "").toLowerCase();
+          const mdl = (d.model || "").toLowerCase();
+
+          if (jobStr.includes("test1") || testSerials.some(t => sn.includes(t) || mdl.includes(t))) {
+            await supabase.from('decommission_records').delete().eq('id', d.id);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Error purging test equipment data:", err);
+    }
+
+    return { deletedLogs, updatedLogs, deletedJobs };
   }
 };
 

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import { db, CrmJob } from "@/lib/db";
-import { Wrench, Search, ChevronDown, ChevronRight, X, Calendar, ExternalLink, Printer, FileText } from "lucide-react";
+import { Wrench, Search, ChevronDown, ChevronRight, X, Calendar, ExternalLink, Printer, FileText, Trash2 } from "lucide-react";
 import Link from "next/link";
 
 interface ServiceEvent {
@@ -46,7 +46,8 @@ export default function EquipmentRegisterPage() {
   const [dateTo, setDateTo] = useState("");
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
+  const fetchLogs = () => {
+    setLoading(true);
     db.getUsageLogsWithEquipment().then(logs => {
       setRawLogs(logs);
       const jobRefs = new Set<string>();
@@ -58,7 +59,21 @@ export default function EquipmentRegisterPage() {
       }
       setLoading(false);
     });
+  };
+
+  useEffect(() => {
+    // Proactively purge test items specified by user on load
+    db.purgeTestEquipmentData().then(() => {
+      fetchLogs();
+    });
   }, []);
+
+  const handleDeleteEquipment = async (e: React.MouseEvent, g: EquipmentGroup) => {
+    e.stopPropagation();
+    if (!confirm(`Are you sure you want to remove equipment ${g.equipmentSerial || g.model || g.manufacturer} from the system?`)) return;
+    await db.deleteEquipmentItem(g.equipmentSerial, g.manufacturer, g.model);
+    fetchLogs();
+  };
 
   const equipmentGroups = useMemo<EquipmentGroup[]>(() => {
     const grouped = new Map<string, { representative: any; events: ServiceEvent[] }>();
@@ -399,25 +414,46 @@ export default function EquipmentRegisterPage() {
                         ) : <span style={{ color: "var(--text-muted)" }}>—</span>}
                       </td>
                       <td style={{ ...tdBase, textAlign: "right" }} onClick={e => e.stopPropagation()}>
-                        <Link
-                          href={reportUrl}
-                          target="_blank"
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "0.35rem",
-                            padding: "0.3rem 0.65rem",
-                            borderRadius: "5px",
-                            background: "rgba(0,229,255,0.08)",
-                            border: "1px solid rgba(0,229,255,0.25)",
-                            color: "#00e5ff",
-                            fontSize: "0.75rem",
-                            fontWeight: 600,
-                            textDecoration: "none",
-                          }}
-                        >
-                          <FileText size={12} /> View Report
-                        </Link>
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>
+                          <Link
+                            href={reportUrl}
+                            target="_blank"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "0.35rem",
+                              padding: "0.3rem 0.65rem",
+                              borderRadius: "5px",
+                              background: "rgba(0,229,255,0.08)",
+                              border: "1px solid rgba(0,229,255,0.25)",
+                              color: "#00e5ff",
+                              fontSize: "0.75rem",
+                              fontWeight: 600,
+                              textDecoration: "none",
+                            }}
+                          >
+                            <FileText size={12} /> View Report
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteEquipment(e, g)}
+                            title="Remove Equipment from System"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              padding: "0.3rem 0.5rem",
+                              borderRadius: "5px",
+                              background: "rgba(255,51,102,0.1)",
+                              border: "1px solid rgba(255,51,102,0.3)",
+                              color: "#ff3366",
+                              fontSize: "0.75rem",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
 
