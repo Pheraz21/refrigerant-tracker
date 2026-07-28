@@ -154,20 +154,30 @@ export default function SupplierHWCNDetailPage() {
           <h2 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
             <Camera size={18} /> Supplier HWCN Photo
           </h2>
-          {group.photoUrl ? (
-            <div style={{ borderRadius: "10px", overflow: "hidden", border: "1px solid rgba(168,85,247,0.25)", maxWidth: "600px" }}>
-              <img
-                src={group.photoUrl}
-                alt={`Supplier HWCN ${hwcnNumber}`}
-                style={{ width: "100%", display: "block" }}
-              />
-              <div style={{ padding: "0.5rem 1rem", background: "rgba(168,85,247,0.06)", display: "flex", justifyContent: "flex-end" }}>
-                <a href={group.photoUrl} target="_blank" rel="noreferrer" style={{ color: "#a855f7", fontSize: "0.82rem", textDecoration: "none", fontWeight: 600 }}>
-                  Open full size →
-                </a>
+          {group.photoUrl ? (() => {
+            const photos = group.photoUrl.split(",").map(s => s.trim()).filter(Boolean);
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", maxWidth: "650px" }}>
+                {photos.map((url, idx) => (
+                  <div key={idx} style={{ borderRadius: "10px", overflow: "hidden", border: "1px solid rgba(168,85,247,0.25)", background: "rgba(17,24,39,0.4)" }}>
+                    <img
+                      src={url}
+                      alt={`Supplier HWCN ${hwcnNumber} - Page ${idx + 1}`}
+                      style={{ width: "100%", display: "block" }}
+                    />
+                    <div style={{ padding: "0.5rem 1rem", background: "rgba(168,85,247,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.6)", fontWeight: 600 }}>
+                        {photos.length > 1 ? `Page ${idx + 1} of ${photos.length}` : "Documentation"}
+                      </span>
+                      <a href={url} target="_blank" rel="noreferrer" style={{ color: "#a855f7", fontSize: "0.82rem", textDecoration: "none", fontWeight: 600 }}>
+                        Open full size →
+                      </a>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-          ) : (
+            );
+          })() : (
             <div style={{ padding: "2rem", textAlign: "center", border: "2px dashed rgba(255,255,255,0.08)", borderRadius: "10px", color: "var(--text-muted)", fontSize: "0.88rem" }}>
               No photo uploaded for this return note.
             </div>

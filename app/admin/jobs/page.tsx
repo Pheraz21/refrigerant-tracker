@@ -1425,47 +1425,54 @@ export default function RefrigerantJobsPage() {
       />
 
       {/* Direct return HWCN photo modal */}
-      {viewPhoto && (
-        <div
-          onClick={() => setViewPhoto(null)}
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300, cursor: "pointer" }}
-        >
-          <div onClick={e => e.stopPropagation()} style={{ maxWidth: "92vw", maxHeight: "92vh", display: "flex", flexDirection: "column", gap: "0.75rem", alignItems: "center" }}>
-            <p style={{ margin: 0, color: "rgba(255,255,255,0.5)", fontSize: "0.8rem", fontFamily: "var(--font-geist-mono)" }}>
-              Direct supplier return — {viewPhoto.serial}
-            </p>
-            <img
-              src={viewPhoto.url}
-              alt={`HWCN photo — ${viewPhoto.serial}`}
-              style={{ maxWidth: "100%", maxHeight: "78vh", objectFit: "contain", borderRadius: "8px", display: "block" }}
-            />
-            <div style={{ display: "flex", gap: "0.75rem" }}>
-              <button
-                onClick={() => {
-                  const url = viewPhoto.url;
-                  if (url.startsWith("data:")) {
-                    const win = window.open("", "_blank");
-                    if (!win) return;
-                    win.document.write(`<!DOCTYPE html><html><head><title>HWCN — ${viewPhoto.serial}</title><style>body{margin:0;background:#000}img{max-width:100%;display:block}</style></head><body><img src="${url}" /></body></html>`);
-                    win.document.close();
-                  } else {
-                    window.open(url, "_blank");
-                  }
-                }}
-                style={{ padding: "0.5rem 1.1rem", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.8)", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem" }}
-              >
-                Open full size
-              </button>
+      {viewPhoto && (() => {
+        const photos = viewPhoto.url.split(",").map(s => s.trim()).filter(Boolean);
+        return (
+          <div
+            onClick={() => setViewPhoto(null)}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300, cursor: "pointer", padding: "1.5rem" }}
+          >
+            <div onClick={e => e.stopPropagation()} style={{ maxWidth: "92vw", maxHeight: "92vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: "1rem", alignItems: "center" }}>
+              <p style={{ margin: 0, color: "rgba(255,255,255,0.7)", fontSize: "0.85rem", fontFamily: "var(--font-geist-mono)", fontWeight: 600 }}>
+                Direct supplier return — {viewPhoto.serial} ({photos.length} page{photos.length !== 1 ? "s" : ""})
+              </p>
+              {photos.map((url, idx) => (
+                <div key={idx} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.5rem" }}>
+                  <img
+                    src={url}
+                    alt={`HWCN photo — ${viewPhoto.serial} - Page ${idx + 1}`}
+                    style={{ maxWidth: "100%", maxHeight: "70vh", objectFit: "contain", borderRadius: "8px", display: "block" }}
+                  />
+                  <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+                    <span style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.5)" }}>Page {idx + 1} of {photos.length}</span>
+                    <button
+                      onClick={() => {
+                        if (url.startsWith("data:")) {
+                          const win = window.open("", "_blank");
+                          if (!win) return;
+                          win.document.write(`<!DOCTYPE html><html><head><title>HWCN — ${viewPhoto.serial}</title><style>body{margin:0;background:#000}img{max-width:100%;display:block}</style></head><body><img src="${url}" /></body></html>`);
+                          win.document.close();
+                        } else {
+                          window.open(url, "_blank");
+                        }
+                      }}
+                      style={{ padding: "0.35rem 0.8rem", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.8)", borderRadius: "6px", cursor: "pointer", fontSize: "0.75rem" }}
+                    >
+                      Open full size
+                    </button>
+                  </div>
+                </div>
+              ))}
               <button
                 onClick={() => setViewPhoto(null)}
-                style={{ padding: "0.5rem 1.1rem", background: "rgba(255,107,107,0.1)", border: "1px solid rgba(255,107,107,0.25)", color: "#ff6b6b", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem" }}
+                style={{ padding: "0.5rem 1.25rem", background: "rgba(255,107,107,0.15)", border: "1px solid rgba(255,107,107,0.3)", color: "#ff6b6b", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 700, marginTop: "0.5rem" }}
               >
                 Close
               </button>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* CSV import preview modal */}
       {preview && (
