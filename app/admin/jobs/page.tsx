@@ -5,7 +5,7 @@ import { db, UsageLog, SupplierReturnGroup, CrmJob, Bottle, BottleCategory } fro
 import {
   Briefcase, Search, ChevronDown, ChevronRight, Calendar, X,
   ExternalLink, Settings2, ArrowUpDown, ArrowUp, ArrowDown, Printer,
-  Upload, RefreshCw, AlertTriangle, Camera
+  Upload, RefreshCw, AlertTriangle, Camera, FileText
 } from "lucide-react";
 import Link from "next/link";
 import React from "react";
@@ -1223,11 +1223,13 @@ export default function RefrigerantJobsPage() {
                                 <th style={{ ...thBase, fontSize: "0.65rem" }}>Last Service</th>
                                 <th style={{ ...thBase, fontSize: "0.65rem", textAlign: "right" }}>Total Gas</th>
                                 <th style={{ ...thBase, fontSize: "0.65rem" }}>Engineers</th>
+                                <th style={{ ...thBase, fontSize: "0.65rem", textAlign: "right" }}>Report</th>
                               </tr>
                             </thead>
                             <tbody>
                               {eqGroups.map((eq) => {
                                 const isEqExp = expandedEqRows.has(`${job.siteRef}::${eq.key}`);
+                                const reportUrl = `/admin/jobs/equipment/report?sn=${encodeURIComponent(eq.equipmentSerial)}&mfr=${encodeURIComponent(eq.manufacturer)}&mdl=${encodeURIComponent(eq.model)}&job=${encodeURIComponent(job.siteRef)}`;
                                 return (
                                   <React.Fragment key={eq.key}>
                                     <tr
@@ -1261,10 +1263,52 @@ export default function RefrigerantJobsPage() {
                                       <td style={{ padding: "0.5rem 1rem", color: "rgba(255,255,255,0.5)", fontSize: "0.78rem" }}>
                                         {eq.engineers.join(", ") || "—"}
                                       </td>
+                                      <td style={{ padding: "0.5rem 1rem", textAlign: "right" }} onClick={e => e.stopPropagation()}>
+                                        <Link
+                                          href={reportUrl}
+                                          target="_blank"
+                                          style={{
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            gap: "0.3rem",
+                                            padding: "0.25rem 0.55rem",
+                                            borderRadius: "4px",
+                                            background: "rgba(0,229,255,0.08)",
+                                            border: "1px solid rgba(0,229,255,0.2)",
+                                            color: "#00e5ff",
+                                            fontSize: "0.72rem",
+                                            fontWeight: 600,
+                                            textDecoration: "none",
+                                          }}
+                                        >
+                                          <FileText size={11} /> Report
+                                        </Link>
+                                      </td>
                                     </tr>
                                     {isEqExp && (
                                       <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(0,0,0,0.15)" }}>
-                                        <td colSpan={8} style={{ padding: "0 1rem 0.75rem 3.5rem" }}>
+                                        <td colSpan={9} style={{ padding: "0.6rem 1rem 0.75rem 3.5rem" }}>
+                                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                                            <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#fff" }}>Bottle Actions on Unit</span>
+                                            <Link
+                                              href={reportUrl}
+                                              target="_blank"
+                                              style={{
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                gap: "0.35rem",
+                                                padding: "0.25rem 0.6rem",
+                                                borderRadius: "4px",
+                                                background: "linear-gradient(135deg, #00e5ff 0%, #00b4d8 100%)",
+                                                color: "#0a0e17",
+                                                fontSize: "0.72rem",
+                                                fontWeight: 700,
+                                                textDecoration: "none",
+                                              }}
+                                            >
+                                              <Printer size={11} /> Open Full Equipment Report & Print
+                                            </Link>
+                                          </div>
                                           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" }}>
                                             <thead>
                                               <tr style={{ background: "rgba(255,255,255,0.02)" }}>

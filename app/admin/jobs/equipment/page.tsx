@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { db, CrmJob } from "@/lib/db";
-import { Wrench, Search, ChevronDown, ChevronRight, X, Calendar, ExternalLink, Printer } from "lucide-react";
+import { Wrench, Search, ChevronDown, ChevronRight, X, Calendar, ExternalLink, Printer, FileText } from "lucide-react";
 import Link from "next/link";
 
 interface ServiceEvent {
@@ -340,6 +340,7 @@ export default function EquipmentRegisterPage() {
                 <th style={thBase}>First Service</th>
                 <th style={thBase}>Last Service</th>
                 <th style={thBase}>Last Job</th>
+                <th style={{ ...thBase, textAlign: "right" }}>Report</th>
               </tr>
             </thead>
             <tbody>
@@ -347,10 +348,11 @@ export default function EquipmentRegisterPage() {
                 const isExpanded = expandedKeys.has(g.key);
                 const lastEvent = g.events[0];
                 const lastJobSite = lastEvent.jobRef ? crmJobMap.get(lastEvent.jobRef)?.siteTitle : null;
+                const reportUrl = `/admin/jobs/equipment/report?sn=${encodeURIComponent(g.equipmentSerial)}&mfr=${encodeURIComponent(g.manufacturer)}&mdl=${encodeURIComponent(g.model)}`;
+
                 return (
-                  <>
+                  <React.Fragment key={g.key}>
                     <tr
-                      key={g.key}
                       onClick={() => toggleExpand(g.key)}
                       style={{
                         borderBottom: isExpanded ? "none" : "1px solid rgba(255,255,255,0.04)",
@@ -397,11 +399,55 @@ export default function EquipmentRegisterPage() {
                           </div>
                         ) : <span style={{ color: "var(--text-muted)" }}>—</span>}
                       </td>
+                      <td style={{ ...tdBase, textAlign: "right" }} onClick={e => e.stopPropagation()}>
+                        <Link
+                          href={reportUrl}
+                          target="_blank"
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "0.35rem",
+                            padding: "0.3rem 0.65rem",
+                            borderRadius: "5px",
+                            background: "rgba(0,229,255,0.08)",
+                            border: "1px solid rgba(0,229,255,0.25)",
+                            color: "#00e5ff",
+                            fontSize: "0.75rem",
+                            fontWeight: 600,
+                            textDecoration: "none",
+                          }}
+                        >
+                          <FileText size={12} /> View Report
+                        </Link>
+                      </td>
                     </tr>
 
                     {isExpanded && (
-                      <tr key={`${g.key}-expanded`} style={{ background: "rgba(0,229,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                        <td colSpan={8} style={{ padding: "0 0 0.75rem 3.5rem" }}>
+                      <tr style={{ background: "rgba(0,229,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                        <td colSpan={9} style={{ padding: "0.75rem 1rem 0.75rem 3.5rem" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.6rem" }}>
+                            <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#fff", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                              <Wrench size={14} style={{ color: "#00e5ff" }} /> Bottle Action & Service Logs ({g.events.length})
+                            </span>
+                            <Link
+                              href={reportUrl}
+                              target="_blank"
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "0.35rem",
+                                padding: "0.25rem 0.65rem",
+                                borderRadius: "5px",
+                                background: "linear-gradient(135deg, #00e5ff 0%, #00b4d8 100%)",
+                                color: "#0a0e17",
+                                fontSize: "0.75rem",
+                                fontWeight: 700,
+                                textDecoration: "none",
+                              }}
+                            >
+                              <Printer size={12} /> Open Equipment Report & Print
+                            </Link>
+                          </div>
                           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
                             <thead>
                               <tr style={{ background: "rgba(255,255,255,0.03)" }}>
@@ -462,7 +508,7 @@ export default function EquipmentRegisterPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </React.Fragment>
                 );
               })}
             </tbody>
