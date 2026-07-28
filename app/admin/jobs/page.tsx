@@ -1242,14 +1242,14 @@ export default function RefrigerantJobsPage() {
                                       <td style={{ padding: "0.5rem 1rem", fontFamily: "var(--font-geist-mono)", color: eq.equipmentSerial ? "#00e5ff" : "rgba(255,255,255,0.3)", fontWeight: eq.equipmentSerial ? 600 : 400 }}>
                                         <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
                                           {isEqExp ? <ChevronDown size={12} style={{ color: "rgba(0,229,255,0.6)", flexShrink: 0 }} /> : <ChevronRight size={12} style={{ color: "rgba(255,255,255,0.25)", flexShrink: 0 }} />}
-                                          {eq.equipmentSerial || <span style={{ fontStyle: "italic" }}>No serial</span>}
+                                          {eq.equipmentSerial ? eq.equipmentSerial.toUpperCase() : <span style={{ fontStyle: "italic" }}>No serial</span>}
                                         </div>
                                       </td>
                                       <td style={{ padding: "0.5rem 1rem", color: "rgba(255,255,255,0.75)" }}>
                                         {eq.manufacturer || <span style={{ color: "rgba(255,255,255,0.25)" }}>—</span>}
                                       </td>
                                       <td style={{ padding: "0.5rem 1rem", color: "rgba(255,255,255,0.75)" }}>
-                                        {eq.model || <span style={{ color: "rgba(255,255,255,0.25)" }}>—</span>}
+                                        {eq.model ? eq.model.toUpperCase() : <span style={{ color: "rgba(255,255,255,0.25)" }}>—</span>}
                                       </td>
                                       <td style={{ padding: "0.5rem 1rem", textAlign: "center", color: "rgba(255,255,255,0.5)" }}>
                                         {eq.serviceCount}

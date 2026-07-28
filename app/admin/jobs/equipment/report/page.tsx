@@ -304,7 +304,7 @@ function EquipmentReportContent() {
               Equipment Serial No.
             </div>
             <div style={{ fontSize: "1.25rem", fontWeight: 800, color: equipmentInfo.serial ? "#00e5ff" : "#94a3b8", fontFamily: "var(--font-geist-mono), monospace", marginTop: "2px" }}>
-              {equipmentInfo.serial || <span style={{ fontStyle: "italic", fontSize: "1rem" }}>No serial recorded</span>}
+              {equipmentInfo.serial ? equipmentInfo.serial.toUpperCase() : <span style={{ fontStyle: "italic", fontSize: "1rem" }}>No serial recorded</span>}
             </div>
           </div>
 
@@ -313,7 +313,7 @@ function EquipmentReportContent() {
               Make & Model
             </div>
             <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "#fff", marginTop: "2px" }}>
-              {[equipmentInfo.manufacturer, equipmentInfo.model].filter(Boolean).join(" ") || "—"}
+              {[equipmentInfo.manufacturer, equipmentInfo.model ? equipmentInfo.model.toUpperCase() : ""].filter(Boolean).join(" ") || "—"}
             </div>
           </div>
 

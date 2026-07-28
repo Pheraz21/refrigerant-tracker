@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -47,7 +47,8 @@ export default function LogBottlePage() {
   };
 
   const updateEquipment = (id: number, field: string, value: string) => {
-    setEquipmentList(equipmentList.map(eq => eq.id === id ? { ...eq, [field]: value } : eq));
+    const finalValue = (field === "model" || field === "serial") ? value.toUpperCase() : value;
+    setEquipmentList(equipmentList.map(eq => eq.id === id ? { ...eq, [field]: finalValue } : eq));
   };
 
   const removeEquipment = (id: number) => {
@@ -174,7 +175,12 @@ export default function LogBottlePage() {
     
     const equipmentToSave = equipmentList
       .filter(eq => eq.manufacturer || eq.model || eq.serial)
-      .map(eq => ({ manufacturer: eq.manufacturer, model: eq.model, serial: eq.serial, weight: parseFloat(eq.weight) || 0 }));
+      .map(eq => ({
+        manufacturer: (eq.manufacturer || "").trim(),
+        model: (eq.model || "").trim().toUpperCase(),
+        serial: (eq.serial || "").trim().toUpperCase(),
+        weight: parseFloat(eq.weight) || 0
+      }));
 
     const derivedJobType = (() => {
       if (jobType === "recovery" || jobType === "waste") return jobType;
@@ -493,11 +499,11 @@ export default function LogBottlePage() {
                 </div>
                 <div className={styles.inputGroup} style={{marginTop: '0.5rem'}}>
                   <label>Model Number</label>
-                  <input type="text" placeholder="e.g. FDTC50VF" value={eq.model} onChange={(e) => updateEquipment(eq.id, 'model', e.target.value)} required />
+                  <input type="text" placeholder="e.g. FDTC50VF" value={eq.model} onChange={(e) => updateEquipment(eq.id, 'model', e.target.value)} style={{ textTransform: 'uppercase' }} required />
                 </div>
                 <div className={styles.inputGroup} style={{marginTop: '0.5rem'}}>
                   <label>Serial Number</label>
-                  <input type="text" placeholder="e.g. 9948201B" value={eq.serial} onChange={(e) => updateEquipment(eq.id, 'serial', e.target.value)} required />
+                  <input type="text" placeholder="e.g. 9948201B" value={eq.serial} onChange={(e) => updateEquipment(eq.id, 'serial', e.target.value)} style={{ textTransform: 'uppercase' }} required />
                 </div>
                 <div className={styles.inputGroup} style={{marginTop: '0.5rem'}}>
                   <label>Weight Logged (kg)</label>

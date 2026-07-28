@@ -21,14 +21,22 @@ export default function SupplierReturnPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+
+  // Multi-image state
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPhotoFile(file);
-    setPhotoPreviewUrl(URL.createObjectURL(file));
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    setPhotoFiles(prev => [...prev, ...files]);
+    const newPreviews = files.map(f => URL.createObjectURL(f));
+    setPhotoPreviewUrls(prev => [...prev, ...newPreviews]);
+  };
+
+  const removePhoto = (index: number) => {
+    setPhotoFiles(prev => prev.filter((_, i) => i !== index));
+    setPhotoPreviewUrls(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleAddBottle = async () => {
@@ -117,30 +125,33 @@ export default function SupplierReturnPage() {
 
     setLoading(true);
     try {
-      let hwcnPhotoUrl = "";
-      if (photoFile) {
-        const ext = photoFile.name.split(".").pop() || "jpg";
-        const path = `supplier-returns/${hwcnNumber}-${Date.now()}.${ext}`;
-        const { data: uploadData, error: uploadError } = await supabase.storage
+      const uploadedUrls: string[] = [];
+      for (let i = 0; i < photoFiles.length; i++) {
+        const file = photoFiles[i];
+        const ext = file.name.split(".").pop() || "jpg";
+        const path = `supplier-returns/${hwcnNumber}-${Date.now()}-${i + 1}.${ext}`;
+        const { error: uploadError } = await supabase.storage
           .from("hwcn-photos")
-          .upload(path, photoFile, { upsert: true });
-        if (uploadError) throw new Error(`Photo upload failed: ${uploadError.message}`);
+          .upload(path, file, { upsert: true });
+        if (uploadError) throw new Error(`Photo ${i + 1} upload failed: ${uploadError.message}`);
         const { data: urlData } = supabase.storage.from("hwcn-photos").getPublicUrl(path);
-        hwcnPhotoUrl = urlData.publicUrl;
+        uploadedUrls.push(urlData.publicUrl);
       }
+
       await db.returnBottleToSupplier({
         serials: selectedBottles.map(b => b.serial),
         returnHwcnNumber: hwcnNumber,
         returnedBy: user?.name || "Office Admin",
         weights: weights,
-        hwcnPhotoUrl,
+        hwcnPhotoUrl: uploadedUrls[0] || "",
+        hwcnPhotoUrls: uploadedUrls,
         returnSupplier: returnSupplier.trim(),
         returnSupplierBranch: returnSupplierBranch.trim(),
       });
       setIsSuccess(true);
       setTimeout(() => router.push("/admin"), 3000);
-    } catch (err) {
-      setError("Failed to process return. Please try again.");
+    } catch (err: any) {
+      setError(err?.message || "Failed to process return. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -148,156 +159,161 @@ export default function SupplierReturnPage() {
 
   if (isSuccess) {
     return (
-      <div style={{ padding: "4rem 2rem", textAlign: "center" }}>
-        <CheckCircle2 size={64} color="#22c55e" style={{ margin: "0 auto 1.5rem" }} />
-        <h1 className="text-gradient" style={{ fontSize: "2rem", marginBottom: "1rem" }}>Return Logged Successfully</h1>
-        <p style={{ color: "var(--text-muted)", marginBottom: "2rem" }}>
-          {selectedBottles.length} bottles have been marked as returned to supplier.<br />
-          The HWCN reference <strong>{hwcnNumber}</strong> has been archived.
-        </p>
-        <p style={{ fontSize: "0.9rem", color: "rgba(255,255,255,0.4)" }}>Redirecting to dashboard...</p>
+      <div style={{ minHeight: "100vh", background: "#0a0e17", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: "2rem" }}>
+        <div style={{ textAlign: "center", maxWidth: "450px", background: "rgba(17,24,39,0.8)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: "16px", padding: "3rem 2rem" }}>
+          <CheckCircle2 size={54} color="#22c55e" style={{ marginBottom: "1rem" }} />
+          <h2 style={{ fontSize: "1.5rem", fontWeight: 800, marginBottom: "0.5rem" }}>Return Completed</h2>
+          <p style={{ fontSize: "0.9rem", color: "rgba(255,255,255,0.7)", lineHeight: 1.5, marginBottom: "1.5rem" }}>
+            {selectedBottles.length} bottle{selectedBottles.length !== 1 ? "s" : ""} recorded under HWCN <strong>{hwcnNumber}</strong> to <strong>{returnSupplier} ({returnSupplierBranch})</strong>.
+          </p>
+          <div style={{ fontSize: "0.8rem", color: "#00e5ff" }}>Redirecting to Admin Portal...</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ maxWidth: "1000px" }}>
-      <div style={{ marginBottom: "2rem" }}>
-        <Link href="/admin" style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--text-muted)", textDecoration: "none", fontSize: "0.9rem", marginBottom: "1rem" }}>
-          <ArrowLeft size={16} /> Back to Dashboard
+    <div style={{ minHeight: "100vh", background: "#0a0e17", color: "#e2e8f0", padding: "2rem 1.5rem" }}>
+      <div style={{ maxWidth: "1000px", margin: "0 auto 1.5rem auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <Link href="/admin" style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", color: "#94a3b8", textDecoration: "none", fontSize: "0.9rem", fontWeight: 600 }}>
+          <ArrowLeft size={16} /> Back to Admin
         </Link>
-        <h1 style={{ fontSize: "1.8rem", fontWeight: 700, marginBottom: "0.25rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
-          <Truck size={28} color="var(--primary)" /> Waste Return from Office to Supplier
-        </h1>
-        <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>Hazardous Waste Transfer — Office to Supplier</p>
       </div>
 
-      <form onSubmit={handleSubmit} style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: "2rem", alignItems: "start" }}>
-        
-        {/* Left Column: Bottles List */}
-        <div className="glass-panel" style={{ padding: "1.5rem" }}>
-          <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "1.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            Cylinders for Return ({selectedBottles.length})
-          </h3>
-
-          <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.5rem" }}>
-            <div style={{ position: "relative", flex: 1 }}>
-              <Search size={18} style={{ position: "absolute", left: "1rem", top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)" }} />
-              <input 
-                type="text" 
-                placeholder="Enter serial number..." 
-                value={inputSerial}
-                onChange={e => setInputSerial(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && (e.preventDefault(), handleAddBottle())}
-                style={{
-                  width: "100%", padding: "0.85rem 1rem 0.85rem 3rem", background: "rgba(255,255,255,0.05)", 
-                  border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", color: "#fff", outline: "none"
-                }}
-              />
+      <form onSubmit={handleSubmit} style={{ maxWidth: "1000px", margin: "0 auto" }}>
+        <div style={{ background: "rgba(17,24,39,0.8)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "16px", padding: "2rem", marginBottom: "2rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.5rem", borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: "1rem" }}>
+            <div style={{ width: "42px", height: "42px", borderRadius: "10px", background: "rgba(0,229,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#00e5ff" }}>
+              <Truck size={22} />
             </div>
-            <button 
-              type="button" 
-              onClick={handleAddBottle}
-              style={{
-                background: "var(--primary)", border: "none", borderRadius: "10px", padding: "0 1.5rem",
-                color: "#000", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "0.5rem"
-              }}
-            >
-              <Plus size={20} /> Add
-            </button>
+            <div>
+              <h1 style={{ fontSize: "1.35rem", fontWeight: 800, margin: 0, color: "#fff" }}>Supplier Returns & Waste Collection</h1>
+              <p style={{ fontSize: "0.82rem", color: "rgba(255,255,255,0.5)", margin: 0 }}>Record cylinders returned or collected by gas suppliers</p>
+            </div>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {selectedBottles.length === 0 ? (
-              <div style={{ padding: "3rem", textAlign: "center", color: "rgba(255,255,255,0.2)", border: "2px dashed rgba(255,255,255,0.05)", borderRadius: "12px" }}>
-                <Truck size={40} style={{ marginBottom: "1rem", opacity: 0.1 }} />
-                <p>No bottles added yet. Scan or type serials above.</p>
-              </div>
-            ) : (
-              selectedBottles.map(b => (
-                <div key={b.serial} style={{
-                  padding: "1rem 1.25rem", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)",
-                  borderRadius: "10px", display: "flex", justifyContent: "space-between", alignItems: "center"
-                }}>
-                  <div>
-                    <div style={{ fontWeight: 700, color: "var(--primary)", fontSize: "1rem" }}>{b.serial}</div>
-                    <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.5)" }}>{b.gasType} • Current: {b.currentWeight}kg{b.supplier ? ` • ${b.supplier}` : ""}</div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                      <label style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>Return Weight (kg)</label>
-                      <input 
-                        type="number" 
-                        step="0.01"
-                        value={weights[b.serial]}
-                        onChange={e => handleWeightChange(b.serial, e.target.value)}
-                        style={{
-                          width: "100px", padding: "0.4rem 0.6rem", background: "rgba(0,0,0,0.3)", 
-                          border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px", color: "#fff", fontWeight: 700
-                        }}
-                      />
-                    </div>
-                    <button 
-                      type="button"
-                      onClick={() => removeBottle(b.serial)}
-                      style={{ background: "rgba(255,51,102,0.1)", border: "none", borderRadius: "50%", padding: "0.5rem", color: "#ff3366", cursor: "pointer" }}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Right Column: Transfer Info */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-          <div className="glass-panel" style={{ padding: "1.5rem" }}>
-            <h3 style={{ fontSize: "1rem", fontWeight: 700, marginBottom: "1.25rem", color: "#fff" }}>Transfer Details</h3>
-            
-            <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.5rem", fontWeight: 600 }}>
-                <span>Supplier Name <span style={{ color: "#ff3366" }}>*</span></span>
-                {supplierLock && (
-                  <span style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", color: "#22c55e", fontWeight: 600 }}>
-                    <Lock size={11} /> Auto-filled from bottle
-                  </span>
-                )}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.25rem", marginBottom: "2rem" }}>
+            <div>
+              <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.4rem", fontWeight: 600 }}>
+                Supplier Name {supplierLock && <Lock size={12} style={{ marginLeft: "0.3rem", color: "#00e5ff" }} />}
               </label>
               <input
                 type="text"
                 required
-                placeholder="Add a bottle first — supplier will auto-fill"
+                placeholder="e.g. BOC, Air Products"
                 value={returnSupplier}
-                onChange={e => !supplierLock && setReturnSupplier(e.target.value)}
-                readOnly={!!supplierLock}
+                onChange={e => setReturnSupplier(e.target.value)}
+                disabled={!!supplierLock}
                 style={{
-                  width: "100%", padding: "0.85rem 1rem", background: supplierLock ? "rgba(34,197,94,0.06)" : "rgba(255,255,255,0.05)",
-                  border: `1px solid ${supplierLock ? "rgba(34,197,94,0.25)" : "rgba(255,255,255,0.12)"}`,
-                  borderRadius: "10px", color: "#fff", outline: "none",
-                  cursor: supplierLock ? "default" : "text"
+                  width: "100%", padding: "0.75rem 1rem", background: supplierLock ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "#fff", outline: "none", fontSize: "0.95rem"
                 }}
               />
             </div>
 
-            <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.5rem", fontWeight: 600 }}>
-                Supplier Branch <span style={{ color: "#ff3366" }}>*</span>
+            <div>
+              <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.4rem", fontWeight: 600 }}>
+                Supplier Branch / Depot
               </label>
               <input
                 type="text"
                 required
-                placeholder="e.g. Newcastle, Leeds"
+                placeholder="e.g. Birtley, Gateshead"
                 value={returnSupplierBranch}
                 onChange={e => setReturnSupplierBranch(e.target.value)}
                 style={{
-                  width: "100%", padding: "0.85rem 1rem", background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", color: "#fff", outline: "none"
+                  width: "100%", padding: "0.75rem 1rem", background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "#fff", outline: "none", fontSize: "0.95rem"
                 }}
               />
             </div>
+          </div>
 
+          {/* Add Bottle Section */}
+          <div style={{ marginBottom: "2rem" }}>
+            <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.4rem", fontWeight: 600 }}>
+              Scan / Enter Bottle Serial
+            </label>
+            <div style={{ display: "flex", gap: "0.75rem" }}>
+              <input
+                type="text"
+                placeholder="e.g. REC-1029 or 8849201B"
+                value={inputSerial}
+                onChange={e => setInputSerial(e.target.value.toUpperCase())}
+                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAddBottle(); } }}
+                style={{
+                  flex: 1, padding: "0.75rem 1rem", background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "#fff", outline: "none",
+                  fontFamily: "var(--font-geist-mono), monospace", fontSize: "1rem", fontWeight: 600
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleAddBottle}
+                style={{
+                  padding: "0.75rem 1.25rem", background: "rgba(0,229,255,0.1)", border: "1px solid rgba(0,229,255,0.3)",
+                  borderRadius: "8px", color: "#00e5ff", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem"
+                }}
+              >
+                <Plus size={16} /> Add Cylinder
+              </button>
+            </div>
+          </div>
+
+          {/* Selected Bottles List */}
+          {selectedBottles.length > 0 && (
+            <div style={{ marginBottom: "2rem" }}>
+              <h3 style={{ fontSize: "0.9rem", fontWeight: 700, color: "#fff", marginBottom: "0.75rem" }}>
+                Selected Cylinders ({selectedBottles.length})
+              </h3>
+              <div style={{ border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", overflow: "hidden" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+                  <thead>
+                    <tr style={{ background: "rgba(255,255,255,0.03)" }}>
+                      <th style={{ padding: "0.65rem 1rem", textAlign: "left", color: "rgba(255,255,255,0.5)", fontSize: "0.7rem", textTransform: "uppercase" }}>Serial</th>
+                      <th style={{ padding: "0.65rem 1rem", textAlign: "left", color: "rgba(255,255,255,0.5)", fontSize: "0.7rem", textTransform: "uppercase" }}>Category</th>
+                      <th style={{ padding: "0.65rem 1rem", textAlign: "left", color: "rgba(255,255,255,0.5)", fontSize: "0.7rem", textTransform: "uppercase" }}>Gas Type</th>
+                      <th style={{ padding: "0.65rem 1rem", textAlign: "right", color: "rgba(255,255,255,0.5)", fontSize: "0.7rem", textTransform: "uppercase" }}>Current Weight (kg)</th>
+                      <th style={{ padding: "0.65rem 1rem", textAlign: "center", color: "rgba(255,255,255,0.5)", fontSize: "0.7rem", textTransform: "uppercase" }}>Remove</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedBottles.map(b => (
+                      <tr key={b.serial} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                        <td style={{ padding: "0.65rem 1rem", fontFamily: "var(--font-geist-mono), monospace", fontWeight: 700, color: "#00e5ff" }}>{b.serial}</td>
+                        <td style={{ padding: "0.65rem 1rem", textTransform: "capitalize", color: "rgba(255,255,255,0.7)" }}>{b.category}</td>
+                        <td style={{ padding: "0.65rem 1rem", color: "rgba(255,255,255,0.7)" }}>{b.gasType}</td>
+                        <td style={{ padding: "0.65rem 1rem", textAlign: "right" }}>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={weights[b.serial] ?? b.currentWeight}
+                            onChange={e => handleWeightChange(b.serial, e.target.value)}
+                            style={{
+                              width: "90px", padding: "0.35rem 0.5rem", background: "rgba(255,255,255,0.05)",
+                              border: "1px solid rgba(255,255,255,0.12)", borderRadius: "6px", color: "#fff", textAlign: "right", fontSize: "0.85rem"
+                            }}
+                          />
+                        </td>
+                        <td style={{ padding: "0.65rem 1rem", textAlign: "center" }}>
+                          <button
+                            type="button"
+                            onClick={() => removeBottle(b.serial)}
+                            style={{ background: "transparent", border: "none", color: "#ff3366", cursor: "pointer", padding: "0.2rem" }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* HWCN & Paperwork Details */}
+          <div style={{ gridTemplateColumns: "1fr", gap: "1.25rem", marginBottom: "2rem" }}>
             <div style={{ marginBottom: "1.5rem" }}>
               <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.5rem", fontWeight: 600 }}>
                 Supplier's HWCN Number
@@ -315,34 +331,40 @@ export default function SupplierReturnPage() {
               />
             </div>
 
+            {/* Multi-Photo Upload Section */}
             <div style={{ marginBottom: "1.5rem" }}>
               <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.5rem", fontWeight: 600 }}>
-                Photo of Supplier Note
+                Photos / Paperwork Pages of Supplier Note ({photoFiles.length} uploaded)
               </label>
-              <label style={{ display: "block", cursor: "pointer" }}>
-                <input type="file" accept="image/*,application/pdf" onChange={handlePhotoSelect} style={{ display: "none" }} />
-                {photoPreviewUrl ? (
-                  <div style={{ position: "relative", borderRadius: "10px", overflow: "hidden", border: "1px solid rgba(34,197,94,0.3)" }}>
-                    <img src={photoPreviewUrl} alt="HWCN preview" style={{ width: "100%", maxHeight: "180px", objectFit: "cover", display: "block" }} />
-                    <button
-                      type="button"
-                      onClick={e => { e.preventDefault(); setPhotoFile(null); setPhotoPreviewUrl(null); }}
-                      style={{ position: "absolute", top: "0.5rem", right: "0.5rem", background: "rgba(0,0,0,0.6)", border: "none", borderRadius: "50%", padding: "0.3rem", color: "#fff", cursor: "pointer", display: "flex" }}
-                    ><X size={14} /></button>
-                    <div style={{ padding: "0.4rem 0.75rem", background: "rgba(34,197,94,0.1)", fontSize: "0.75rem", color: "#22c55e", fontWeight: 600 }}>
-                      ✓ Photo ready — will upload on submit
+
+              {photoPreviewUrls.length > 0 && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: "0.85rem", marginBottom: "1rem" }}>
+                  {photoPreviewUrls.map((url, idx) => (
+                    <div key={idx} style={{ position: "relative", borderRadius: "8px", overflow: "hidden", border: "1px solid rgba(0,229,255,0.3)", background: "#1a202c" }}>
+                      <img src={url} alt={`HWCN page ${idx + 1}`} style={{ width: "100%", height: "110px", objectFit: "cover", display: "block" }} />
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(idx)}
+                        style={{
+                          position: "absolute", top: "0.35rem", right: "0.35rem",
+                          background: "rgba(0,0,0,0.75)", border: "none", borderRadius: "50%",
+                          padding: "0.25rem", color: "#ff3366", cursor: "pointer", display: "flex"
+                        }}
+                      >
+                        <X size={14} />
+                      </button>
+                      <div style={{ padding: "0.25rem 0.5rem", background: "rgba(0,0,0,0.6)", fontSize: "0.68rem", color: "#00e5ff", fontWeight: 600, textAlign: "center" }}>
+                        Page {idx + 1}
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div style={{
-                    height: "120px", border: "2px dashed rgba(255,255,255,0.1)", borderRadius: "10px",
-                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.5rem",
-                    background: "rgba(255,255,255,0.02)"
-                  }}>
-                    <Camera size={24} color="rgba(255,255,255,0.3)" />
-                    <span style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.4)" }}>Click to upload HWCN photo</span>
-                  </div>
-                )}
+                  ))}
+                </div>
+              )}
+
+              <label style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", padding: "0.75rem 1.25rem", background: "rgba(255,255,255,0.05)", border: "1px dashed rgba(0,229,255,0.4)", borderRadius: "8px", color: "#00e5ff", fontWeight: 600, fontSize: "0.85rem" }}>
+                <input type="file" multiple accept="image/*,application/pdf" onChange={handlePhotoSelect} style={{ display: "none" }} />
+                <Camera size={18} />
+                {photoFiles.length === 0 ? "Upload HWCN Photos / Paperwork Pages" : "+ Add Another Page / Photo"}
               </label>
             </div>
 

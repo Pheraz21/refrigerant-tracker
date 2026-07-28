@@ -364,13 +364,13 @@ export default function EquipmentRegisterPage() {
                         {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                       </td>
                       <td style={{ ...tdBase, fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: g.equipmentSerial ? "#fff" : "rgba(255,255,255,0.25)" }}>
-                        {g.equipmentSerial || <em style={{ fontSize: "0.78rem" }}>No serial</em>}
+                        {g.equipmentSerial ? g.equipmentSerial.toUpperCase() : <em style={{ fontSize: "0.78rem" }}>No serial</em>}
                       </td>
                       <td style={{ ...tdBase, color: g.manufacturer ? "rgba(255,255,255,0.85)" : "var(--text-muted)" }}>
                         {g.manufacturer || "—"}
                       </td>
                       <td style={{ ...tdBase, color: g.model ? "rgba(255,255,255,0.85)" : "var(--text-muted)" }}>
-                        {g.model || "—"}
+                        {g.model ? g.model.toUpperCase() : "—"}
                       </td>
                       <td style={{ ...tdBase, textAlign: "center" }}>
                         <span style={{ background: "rgba(0,229,255,0.08)", color: "#00e5ff", padding: "0.15rem 0.5rem", borderRadius: "4px", fontSize: "0.8rem", fontWeight: 600 }}>

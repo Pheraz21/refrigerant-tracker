@@ -284,6 +284,7 @@ export const db = {
     serials: string[],
     returnHwcnNumber: string,
     hwcnPhotoUrl?: string,
+    hwcnPhotoUrls?: string[],
     returnedBy: string,
     weights: Record<string, number>,
     returnSupplier?: string,
@@ -292,6 +293,11 @@ export const db = {
     const locationId = data.returnSupplier && data.returnSupplierBranch
       ? `${data.returnSupplier} - ${data.returnSupplierBranch}`
       : 'Supplier (Returned)';
+    
+    const finalPhotoUrl = (data.hwcnPhotoUrls && data.hwcnPhotoUrls.length > 0)
+      ? data.hwcnPhotoUrls.filter(Boolean).join(",")
+      : data.hwcnPhotoUrl || null;
+
     for (const serial of data.serials) {
       const weight = data.weights[serial];
       await supabase.from('bottles').update({
@@ -300,7 +306,7 @@ export const db = {
         location_id: locationId,
         current_weight: weight,
         return_hwcn_number: data.returnHwcnNumber,
-        supplier_hwcn_photo_url: data.hwcnPhotoUrl,
+        supplier_hwcn_photo_url: finalPhotoUrl,
         returned_by: data.returnedBy,
         returned_at: new Date().toISOString(),
         return_supplier: data.returnSupplier || null,
