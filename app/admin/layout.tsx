@@ -89,6 +89,9 @@ const navGroups = [
   }
 ];
 
+import { Search } from "lucide-react";
+import CommandPalette from "@/components/CommandPalette";
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, logout, loading } = useAuth();
@@ -96,9 +99,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const [notifCount, setNotifCount] = useState(0);
   const [pendingUsersCount, setPendingUsersCount] = useState(0);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem("adminSidebarCollapsed") === "true"; } catch { return false; }
   });
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen(prev => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => window.removeEventListener("keydown", handleGlobalKeyDown);
+  }, []);
 
   useEffect(() => {
     try { localStorage.setItem("adminSidebarCollapsed", String(collapsed)); } catch {}
@@ -315,11 +330,52 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <main style={{
         marginLeft: collapsed ? "60px" : "260px",
         flex: 1,
-        padding: "2rem 2.5rem",
+        padding: "1.5rem 2.5rem 2.5rem 2.5rem",
         minHeight: "100vh",
         overflow: "auto",
         transition: "margin-left 0.2s ease"
       }}>
+        <CommandPalette
+          isOpen={isCommandPaletteOpen}
+          onClose={() => setIsCommandPaletteOpen(false)}
+        />
+
+        {/* Top Header Quick Search Trigger */}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1.25rem" }}>
+          <button
+            onClick={() => setIsCommandPaletteOpen(true)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.6rem",
+              background: "rgba(17, 24, 39, 0.7)",
+              border: "1px solid rgba(0, 229, 255, 0.25)",
+              borderRadius: "8px",
+              padding: "0.45rem 0.9rem",
+              color: "#94a3b8",
+              fontSize: "0.82rem",
+              fontWeight: 500,
+              cursor: "pointer",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+              transition: "all 0.15s",
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.borderColor = "rgba(0, 229, 255, 0.5)";
+              e.currentTarget.style.color = "#fff";
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.borderColor = "rgba(0, 229, 255, 0.25)";
+              e.currentTarget.style.color = "#94a3b8";
+            }}
+          >
+            <Search size={14} color="#00e5ff" />
+            <span>Search bottles, jobs, HWCNs...</span>
+            <span style={{ fontSize: "0.7rem", background: "rgba(255,255,255,0.08)", padding: "0.15rem 0.4rem", borderRadius: "4px", color: "rgba(255,255,255,0.6)", fontWeight: 700, fontFamily: "monospace" }}>
+              Ctrl + K
+            </span>
+          </button>
+        </div>
+
         {children}
       </main>
     </div>

@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { db, CrmJob, Bottle } from "@/lib/db";
 import { Printer, ArrowLeft, Wrench, FileText, ExternalLink } from "lucide-react";
 import Link from "next/link";
+import { calculateCO2e, getGwp } from "@/lib/gwp";
 
 interface ActionItem {
   usageLogId: string;
@@ -358,6 +359,16 @@ function EquipmentReportContent() {
             <div style={{ fontSize: "0.7rem", color: "#00e5ff", fontWeight: 700, textTransform: "uppercase" }}>Net System Change</div>
             <div style={{ fontSize: "1.2rem", fontWeight: 800, color: stats.netGas > 0 ? "#22c55e" : stats.netGas < 0 ? "#ffaa00" : "#fff", marginTop: "2px" }}>
               {stats.netGas > 0 ? `+${stats.netGas.toFixed(2)} kg` : `${stats.netGas.toFixed(2)} kg`}
+            </div>
+          </div>
+
+          <div style={{ background: "rgba(168,85,247,0.06)", border: "1px solid rgba(168,85,247,0.2)", borderRadius: "8px", padding: "0.85rem 1rem" }}>
+            <div style={{ fontSize: "0.7rem", color: "#a855f7", fontWeight: 700, textTransform: "uppercase" }}>CO₂ Equivalent (GWP)</div>
+            <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "#a855f7", marginTop: "2px" }}>
+              {calculateCO2e(matchedActions[0]?.jobType || "R410A", Math.abs(stats.netGas))} t CO₂e
+            </div>
+            <div style={{ fontSize: "0.68rem", color: "#94a3b8", marginTop: "2px" }}>
+              Informational GWP metric
             </div>
           </div>
 
