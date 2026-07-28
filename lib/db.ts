@@ -1108,9 +1108,113 @@ export const db = {
     await supabase.from('users').update({ can_view_stores: value }).eq('id', userId);
   },
 
-  async getNotifications(): Promise<any[]> {
+  async syncSystemAlerts(): Promise<void> {
+    try {
+      const [bottles, existingNotifs] = await Promise.all([
+        this.getAllBottles(),
+        this.getNotificationsRaw()
+      ]);
+
+      const activeBottles = bottles.filter(b => b.status !== "returned");
+      const today = new Date();
+
+      for (const bottle of activeBottles) {
+        // 1. Rental Expiry Checks
+        if (bottle.rentalExpiryDate) {
+          const expiryDate = new Date(bottle.rentalExpiryDate);
+          const diffMs = expiryDate.getTime() - today.getTime();
+          const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+          const formattedExpiry = expiryDate.toLocaleDateString("en-GB");
+
+          let alertStage: "expired" | "urgent" | "warning" | null = null;
+          let notifTitle = "";
+          let notifMsg = "";
+
+          if (daysLeft < 0) {
+            alertStage = "expired";
+            const daysPast = Math.abs(daysLeft);
+            notifTitle = `CRITICAL: Cylinder ${bottle.serial} Rental EXPIRED`;
+            notifMsg = `Cylinder ${bottle.serial} (${bottle.gasType}) rental EXPIRED by ${daysPast} day${daysPast !== 1 ? 's' : ''} on ${formattedExpiry}${bottle.supplier ? ` (${bottle.supplier})` : ''}. Return cylinder immediately to avoid daily holding fees.`;
+          } else if (daysLeft <= 7) {
+            alertStage = "urgent";
+            notifTitle = `URGENT: Cylinder ${bottle.serial} Rental Expiring Soon`;
+            notifMsg = `Cylinder ${bottle.serial} (${bottle.gasType}) rental expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''} on ${formattedExpiry}${bottle.supplier ? ` (${bottle.supplier})` : ''}.`;
+          } else if (daysLeft <= 30) {
+            alertStage = "warning";
+            notifTitle = `WARNING: Cylinder ${bottle.serial} Rental Expiring`;
+            notifMsg = `Cylinder ${bottle.serial} (${bottle.gasType}) rental expires in ${daysLeft} days on ${formattedExpiry}.`;
+          }
+
+          if (alertStage) {
+            const alreadyNotified = existingNotifs.some(n =>
+              (n.type === "rental_expiry" || n.type === "expiry_date_required") &&
+              n.metadata?.serial === bottle.serial &&
+              n.metadata?.alertStage === alertStage
+            );
+
+            if (!alreadyNotified) {
+              await this.createNotification({
+                type: "rental_expiry",
+                title: notifTitle,
+                message: notifMsg,
+                targetRole: "office",
+                metadata: {
+                  serial: bottle.serial,
+                  gasType: bottle.gasType,
+                  supplier: bottle.supplier || "Unknown",
+                  rentalExpiryDate: bottle.rentalExpiryDate,
+                  daysLeft,
+                  alertStage
+                }
+              });
+            }
+          }
+        }
+
+        // 2. Low Refrigerant Balance Checks
+        if (bottle.category === "new" || bottle.category === "nitrogen" || bottle.category === "reclaim") {
+          const current = bottle.currentWeight ?? 0;
+          const initial = bottle.initialWeight || current || 10;
+          const pctRemaining = initial > 0 ? (current / initial) * 100 : 100;
+
+          if (current > 0 && (current <= 1.5 || pctRemaining <= 15)) {
+            const alreadyNotifiedLow = existingNotifs.some(n =>
+              n.type === "low_gas" &&
+              n.metadata?.serial === bottle.serial &&
+              n.status === "new"
+            );
+
+            if (!alreadyNotifiedLow) {
+              await this.createNotification({
+                type: "low_gas",
+                title: `LOW REFRIGERANT: Cylinder ${bottle.serial}`,
+                message: `Cylinder ${bottle.serial} (${bottle.gasType}) is low — ${current.toFixed(2)} kg remaining (${pctRemaining.toFixed(0)}% of ${initial.toFixed(2)} kg capacity). Re-order gas supply soon.`,
+                targetRole: "office",
+                metadata: {
+                  serial: bottle.serial,
+                  gasType: bottle.gasType,
+                  currentWeight: current,
+                  initialWeight: initial,
+                  locationId: bottle.locationId
+                }
+              });
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Error syncing system alerts:", err);
+    }
+  },
+
+  async getNotificationsRaw(): Promise<any[]> {
     const { data } = await supabase.from('notifications').select('*').order('date', { ascending: false });
     return data || [];
+  },
+
+  async getNotifications(): Promise<any[]> {
+    await this.syncSystemAlerts();
+    return this.getNotificationsRaw();
   },
 
   async createNotification(notif: any): Promise<void> {

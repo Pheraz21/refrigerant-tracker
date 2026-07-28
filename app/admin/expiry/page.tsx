@@ -1,14 +1,16 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { db, Bottle } from "@/lib/db";
-import { CalendarClock, AlertCircle, Clock, CheckCircle2, Filter, Trash2, Edit2 } from "lucide-react";
+import { CalendarClock, AlertCircle, Clock, CheckCircle2, RefreshCw, Edit2, Truck, ExternalLink } from "lucide-react";
 import styles from "../../engineer/page.module.css";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function ExpiryPage() {
   const [bottles, setBottles] = useState<Bottle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -22,6 +24,13 @@ export default function ExpiryPage() {
     // Sort by expiry date (soonest first)
     setBottles(withExpiry.sort((a, b) => new Date(a.rentalExpiryDate!).getTime() - new Date(b.rentalExpiryDate!).getTime()));
     setLoading(false);
+  };
+
+  const handleSyncAlerts = async () => {
+    setSyncing(true);
+    await db.syncSystemAlerts();
+    await loadData();
+    setSyncing(false);
   };
 
   const getDaysDiff = (dateStr: string) => {
@@ -38,13 +47,52 @@ export default function ExpiryPage() {
     return { label: "OK", color: "#22c55e", bg: "rgba(34,197,94,0.1)" };
   };
 
+  // Metrics
+  const expiredCount = bottles.filter(b => getDaysDiff(b.rentalExpiryDate!) < 0).length;
+  const urgentCount = bottles.filter(b => { const d = getDaysDiff(b.rentalExpiryDate!); return d >= 0 && d <= 7; }).length;
+  const warningCount = bottles.filter(b => { const d = getDaysDiff(b.rentalExpiryDate!); return d > 7 && d <= 30; }).length;
+  const okCount = bottles.filter(b => getDaysDiff(b.rentalExpiryDate!) > 30).length;
+
   return (
     <div style={{maxWidth: "1100px"}}>
-      <div style={{marginBottom: "2.5rem"}}>
-        <h1 style={{fontSize: "1.8rem", fontWeight: 700, margin: 0, color: "#fff", display: "flex", alignItems: "center", gap: "0.5rem"}}>
-          <CalendarClock size={28} /> Rental Expiry Tracking
-        </h1>
-        <p style={{color: "var(--text-muted)", margin: "0.25rem 0 0"}}>Monitor hire periods and minimize rental costs</p>
+      <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem", flexWrap: "wrap", gap: "1rem"}}>
+        <div>
+          <h1 style={{fontSize: "1.8rem", fontWeight: 700, margin: 0, color: "#fff", display: "flex", alignItems: "center", gap: "0.5rem"}}>
+            <CalendarClock size={28} /> Rental Expiry Tracking & Alerts
+          </h1>
+          <p style={{color: "var(--text-muted)", margin: "0.25rem 0 0"}}>Monitor hire periods, avoid holding fees, and sync automated alerts</p>
+        </div>
+        <button
+          onClick={handleSyncAlerts}
+          disabled={syncing}
+          style={{
+            padding: "0.65rem 1.25rem", background: "rgba(0,229,255,0.1)", border: "1px solid rgba(0,229,255,0.3)",
+            borderRadius: "8px", color: "#00e5ff", fontWeight: 700, cursor: syncing ? "wait" : "pointer",
+            display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.9rem"
+          }}
+        >
+          <RefreshCw size={16} className={syncing ? "spinner" : ""} /> {syncing ? "Scanning Alerts..." : "Check & Sync Alerts"}
+        </button>
+      </div>
+
+      {/* Metric Summary Cards */}
+      <div style={{display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "2rem"}}>
+        <div style={{padding: "1rem 1.25rem", background: "rgba(255,51,102,0.08)", border: "1px solid rgba(255,51,102,0.25)", borderRadius: "10px"}}>
+          <div style={{fontSize: "0.75rem", color: "#ff3366", fontWeight: 700, textTransform: "uppercase"}}>Expired</div>
+          <div style={{fontSize: "1.75rem", fontWeight: 800, color: "#fff", marginTop: "0.25rem"}}>{expiredCount}</div>
+        </div>
+        <div style={{padding: "1rem 1.25rem", background: "rgba(255,170,0,0.08)", border: "1px solid rgba(255,170,0,0.25)", borderRadius: "10px"}}>
+          <div style={{fontSize: "0.75rem", color: "#ffaa00", fontWeight: 700, textTransform: "uppercase"}}>Urgent (≤ 7 Days)</div>
+          <div style={{fontSize: "1.75rem", fontWeight: 800, color: "#fff", marginTop: "0.25rem"}}>{urgentCount}</div>
+        </div>
+        <div style={{padding: "1rem 1.25rem", background: "rgba(255,187,0,0.08)", border: "1px solid rgba(255,187,0,0.25)", borderRadius: "10px"}}>
+          <div style={{fontSize: "0.75rem", color: "#ffbb00", fontWeight: 700, textTransform: "uppercase"}}>Warning (≤ 30 Days)</div>
+          <div style={{fontSize: "1.75rem", fontWeight: 800, color: "#fff", marginTop: "0.25rem"}}>{warningCount}</div>
+        </div>
+        <div style={{padding: "1rem 1.25rem", background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)", borderRadius: "10px"}}>
+          <div style={{fontSize: "0.75rem", color: "#22c55e", fontWeight: 700, textTransform: "uppercase"}}>{"OK (> 30 Days)"}</div>
+          <div style={{fontSize: "1.75rem", fontWeight: 800, color: "#fff", marginTop: "0.25rem"}}>{okCount}</div>
+        </div>
       </div>
 
       <div style={{display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "1.5rem"}}>
@@ -77,11 +125,11 @@ export default function ExpiryPage() {
               >
                 <div style={{display: "flex", justifyContent: "space-between", alignItems: "flex-start"}}>
                   <div>
-                    <div style={{fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "#00e5ff", fontSize: "1.1rem"}}>
-                      {b.serial}
-                    </div>
+                    <Link href={`/admin/bottles/${b.serial}`} style={{fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "#00e5ff", fontSize: "1.1rem", textDecoration: "none"}}>
+                      {b.serial} <ExternalLink size={12} />
+                    </Link>
                     <div style={{fontSize: "0.8rem", color: "rgba(255,255,255,0.5)", marginTop: "0.25rem"}}>
-                      {b.gasType} • {b.supplier}
+                      {b.gasType} • {b.supplier || "Supplier Unknown"}
                     </div>
                   </div>
                   <div style={{
@@ -131,6 +179,16 @@ export default function ExpiryPage() {
                     }}
                   >
                     <Edit2 size={14} /> Update Expiry
+                  </button>
+                  <button 
+                    onClick={() => router.push("/admin/supplier-returns-waste")}
+                    style={{
+                      padding: "0.6rem 0.8rem", background: "rgba(0,229,255,0.1)", border: "1px solid rgba(0,229,255,0.3)",
+                      borderRadius: "6px", color: "#00e5ff", fontSize: "0.85rem", fontWeight: 700, cursor: "pointer",
+                      display: "flex", alignItems: "center", gap: "0.4rem"
+                    }}
+                  >
+                    <Truck size={14} /> Return
                   </button>
                 </div>
               </div>
