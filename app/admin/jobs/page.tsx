@@ -145,7 +145,10 @@ function groupJobEquipment(logs: UsageLog[]) {
         grouped.set(key, { manufacturer: mfr, model: mdl, equipmentSerial: sn, totalWeight: 0, dates: [], engineers: new Set(), actions: [] });
       }
       const e = grouped.get(key)!;
-      e.totalWeight += (parseFloat(String(eq.weight)) || log.weightUsed || 0);
+      const rawType = (log.jobType || "").toLowerCase();
+      const isRec = RECOVERY_TYPES.has(rawType);
+      const wt = parseFloat(String(eq.weight)) || log.weightUsed || 0;
+      e.totalWeight += isRec ? -wt : wt;
       if (log.date) e.dates.push(log.date);
       if (log.engineer) e.engineers.add(log.engineer);
       e.actions.push({ log, eq });

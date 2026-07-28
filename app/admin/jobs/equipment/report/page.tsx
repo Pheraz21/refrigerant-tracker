@@ -136,7 +136,20 @@ function EquipmentReportContent() {
 
     actions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    const totalGas = actions.reduce((sum, a) => sum + (a.equipmentWeight || 0), 0);
+    let totalGasAdded = 0;
+    let totalGasRecovered = 0;
+
+    for (const act of actions) {
+      const isRec = ["recovery", "retrofit", "waste", "reclaim"].includes((act.jobType || "").toLowerCase());
+      if (isRec) {
+        totalGasRecovered += (act.equipmentWeight || 0);
+      } else {
+        totalGasAdded += (act.equipmentWeight || 0);
+      }
+    }
+
+    const netGas = totalGasAdded - totalGasRecovered;
+
     const firstDate = actions.length > 0 ? actions[actions.length - 1].date : null;
     const lastDate = actions.length > 0 ? actions[0].date : null;
 
@@ -148,7 +161,9 @@ function EquipmentReportContent() {
         serial: targetSn || "",
       },
       stats: {
-        totalGas,
+        totalGasAdded,
+        totalGasRecovered,
+        netGas,
         serviceCount: actions.length,
         engineers: Array.from(engineersSet),
         jobsCount: jobsSet.size,
@@ -316,39 +331,41 @@ function EquipmentReportContent() {
 
           <div>
             <div style={{ fontSize: "0.7rem", color: "#94a3b8", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.5px" }}>
-              Total Gas Serviced
+              Net Refrigerant Added
             </div>
-            <div style={{ fontSize: "1.25rem", fontWeight: 800, color: stats.totalGas > 0 ? "#22c55e" : "#94a3b8", marginTop: "2px" }}>
-              {stats.totalGas > 0 ? `${stats.totalGas.toFixed(2)} kg` : "0.00 kg"}
+            <div style={{ fontSize: "1.25rem", fontWeight: 800, color: stats.netGas > 0 ? "#22c55e" : stats.netGas < 0 ? "#ffaa00" : "#94a3b8", marginTop: "2px" }}>
+              {stats.netGas > 0 ? `+${stats.netGas.toFixed(2)} kg` : `${stats.netGas.toFixed(2)} kg`}
+            </div>
+            <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: "2px" }}>
+              Added: +{stats.totalGasAdded.toFixed(2)} kg · Recovered: -{stats.totalGasRecovered.toFixed(2)} kg
             </div>
           </div>
         </div>
 
         {/* ── Key Metrics & Date Range ────────────────────────────────────────── */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem", marginBottom: "1.75rem" }}>
-          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "8px", padding: "0.85rem 1rem" }}>
-            <div style={{ fontSize: "0.7rem", color: "#94a3b8", fontWeight: 600 }}>Total Service Events</div>
-            <div style={{ fontSize: "1.2rem", fontWeight: 700, color: "#fff", marginTop: "2px" }}>{stats.serviceCount}</div>
+          <div style={{ background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: "8px", padding: "0.85rem 1rem" }}>
+            <div style={{ fontSize: "0.7rem", color: "#22c55e", fontWeight: 700, textTransform: "uppercase" }}>Gas Added (Charged)</div>
+            <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "#22c55e", marginTop: "2px" }}>+{stats.totalGasAdded.toFixed(2)} kg</div>
           </div>
 
-          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "8px", padding: "0.85rem 1rem" }}>
-            <div style={{ fontSize: "0.7rem", color: "#94a3b8", fontWeight: 600 }}>First Service Date</div>
-            <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#cbd5e1", marginTop: "2px" }}>
-              {stats.firstDate ? new Date(stats.firstDate).toLocaleDateString("en-GB") : "—"}
+          <div style={{ background: "rgba(255,170,0,0.06)", border: "1px solid rgba(255,170,0,0.2)", borderRadius: "8px", padding: "0.85rem 1rem" }}>
+            <div style={{ fontSize: "0.7rem", color: "#ffaa00", fontWeight: 700, textTransform: "uppercase" }}>Gas Recovered (Removed)</div>
+            <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "#ffaa00", marginTop: "2px" }}>-{stats.totalGasRecovered.toFixed(2)} kg</div>
+          </div>
+
+          <div style={{ background: "rgba(0,229,255,0.06)", border: "1px solid rgba(0,229,255,0.2)", borderRadius: "8px", padding: "0.85rem 1rem" }}>
+            <div style={{ fontSize: "0.7rem", color: "#00e5ff", fontWeight: 700, textTransform: "uppercase" }}>Net System Change</div>
+            <div style={{ fontSize: "1.2rem", fontWeight: 800, color: stats.netGas > 0 ? "#22c55e" : stats.netGas < 0 ? "#ffaa00" : "#fff", marginTop: "2px" }}>
+              {stats.netGas > 0 ? `+${stats.netGas.toFixed(2)} kg` : `${stats.netGas.toFixed(2)} kg`}
             </div>
           </div>
 
           <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "8px", padding: "0.85rem 1rem" }}>
-            <div style={{ fontSize: "0.7rem", color: "#94a3b8", fontWeight: 600 }}>Last Service Date</div>
-            <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#cbd5e1", marginTop: "2px" }}>
-              {stats.lastDate ? new Date(stats.lastDate).toLocaleDateString("en-GB") : "—"}
-            </div>
-          </div>
-
-          <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "8px", padding: "0.85rem 1rem" }}>
-            <div style={{ fontSize: "0.7rem", color: "#94a3b8", fontWeight: 600 }}>Engineers Involved</div>
-            <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#cbd5e1", marginTop: "4px" }}>
-              {stats.engineers.join(", ") || "—"}
+            <div style={{ fontSize: "0.7rem", color: "#94a3b8", fontWeight: 600 }}>Service Events & Range</div>
+            <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#fff", marginTop: "2px" }}>{stats.serviceCount} event{stats.serviceCount !== 1 ? "s" : ""}</div>
+            <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: "2px" }}>
+              {stats.firstDate ? new Date(stats.firstDate).toLocaleDateString("en-GB") : "—"} – {stats.lastDate ? new Date(stats.lastDate).toLocaleDateString("en-GB") : "—"}
             </div>
           </div>
         </div>
@@ -377,7 +394,7 @@ function EquipmentReportContent() {
                     <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Date</th>
                     <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Job Ref / Site</th>
                     <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Action Type</th>
-                    <th style={{ padding: "0.75rem 1rem", textAlign: "right", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Qty (kg)</th>
+                    <th style={{ padding: "0.75rem 1rem", textAlign: "right", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Gas Qty</th>
                     <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Before → After</th>
                     <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>HWCN / Return</th>
                     <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Engineer</th>
@@ -407,7 +424,7 @@ function EquipmentReportContent() {
                         </td>
                         <td style={{ padding: "0.65rem 1rem" }}>{jobTypeBadge(act.jobType)}</td>
                         <td style={{ padding: "0.65rem 1rem", textAlign: "right", fontWeight: 700, color: isRec ? "#ffaa00" : "#22c55e" }}>
-                          {act.equipmentWeight > 0 ? `${act.equipmentWeight.toFixed(2)} kg` : "—"}
+                          {isRec ? `-${act.equipmentWeight.toFixed(2)} kg` : `+${act.equipmentWeight.toFixed(2)} kg`}
                         </td>
                         <td style={{ padding: "0.65rem 1rem", fontFamily: "var(--font-geist-mono), monospace", color: "#94a3b8" }}>
                           {act.weightBefore !== null ? act.weightBefore.toFixed(2) : "?"} → {act.weightAfter !== null ? act.weightAfter.toFixed(2) : "?"}
