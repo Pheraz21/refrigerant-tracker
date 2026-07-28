@@ -56,6 +56,186 @@ function formatLifecycleLabel(l: Lifecycle, totalCount: number): string {
   return `${prefix} (${startDate} – ${endDate})`;
 }
 
+function CylinderWeightChart({
+  bottle,
+  moveLogs,
+  usageLogs,
+}: {
+  bottle: Bottle;
+  moveLogs: MovementLog[];
+  usageLogs: UsageLog[];
+}) {
+  const initialWeight = bottle.initialWeight ?? 0;
+  const currentWeight = bottle.currentWeight ?? 0;
+
+  const points = useMemo(() => {
+    if (!initialWeight) return [];
+
+    const list: Array<{
+      date: string;
+      weight: number;
+      label: string;
+      change?: number;
+      engineer?: string;
+    }> = [];
+
+    // 1. Initial point
+    list.push({
+      date: bottle.registeredAt || new Date().toISOString(),
+      weight: initialWeight,
+      label: "Initial Registration",
+    });
+
+    // 2. Intermediary usage/movement points
+    const events: Array<{ date: string; weight: number; label: string; change?: number; engineer?: string }> = [];
+
+    usageLogs.forEach(u => {
+      const isRec = ["recovery", "retrofit", "waste", "reclaim"].includes((u.jobType || "").toLowerCase());
+      const change = isRec ? (u.weightUsed || 0) : -(u.weightUsed || 0);
+      const w = u.weightAfter !== undefined && u.weightAfter !== null ? u.weightAfter : (initialWeight + change);
+      events.push({
+        date: u.date,
+        weight: Math.max(0, w),
+        label: u.siteRef ? `Job ${u.siteRef}` : "Refrigerant Action",
+        change,
+        engineer: u.engineer,
+      });
+    });
+
+    moveLogs.forEach(m => {
+      const logWeight = (m as any).currentWeight ?? (m as any).weight;
+      if (logWeight !== undefined && logWeight !== null && m.action !== "registered") {
+        events.push({
+          date: m.date,
+          weight: logWeight,
+          label: `Action: ${m.action.replace(/_/g, " ")}`,
+          engineer: m.engineer,
+        });
+      }
+    });
+
+    events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    events.forEach(e => {
+      list.push(e);
+    });
+
+    const lastPoint = list[list.length - 1];
+    if (!lastPoint || lastPoint.weight !== currentWeight) {
+      list.push({
+        date: bottle.locationChangedAt || new Date().toISOString(),
+        weight: currentWeight,
+        label: "Current Balance",
+      });
+    }
+
+    return list;
+  }, [bottle, moveLogs, usageLogs]);
+
+  const percentageRemaining = initialWeight > 0 ? Math.min(100, Math.max(0, (currentWeight / initialWeight) * 100)) : 0;
+  const netDispensed = initialWeight - currentWeight;
+
+  if (points.length < 2) {
+    return null;
+  }
+
+  const svgWidth = 650;
+  const svgHeight = 140;
+  const paddingX = 35;
+  const paddingY = 20;
+
+  const minW = 0;
+  const maxW = Math.max(initialWeight * 1.05, 1);
+
+  const getX = (index: number) => {
+    if (points.length === 1) return paddingX;
+    return paddingX + (index / (points.length - 1)) * (svgWidth - paddingX * 2);
+  };
+
+  const getY = (w: number) => {
+    const ratio = (w - minW) / (maxW - minW);
+    return svgHeight - paddingY - ratio * (svgHeight - paddingY * 2);
+  };
+
+  const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${getX(i).toFixed(1)} ${getY(p.weight).toFixed(1)}`).join(" ");
+
+  const areaD = `${pathD} L ${getX(points.length - 1).toFixed(1)} ${svgHeight - paddingY} L ${paddingX} ${svgHeight - paddingY} Z`;
+
+  return (
+    <div style={{
+      background: "rgba(17, 24, 39, 0.7)",
+      border: "1px solid rgba(0, 229, 255, 0.25)",
+      borderRadius: "12px",
+      padding: "1.25rem 1.5rem",
+      marginBottom: "1.5rem",
+      backdropFilter: "blur(12px)",
+      boxShadow: "0 4px 20px rgba(0,0,0,0.3)"
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.85rem", flexWrap: "wrap", gap: "1rem" }}>
+        <div>
+          <div style={{ fontSize: "0.72rem", color: "#00e5ff", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            Cylinder Weight Loss & Usage Trajectory
+          </div>
+          <div style={{ fontSize: "1.1rem", fontWeight: 800, color: "#fff", marginTop: "2px" }}>
+            {currentWeight.toFixed(2)} kg <span style={{ fontSize: "0.82rem", color: "#94a3b8", fontWeight: 500 }}>of {initialWeight.toFixed(2)} kg capacity</span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
+          <div style={{ background: "rgba(0, 229, 255, 0.08)", border: "1px solid rgba(0, 229, 255, 0.25)", padding: "0.3rem 0.75rem", borderRadius: "8px", textAlign: "right" }}>
+            <div style={{ fontSize: "0.65rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Gas Remaining</div>
+            <div style={{ fontSize: "0.95rem", fontWeight: 800, color: percentageRemaining > 20 ? "#22c55e" : "#ffaa00" }}>
+              {percentageRemaining.toFixed(1)}%
+            </div>
+          </div>
+
+          <div style={{ background: "rgba(255, 170, 0, 0.08)", border: "1px solid rgba(255, 170, 0, 0.25)", padding: "0.3rem 0.75rem", borderRadius: "8px", textAlign: "right" }}>
+            <div style={{ fontSize: "0.65rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Total Serviced</div>
+            <div style={{ fontSize: "0.95rem", fontWeight: 800, color: netDispensed >= 0 ? "#ffaa00" : "#22c55e" }}>
+              {netDispensed >= 0 ? `-${netDispensed.toFixed(2)} kg` : `+${Math.abs(netDispensed).toFixed(2)} kg`}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ width: "100%", overflowX: "auto" }} className="scrollbar-none">
+        <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} style={{ width: "100%", height: "auto", minWidth: "450px" }}>
+          <defs>
+            <linearGradient id="weightGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#00e5ff" stopOpacity="0.35" />
+              <stop offset="100%" stopColor="#00e5ff" stopOpacity="0.0" />
+            </linearGradient>
+          </defs>
+
+          <line x1={paddingX} y1={getY(initialWeight)} x2={svgWidth - paddingX} y2={getY(initialWeight)} stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
+          <line x1={paddingX} y1={getY(initialWeight / 2)} x2={svgWidth - paddingX} y2={getY(initialWeight / 2)} stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
+
+          <path d={areaD} fill="url(#weightGradient)" />
+          <path d={pathD} fill="none" stroke="#00e5ff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+
+          {points.map((p, i) => {
+            const cx = getX(i);
+            const cy = getY(p.weight);
+            const isLast = i === points.length - 1;
+
+            return (
+              <g key={i} style={{ cursor: "pointer" }}>
+                <circle cx={cx} cy={cy} r={isLast ? 6 : 4} fill={isLast ? "#22c55e" : "#00e5ff"} stroke="#0f172a" strokeWidth="2" />
+                <title>{`${new Date(p.date).toLocaleDateString("en-GB")}: ${p.weight.toFixed(2)} kg (${p.label})`}</title>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", color: "#94a3b8", marginTop: "0.4rem" }}>
+        <div>Registered: {new Date(points[0].date).toLocaleDateString("en-GB")} ({points[0].weight.toFixed(2)} kg)</div>
+        <div>Current Balance: {new Date(points[points.length - 1].date).toLocaleDateString("en-GB")} ({points[points.length - 1].weight.toFixed(2)} kg)</div>
+      </div>
+    </div>
+  );
+}
+
 export default function ViewBottlePage() {
   const { serial } = useParams();
   const router = useRouter();
@@ -676,6 +856,9 @@ export default function ViewBottlePage() {
               </select>
             </div>
           )}
+
+          {/* Weight Loss & Usage Trajectory Chart */}
+          <CylinderWeightChart bottle={bottle} moveLogs={moveLogs} usageLogs={usageLogs} />
 
           {/* Tab bar */}
           <div style={{ display: "flex", gap: "0.25rem", background: "rgba(255,255,255,0.04)", borderRadius: "8px", padding: "0.25rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
