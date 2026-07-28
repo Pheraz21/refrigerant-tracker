@@ -380,8 +380,11 @@ function EquipmentReportContent() {
             <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "#a855f7", marginTop: "2px" }}>
               {stats.totalCo2e.toFixed(2)} t CO₂e
             </div>
-            <div style={{ fontSize: "0.68rem", color: "#94a3b8", marginTop: "2px" }}>
-              {matchedActions[0]?.gasType ? `${matchedActions[0].gasType} GWP metric` : "Informational GWP metric"}
+            <div style={{ fontSize: "0.68rem", color: "#cbd5e1", marginTop: "2px" }}>
+              {matchedActions[0]?.gasType || "R410A"} (GWP {getGwp(matchedActions[0]?.gasType || "R410A")})
+            </div>
+            <div style={{ fontSize: "0.62rem", color: "#94a3b8", marginTop: "1px" }}>
+              {getGwp(matchedActions[0]?.gasType || "R410A")} GWP × {Math.abs(stats.netGas).toFixed(2)} kg / 1000
             </div>
           </div>
 
@@ -414,7 +417,7 @@ function EquipmentReportContent() {
                   <tr style={{ background: "rgba(255,255,255,0.04)", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
                     <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Bottle Serial</th>
                     <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Category</th>
-                    <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Gas Type</th>
+                    <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Gas & GWP Rating</th>
                     <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Date</th>
                     <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Job Ref / Site</th>
                     <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Action Type</th>
@@ -429,6 +432,8 @@ function EquipmentReportContent() {
                     const bottle = bottleMap.get(act.bottleSerial);
                     const hwcnMatch = hwcns.find((h: any) => h.serial === act.bottleSerial);
                     const isRec = ["recovery", "retrofit", "waste", "reclaim"].includes((act.jobType || "").toLowerCase());
+                    const gwpVal = getGwp(act.gasType);
+                    const actCo2e = calculateCO2e(act.gasType, act.equipmentWeight);
 
                     return (
                       <tr key={idx} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", background: idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.01)" }}>
@@ -438,7 +443,12 @@ function EquipmentReportContent() {
                           </Link>
                         </td>
                         <td style={{ padding: "0.65rem 1rem" }}>{categoryBadge(bottle?.category)}</td>
-                        <td style={{ padding: "0.65rem 1rem", color: "#cbd5e1" }}>{bottle?.gasType || "—"}</td>
+                        <td style={{ padding: "0.65rem 1rem" }}>
+                          <div style={{ fontWeight: 700, color: "#a855f7", fontSize: "0.85rem" }}>{act.gasType}</div>
+                          <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>
+                            GWP {gwpVal || "—"} · <strong style={{ color: "#a855f7" }}>{actCo2e} t CO₂e</strong>
+                          </div>
+                        </td>
                         <td style={{ padding: "0.65rem 1rem", color: "#94a3b8" }}>
                           {act.date ? new Date(act.date).toLocaleDateString("en-GB") : "—"}
                         </td>
