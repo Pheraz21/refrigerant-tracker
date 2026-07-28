@@ -572,7 +572,6 @@ export default function RefrigerantJobsPage() {
     printWindow.document.write(html);
     printWindow.document.close();
     printWindow.focus();
-    setTimeout(() => printWindow.print(), 500);
   };
 
   const printJobRefrigerantLog = async (job: JobSummary) => {
@@ -714,7 +713,6 @@ export default function RefrigerantJobsPage() {
     const win = window.open("", "_blank");
     win?.document.write(html);
     win?.document.close();
-    setTimeout(() => { win?.print(); }, 500);
   };
 
   const hasFilters = !!(search || dateFrom || dateTo || categoryFilter !== "all");

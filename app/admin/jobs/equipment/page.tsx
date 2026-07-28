@@ -225,7 +225,6 @@ export default function EquipmentRegisterPage() {
     if (!win) return;
     win.document.write(html);
     win.document.close();
-    setTimeout(() => win.print(), 500);
   };
 
   const thBase: React.CSSProperties = {

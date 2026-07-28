@@ -195,7 +195,6 @@ export default function DecommissionedEquipmentPage() {
     printWindow.document.write(html);
     printWindow.document.close();
     printWindow.focus();
-    setTimeout(() => printWindow.print(), 500);
   };
 
   const generateJobPDF = (jobNo: string, allRows: typeof flatRows) => {
@@ -299,7 +298,6 @@ export default function DecommissionedEquipmentPage() {
     printWindow.document.write(html);
     printWindow.document.close();
     printWindow.focus();
-    setTimeout(() => printWindow.print(), 500);
   };
 
   const clearFilters = () => {

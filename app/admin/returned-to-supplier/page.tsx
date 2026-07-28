@@ -145,7 +145,6 @@ export default function ReturnedToSupplierPage() {
     const win = window.open("", "_blank");
     win?.document.write(html);
     win?.document.close();
-    setTimeout(() => { win?.print(); }, 500);
   };
 
   const thBase: React.CSSProperties = {

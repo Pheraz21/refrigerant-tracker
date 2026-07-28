@@ -163,7 +163,6 @@ export default function JobDetailPage() {
     <div class="footer">21 Degrees F-Gas Tracker Pro | Official Audit Document | &copy; 2026 21 Degrees Ltd | Job: ${ref}</div>
     </body></html>`);
     win.document.close();
-    setTimeout(() => win.print(), 500);
   };
 
   const printFullJobPdf = () => {
@@ -261,7 +260,6 @@ export default function JobDetailPage() {
     <div class="footer">21 Degrees F-Gas Tracker Pro | Official Audit Document | &copy; 2026 21 Degrees Ltd | Job: ${ref}</div>
     </body></html>`);
     win.document.close();
-    setTimeout(() => win.print(), 500);
   };
 
   const printDecomPdf = () => {
@@ -302,7 +300,6 @@ export default function JobDetailPage() {
     <div class="footer">21 Degrees F-Gas Tracker Pro | Official Audit Document | &copy; 2026 21 Degrees Ltd | ${flatRows.length} item(s) for job ${ref}</div>
     </body></html>`);
     win.document.close();
-    setTimeout(() => win.print(), 500);
   };
 
   // ── Styles ───────────────────────────────────────────────────────────────────

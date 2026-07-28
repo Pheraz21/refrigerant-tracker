@@ -144,7 +144,7 @@ function exportVanPDF(bottles: Bottle[], engineer: string, engineerProfiles: App
     </body></html>
   `;
   const w = window.open("", "_blank");
-  if (w) { w.document.write(html); w.document.close(); setTimeout(() => { w.print(); }, 500); }
+  if (w) { w.document.write(html); w.document.close(); }
 }
 
 export default function VanInventoryPage() {

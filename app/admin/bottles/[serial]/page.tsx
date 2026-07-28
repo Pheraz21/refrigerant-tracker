@@ -277,7 +277,6 @@ export default function ViewBottlePage() {
     const win = window.open("", "_blank");
     win?.document.write(html);
     win?.document.close();
-    setTimeout(() => { win?.print(); }, 500);
   };
 
   const exportCSV = () => {
@@ -404,7 +403,6 @@ export default function ViewBottlePage() {
     const win = window.open("", "_blank");
     win?.document.write(html);
     win?.document.close();
-    setTimeout(() => { win?.print(); }, 500);
   };
 
   if (loading) return <div style={{ padding: "2rem", color: "#fff" }}>Loading bottle data...</div>;
@@ -494,7 +492,7 @@ export default function ViewBottlePage() {
     const url = bottle!.supplierHwcnPhotoUrl!;
     const win = window.open("", "_blank");
     if (!win) return;
-    win.document.write(`<!DOCTYPE html><html><head><title>Supplier HWCN — ${serialStr}</title><style>body{margin:0;padding:0}img{width:100%;display:block}@media print{body{margin:0}}</style></head><body><img src="${url}" onload="setTimeout(function(){window.print();},300)" /></body></html>`);
+    win.document.write(`<!DOCTYPE html><html><head><title>Supplier HWCN — ${serialStr}</title><style>body{margin:0;padding:0}img{width:100%;display:block}@media print{body{margin:0}}</style></head><body><img src="${url}" /></body></html>`);
     win.document.close();
   };
 
