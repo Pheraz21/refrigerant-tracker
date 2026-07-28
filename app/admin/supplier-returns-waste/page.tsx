@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/lib/AuthContext";
 import { Truck, Search, Plus, Trash2, Camera, AlertCircle, CheckCircle2, Loader2, ArrowLeft, X, Lock } from "lucide-react";
 import Link from "next/link";
+import HwcnLightboxModal from "@/components/HwcnLightboxModal";
 
 export default function SupplierReturnPage() {
   const { user } = useAuth();
@@ -22,9 +23,11 @@ export default function SupplierReturnPage() {
   const [error, setError] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
 
-  // Multi-image state
+  // Multi-image state & lightbox
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -173,7 +176,14 @@ export default function SupplierReturnPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0a0e17", color: "#e2e8f0", padding: "2rem 1.5rem" }}>
+    <>
+      <HwcnLightboxModal
+        isOpen={isLightboxOpen}
+        onClose={() => setIsLightboxOpen(false)}
+        photoUrl={photoPreviewUrls}
+        title={`Uploaded HWCN Paperwork Preview (${photoPreviewUrls.length} Pages)`}
+      />
+      <div style={{ minHeight: "100vh", background: "#0a0e17", color: "#e2e8f0", padding: "2rem 1.5rem" }}>
       <div style={{ maxWidth: "1000px", margin: "0 auto 1.5rem auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <Link href="/admin" style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", color: "#94a3b8", textDecoration: "none", fontSize: "0.9rem", fontWeight: 600 }}>
           <ArrowLeft size={16} /> Back to Admin
@@ -341,7 +351,12 @@ export default function SupplierReturnPage() {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: "0.85rem", marginBottom: "1rem" }}>
                   {photoPreviewUrls.map((url, idx) => (
                     <div key={idx} style={{ position: "relative", borderRadius: "8px", overflow: "hidden", border: "1px solid rgba(0,229,255,0.3)", background: "#1a202c" }}>
-                      <img src={url} alt={`HWCN page ${idx + 1}`} style={{ width: "100%", height: "110px", objectFit: "cover", display: "block" }} />
+                      <img
+                        src={url}
+                        alt={`HWCN page ${idx + 1}`}
+                        onClick={() => { setSelectedPhotoIndex(idx); setIsLightboxOpen(true); }}
+                        style={{ width: "100%", height: "110px", objectFit: "cover", display: "block", cursor: "pointer" }}
+                      />
                       <button
                         type="button"
                         onClick={() => removePhoto(idx)}
@@ -353,8 +368,11 @@ export default function SupplierReturnPage() {
                       >
                         <X size={14} />
                       </button>
-                      <div style={{ padding: "0.25rem 0.5rem", background: "rgba(0,0,0,0.6)", fontSize: "0.68rem", color: "#00e5ff", fontWeight: 600, textAlign: "center" }}>
-                        Page {idx + 1}
+                      <div
+                        onClick={() => { setSelectedPhotoIndex(idx); setIsLightboxOpen(true); }}
+                        style={{ padding: "0.25rem 0.5rem", background: "rgba(0,0,0,0.6)", fontSize: "0.68rem", color: "#00e5ff", fontWeight: 600, textAlign: "center", cursor: "pointer" }}
+                      >
+                        Page {idx + 1} (Preview)
                       </div>
                     </div>
                   ))}
@@ -402,5 +420,6 @@ export default function SupplierReturnPage() {
         </div>
       </form>
     </div>
+    </>
   );
 }
