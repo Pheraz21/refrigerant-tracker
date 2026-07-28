@@ -411,20 +411,16 @@ function EquipmentReportContent() {
               No bottle usage or recovery logs recorded for this equipment.
             </div>
           ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem", textWrap: "nowrap" }}>
+            <div style={{ overflowX: "auto" }} className="scrollbar-slim">
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
                 <thead>
                   <tr style={{ background: "rgba(255,255,255,0.04)", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-                    <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Bottle Serial</th>
-                    <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Category</th>
-                    <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Gas & GWP Rating</th>
-                    <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Date</th>
-                    <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Job Ref / Site</th>
-                    <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Action Type</th>
-                    <th style={{ padding: "0.75rem 1rem", textAlign: "right", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Gas Qty</th>
-                    <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Before → After</th>
-                    <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>HWCN / Return</th>
-                    <th style={{ padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Engineer</th>
+                    <th style={{ padding: "0.75rem 0.85rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Bottle & Category</th>
+                    <th style={{ padding: "0.75rem 0.85rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Gas & GWP Rating</th>
+                    <th style={{ padding: "0.75rem 0.85rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Date & Engineer</th>
+                    <th style={{ padding: "0.75rem 0.85rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Job Ref & Site</th>
+                    <th style={{ padding: "0.75rem 0.85rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Action & Qty</th>
+                    <th style={{ padding: "0.75rem 0.85rem", textAlign: "left", fontSize: "0.68rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Bottle Weight & HWCN</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -437,42 +433,53 @@ function EquipmentReportContent() {
 
                     return (
                       <tr key={idx} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)", background: idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.01)" }}>
-                        <td style={{ padding: "0.65rem 1rem", fontFamily: "var(--font-geist-mono), monospace", fontWeight: 700, color: "#00e5ff" }}>
-                          <Link href={`/admin/bottles/${act.bottleSerial}`} style={{ color: "#00e5ff", textDecoration: "none" }}>
-                            {act.bottleSerial}
-                          </Link>
+                        <td style={{ padding: "0.65rem 0.85rem" }}>
+                          <div style={{ fontFamily: "var(--font-geist-mono), monospace", fontWeight: 700, color: "#00e5ff" }}>
+                            <Link href={`/admin/bottles/${act.bottleSerial}`} style={{ color: "#00e5ff", textDecoration: "none" }}>
+                              {act.bottleSerial}
+                            </Link>
+                          </div>
+                          <div style={{ marginTop: "2px" }}>{categoryBadge(bottle?.category)}</div>
                         </td>
-                        <td style={{ padding: "0.65rem 1rem" }}>{categoryBadge(bottle?.category)}</td>
-                        <td style={{ padding: "0.65rem 1rem" }}>
+
+                        <td style={{ padding: "0.65rem 0.85rem" }}>
                           <div style={{ fontWeight: 700, color: "#a855f7", fontSize: "0.85rem" }}>{act.gasType}</div>
                           <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>
                             GWP {gwpVal || "—"} · <strong style={{ color: "#a855f7" }}>{actCo2e} t CO₂e</strong>
                           </div>
                         </td>
-                        <td style={{ padding: "0.65rem 1rem", color: "#94a3b8" }}>
-                          {act.date ? new Date(act.date).toLocaleDateString("en-GB") : "—"}
+
+                        <td style={{ padding: "0.65rem 0.85rem" }}>
+                          <div style={{ color: "#fff", fontWeight: 600 }}>
+                            {act.date ? new Date(act.date).toLocaleDateString("en-GB") : "—"}
+                          </div>
+                          <div style={{ fontSize: "0.72rem", color: "#cbd5e1" }}>{act.engineer}</div>
                         </td>
-                        <td style={{ padding: "0.65rem 1rem", color: "#cbd5e1" }}>
+
+                        <td style={{ padding: "0.65rem 0.85rem" }}>
                           <div style={{ fontFamily: "var(--font-geist-mono), monospace", fontWeight: 600, color: "#f59e0b" }}>{act.jobRef || "—"}</div>
                           {act.siteTitle && <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>{act.siteTitle}</div>}
                         </td>
-                        <td style={{ padding: "0.65rem 1rem" }}>{jobTypeBadge(act.jobType)}</td>
-                        <td style={{ padding: "0.65rem 1rem", textAlign: "right", fontWeight: 700, color: isRec ? "#ffaa00" : "#22c55e" }}>
-                          {isRec ? `-${act.equipmentWeight.toFixed(2)} kg` : `+${act.equipmentWeight.toFixed(2)} kg`}
+
+                        <td style={{ padding: "0.65rem 0.85rem" }}>
+                          <div style={{ marginBottom: "2px" }}>{jobTypeBadge(act.jobType)}</div>
+                          <div style={{ fontWeight: 700, color: isRec ? "#ffaa00" : "#22c55e", fontSize: "0.82rem" }}>
+                            {isRec ? `-${act.equipmentWeight.toFixed(2)} kg` : `+${act.equipmentWeight.toFixed(2)} kg`}
+                          </div>
                         </td>
-                        <td style={{ padding: "0.65rem 1rem", fontFamily: "var(--font-geist-mono), monospace", color: "#94a3b8" }}>
-                          {act.weightBefore !== null ? act.weightBefore.toFixed(2) : "?"} → {act.weightAfter !== null ? act.weightAfter.toFixed(2) : "?"}
-                        </td>
-                        <td style={{ padding: "0.65rem 1rem" }}>
-                          {hwcnMatch ? (
-                            <Link href={`/admin/hwcn/${encodeURIComponent(hwcnMatch.id)}`} style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.2)", color: "#00e5ff", padding: "0.15rem 0.45rem", borderRadius: "4px", fontSize: "0.7rem", fontWeight: 600, textDecoration: "none" }}>
-                              <ExternalLink size={10} /> {hwcnMatch.id?.slice(0, 8) || "HWCN"}
-                            </Link>
-                          ) : (
-                            <span style={{ color: "rgba(255,255,255,0.2)" }}>—</span>
+
+                        <td style={{ padding: "0.65rem 0.85rem" }}>
+                          <div style={{ fontFamily: "var(--font-geist-mono), monospace", color: "#94a3b8", fontSize: "0.78rem" }}>
+                            {act.weightBefore !== null ? act.weightBefore.toFixed(2) : "?"} → {act.weightAfter !== null ? act.weightAfter.toFixed(2) : "?"} kg
+                          </div>
+                          {hwcnMatch && (
+                            <div style={{ marginTop: "2px" }}>
+                              <Link href={`/admin/hwcn/${encodeURIComponent(hwcnMatch.id)}`} style={{ display: "inline-flex", alignItems: "center", gap: "0.2rem", background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.2)", color: "#00e5ff", padding: "0.1rem 0.4rem", borderRadius: "4px", fontSize: "0.68rem", fontWeight: 600, textDecoration: "none" }}>
+                                <ExternalLink size={10} /> {hwcnMatch.id?.slice(0, 8) || "HWCN"}
+                              </Link>
+                            </div>
                           )}
                         </td>
-                        <td style={{ padding: "0.65rem 1rem", color: "#cbd5e1" }}>{act.engineer}</td>
                       </tr>
                     );
                   })}

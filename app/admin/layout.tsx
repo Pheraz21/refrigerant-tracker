@@ -183,7 +183,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
 
         {/* Nav */}
-        <nav style={{flex: 1, padding: collapsed ? "0.75rem 0.5rem" : "1rem 0.75rem", display: "flex", flexDirection: "column", gap: "0.2rem", overflowY: "auto", overflowX: "hidden"}}>
+        <nav className="scrollbar-slim" style={{flex: 1, padding: collapsed ? "0.75rem 0.5rem" : "1rem 0.75rem", display: "flex", flexDirection: "column", gap: "0.2rem", overflowY: "auto", overflowX: "hidden"}}>
           {navGroups.map((group, idx) => (
             <div key={idx} style={{marginBottom: group.title ? "0.5rem" : "0"}}>
               {group.title && !collapsed && (
