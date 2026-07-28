@@ -65,12 +65,11 @@ function CylinderWeightChart({
   moveLogs: MovementLog[];
   usageLogs: UsageLog[];
 }) {
+  const isReclaim = bottle.category === "reclaim";
   const initialWeight = bottle.initialWeight ?? 0;
   const currentWeight = bottle.currentWeight ?? 0;
 
   const points = useMemo(() => {
-    if (!initialWeight) return [];
-
     const list: Array<{
       date: string;
       weight: number;
@@ -83,7 +82,7 @@ function CylinderWeightChart({
     list.push({
       date: bottle.registeredAt || new Date().toISOString(),
       weight: initialWeight,
-      label: "Initial Registration",
+      label: isReclaim ? "Empty Reclaim Registration (Tare)" : "Initial Registration",
     });
 
     // 2. Intermediary usage/movement points
@@ -130,10 +129,15 @@ function CylinderWeightChart({
     }
 
     return list;
-  }, [bottle, moveLogs, usageLogs]);
+  }, [bottle, moveLogs, usageLogs, isReclaim]);
 
+  const themeColor = isReclaim ? "#ffaa00" : "#00e5ff";
+  const themeBorder = isReclaim ? "rgba(255, 170, 0, 0.3)" : "rgba(0, 229, 255, 0.25)";
+  const themeBg = isReclaim ? "rgba(255, 170, 0, 0.08)" : "rgba(0, 229, 255, 0.08)";
+
+  const gasChange = currentWeight - initialWeight;
   const percentageRemaining = initialWeight > 0 ? Math.min(100, Math.max(0, (currentWeight / initialWeight) * 100)) : 0;
-  const netDispensed = initialWeight - currentWeight;
+  const reclaimFillPct = initialWeight > 0 ? Math.min(100, Math.max(0, (gasChange / Math.max(initialWeight, 1)) * 100)) : 0;
 
   if (points.length < 2) {
     return null;
@@ -144,8 +148,9 @@ function CylinderWeightChart({
   const paddingX = 35;
   const paddingY = 20;
 
-  const minW = 0;
-  const maxW = Math.max(initialWeight * 1.05, 1);
+  const weightsArr = points.map(p => p.weight);
+  const minW = Math.min(...weightsArr, 0);
+  const maxW = Math.max(...weightsArr, initialWeight * 1.05, 1);
 
   const getX = (index: number) => {
     if (points.length === 1) return paddingX;
@@ -153,7 +158,7 @@ function CylinderWeightChart({
   };
 
   const getY = (w: number) => {
-    const ratio = (w - minW) / (maxW - minW);
+    const ratio = (w - minW) / Math.max(maxW - minW, 0.001);
     return svgHeight - paddingY - ratio * (svgHeight - paddingY * 2);
   };
 
@@ -164,7 +169,7 @@ function CylinderWeightChart({
   return (
     <div style={{
       background: "rgba(17, 24, 39, 0.7)",
-      border: "1px solid rgba(0, 229, 255, 0.25)",
+      border: `1px solid ${themeBorder}`,
       borderRadius: "12px",
       padding: "1.25rem 1.5rem",
       marginBottom: "1.5rem",
@@ -173,45 +178,65 @@ function CylinderWeightChart({
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.85rem", flexWrap: "wrap", gap: "1rem" }}>
         <div>
-          <div style={{ fontSize: "0.72rem", color: "#00e5ff", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-            Cylinder Weight Loss & Usage Trajectory
+          <div style={{ fontSize: "0.72rem", color: themeColor, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            {isReclaim ? "Reclaim Cylinder Accumulation & Fill Trajectory" : "Cylinder Weight Loss & Usage Trajectory"}
           </div>
           <div style={{ fontSize: "1.1rem", fontWeight: 800, color: "#fff", marginTop: "2px" }}>
-            {currentWeight.toFixed(2)} kg <span style={{ fontSize: "0.82rem", color: "#94a3b8", fontWeight: 500 }}>of {initialWeight.toFixed(2)} kg capacity</span>
+            {currentWeight.toFixed(2)} kg <span style={{ fontSize: "0.82rem", color: "#94a3b8", fontWeight: 500 }}>
+              {isReclaim ? `(Tare: ${initialWeight.toFixed(2)} kg)` : `of ${initialWeight.toFixed(2)} kg capacity`}
+            </span>
           </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
-          <div style={{ background: "rgba(0, 229, 255, 0.08)", border: "1px solid rgba(0, 229, 255, 0.25)", padding: "0.3rem 0.75rem", borderRadius: "8px", textAlign: "right" }}>
-            <div style={{ fontSize: "0.65rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Gas Remaining</div>
-            <div style={{ fontSize: "0.95rem", fontWeight: 800, color: percentageRemaining > 20 ? "#22c55e" : "#ffaa00" }}>
-              {percentageRemaining.toFixed(1)}%
-            </div>
-          </div>
-
-          <div style={{ background: "rgba(255, 170, 0, 0.08)", border: "1px solid rgba(255, 170, 0, 0.25)", padding: "0.3rem 0.75rem", borderRadius: "8px", textAlign: "right" }}>
-            <div style={{ fontSize: "0.65rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Total Serviced</div>
-            <div style={{ fontSize: "0.95rem", fontWeight: 800, color: netDispensed >= 0 ? "#ffaa00" : "#22c55e" }}>
-              {netDispensed >= 0 ? `-${netDispensed.toFixed(2)} kg` : `+${Math.abs(netDispensed).toFixed(2)} kg`}
-            </div>
-          </div>
+          {isReclaim ? (
+            <>
+              <div style={{ background: themeBg, border: `1px solid ${themeBorder}`, padding: "0.3rem 0.75rem", borderRadius: "8px", textAlign: "right" }}>
+                <div style={{ fontSize: "0.65rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Gas Recovered In</div>
+                <div style={{ fontSize: "0.95rem", fontWeight: 800, color: "#ffaa00" }}>
+                  +{gasChange >= 0 ? gasChange.toFixed(2) : "0.00"} kg
+                </div>
+              </div>
+              <div style={{ background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.25)", padding: "0.3rem 0.75rem", borderRadius: "8px", textAlign: "right" }}>
+                <div style={{ fontSize: "0.65rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Fill Ratio</div>
+                <div style={{ fontSize: "0.95rem", fontWeight: 800, color: "#a855f7" }}>
+                  {reclaimFillPct.toFixed(1)}% Full
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ background: "rgba(0, 229, 255, 0.08)", border: "1px solid rgba(0, 229, 255, 0.25)", padding: "0.3rem 0.75rem", borderRadius: "8px", textAlign: "right" }}>
+                <div style={{ fontSize: "0.65rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Gas Remaining</div>
+                <div style={{ fontSize: "0.95rem", fontWeight: 800, color: percentageRemaining > 20 ? "#22c55e" : "#ffaa00" }}>
+                  {percentageRemaining.toFixed(1)}%
+                </div>
+              </div>
+              <div style={{ background: "rgba(255, 170, 0, 0.08)", border: "1px solid rgba(255, 170, 0, 0.25)", padding: "0.3rem 0.75rem", borderRadius: "8px", textAlign: "right" }}>
+                <div style={{ fontSize: "0.65rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Total Serviced</div>
+                <div style={{ fontSize: "0.95rem", fontWeight: 800, color: (initialWeight - currentWeight) >= 0 ? "#ffaa00" : "#22c55e" }}>
+                  {(initialWeight - currentWeight) >= 0 ? `-${(initialWeight - currentWeight).toFixed(2)} kg` : `+${Math.abs(initialWeight - currentWeight).toFixed(2)} kg`}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
       <div style={{ width: "100%", overflowX: "auto" }} className="scrollbar-none">
         <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} style={{ width: "100%", height: "auto", minWidth: "450px" }}>
           <defs>
-            <linearGradient id="weightGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#00e5ff" stopOpacity="0.35" />
-              <stop offset="100%" stopColor="#00e5ff" stopOpacity="0.0" />
+            <linearGradient id={`weightGradient_${isReclaim ? 'rec' : 'virgin'}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={themeColor} stopOpacity="0.35" />
+              <stop offset="100%" stopColor={themeColor} stopOpacity="0.0" />
             </linearGradient>
           </defs>
 
           <line x1={paddingX} y1={getY(initialWeight)} x2={svgWidth - paddingX} y2={getY(initialWeight)} stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
-          <line x1={paddingX} y1={getY(initialWeight / 2)} x2={svgWidth - paddingX} y2={getY(initialWeight / 2)} stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
+          <line x1={paddingX} y1={getY(maxW / 2)} x2={svgWidth - paddingX} y2={getY(maxW / 2)} stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
 
-          <path d={areaD} fill="url(#weightGradient)" />
-          <path d={pathD} fill="none" stroke="#00e5ff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          <path d={areaD} fill={`url(#weightGradient_${isReclaim ? 'rec' : 'virgin'})`} />
+          <path d={pathD} fill="none" stroke={themeColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
 
           {points.map((p, i) => {
             const cx = getX(i);
@@ -220,7 +245,7 @@ function CylinderWeightChart({
 
             return (
               <g key={i} style={{ cursor: "pointer" }}>
-                <circle cx={cx} cy={cy} r={isLast ? 6 : 4} fill={isLast ? "#22c55e" : "#00e5ff"} stroke="#0f172a" strokeWidth="2" />
+                <circle cx={cx} cy={cy} r={isLast ? 6 : 4} fill={isLast ? (isReclaim ? "#ffaa00" : "#22c55e") : themeColor} stroke="#0f172a" strokeWidth="2" />
                 <title>{`${new Date(p.date).toLocaleDateString("en-GB")}: ${p.weight.toFixed(2)} kg (${p.label})`}</title>
               </g>
             );
