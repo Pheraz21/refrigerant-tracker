@@ -139,7 +139,8 @@ function CylinderWeightChart({
   const percentageRemaining = initialWeight > 0 ? Math.min(100, Math.max(0, (currentWeight / initialWeight) * 100)) : 0;
   const reclaimFillPct = initialWeight > 0 ? Math.min(100, Math.max(0, (gasChange / Math.max(initialWeight, 1)) * 100)) : 0;
 
-  if (points.length < 2) {
+  const hasEvents = usageLogs.length > 0 || moveLogs.some(m => (m as any).currentWeight !== undefined && m.action !== "registered");
+  if (!hasEvents || (isReclaim && currentWeight <= initialWeight) || points.length < 2) {
     return null;
   }
 
