@@ -298,82 +298,36 @@ export default function SupplierReturnPage() {
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "1.25rem", marginBottom: "2rem" }}>
-            <div>
-              <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.4rem", fontWeight: 600 }}>
-                Supplier Name {supplierLock && <Lock size={12} style={{ marginLeft: "0.3rem", color: "#00e5ff" }} />}
+          {/* Step 1: Scan & Select Cylinders (Main Entry Point) */}
+          <div style={{ marginBottom: "2rem", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px", padding: "1.25rem" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
+              <label style={{ fontSize: "0.85rem", color: "#00e5ff", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                1. Scan / Select Cylinder Serial (Main Entry)
               </label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. BOC, Air Products"
-                value={returnSupplier}
-                onChange={e => setReturnSupplier(e.target.value)}
-                disabled={!!supplierLock}
-                style={{
-                  width: "100%", padding: "0.75rem 1rem", background: supplierLock ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "#fff", outline: "none", fontSize: "0.95rem"
-                }}
-              />
+              {selectedBottles.length > 0 && (
+                <span style={{ fontSize: "0.75rem", color: "#22c55e", fontWeight: 600 }}>
+                  ✓ {selectedBottles.length} cylinder{selectedBottles.length !== 1 ? "s" : ""} added to return note
+                </span>
+              )}
             </div>
 
-            <div>
-              <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.4rem", fontWeight: 600 }}>
-                Supplier Branch / Depot
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Birtley, Gateshead"
-                value={returnSupplierBranch}
-                onChange={e => setReturnSupplierBranch(e.target.value)}
-                style={{
-                  width: "100%", padding: "0.75rem 1rem", background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "#fff", outline: "none", fontSize: "0.95rem"
-                }}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.4rem", fontWeight: 600 }}>
-                Collection / Return Date
-              </label>
-              <input
-                type="date"
-                required
-                value={returnDate}
-                onChange={e => setReturnDate(e.target.value)}
-                style={{
-                  width: "100%", padding: "0.75rem 1rem", background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "#fff", outline: "none", fontSize: "0.95rem",
-                  colorScheme: "dark"
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Add Bottle Section */}
-          <div style={{ marginBottom: "2rem" }}>
-            <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.4rem", fontWeight: 600 }}>
-              Scan / Enter Bottle Serial (Verified against active database)
-            </label>
             <div style={{ display: "flex", gap: "0.75rem" }}>
               <input
                 type="text"
                 list="active-bottles-list"
-                placeholder="e.g. REC-1029 or 8849201B"
+                placeholder="Scan barcode or select cylinder serial (e.g. REC-1029)..."
                 value={inputSerial}
                 onChange={e => handleSerialInputChange(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAddBottle(); } }}
                 style={{
-                  flex: 1, padding: "0.75rem 1rem", background: "rgba(255,255,255,0.05)",
+                  flex: 1, padding: "0.85rem 1rem", background: "rgba(255,255,255,0.05)",
                   border: matchedBottleInfo
                     ? "1px solid rgba(34,197,94,0.5)"
                     : matchedBottleError
                     ? "1px solid rgba(255,51,102,0.5)"
-                    : "1px solid rgba(255,255,255,0.12)",
+                    : "1px solid rgba(0,229,255,0.3)",
                   borderRadius: "8px", color: "#fff", outline: "none",
-                  fontFamily: "var(--font-geist-mono), monospace", fontSize: "1rem", fontWeight: 600
+                  fontFamily: "var(--font-geist-mono), monospace", fontSize: "1.05rem", fontWeight: 700
                 }}
               />
               <datalist id="active-bottles-list">
@@ -387,79 +341,146 @@ export default function SupplierReturnPage() {
                 type="button"
                 onClick={handleAddBottle}
                 style={{
-                  padding: "0.75rem 1.25rem", background: "rgba(0,229,255,0.1)", border: "1px solid rgba(0,229,255,0.3)",
-                  borderRadius: "8px", color: "#00e5ff", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem"
+                  padding: "0.85rem 1.5rem", background: "linear-gradient(135deg, rgba(0,229,255,0.2) 0%, rgba(0,136,255,0.2) 100%)",
+                  border: "1px solid rgba(0,229,255,0.4)", borderRadius: "8px", color: "#00e5ff", fontWeight: 700,
+                  cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.95rem"
                 }}
               >
-                <Plus size={16} /> Add Cylinder
+                <Plus size={18} /> Add Cylinder
               </button>
             </div>
+
             {matchedBottleInfo && (
-              <div style={{ marginTop: "0.5rem", fontSize: "0.8rem", color: "#22c55e", display: "flex", alignItems: "center", gap: "0.35rem" }}>
-                <CheckCircle2 size={14} /> Active bottle in database: <strong>{matchedBottleInfo.serial}</strong> ({matchedBottleInfo.gasType}, {matchedBottleInfo.category}){matchedBottleInfo.supplier ? ` — Supplier: "${matchedBottleInfo.supplier}"` : ""}
+              <div style={{ marginTop: "0.6rem", fontSize: "0.82rem", color: "#22c55e", display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                <CheckCircle2 size={15} /> Active cylinder in database: <strong>{matchedBottleInfo.serial}</strong> ({matchedBottleInfo.gasType}, {matchedBottleInfo.category}){matchedBottleInfo.supplier ? ` — Supplier: "${matchedBottleInfo.supplier}"` : ""}
               </div>
             )}
             {matchedBottleError && inputSerial.trim().length > 0 && (
-              <div style={{ marginTop: "0.5rem", fontSize: "0.8rem", color: "#ff3366", display: "flex", alignItems: "center", gap: "0.35rem" }}>
-                <AlertCircle size={14} /> {matchedBottleError}
+              <div style={{ marginTop: "0.6rem", fontSize: "0.82rem", color: "#ff3366", display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                <AlertCircle size={15} /> {matchedBottleError}
+              </div>
+            )}
+
+            {/* Selected Cylinders Table */}
+            {selectedBottles.length > 0 && (
+              <div style={{ marginTop: "1.25rem" }}>
+                <h4 style={{ fontSize: "0.8rem", fontWeight: 700, color: "rgba(255,255,255,0.7)", marginBottom: "0.5rem", textTransform: "uppercase" }}>
+                  Selected Cylinders on Return Note ({selectedBottles.length})
+                </h4>
+                <div style={{ border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", overflow: "hidden", background: "rgba(0,0,0,0.2)" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+                    <thead>
+                      <tr style={{ background: "rgba(255,255,255,0.03)" }}>
+                        <th style={{ padding: "0.65rem 1rem", textAlign: "left", color: "rgba(255,255,255,0.5)", fontSize: "0.7rem", textTransform: "uppercase" }}>Serial</th>
+                        <th style={{ padding: "0.65rem 1rem", textAlign: "left", color: "rgba(255,255,255,0.5)", fontSize: "0.7rem", textTransform: "uppercase" }}>Category</th>
+                        <th style={{ padding: "0.65rem 1rem", textAlign: "left", color: "rgba(255,255,255,0.5)", fontSize: "0.7rem", textTransform: "uppercase" }}>Gas Type</th>
+                        <th style={{ padding: "0.65rem 1rem", textAlign: "right", color: "rgba(255,255,255,0.5)", fontSize: "0.7rem", textTransform: "uppercase" }}>Current Weight (kg)</th>
+                        <th style={{ padding: "0.65rem 1rem", textAlign: "center", color: "rgba(255,255,255,0.5)", fontSize: "0.7rem", textTransform: "uppercase" }}>Remove</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedBottles.map(b => (
+                        <tr key={b.serial} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                          <td style={{ padding: "0.65rem 1rem", fontFamily: "var(--font-geist-mono), monospace", fontWeight: 700, color: "#00e5ff" }}>{b.serial}</td>
+                          <td style={{ padding: "0.65rem 1rem", textTransform: "capitalize", color: "rgba(255,255,255,0.7)" }}>{b.category}</td>
+                          <td style={{ padding: "0.65rem 1rem", color: "rgba(255,255,255,0.7)" }}>{b.gasType}</td>
+                          <td style={{ padding: "0.65rem 1rem", textAlign: "right" }}>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={weights[b.serial] ?? b.currentWeight}
+                              onChange={e => handleWeightChange(b.serial, e.target.value)}
+                              style={{
+                                width: "90px", padding: "0.35rem 0.5rem", background: "rgba(255,255,255,0.05)",
+                                border: "1px solid rgba(255,255,255,0.12)", borderRadius: "6px", color: "#fff", textAlign: "right", fontSize: "0.85rem"
+                              }}
+                            />
+                          </td>
+                          <td style={{ padding: "0.65rem 1rem", textAlign: "center" }}>
+                            <button
+                              type="button"
+                              onClick={() => removeBottle(b.serial)}
+                              style={{ background: "transparent", border: "none", color: "#ff3366", cursor: "pointer", padding: "0.2rem" }}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>
 
-          {/* Selected Bottles List */}
-          {selectedBottles.length > 0 && (
-            <div style={{ marginBottom: "2rem" }}>
-              <h3 style={{ fontSize: "0.9rem", fontWeight: 700, color: "#fff", marginBottom: "0.75rem" }}>
-                Selected Cylinders ({selectedBottles.length})
-              </h3>
-              <div style={{ border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", overflow: "hidden" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
-                  <thead>
-                    <tr style={{ background: "rgba(255,255,255,0.03)" }}>
-                      <th style={{ padding: "0.65rem 1rem", textAlign: "left", color: "rgba(255,255,255,0.5)", fontSize: "0.7rem", textTransform: "uppercase" }}>Serial</th>
-                      <th style={{ padding: "0.65rem 1rem", textAlign: "left", color: "rgba(255,255,255,0.5)", fontSize: "0.7rem", textTransform: "uppercase" }}>Category</th>
-                      <th style={{ padding: "0.65rem 1rem", textAlign: "left", color: "rgba(255,255,255,0.5)", fontSize: "0.7rem", textTransform: "uppercase" }}>Gas Type</th>
-                      <th style={{ padding: "0.65rem 1rem", textAlign: "right", color: "rgba(255,255,255,0.5)", fontSize: "0.7rem", textTransform: "uppercase" }}>Current Weight (kg)</th>
-                      <th style={{ padding: "0.65rem 1rem", textAlign: "center", color: "rgba(255,255,255,0.5)", fontSize: "0.7rem", textTransform: "uppercase" }}>Remove</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedBottles.map(b => (
-                      <tr key={b.serial} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                        <td style={{ padding: "0.65rem 1rem", fontFamily: "var(--font-geist-mono), monospace", fontWeight: 700, color: "#00e5ff" }}>{b.serial}</td>
-                        <td style={{ padding: "0.65rem 1rem", textTransform: "capitalize", color: "rgba(255,255,255,0.7)" }}>{b.category}</td>
-                        <td style={{ padding: "0.65rem 1rem", color: "rgba(255,255,255,0.7)" }}>{b.gasType}</td>
-                        <td style={{ padding: "0.65rem 1rem", textAlign: "right" }}>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={weights[b.serial] ?? b.currentWeight}
-                            onChange={e => handleWeightChange(b.serial, e.target.value)}
-                            style={{
-                              width: "90px", padding: "0.35rem 0.5rem", background: "rgba(255,255,255,0.05)",
-                              border: "1px solid rgba(255,255,255,0.12)", borderRadius: "6px", color: "#fff", textAlign: "right", fontSize: "0.85rem"
-                            }}
-                          />
-                        </td>
-                        <td style={{ padding: "0.65rem 1rem", textAlign: "center" }}>
-                          <button
-                            type="button"
-                            onClick={() => removeBottle(b.serial)}
-                            style={{ background: "transparent", border: "none", color: "#ff3366", cursor: "pointer", padding: "0.2rem" }}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          {/* Step 2: Supplier & Collection Details (Completed Once) */}
+          <div style={{ marginBottom: "2rem" }}>
+            <label style={{ display: "block", fontSize: "0.85rem", color: "#00e5ff", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
+              2. Supplier & Collection Details (Completed once per batch)
+            </label>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "1.25rem" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.4rem", fontWeight: 600 }}>
+                  Supplier Name (Auto-Completed) {supplierLock && <Lock size={12} style={{ marginLeft: "0.3rem", color: "#00e5ff" }} />}
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. BOC, Air Products"
+                  value={returnSupplier}
+                  onChange={e => setReturnSupplier(e.target.value)}
+                  disabled={!!supplierLock}
+                  style={{
+                    width: "100%", padding: "0.75rem 1rem", background: supplierLock ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "#fff", outline: "none", fontSize: "0.95rem"
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.4rem", fontWeight: 600 }}>
+                  Supplier Branch / Depot
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Birtley, Gateshead"
+                  value={returnSupplierBranch}
+                  onChange={e => setReturnSupplierBranch(e.target.value)}
+                  style={{
+                    width: "100%", padding: "0.75rem 1rem", background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "#fff", outline: "none", fontSize: "0.95rem"
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.4rem", fontWeight: 600 }}>
+                  Collection / Return Date
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={returnDate}
+                  onChange={e => setReturnDate(e.target.value)}
+                  style={{
+                    width: "100%", padding: "0.75rem 1rem", background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "#fff", outline: "none", fontSize: "0.95rem",
+                    colorScheme: "dark"
+                  }}
+                />
               </div>
             </div>
-          )}
+          </div>
 
-          {/* HWCN & Paperwork Details */}
+          {/* Step 3: HWCN & Paperwork Details */}
           <div style={{ gridTemplateColumns: "1fr", gap: "1.25rem", marginBottom: "2rem" }}>
+            <label style={{ display: "block", fontSize: "0.85rem", color: "#00e5ff", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
+              3. HWCN & Paperwork
+            </label>
+
             <div style={{ marginBottom: "1.5rem" }}>
               <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.5rem", fontWeight: 600 }}>
                 Supplier's HWCN Number
@@ -541,7 +562,7 @@ export default function SupplierReturnPage() {
                 display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem"
               }}
             >
-              {loading ? <Loader2 size={20} className="spinner" /> : "Complete Supplier Return"}
+              {loading ? <Loader2 size={20} className="spinner" /> : `Complete Supplier Return ${selectedBottles.length > 0 ? `(${selectedBottles.length} Cylinder${selectedBottles.length !== 1 ? 's' : ''})` : ''}`}
             </button>
           </div>
 
