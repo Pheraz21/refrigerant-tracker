@@ -168,7 +168,46 @@ export default function SupplierReturnPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!returnSupplier.trim()) {
+    setError("");
+
+    let bottlesToReturn = [...selectedBottles];
+    let currentWeights = { ...weights };
+    let currentSupplier = returnSupplier.trim();
+
+    // Auto-add bottle from serial input if typed but not explicitly clicked '+ Add Cylinder'
+    if (bottlesToReturn.length === 0 && inputSerial.trim()) {
+      const serialToUse = inputSerial.trim().toUpperCase();
+      let bottle = activeBottles.find(b => b.serial.toUpperCase() === serialToUse);
+      if (!bottle) {
+        try {
+          const fetched = await db.getBottle(serialToUse);
+          if (fetched && fetched.status !== "returned") {
+            bottle = fetched;
+          }
+        } catch (e) {}
+      }
+
+      if (bottle) {
+        bottlesToReturn = [bottle];
+        setSelectedBottles([bottle]);
+        currentWeights[bottle.serial] = bottle.currentWeight;
+        setWeights(currentWeights);
+        if (!currentSupplier && bottle.supplier) {
+          currentSupplier = bottle.supplier;
+          setReturnSupplier(bottle.supplier);
+        }
+      } else {
+        setError(`Cylinder "${serialToUse}" is not a valid active cylinder in company database.`);
+        return;
+      }
+    }
+
+    if (bottlesToReturn.length === 0) {
+      setError("Please add at least one cylinder to return by entering its serial number and clicking '+ Add Cylinder'");
+      return;
+    }
+
+    if (!currentSupplier) {
       setError("Please enter the supplier name");
       return;
     }
@@ -178,10 +217,6 @@ export default function SupplierReturnPage() {
     }
     if (!hwcnNumber) {
       setError("Please enter the Supplier's HWCN number");
-      return;
-    }
-    if (selectedBottles.length === 0) {
-      setError("Please add at least one bottle");
       return;
     }
 
@@ -219,13 +254,13 @@ export default function SupplierReturnPage() {
       }
 
       await db.returnBottleToSupplier({
-        serials: selectedBottles.map(b => b.serial),
+        serials: bottlesToReturn.map(b => b.serial),
         returnHwcnNumber: hwcnNumber,
         returnedBy: user?.name || "Office Admin",
-        weights: weights,
+        weights: currentWeights,
         hwcnPhotoUrl: uploadedUrls[0] || "",
         hwcnPhotoUrls: uploadedUrls,
-        returnSupplier: returnSupplier.trim(),
+        returnSupplier: currentSupplier,
         returnSupplierBranch: returnSupplierBranch.trim(),
         returnedAt: returnDate ? new Date(returnDate).toISOString() : new Date().toISOString()
       });
@@ -242,6 +277,8 @@ export default function SupplierReturnPage() {
       setLoading(false);
     }
   };
+
+  const isSubmitDisabled = loading || (selectedBottles.length === 0 && !inputSerial.trim());
 
   if (isSuccess) {
     return (
@@ -520,16 +557,21 @@ export default function SupplierReturnPage() {
 
             <button 
               type="submit" 
-              disabled={loading || selectedBottles.length === 0}
+              disabled={isSubmitDisabled}
               style={{
                 width: "100%", padding: "1rem", background: "linear-gradient(135deg, #00e5ff 0%, #0088ff 100%)",
                 border: "none", borderRadius: "10px", color: "#000", fontWeight: 800, fontSize: "1rem",
-                cursor: (loading || selectedBottles.length === 0) ? "not-allowed" : "pointer", opacity: (loading || selectedBottles.length === 0) ? 0.6 : 1,
+                cursor: isSubmitDisabled ? "not-allowed" : "pointer", opacity: isSubmitDisabled ? 0.5 : 1,
                 display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem"
               }}
             >
               {loading ? <Loader2 size={20} className="spinner" /> : "Complete Supplier Return"}
             </button>
+            {selectedBottles.length === 0 && !inputSerial.trim() && (
+              <div style={{ marginTop: "0.5rem", fontSize: "0.78rem", color: "rgba(255,255,255,0.4)", textAlign: "center" }}>
+                Enter or scan a cylinder serial number above to enable return completion
+              </div>
+            )}
           </div>
 
           <div style={{ padding: "1.25rem", background: "rgba(255,187,0,0.05)", border: "1px solid rgba(255,187,0,0.15)", borderRadius: "12px" }}>
