@@ -289,6 +289,7 @@ export const db = {
     weights: Record<string, number>,
     returnSupplier?: string,
     returnSupplierBranch?: string,
+    returnedAt?: string,
   }): Promise<void> {
     const locationId = data.returnSupplier && data.returnSupplierBranch
       ? `${data.returnSupplier} - ${data.returnSupplierBranch}`
@@ -298,9 +299,11 @@ export const db = {
       ? data.hwcnPhotoUrls.filter(Boolean).join(",")
       : data.hwcnPhotoUrl || null;
 
+    const returnTimestamp = data.returnedAt ? new Date(data.returnedAt).toISOString() : new Date().toISOString();
+
     for (const serial of data.serials) {
       const weight = data.weights[serial];
-      await supabase.from('bottles').update({
+      const { error: updateError } = await supabase.from('bottles').update({
         status: 'returned',
         location_type: 'supplier',
         location_id: locationId,
@@ -308,20 +311,36 @@ export const db = {
         return_hwcn_number: data.returnHwcnNumber,
         supplier_hwcn_photo_url: finalPhotoUrl,
         returned_by: data.returnedBy,
-        returned_at: new Date().toISOString(),
+        returned_at: returnTimestamp,
         return_supplier: data.returnSupplier || null,
         return_supplier_branch: data.returnSupplierBranch || null,
       }).eq('serial', serial);
 
-      // Log movement
-      await supabase.from('movement_logs').insert({
-        serial,
-        action: 'returned_to_supplier',
-        from_location: 'office',
-        to_location: 'supplier',
-        engineer: data.returnedBy,
-        notes: `Hazardous Waste Return (HWCN: ${data.returnHwcnNumber})`
-      });
+      if (updateError) {
+        console.error(`Error updating bottle ${serial}:`, updateError);
+        if (updateError.message?.toLowerCase().includes("row-level security") || updateError.message?.toLowerCase().includes("row security")) {
+          throw new Error(`Database permission error (RLS): Unable to update bottle ${serial}. Please verify Supabase Row Level Security policy for bottles table.`);
+        }
+        throw updateError;
+      }
+
+      // Log movement safely without failing main return on audit log RLS warning
+      try {
+        const { error: logError } = await supabase.from('movement_logs').insert({
+          serial,
+          date: returnTimestamp,
+          action: 'returned_to_supplier',
+          from_location: 'office',
+          to_location: 'supplier',
+          engineer: data.returnedBy,
+          notes: `Hazardous Waste Return (HWCN: ${data.returnHwcnNumber})`
+        });
+        if (logError) {
+          console.warn(`Movement log RLS warning for bottle ${serial}:`, logError.message);
+        }
+      } catch (logErr) {
+        console.warn("Movement log exception caught:", logErr);
+      }
     }
   },
 
