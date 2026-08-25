@@ -93,7 +93,7 @@ export default function LoginPage() {
         </form>
 
         <div style={{marginTop: "1.5rem"}}>
-          <Link href="/signup?role=engineer" style={{display: "block", textDecoration: "none"}}>
+          <Link href="/signup" style={{display: "block", textDecoration: "none"}}>
             <button type="button" style={{
               width: "100%", padding: "0.75rem", background: "transparent",
               border: "1px solid rgba(0,229,255,0.35)", borderRadius: "8px",

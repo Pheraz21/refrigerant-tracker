@@ -127,33 +127,64 @@ export default function SignupPage() {
 
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
 
-            {/* Role indicator */}
-            {roleParam ? (
-              <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", padding: "0.85rem 1rem" }}>
-                {roleParam === "office" ? <Shield size={16} color="var(--primary)" /> : <Wrench size={16} color="var(--primary)" />}
-                <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "#fff" }}>
-                  {roleParam === "office" ? "Registering as Office / Admin" : `Registering as ${roleParam.toUpperCase()}`}
-                </span>
+            {/* Select Role */}
+            <div>
+              <label style={{ ...labelStyle, display: "block", marginBottom: "0.5rem" }}>Select Your Role *</label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", background: "rgba(255,255,255,0.03)", padding: "0.4rem", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)" }}>
+                <button 
+                  type="button" 
+                  onClick={() => setRole("engineer")} 
+                  style={{ 
+                    padding: "0.75rem 0.5rem", borderRadius: "8px", border: "none", cursor: "pointer", 
+                    fontSize: "0.85rem", fontWeight: 700, 
+                    background: role === "engineer" ? "var(--primary)" : "transparent", 
+                    color: role === "engineer" ? "#000" : "var(--text-muted)", 
+                    transition: "all 0.2s" 
+                  }}
+                >
+                  F-Gas Engineer
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setRole("mate")} 
+                  style={{ 
+                    padding: "0.75rem 0.5rem", borderRadius: "8px", border: "none", cursor: "pointer", 
+                    fontSize: "0.85rem", fontWeight: 700, 
+                    background: role === "mate" ? "var(--primary)" : "transparent", 
+                    color: role === "mate" ? "#000" : "var(--text-muted)", 
+                    transition: "all 0.2s" 
+                  }}
+                >
+                  Engineer Mate
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setRole("apprentice")} 
+                  style={{ 
+                    padding: "0.75rem 0.5rem", borderRadius: "8px", border: "none", cursor: "pointer", 
+                    fontSize: "0.85rem", fontWeight: 700, 
+                    background: role === "apprentice" ? "var(--primary)" : "transparent", 
+                    color: role === "apprentice" ? "#000" : "var(--text-muted)", 
+                    transition: "all 0.2s" 
+                  }}
+                >
+                  Apprentice
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setRole("office")} 
+                  style={{ 
+                    padding: "0.75rem 0.5rem", borderRadius: "8px", border: "none", cursor: "pointer", 
+                    fontSize: "0.85rem", fontWeight: 700, 
+                    background: role === "office" ? "var(--primary)" : "transparent", 
+                    color: role === "office" ? "#000" : "var(--text-muted)", 
+                    transition: "all 0.2s" 
+                  }}
+                >
+                  Office / Admin
+                </button>
               </div>
-            ) : (
-              <div>
-                <label style={{ ...labelStyle, display: "block", marginBottom: "0.5rem" }}>Select Your Role</label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", background: "rgba(255,255,255,0.03)", padding: "0.4rem", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)" }}>
-                  <button type="button" onClick={() => setRole("engineer")} style={{ padding: "0.65rem 0.5rem", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "0.8rem", fontWeight: 700, background: role === "engineer" ? "var(--primary)" : "transparent", color: role === "engineer" ? "#000" : "var(--text-muted)", transition: "all 0.2s" }}>
-                    F-Gas Engineer
-                  </button>
-                  <button type="button" onClick={() => setRole("mate")} style={{ padding: "0.65rem 0.5rem", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "0.8rem", fontWeight: 700, background: role === "mate" ? "var(--primary)" : "transparent", color: role === "mate" ? "#000" : "var(--text-muted)", transition: "all 0.2s" }}>
-                    Engineer Mate
-                  </button>
-                  <button type="button" onClick={() => setRole("apprentice")} style={{ padding: "0.65rem 0.5rem", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "0.8rem", fontWeight: 700, background: role === "apprentice" ? "var(--primary)" : "transparent", color: role === "apprentice" ? "#000" : "var(--text-muted)", transition: "all 0.2s" }}>
-                    Apprentice
-                  </button>
-                  <button type="button" onClick={() => setRole("office")} style={{ padding: "0.65rem 0.5rem", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "0.8rem", fontWeight: 700, background: role === "office" ? "var(--primary)" : "transparent", color: role === "office" ? "#000" : "var(--text-muted)", transition: "all 0.2s" }}>
-                    Office / Admin
-                  </button>
-                </div>
-              </div>
-            )}
+            </div>
 
             {/* Full Name */}
             <div style={fieldStyle}>
