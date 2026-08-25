@@ -9,16 +9,16 @@ import { db } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { AlertTriangle } from "lucide-react";
 
-type JobType = "service" | "install" | "retrofit" | "recovery" | "waste";
+type JobType = "service" | "install" | "retrofit" | "recovery" | "waste" | "recycled_charge";
 
 export default function LogBottlePage() {
   const router = useRouter();
-  // In Next.js 14/15 app router, useSearchParams must be wrapped in Suspense if pre-rendered, 
-  // but for client-side rapid mockups, we can use it directly or mock it if it errors.
   const searchParams = useSearchParams();
   const serialParam = searchParams.get("serial") || "UNKNOWN";
+  const modeParam = searchParams.get("mode");
+  const isRecycleMode = modeParam === "recycle";
   
-  const [jobType, setJobType] = useState<JobType>("service");
+  const [jobType, setJobType] = useState<JobType>(isRecycleMode ? "recycled_charge" : "service");
   const [refrigerantType, setRefrigerantType] = useState("R410A");
   const [customRefrigerant, setCustomRefrigerant] = useState("");
   const [jobNumber, setJobNumber] = useState("");
@@ -33,8 +33,12 @@ export default function LogBottlePage() {
   const [bottleData, setBottleData] = useState<any>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [hasExistingHWCN, setHasExistingHWCN] = useState(false);
-  const { user } = useAuth();
+  const { user, activeVehicleOwner } = useAuth();
   const [crmMatch, setCrmMatch] = useState<string | null>(null);
+
+  // Apprentice Supervision State
+  const [qualifiedEngineers, setQualifiedEngineers] = useState<any[]>([]);
+  const [supervisingEngineer, setSupervisingEngineer] = useState("");
 
   const [equipmentList, setEquipmentList] = useState([
     { id: 1, manufacturer: "", model: "", serial: "", weight: "", decommissioned: false }
@@ -56,11 +60,31 @@ export default function LogBottlePage() {
   };
 
   useEffect(() => {
+    if (user?.role === "apprentice") {
+      db.getQualifiedEngineers().then(engineers => {
+        setQualifiedEngineers(engineers);
+        // Default to active working van lead engineer if set
+        if (activeVehicleOwner) {
+          const match = engineers.find(e => e.name.toLowerCase() === activeVehicleOwner.toLowerCase());
+          if (match) {
+            setSupervisingEngineer(match.name);
+          } else if (engineers.some(e => e.name === activeVehicleOwner)) {
+            setSupervisingEngineer(activeVehicleOwner);
+          }
+        }
+      });
+    }
+  }, [user, activeVehicleOwner]);
+
+  useEffect(() => {
     db.getBottle(serialParam).then(b => {
       if (b) {
         setBottleCategory(b.category);
         setBottleData(b);
-        if (b.category === "reclaim") {
+        if (isRecycleMode) {
+          setJobType("recycled_charge");
+          setRefrigerantType(b.gasType || "Recycled Gas");
+        } else if (b.category === "reclaim") {
           setJobType("recovery");
           setRefrigerantType("Mixed/Recovery");
         } else {
@@ -82,8 +106,6 @@ export default function LogBottlePage() {
         // Auto-fill Job Number if bottle is on a site
         if (b.locationType === "site" && b.locationId) {
           setJobNumber(b.locationId);
-          // Only auto-fill producer site details if the bottle is still at the SAME site
-          // as a previous recovery. If it's at a NEW site, leave blank for the engineer.
           if (b.producerSites && b.producerSites.length > 0) {
             const matchingSite = b.producerSites.find(
               (s: any) => s.name === b.locationId
@@ -95,12 +117,11 @@ export default function LogBottlePage() {
                 postcode: matchingSite.postcode || ""
               });
             }
-            // If no match, leave producerSite blank — this is a new site
           }
         }
       }
     });
-  }, [serialParam]);
+  }, [serialParam, isRecycleMode]);
 
   useEffect(() => {
     if (!jobNumber || jobNumber.length < 3) {
@@ -129,15 +150,38 @@ export default function LogBottlePage() {
 
     if (!bottleData) return;
 
+    // Job Number Format Validation (1 letter followed by numbers without spaces)
+    const cleanJobNumber = (jobNumber || "").trim().replace(/\s+/g, "").toUpperCase();
+    if (!/^[A-Za-z]\d+$/.test(cleanJobNumber)) {
+      setValidationError("Job number must start with 1 letter followed by numbers without spaces (e.g. J12345, M98201).");
+      return;
+    }
+
+    // Apprentice supervision check
+    if (user?.role === "apprentice" && !supervisingEngineer.trim()) {
+      setValidationError("Apprentice logging requires selecting an approved Supervising F-Gas Engineer.");
+      return;
+    }
+
     // Weight Validation
-    if (bottleCategory === "reclaim") {
+    if (isRecycleMode || jobType === "recycled_charge") {
+      const availableReclaim = bottleData.currentWeight || 0;
+      if (totalWeight <= 0) {
+        setValidationError("Please enter the weight of recycled gas charged into equipment.");
+        return;
+      }
+      if (totalWeight > availableReclaim) {
+        setValidationError(`Cannot dispense ${totalWeight.toFixed(2)}kg. Only ${availableReclaim.toFixed(2)}kg of recycled gas is currently in this cylinder.`);
+        return;
+      }
+    } else if (bottleCategory === "reclaim") {
       const currentFill = bottleData.currentWeight || 0;
       const maxFill = bottleData.maxWeight || 20; // Default to 20 if not set
       if (currentFill + totalWeight > maxFill) {
         setValidationError(`Cannot add ${totalWeight.toFixed(2)}kg. Bottle only has ${(maxFill - currentFill).toFixed(2)}kg of space left.`);
         return;
       }
-    } else if (bottleCategory === "supply") {
+    } else if (bottleCategory === "supply" || bottleCategory === "new") {
       const currentSupply = bottleData.currentWeight || 0;
       if (totalWeight > currentSupply) {
         setValidationError(`Cannot log ${totalWeight.toFixed(2)}kg usage. Only ${currentSupply.toFixed(2)}kg of gas remains in this bottle.`);
@@ -145,21 +189,15 @@ export default function LogBottlePage() {
       }
     }
 
-    
     // §4.2: Check if this is adding a 2nd producer site
     const isRecovery = jobType === "recovery";
     const hasExistingSites = existingProducerSites.length > 0;
     
-    // Detect new site by comparing the bottle's CURRENT location (job number)
-    // against the locations where gas was previously recovered.
-    // Also check if the producer site details entered differ from stored ones.
     const currentLocation = bottleData?.locationId || jobNumber;
     const isNewSite = hasExistingSites && (
-      // Check if current job location doesn't match any stored producer site
       !existingProducerSites.some(
         s => s.name === currentLocation || s.name === producerSite.name
       ) ||
-      // Or if the form has different details than ALL existing sites
       !existingProducerSites.some(
         s => s.name === producerSite.name && s.address === producerSite.address
       )
@@ -183,6 +221,7 @@ export default function LogBottlePage() {
       }));
 
     const derivedJobType = (() => {
+      if (isRecycleMode || jobType === "recycled_charge") return "recycled_charge";
       if (jobType === "recovery" || jobType === "waste") return jobType;
       const prefix = (jobNumber || "").split(/[-\s_]/)[0].toUpperCase();
       if (prefix === "C") return "install";
@@ -190,7 +229,18 @@ export default function LogBottlePage() {
       return "service";
     })();
 
-    await db.logUsage(serialParam, derivedJobType, totalWeight, derivedJobType === "waste", derivedJobType === "recovery" ? producerSite : undefined, finalRefrigerant, user?.name || "Unknown", jobNumber || undefined, equipmentToSave.length > 0 ? equipmentToSave : undefined);
+    await db.logUsage(
+      serialParam,
+      derivedJobType,
+      totalWeight,
+      derivedJobType === "waste",
+      derivedJobType === "recovery" ? producerSite : undefined,
+      finalRefrigerant,
+      user?.name || "Unknown",
+      jobNumber || undefined,
+      equipmentToSave.length > 0 ? equipmentToSave : undefined,
+      supervisingEngineer || undefined
+    );
 
     // §4.2: If multi-site was acknowledged, auto-generate Internal HWCN and set dest to Office
     if (isRecovery && multiSiteAcknowledged && bottleData) {
@@ -243,12 +293,37 @@ export default function LogBottlePage() {
     setIsSuccess(true);
   };
 
+  // Mate Role Intercept (Non-F-Gas qualified)
+  if (user?.role === "mate") {
+    return (
+      <div className={styles.container} style={{ textAlign: "center", padding: "3rem 1.5rem" }}>
+        <div style={{
+          width: "80px", height: "80px", borderRadius: "50%",
+          background: "rgba(255, 170, 0, 0.12)", border: "2px solid var(--warning)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          margin: "0 auto 1.5rem"
+        }}>
+          <AlertTriangle size={42} color="var(--warning)" />
+        </div>
+        <h2 style={{ color: "#fff", marginBottom: "0.75rem", fontSize: "1.3rem" }}>F-Gas Qualification Required</h2>
+        <p style={{ color: "var(--text-muted)", fontSize: "0.92rem", lineHeight: 1.6, maxWidth: "380px", margin: "0 auto 2rem" }}>
+          Under UK F-Gas and REFCOM regulations, only certified engineers (or supervised apprentices) may charge or recover refrigerant. Mates can move cylinders and manage van inventory.
+        </p>
+        <Link href="/engineer" style={{ textDecoration: "none" }}>
+          <button className={styles.primaryBtn} style={{ width: "100%" }}>
+            Return to Dashboard
+          </button>
+        </Link>
+      </div>
+    );
+  }
+
   if (isSuccess) {
     return (
       <div className={styles.successContainer}>
         <CheckCircle2 size={64} color="var(--success)" />
-        <h2>Log Saved Successfully!</h2>
-        <p>REFCOM compliance data recorded.</p>
+        <h2>{isRecycleMode ? "Recycled Gas Charged!" : "Log Saved Successfully!"}</h2>
+        <p>{isRecycleMode ? "Re-charge into on-site equipment recorded." : "REFCOM compliance data recorded."}</p>
         <button onClick={() => router.push("/engineer")} className={styles.primaryBtn}>
           Return to Dashboard
         </button>
@@ -321,11 +396,83 @@ export default function LogBottlePage() {
         </div>
       )}
       <header className={styles.header}>
-        <Link href="/engineer" className={styles.backBtn}>
+        <Link href={`/engineer/bottle/${serialParam}`} className={styles.backBtn}>
           <ArrowLeft size={20} />
         </Link>
-        <h1>{bottleCategory === "reclaim" ? "Log Gas Recovery" : "Log Bottle Activity"}</h1>
+        <h1>
+          {isRecycleMode
+            ? "Re-charge Recycled Gas (On-Site)"
+            : bottleCategory === "reclaim"
+              ? "Log Gas Recovery"
+              : "Log Bottle Activity"}
+        </h1>
       </header>
+
+      {/* Apprentice Supervised Logging Banner */}
+      {user?.role === "apprentice" && (
+        <div style={{
+          background: "linear-gradient(90deg, rgba(192, 132, 252, 0.15) 0%, rgba(192, 132, 252, 0.05) 100%)",
+          border: "1px solid rgba(192, 132, 252, 0.4)",
+          borderRadius: "12px",
+          padding: "1rem",
+          marginBottom: "1.25rem"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+            <span style={{ fontSize: "1.1rem" }}>🎓</span>
+            <span style={{ fontWeight: 700, color: "#c084fc", fontSize: "0.95rem" }}>
+              Apprentice Supervised Logging
+            </span>
+          </div>
+          <p style={{ fontSize: "0.82rem", color: "var(--text-muted)", margin: "0 0 0.75rem 0", lineHeight: 1.4 }}>
+            UK F-Gas regulations require apprentice activities to be directly supervised by a qualified F-Gas engineer.
+          </p>
+          <div className={styles.inputGroup}>
+            <label style={{ color: "#c084fc", fontSize: "0.8rem", fontWeight: 700 }}>Supervising F-Gas Engineer *</label>
+            <select
+              value={supervisingEngineer}
+              onChange={e => setSupervisingEngineer(e.target.value)}
+              required
+              style={{
+                background: "rgba(0,0,0,0.3)",
+                border: "1px solid #c084fc",
+                borderRadius: "8px",
+                color: "#fff",
+                padding: "0.65rem 0.75rem",
+                width: "100%",
+                fontSize: "0.9rem"
+              }}
+            >
+              <option value="">-- Select Supervising Engineer --</option>
+              {qualifiedEngineers.map(eng => (
+                <option key={eng.id} value={eng.name}>
+                  {eng.name} {eng.vehicleReg ? `(${eng.vehicleReg})` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* Recycled Gas On-Site Info Banner */}
+      {isRecycleMode && (
+        <div style={{
+          background: "linear-gradient(90deg, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.05) 100%)",
+          border: "1px solid rgba(34, 197, 94, 0.4)",
+          borderRadius: "12px",
+          padding: "1rem",
+          marginBottom: "1.25rem"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+            <span style={{ fontSize: "1.1rem" }}>♻️</span>
+            <span style={{ fontWeight: 700, color: "var(--success)", fontSize: "0.95rem" }}>
+              On-Site Gas Recycling
+            </span>
+          </div>
+          <p style={{ fontSize: "0.82rem", color: "var(--text-muted)", margin: 0, lineHeight: 1.4 }}>
+            Re-charging recovered gas on the same site into existing or new equipment. Available gas in cylinder: <strong style={{ color: "#fff" }}>{bottleData?.currentWeight || 0} kg</strong>.
+          </p>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className={styles.form}>
         <div className={styles.readonlyField}>
@@ -333,20 +480,24 @@ export default function LogBottlePage() {
           <span className={styles.value}>{serialParam}</span>
         </div>
 
-        {(jobType === "service" || jobType === "install" || jobType === "retrofit" || jobType === "recovery") && (
-          <div className={`${styles.dynamicSection} glass-panel`} style={{ borderColor: 'var(--primary)', marginTop: '0.5rem', marginBottom: '1rem' }}>
-            <h3 style={{ color: 'var(--primary)', marginBottom: '1rem' }}>Job & Site Details</h3>
+        {(jobType === "service" || jobType === "install" || jobType === "retrofit" || jobType === "recovery" || jobType === "recycled_charge") && (
+          <div className={`${styles.dynamicSection} glass-panel`} style={{ borderColor: isRecycleMode ? 'var(--success)' : 'var(--primary)', marginTop: '0.5rem', marginBottom: '1rem' }}>
+            <h3 style={{ color: isRecycleMode ? 'var(--success)' : 'var(--primary)', marginBottom: '1rem' }}>
+              {isRecycleMode ? "Recipient Job Details" : "Job & Site Details"}
+            </h3>
             <div className={styles.inputGroup}>
-              <label>Job Number</label>
+              <label>Job Number (e.g. J12345, M98201)</label>
               <input
                 type="text"
-                placeholder="e.g. JOB-88219"
+                placeholder="e.g. J12345"
                 value={jobNumber}
-                onChange={(e) => setJobNumber(e.target.value)}
+                pattern="^[A-Za-z][0-9]+$"
+                title="Job number must start with 1 letter followed by numbers without spaces (e.g. J12345)"
+                onChange={(e) => setJobNumber(e.target.value.replace(/\s+/g, "").toUpperCase())}
                 required
               />
               {crmMatch && (
-                <p style={{fontSize: "0.75rem", color: "var(--primary)", marginTop: "0.3rem"}}>
+                <p style={{fontSize: "0.75rem", color: isRecycleMode ? "var(--success)" : "var(--primary)", marginTop: "0.3rem"}}>
                   ✓ {crmMatch}
                 </p>
               )}
@@ -376,8 +527,22 @@ export default function LogBottlePage() {
 
         <div className={styles.row}>
           <div className={styles.inputGroup} style={{flex: 1}}>
-            <label>{jobType === "recovery" ? "Gas Type Being Recovered" : "Refrigerant Type"}</label>
-            {bottleCategory === "reclaim" ? (
+            <label>{isRecycleMode ? "Recycled Refrigerant Type" : jobType === "recovery" ? "Gas Type Being Recovered" : "Refrigerant Type"}</label>
+            {isRecycleMode ? (
+              <div style={{marginTop: '0.25rem'}}>
+                <div style={{
+                  display: 'inline-block', padding: '0.4rem 1.1rem',
+                  background: 'rgba(34, 197, 94, 0.1)', border: '1px solid var(--success)',
+                  borderRadius: '6px', color: 'var(--success)', fontWeight: 700,
+                  fontSize: '0.9rem', letterSpacing: '0.03em'
+                }}>
+                  {bottleData?.gasType || "Recycled Refrigerant"}
+                </div>
+                <p style={{fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.3rem'}}>
+                  Gas will be drawn directly from this reclaim cylinder ({bottleData?.currentWeight || 0} kg in cylinder).
+                </p>
+              </div>
+            ) : bottleCategory === "reclaim" ? (
               <>
                 <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginTop: '0.25rem'}}>
                   {["R410A", "R32", "R134a", "R404A", "R407C", "R22", "other"].map(gas => (
@@ -442,10 +607,10 @@ export default function LogBottlePage() {
             )}
           </div>
           
-          {(jobType === "service" || jobType === "install" || jobType === "retrofit" || jobType === "recovery") && (
+          {(jobType === "service" || jobType === "install" || jobType === "retrofit" || jobType === "recovery" || jobType === "recycled_charge") && (
             <div className={styles.inputGroup}>
               <label>Total Logged Weight (kg)</label>
-              <div style={{ padding: '0.75rem 1rem', background: 'rgba(0, 229, 255, 0.1)', border: '1px solid var(--primary)', borderRadius: 'var(--radius-sm)', color: 'var(--primary)', fontWeight: '700', fontSize: '1.2rem', textAlign: 'center' }}>
+              <div style={{ padding: '0.75rem 1rem', background: isRecycleMode ? 'rgba(34, 197, 94, 0.1)' : 'rgba(0, 229, 255, 0.1)', border: isRecycleMode ? '1px solid var(--success)' : '1px solid var(--primary)', borderRadius: 'var(--radius-sm)', color: isRecycleMode ? 'var(--success)' : 'var(--primary)', fontWeight: '700', fontSize: '1.2rem', textAlign: 'center' }}>
                 {totalWeight.toFixed(2)} kg
               </div>
             </div>
@@ -453,9 +618,9 @@ export default function LogBottlePage() {
         </div>
 
         {/* Dynamic Fields based on REFCOM Requirements */}
-        {(jobType === "service" || jobType === "install" || jobType === "retrofit" || jobType === "recovery") && (
-          <div className={`${styles.dynamicSection} glass-panel`} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <h3>Equipment Details</h3>
+        {(jobType === "service" || jobType === "install" || jobType === "retrofit" || jobType === "recovery" || jobType === "recycled_charge") && (
+          <div className={`${styles.dynamicSection} glass-panel`} style={{ borderColor: isRecycleMode ? 'var(--success)' : 'var(--primary)', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <h3 style={{ color: isRecycleMode ? 'var(--success)' : 'var(--primary)' }}>{isRecycleMode ? "Recipient Equipment Asset Details" : "Equipment Details"}</h3>
 
             {equipmentList.map((eq, index) => (
               <div key={eq.id} style={{ position: 'relative', borderLeft: '2px solid var(--primary)', paddingLeft: '1rem' }}>

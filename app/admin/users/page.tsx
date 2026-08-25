@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { db, AppUser, UserStatus, UserRole } from "@/lib/db";
@@ -7,6 +7,7 @@ import { Users, ShieldCheck, ShieldAlert, UserX, Truck, Mail, Phone, Calendar, S
 
 export default function UserManagementPage() {
   const [users, setUsers] = useState<AppUser[]>([]);
+  const [activePairings, setActivePairings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
@@ -29,9 +30,18 @@ export default function UserManagementPage() {
   }, []);
 
   const loadUsers = async () => {
-    const allUsers = await db.getAllUsers();
+    const [allUsers, pairings] = await Promise.all([
+      db.getAllUsers(),
+      db.getAllActivePairings()
+    ]);
     setUsers(allUsers.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    setActivePairings(pairings);
     setLoading(false);
+  };
+
+  const handleUnpair = async (pairingId: string) => {
+    await db.respondToPairingRequest(pairingId, "revoked");
+    loadUsers();
   };
 
   const handleStatusChange = async (userId: string, status: UserStatus) => {
@@ -126,17 +136,29 @@ export default function UserManagementPage() {
                 </td>
                 <td style={{padding: "1rem"}}>
                   <div style={{display: "flex", flexWrap: "wrap", gap: "0.4rem", alignItems: "center"}}>
-                    {u.availableRoles.map(r => (
-                      <span key={r} style={{
-                        fontSize: "0.7rem", padding: "0.2rem 0.5rem", borderRadius: "4px", 
-                        background: u.role === r ? "rgba(0, 229, 255, 0.15)" : "rgba(255,255,255,0.05)", 
-                        color: u.role === r ? "var(--primary)" : "rgba(255,255,255,0.6)",
-                        border: `1px solid ${u.role === r ? "var(--primary)" : "rgba(255,255,255,0.1)"}`,
-                        textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.05em"
-                      }}>
-                        {r}
-                      </span>
-                    ))}
+                    {u.availableRoles.map(r => {
+                      const badgeColor = 
+                        r === "engineer" ? "var(--primary)" :
+                        r === "mate" ? "#38bdf8" :
+                        r === "apprentice" ? "#c084fc" :
+                        r === "office" ? "#f59e0b" : "#f43f5e";
+                      const badgeBg = 
+                        r === "engineer" ? "rgba(0, 229, 255, 0.15)" :
+                        r === "mate" ? "rgba(56, 189, 248, 0.15)" :
+                        r === "apprentice" ? "rgba(192, 132, 252, 0.15)" :
+                        r === "office" ? "rgba(245, 158, 11, 0.15)" : "rgba(244, 63, 94, 0.15)";
+                      return (
+                        <span key={r} style={{
+                          fontSize: "0.7rem", padding: "0.2rem 0.5rem", borderRadius: "4px", 
+                          background: u.role === r ? badgeBg : "rgba(255,255,255,0.05)", 
+                          color: u.role === r ? badgeColor : "rgba(255,255,255,0.6)",
+                          border: `1px solid ${u.role === r ? badgeColor : "rgba(255,255,255,0.1)"}`,
+                          textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.05em"
+                        }}>
+                          {r}
+                        </span>
+                      );
+                    })}
                     <button 
                       onClick={() => setRoleEditingId(roleEditingId === u.id ? null : u.id)}
                       style={{background: "none", border: "none", color: "var(--primary)", cursor: "pointer", display: "flex", alignItems: "center"}}
@@ -148,8 +170,8 @@ export default function UserManagementPage() {
                     <div style={{
                       marginTop: "0.5rem", background: "rgba(0,0,0,0.2)", padding: "0.5rem", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.1)"
                     }}>
-                      <div style={{display: "flex", gap: "1.25rem"}}>
-                        {["engineer", "office", "admin"].map(r => (
+                      <div style={{display: "flex", flexWrap: "wrap", gap: "1rem"}}>
+                        {["engineer", "mate", "apprentice", "office", "admin"].map(r => (
                           <div key={r} style={{display: "flex", flexDirection: "column", gap: "0.2rem"}}>
                             <label style={{fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "0.3rem", cursor: "pointer"}}>
                               <input
@@ -173,7 +195,7 @@ export default function UserManagementPage() {
                           </div>
                         ))}
                       </div>
-                      {u.availableRoles.includes("engineer") && (
+                      {(u.availableRoles.includes("engineer") || u.availableRoles.includes("mate") || u.availableRoles.includes("apprentice")) && (
                         <div style={{borderTop: "1px solid rgba(255,255,255,0.08)", marginTop: "0.5rem", paddingTop: "0.5rem"}}>
                           <label style={{fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer"}}>
                             <input
@@ -217,27 +239,82 @@ export default function UserManagementPage() {
                   )}
                 </td>
                 <td style={{padding: "1rem"}}>
-                  {u.availableRoles.includes("engineer") ? (
-                    editingUserId === u.id ? (
-                      <div style={{display: "flex", gap: "0.5rem"}}>
-                        <input 
-                          value={tempReg} onChange={(e) => setTempReg(e.target.value.toUpperCase())}
-                          style={{width: "100px", padding: "0.4rem", background: "rgba(255,255,255,0.1)", border: "1px solid var(--primary)", borderRadius: "4px", color: "#fff", fontSize: "0.8rem"}}
-                        />
-                        <button onClick={() => handleSaveReg(u.id)} style={{background: "var(--success)", border: "none", borderRadius: "4px", padding: "0.2rem 0.5rem", cursor: "pointer"}}><Save size={14} color="#000" /></button>
-                        <button onClick={() => setEditingUserId(null)} style={{background: "rgba(255,255,255,0.1)", border: "none", borderRadius: "4px", padding: "0.2rem 0.5rem", cursor: "pointer"}}><X size={14} color="#fff" /></button>
-                      </div>
-                    ) : (
-                      <div style={{display: "flex", alignItems: "center", gap: "0.5rem"}}>
-                        <span style={{fontFamily: "var(--font-geist-mono)", fontSize: "0.9rem"}}>{u.vehicleReg || "—"}</span>
-                        <button 
-                          onClick={() => { setEditingUserId(u.id); setTempReg(u.vehicleReg || ""); }}
-                          style={{background: "none", border: "none", padding: 0, color: "var(--primary)", cursor: "pointer", fontSize: "0.75rem", textDecoration: "underline"}}
-                        >
-                          Edit
-                        </button>
-                      </div>
-                    )
+                  {(u.availableRoles.includes("engineer") || u.availableRoles.includes("mate") || u.availableRoles.includes("apprentice") || u.vehicleReg) ? (
+                    <div>
+                      {editingUserId === u.id ? (
+                        <div style={{display: "flex", gap: "0.5rem", marginBottom: "0.4rem"}}>
+                          <input 
+                            value={tempReg} onChange={(e) => setTempReg(e.target.value.toUpperCase())}
+                            style={{width: "100px", padding: "0.4rem", background: "rgba(255,255,255,0.1)", border: "1px solid var(--primary)", borderRadius: "4px", color: "#fff", fontSize: "0.8rem"}}
+                          />
+                          <button onClick={() => handleSaveReg(u.id)} style={{background: "var(--success)", border: "none", borderRadius: "4px", padding: "0.2rem 0.5rem", cursor: "pointer"}}><Save size={14} color="#000" /></button>
+                          <button onClick={() => setEditingUserId(null)} style={{background: "rgba(255,255,255,0.1)", border: "none", borderRadius: "4px", padding: "0.2rem 0.5rem", cursor: "pointer"}}><X size={14} color="#fff" /></button>
+                        </div>
+                      ) : (
+                        <div style={{display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.3rem"}}>
+                          <span style={{fontFamily: "var(--font-geist-mono)", fontSize: "0.9rem"}}>{u.vehicleReg || "—"}</span>
+                          <button 
+                            onClick={() => { setEditingUserId(u.id); setTempReg(u.vehicleReg || ""); }}
+                            style={{background: "none", border: "none", padding: 0, color: "var(--primary)", cursor: "pointer", fontSize: "0.75rem", textDecoration: "underline"}}
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      )}
+
+                      {/* If Mate or Apprentice: show active working van pairing */}
+                      {(u.role === "mate" || u.role === "apprentice") && (() => {
+                        const myPairing = activePairings.find(p => p.mateId === u.id && (p.pairingStatus === "approved" || p.pairingStatus === "pending"));
+                        if (!myPairing) return null;
+                        return (
+                          <div style={{
+                            display: "flex", alignItems: "center", gap: "0.35rem",
+                            fontSize: "0.72rem",
+                            background: myPairing.pairingStatus === "approved" ? "rgba(34, 197, 94, 0.15)" : "rgba(234, 179, 8, 0.15)",
+                            border: `1px solid ${myPairing.pairingStatus === "approved" ? "rgba(34, 197, 94, 0.3)" : "rgba(234, 179, 8, 0.3)"}`,
+                            padding: "0.2rem 0.4rem",
+                            borderRadius: "4px",
+                            color: myPairing.pairingStatus === "approved" ? "#22c55e" : "#eab308",
+                            marginTop: "0.25rem"
+                          }}>
+                            <span>{myPairing.pairingStatus === "approved" ? "🟢" : "⏳"} {myPairing.leadEngineerName} ({myPairing.vehicleReg})</span>
+                            <button
+                              onClick={() => handleUnpair(myPairing.id)}
+                              title="Unpair operative"
+                              style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: "0.7rem", padding: "0 0.2rem", fontWeight: 700 }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        );
+                      })()}
+
+                      {/* If Lead Engineer: show paired crew members */}
+                      {u.role === "engineer" && (() => {
+                        const crew = activePairings.filter(p => p.leadEngineerName.toLowerCase() === u.name.toLowerCase() && p.pairingStatus === "approved");
+                        if (crew.length === 0) return null;
+                        return (
+                          <div style={{ marginTop: "0.3rem", display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+                            {crew.map(c => (
+                              <div key={c.id} style={{
+                                display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.3rem",
+                                fontSize: "0.72rem", background: "rgba(0, 229, 255, 0.1)", border: "1px solid rgba(0, 229, 255, 0.2)",
+                                padding: "0.15rem 0.4rem", borderRadius: "4px", color: "var(--primary)"
+                              }}>
+                                <span>Crew: {c.mateName} ({c.mateRole})</span>
+                                <button
+                                  onClick={() => handleUnpair(c.id)}
+                                  title="Remove crew access"
+                                  style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: "0.7rem", padding: "0 0.2rem", fontWeight: 700 }}
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
                   ) : <span style={{color: "rgba(255,255,255,0.1)"}}>—</span>}
                 </td>
                 <td style={{padding: "1rem"}}>

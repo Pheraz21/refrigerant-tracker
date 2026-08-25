@@ -1,16 +1,17 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { AlertTriangle, Truck, MapPin, RotateCcw, Building2, PackageSearch } from "lucide-react";
 import Link from "next/link";
 import { db, Bottle } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
+import { ActiveVehicleBanner } from "@/components/ActiveVehicleBanner";
 import styles from "./page.module.css";
 
 type Tab = "live" | "returned";
 
 export default function HistoryPage() {
-  const { user } = useAuth();
+  const { user, activeVehicleReg, activeVehicleOwner } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("live");
   const [allBottles, setAllBottles] = useState<Bottle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,12 +39,30 @@ export default function HistoryPage() {
     return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: diffDays > 365 ? "numeric" : undefined });
   };
 
-  const engineerName = user?.name?.toLowerCase() || "";
+  const userName = user?.name?.toLowerCase() || "";
+  const pairedLead = activeVehicleOwner?.toLowerCase() || "";
+  const currentReg = (activeVehicleReg || user?.vehicleReg || "").trim().toLowerCase();
+
+  const isMatchedEngineer = (name?: string | null) => {
+    if (!name) return false;
+    const lower = name.toLowerCase();
+    return lower === userName || (pairedLead && lower === pairedLead) || lower.includes(userName) || (pairedLead && lower.includes(pairedLead));
+  };
+
+  const isMatchedVan = (b: Bottle) => {
+    if (b.locationType !== "van") return false;
+    if (currentReg && b.vehicleReg && b.vehicleReg.toLowerCase() === currentReg) return true;
+    if (b.locationId) {
+      const loc = b.locationId.toLowerCase();
+      if (loc.includes(userName) || (pairedLead && loc.includes(pairedLead))) return true;
+    }
+    return false;
+  };
 
   const liveBottles = allBottles.filter(b =>
-    (b.locationType === "van" && b.locationId?.toLowerCase().includes(engineerName)) ||
+    isMatchedVan(b) ||
     (b.locationType === "site" && (
-      b.lastEngineer?.toLowerCase() === engineerName ||
+      isMatchedEngineer(b.lastEngineer) ||
       (!b.lastEngineer && b.registeredBy === user?.id)
     ))
   );
@@ -54,7 +73,7 @@ export default function HistoryPage() {
   const returnedBottles = allBottles
     .filter(b =>
       (b.locationType === "office" || b.locationType === "supplier" || b.status === "returned") &&
-      b.returnedBy?.toLowerCase() === engineerName &&
+      isMatchedEngineer(b.returnedBy) &&
       (b.locationChangedAt ? new Date(b.locationChangedAt) >= cutoff : false)
     )
     .sort((a, b) => {
@@ -163,8 +182,14 @@ export default function HistoryPage() {
     <div className={styles.container}>
       <header className={styles.header}>
         <h1>My Bottles</h1>
-        <p className={styles.sub}>Current bottle status for {user?.name || "you"}</p>
+        <p className={styles.sub}>
+          {activeVehicleOwner && activeVehicleOwner !== user?.name
+            ? `Paired with ${activeVehicleOwner} (${activeVehicleReg})`
+            : `Current bottle status for ${user?.name || "you"}`}
+        </p>
       </header>
+
+      <ActiveVehicleBanner />
 
       <div className={styles.tabs}>
         {tabs.map(tab => (

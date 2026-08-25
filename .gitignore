@@ -38,6 +38,8 @@
 .testsprite/
 testsprite_tests/
 .DS_Store
+scratch/
+public/sw*
 *.pem
 
 # debug

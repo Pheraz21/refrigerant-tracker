@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { db, MovementLog } from "@/lib/db";
@@ -8,25 +8,56 @@ import styles from "../../engineer/page.module.css";
 
 export default function DailyActionsPage() {
   const [logs, setLogs] = useState<MovementLog[]>([]);
+  const [bottleMap, setBottleMap] = useState<Record<string, { category: string; gasType: string; supplier?: string }>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
   useEffect(() => {
-    db.getMovementLogs().then(data => {
-      // Sort by date descending
-      setLogs(data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+    Promise.all([
+      db.getMovementLogs(),
+      db.getAllBottles()
+    ]).then(([movementData, bottlesData]) => {
+      const map: Record<string, { category: string; gasType: string; supplier?: string }> = {};
+      bottlesData.forEach(b => {
+        map[b.serial] = { category: b.category, gasType: b.gasType, supplier: b.supplier };
+      });
+      setBottleMap(map);
+      setLogs(movementData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
       setLoading(false);
     });
   }, []);
 
+  const getDisplayFrom = (log: MovementLog) => {
+    const bSupplier = bottleMap[log.serial]?.supplier;
+    if (log.from === "—" || log.from === "-" || !log.from || log.from.toLowerCase() === "none" || log.action === "registered") {
+      return bSupplier ? `Supplier (${bSupplier})` : "Supplier";
+    }
+    return log.from;
+  };
+
+  const getDisplayTo = (log: MovementLog) => {
+    const bSupplier = bottleMap[log.serial]?.supplier;
+    if (log.to.toLowerCase() === "supplier") {
+      return bSupplier ? `Supplier (${bSupplier})` : "Supplier";
+    }
+    return log.to;
+  };
+
   const filteredLogs = logs.filter(log => {
+    const bInfo = bottleMap[log.serial];
+    const displayFrom = getDisplayFrom(log);
+    const displayTo = getDisplayTo(log);
+
     const matchesSearch = !search || 
       log.serial.toLowerCase().includes(search.toLowerCase()) || 
       log.engineer.toLowerCase().includes(search.toLowerCase()) ||
-      log.to.toLowerCase().includes(search.toLowerCase()) ||
-      log.from.toLowerCase().includes(search.toLowerCase());
+      displayTo.toLowerCase().includes(search.toLowerCase()) ||
+      displayFrom.toLowerCase().includes(search.toLowerCase()) ||
+      (bInfo && bInfo.gasType.toLowerCase().includes(search.toLowerCase())) ||
+      (bInfo && bInfo.category.toLowerCase().includes(search.toLowerCase())) ||
+      (bInfo && bInfo.supplier && bInfo.supplier.toLowerCase().includes(search.toLowerCase()));
     
     const logDate = log.date.slice(0, 10);
     const matchesDate = (!dateFrom || logDate >= dateFrom) && (!dateTo || logDate <= dateTo);
@@ -54,10 +85,13 @@ export default function DailyActionsPage() {
   };
 
   const exportCSV = () => {
-    const header = "Date,Time,Serial,Action,From,To,Engineer,Notes\n";
+    const header = "Date,Time,Serial,Gas Type,Category,Supplier,Action,From,To,Engineer,Notes\n";
     const rows = filteredLogs.map(l => {
       const d = new Date(l.date);
-      return `${d.toLocaleDateString()},${d.toLocaleTimeString()},${l.serial},${l.action},${l.from},${l.to},${l.engineer},${l.notes || ""}`;
+      const b = bottleMap[l.serial];
+      const fromLoc = getDisplayFrom(l);
+      const toLoc = getDisplayTo(l);
+      return `${d.toLocaleDateString()},${d.toLocaleTimeString()},${l.serial},${b?.gasType || ""},${b?.category || ""},${b?.supplier || ""},${l.action},${fromLoc},${toLoc},${l.engineer},${l.notes || ""}`;
     }).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -145,13 +179,38 @@ export default function DailyActionsPage() {
               </h2>
               <div style={{display: "flex", flexDirection: "column", gap: "0.75rem"}}>
                 {dayLogs.map(log => (
-                  <div key={log.id} className="glass-panel" style={{padding: "1rem 1.5rem", display: "grid", gridTemplateColumns: "100px 1fr 2fr 1.5fr 1fr", alignItems: "center", gap: "1.5rem"}}>
-                    <div style={{fontSize: "0.9rem", fontWeight: 700, color: "rgba(255,255,255,0.4)"}}>
+                  <div key={log.id} className="glass-panel" style={{padding: "1rem 1.5rem", display: "grid", gridTemplateColumns: "85px 1.4fr 1.3fr 2fr 1.2fr", alignItems: "center", gap: "1.25rem"}}>
+                    <div style={{fontSize: "0.85rem", fontWeight: 700, color: "rgba(255,255,255,0.4)"}}>
                       {new Date(log.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </div>
                     <Link href={`/admin/bottles/${encodeURIComponent(log.serial)}`} style={{textDecoration: "none"}}>
-                      <div style={{fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "#00e5ff", cursor: "pointer"}}>
-                        {log.serial}
+                      <div style={{display: "flex", flexDirection: "column", gap: "0.2rem"}}>
+                        <span style={{fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "#00e5ff", cursor: "pointer", fontSize: "0.95rem"}}>
+                          {log.serial}
+                        </span>
+                        {bottleMap[log.serial] && (
+                          <div style={{display: "flex", alignItems: "center", gap: "0.35rem", flexWrap: "wrap"}}>
+                            <span style={{
+                              fontSize: "0.75rem",
+                              fontWeight: 700,
+                              color: bottleMap[log.serial].category === "reclaim" ? "#ffaa00" : bottleMap[log.serial].category === "nitrogen" ? "#22c55e" : "#00e5ff"
+                            }}>
+                              {bottleMap[log.serial].gasType}
+                            </span>
+                            <span style={{
+                              fontSize: "0.62rem",
+                              padding: "0.05rem 0.35rem",
+                              borderRadius: "3px",
+                              background: bottleMap[log.serial].category === "reclaim" ? "rgba(255, 170, 0, 0.15)" : bottleMap[log.serial].category === "nitrogen" ? "rgba(34, 197, 94, 0.15)" : "rgba(0, 229, 255, 0.15)",
+                              color: bottleMap[log.serial].category === "reclaim" ? "#ffaa00" : bottleMap[log.serial].category === "nitrogen" ? "#22c55e" : "#00e5ff",
+                              textTransform: "uppercase",
+                              fontWeight: 700,
+                              border: `1px solid ${bottleMap[log.serial].category === "reclaim" ? "rgba(255, 170, 0, 0.3)" : bottleMap[log.serial].category === "nitrogen" ? "rgba(34, 197, 94, 0.3)" : "rgba(0, 229, 255, 0.3)"}`
+                            }}>
+                              {bottleMap[log.serial].category === "reclaim" ? "Reclaim" : bottleMap[log.serial].category === "nitrogen" ? "Nitrogen" : "Supply"}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </Link>
                     <div style={{display: "flex", alignItems: "center", gap: "0.75rem"}}>
@@ -164,9 +223,9 @@ export default function DailyActionsPage() {
                       </span>
                     </div>
                     <div style={{fontSize: "0.85rem", color: "rgba(255,255,255,0.8)", display: "flex", alignItems: "center", gap: "0.5rem"}}>
-                      <span style={{color: "rgba(255,255,255,0.4)"}}>{log.from}</span>
+                      <span style={{color: "rgba(255,255,255,0.5)"}}>{getDisplayFrom(log)}</span>
                       <ArrowRight size={14} style={{opacity: 0.3}} />
-                      <span style={{fontWeight: 600}}>{log.to}</span>
+                      <span style={{fontWeight: 600}}>{getDisplayTo(log)}</span>
                     </div>
                     <div style={{fontSize: "0.85rem", color: "#fff", display: "flex", alignItems: "center", gap: "0.5rem", justifyContent: "flex-end"}}>
                       <User size={14} style={{opacity: 0.5}} />

@@ -277,12 +277,14 @@ export default function BulkDeliveryPage() {
 
           {locationType === "site" && (
             <div className={styles.inputGroup} style={{ marginTop: '1.5rem', animation: 'fadeIn 0.3s ease-out' }}>
-              <label style={{ color: 'var(--primary)', fontWeight: 700 }}>Job Number</label>
+              <label style={{ color: 'var(--primary)', fontWeight: 700 }}>Job Number (e.g. J12345, M98201)</label>
               <input
                 type="text"
                 value={jobNumber}
-                onChange={e => setJobNumber(e.target.value)}
-                placeholder="e.g. JOB-1234"
+                pattern="^[A-Za-z][0-9]+$"
+                title="Job number must start with 1 letter followed by numbers without spaces (e.g. J12345)"
+                onChange={e => setJobNumber(e.target.value.replace(/\s+/g, "").toUpperCase())}
+                placeholder="e.g. J12345"
                 style={{
                   border: '1px solid var(--primary)',
                   background: 'rgba(0, 229, 255, 0.05)'
@@ -293,7 +295,16 @@ export default function BulkDeliveryPage() {
 
           <button
             className={styles.primaryBtn}
-            onClick={() => setStep(2)}
+            onClick={() => {
+              if (locationType === "site") {
+                const cleanJob = (jobNumber || "").trim().replace(/\s+/g, "").toUpperCase();
+                if (!/^[A-Za-z]\d+$/.test(cleanJob)) {
+                  alert("Job number must start with 1 letter followed by numbers without spaces (e.g. J12345, M98201).");
+                  return;
+                }
+              }
+              setStep(2);
+            }}
             disabled={!poNumber || (locationType === 'site' && !jobNumber)}
             style={{ marginTop: '2rem' }}
           >

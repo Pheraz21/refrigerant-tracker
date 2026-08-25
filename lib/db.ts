@@ -2,7 +2,7 @@ import { supabase } from "./supabaseClient";
 
 export type BottleCategory = "new" | "reclaim" | "nitrogen";
 export type LocationType = "van" | "site" | "supplier" | "office";
-export type UserRole = "admin" | "office" | "engineer";
+export type UserRole = "admin" | "office" | "engineer" | "mate" | "apprentice";
 export type UserStatus = "pending" | "approved" | "disabled" | "rejected";
 
 export interface AppUser {
@@ -160,9 +160,25 @@ export interface SupplierReturnGroup {
   supplierBranch?: string;
 }
 
+export type PairingStatus = "pending" | "approved" | "rejected" | "revoked";
+
+export interface VanPairing {
+  id: string; // notification id
+  mateId: string;
+  mateName: string;
+  mateEmail?: string;
+  mateRole: string;
+  leadEngineerId?: string;
+  leadEngineerName: string;
+  vehicleReg: string;
+  pairingStatus: PairingStatus;
+  requestedAt: string;
+  respondedAt?: string;
+}
+
 export interface AppNotification {
   id: string;
-  type: "location_discrepancy" | "new_registration" | "rental_expiry" | "low_gas" | "new_gas_registration" | "expiry_date_required";
+  type: "location_discrepancy" | "new_registration" | "rental_expiry" | "low_gas" | "new_gas_registration" | "expiry_date_required" | "van_pairing_request" | "new_user_registration";
   title: string;
   message: string;
   date: string;
@@ -547,8 +563,8 @@ export const db = {
     }
   },
 
-  async updateBottleLocation(serial: string, locationType: LocationType, locationId: string, intendedDestination?: string, intendedLocationType?: LocationType, activeHWCN?: string, engineerName?: string): Promise<void> {
-    console.log(`Updating bottle ${serial} location to ${locationId} (${locationType})`);
+  async updateBottleLocation(serial: string, locationType: LocationType, locationId: string, intendedDestination?: string, intendedLocationType?: LocationType, activeHWCN?: string, engineerName?: string, vehicleReg?: string, movedBy?: string): Promise<void> {
+    console.log(`Updating bottle ${serial} location to ${locationId} (${locationType}), vehicle: ${vehicleReg}, movedBy: ${movedBy}, leadEngineer: ${engineerName}`);
     const { data: bottle, error: fetchError } = await supabase.from('bottles').select('*').eq('serial', serial).single();
     
     if (fetchError) {
@@ -568,11 +584,16 @@ export const db = {
       if (activeHWCN !== undefined) updates.active_hwcn = activeHWCN;
       if (engineerName) updates.last_engineer = engineerName;
 
-      let logVehicleReg: string | null = null;
-      if (engineerName) {
+      let logVehicleReg: string | null = vehicleReg || null;
+      if (!logVehicleReg && locationType === "van" && engineerName) {
         const { data: engData } = await supabase.from('users').select('vehicle_reg').eq('name', engineerName).single();
         logVehicleReg = engData?.vehicle_reg || null;
+      }
+      
+      if (locationType === "van") {
         if (logVehicleReg) updates.vehicle_reg = logVehicleReg;
+      } else if (locationType === "site" || locationType === "office" || locationType === "supplier") {
+        updates.vehicle_reg = null;
       }
 
       const { error: updateError } = await supabase.from('bottles').update(updates).eq('serial', serial);
@@ -586,15 +607,26 @@ export const db = {
         action = "handover";
       }
 
+      let movementLogEngineer = engineerName || "system";
+      let movementNotes = activeHWCN
+        ? `Consignment ${activeHWCN} generated. Destination: ${intendedDestination}.`
+        : (action === "handover" ? "Cylinder handed over to another engineer." : (intendedDestination ? `In Transit to ${intendedDestination}` : undefined));
+
+      if (movedBy) {
+        if (engineerName && movedBy !== engineerName) {
+          movementLogEngineer = `${movedBy} (for ${engineerName})`;
+        } else {
+          movementLogEngineer = movedBy;
+        }
+      }
+
       const { error: logError } = await supabase.from('movement_logs').insert({
         serial,
         action: action as any,
         from_location: from || "Unknown",
         to_location: activeHWCN ? (intendedDestination || locationId) : locationId,
-        engineer: engineerName || "system",
-        notes: activeHWCN
-          ? `Consignment ${activeHWCN} generated. Destination: ${intendedDestination}.`
-          : (action === "handover" ? "Cylinder handed over to another engineer." : (intendedDestination ? `In Transit to ${intendedDestination}` : undefined)),
+        engineer: movementLogEngineer,
+        notes: movementNotes,
         ...(logVehicleReg ? { vehicle_reg: logVehicleReg } : {})
       });
       if (logError) console.error(`Error logging movement for ${serial}:`, logError);
@@ -609,7 +641,7 @@ export const db = {
     }).eq('serial', serial);
   },
 
-  async logUsage(serial: string, jobType: string, weightChange: number, isWaste: boolean = false, producerSite?: { name: string, address: string, postcode: string }, gasType?: string, engineerName: string = "Unknown", siteRef?: string, equipmentDetails?: Array<{ manufacturer: string; model: string; serial: string; weight: number }>): Promise<void> {
+  async logUsage(serial: string, jobType: string, weightChange: number, isWaste: boolean = false, producerSite?: { name: string, address: string, postcode: string }, gasType?: string, engineerName: string = "Unknown", siteRef?: string, equipmentDetails?: Array<{ manufacturer: string; model: string; serial: string; weight: number }>, supervisingEngineer?: string): Promise<void> {
     const { data: bottle } = await supabase.from('bottles').select('*').eq('serial', serial).single();
     if (!bottle) return;
 
@@ -620,10 +652,17 @@ export const db = {
 
     const bottleUpdatePayload: any = {};
 
-    if (jobType === "service" || jobType === "install" || jobType === "maintenance") {
+    if (jobType === "service" || jobType === "install" || jobType === "maintenance" || jobType === "recycled_charge") {
       newWeight = Math.max(0, newWeight - weightChange);
-      if (newWeight === 0 && (bottle.category === "new" || bottle.category === "nitrogen")) {
-        newStatus = "empty";
+      if (newWeight === 0) {
+        if (bottle.category === "new" || bottle.category === "nitrogen") {
+          newStatus = "empty";
+        } else if (bottle.category === "reclaim") {
+          newStatus = "active";
+          // If all recycled gas has been used up on site, reset producer sites to clean/empty reclaim
+          bottleUpdatePayload.producer_sites = [];
+          await supabase.from('bottles').update({ producer_sites: [] }).eq('serial', serial);
+        }
       } else if (newWeight > 0) {
         newStatus = "active";
       }
@@ -692,6 +731,10 @@ export const db = {
       throw updateErr;
     }
     
+    const finalEngineerName = supervisingEngineer
+      ? `${engineerName} (Supervised by ${supervisingEngineer})`
+      : engineerName;
+
     const { error: logErr } = await supabase.from('usage_logs').insert({
       serial,
       job_type: jobType,
@@ -701,7 +744,7 @@ export const db = {
       weight_used: weightChange || 0,
       weight_before: parseFloat(bottle.current_weight || bottle.currentWeight || 0),
       weight_after: newWeight,
-      engineer: engineerName,
+      engineer: finalEngineerName,
       ...(equipmentDetails && equipmentDetails.length > 0 ? { equipment_details: equipmentDetails } : {}),
     });
     
@@ -969,6 +1012,36 @@ export const db = {
   async getEngineerProfiles(): Promise<any[]> {
     const { data } = await supabase.from('users').select('*').eq('role', 'engineer');
     return data ? data.map(mapUser) : [];
+  },
+
+  async getQualifiedEngineers(): Promise<AppUser[]> {
+    const { data } = await supabase.from('users').select('*').eq('status', 'approved');
+    if (!data) return [];
+    const users = data.map(mapUser);
+    return users.filter(u => u.role === 'engineer');
+  },
+
+  async getCompanyVans(): Promise<Array<{ vehicleReg: string; ownerName: string; role: string; userId: string }>> {
+    const { data } = await supabase.from('users').select('*').eq('status', 'approved');
+    if (!data) return [];
+    const users = data.map(mapUser);
+    const vanMap = new Map<string, { vehicleReg: string; ownerName: string; role: string; userId: string }>();
+    
+    users.forEach(u => {
+      if (u.vehicleReg && u.vehicleReg.trim()) {
+        const cleanReg = u.vehicleReg.trim().toUpperCase();
+        if (!vanMap.has(cleanReg)) {
+          vanMap.set(cleanReg, {
+            vehicleReg: cleanReg,
+            ownerName: u.name,
+            role: u.role,
+            userId: u.id
+          });
+        }
+      }
+    });
+
+    return Array.from(vanMap.values());
   },
 
   async getAllUsers(): Promise<any[]> {
@@ -1255,6 +1328,161 @@ export const db = {
 
   async acknowledgeAllNotifications(): Promise<void> {
     await supabase.from('notifications').update({ status: "acknowledged" }).eq('status', 'new');
+  },
+
+  async requestVanPairing(params: { mateId: string; mateName: string; mateEmail?: string; mateRole: string; leadEngineerId?: string; leadEngineerName: string; vehicleReg: string }): Promise<string> {
+    // Revoke any previous active or pending pairings for this mate
+    const { data: existing } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('type', 'van_pairing_request');
+      
+    if (existing) {
+      for (const n of existing) {
+        if (n.metadata?.mateId === params.mateId && (n.metadata?.pairingStatus === 'pending' || n.metadata?.pairingStatus === 'approved')) {
+          await supabase.from('notifications').update({
+            metadata: { ...n.metadata, pairingStatus: 'superseded', supersededAt: new Date().toISOString() },
+            status: 'acknowledged'
+          }).eq('id', n.id);
+        }
+      }
+    }
+
+    const id = `PAIR-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const metadata = {
+      mateId: params.mateId,
+      mateName: params.mateName,
+      mateEmail: params.mateEmail || "",
+      mateRole: params.mateRole,
+      leadEngineerId: params.leadEngineerId || "",
+      leadEngineerName: params.leadEngineerName,
+      vehicleReg: params.vehicleReg,
+      pairingStatus: "pending",
+      requestedAt: new Date().toISOString()
+    };
+
+    await supabase.from('notifications').insert({
+      id,
+      status: "new",
+      type: "van_pairing_request",
+      title: "Van Pairing Request",
+      message: `${params.mateName} (${params.mateRole.toUpperCase()}) has requested access to your van (${params.vehicleReg}).`,
+      target_role: "engineer",
+      metadata
+    });
+
+    return id;
+  },
+
+  async getActivePairingForUser(mateId: string): Promise<VanPairing | null> {
+    const { data } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('type', 'van_pairing_request')
+      .order('date', { ascending: false });
+
+    if (!data) return null;
+    const match = data.find(n => n.metadata?.mateId === mateId && (n.metadata?.pairingStatus === 'pending' || n.metadata?.pairingStatus === 'approved'));
+    if (!match) return null;
+
+    return {
+      id: match.id,
+      mateId: match.metadata.mateId,
+      mateName: match.metadata.mateName,
+      mateEmail: match.metadata.mateEmail,
+      mateRole: match.metadata.mateRole,
+      leadEngineerId: match.metadata.leadEngineerId,
+      leadEngineerName: match.metadata.leadEngineerName,
+      vehicleReg: match.metadata.vehicleReg,
+      pairingStatus: match.metadata.pairingStatus,
+      requestedAt: match.metadata.requestedAt || match.date,
+      respondedAt: match.metadata.respondedAt
+    };
+  },
+
+  async getPairingsForLeadEngineer(engineerName: string): Promise<VanPairing[]> {
+    const { data } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('type', 'van_pairing_request')
+      .order('date', { ascending: false });
+
+    if (!data) return [];
+    const engLower = engineerName.trim().toLowerCase();
+    
+    // Group by mateId, keeping most recent
+    const pairingsMap = new Map<string, VanPairing>();
+    data.forEach(n => {
+      if (n.metadata?.leadEngineerName && n.metadata.leadEngineerName.trim().toLowerCase() === engLower) {
+        if (n.metadata.pairingStatus === 'pending' || n.metadata.pairingStatus === 'approved') {
+          if (!pairingsMap.has(n.metadata.mateId)) {
+            pairingsMap.set(n.metadata.mateId, {
+              id: n.id,
+              mateId: n.metadata.mateId,
+              mateName: n.metadata.mateName,
+              mateEmail: n.metadata.mateEmail,
+              mateRole: n.metadata.mateRole,
+              leadEngineerId: n.metadata.leadEngineerId,
+              leadEngineerName: n.metadata.leadEngineerName,
+              vehicleReg: n.metadata.vehicleReg,
+              pairingStatus: n.metadata.pairingStatus,
+              requestedAt: n.metadata.requestedAt || n.date,
+              respondedAt: n.metadata.respondedAt
+            });
+          }
+        }
+      }
+    });
+
+    return Array.from(pairingsMap.values());
+  },
+
+  async getAllActivePairings(): Promise<VanPairing[]> {
+    const { data } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('type', 'van_pairing_request')
+      .order('date', { ascending: false });
+
+    if (!data) return [];
+    const pairingsMap = new Map<string, VanPairing>();
+    data.forEach(n => {
+      if (n.metadata?.mateId && (n.metadata.pairingStatus === 'pending' || n.metadata.pairingStatus === 'approved')) {
+        if (!pairingsMap.has(n.metadata.mateId)) {
+          pairingsMap.set(n.metadata.mateId, {
+            id: n.id,
+            mateId: n.metadata.mateId,
+            mateName: n.metadata.mateName,
+            mateEmail: n.metadata.mateEmail,
+            mateRole: n.metadata.mateRole,
+            leadEngineerId: n.metadata.leadEngineerId,
+            leadEngineerName: n.metadata.leadEngineerName,
+            vehicleReg: n.metadata.vehicleReg,
+            pairingStatus: n.metadata.pairingStatus,
+            requestedAt: n.metadata.requestedAt || n.date,
+            respondedAt: n.metadata.respondedAt
+          });
+        }
+      }
+    });
+
+    return Array.from(pairingsMap.values());
+  },
+
+  async respondToPairingRequest(notificationId: string, newStatus: "approved" | "rejected" | "revoked"): Promise<void> {
+    const { data: n } = await supabase.from('notifications').select('*').eq('id', notificationId).single();
+    if (!n) return;
+
+    const updatedMetadata = {
+      ...n.metadata,
+      pairingStatus: newStatus,
+      respondedAt: new Date().toISOString()
+    };
+
+    await supabase.from('notifications').update({
+      metadata: updatedMetadata,
+      status: "acknowledged"
+    }).eq('id', notificationId);
   },
 
   async updateBottle(serial: string, updates: any): Promise<void> {

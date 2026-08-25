@@ -28,7 +28,22 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\pheraz\\\\.gemini\\\\antigravity\\\\scratch\\\\refrigerant-tracker\\\\app\\\\admin\" -Recurse)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\pheraz\\\\.gemini\\\\antigravity\\\\scratch\\\\refrigerant-tracker\" -Recurse -Directory)",
       "Bash(Select-Object -ExpandProperty FullName)",
-      "PowerShell(head *)"
+      "PowerShell(head *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\pheraz\\\\.gemini\\\\antigravity\\\\scratch\\\\refrigerant-tracker\" -Recurse -Directory -Depth 2)",
+      "Bash(git *)",
+      "Bash(Test-Path \"C:\\\\Users\\\\pheraz\\\\.gemini\\\\antigravity\\\\scratch\\\\refrigerant-tracker\\\\docs\\\\procedures\\\\SOP-001-new-refrigerant.md\")",
+      "Bash(Test-Path \"C:\\\\Users\\\\pheraz\\\\.gemini\\\\antigravity\\\\scratch\\\\refrigerant-tracker\\\\docs\\\\procedures\\\\SOP-002-recovery-cylinder-hwcn.md\")",
+      "Bash(grep -iE \"\\\\.sql$|storage|bucket|migration\")",
+      "Bash(curl -s -X POST https://vfpismkhdxcnioblynvk.supabase.co/storage/v1/object/list/hwcn-photos -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZmcGlzbWtoZHhjbmlvYmx5bnZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1NDEzNTMsImV4cCI6MjA5MzExNzM1M30.LggQnb9La31NSAwxIWbEZqgOcWEF30Y3wRq3g2ZO7ws' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZmcGlzbWtoZHhjbmlvYmx5bnZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1NDEzNTMsImV4cCI6MjA5MzExNzM1M30.LggQnb9La31NSAwxIWbEZqgOcWEF30Y3wRq3g2ZO7ws' -H 'Content-Type: application/json' -d '{\"prefix\":\"\",\"limit\":5}')",
+      "Bash(curl -s -o /dev/null -w '%{http_code}\\\\n' https://vfpismkhdxcnioblynvk.supabase.co/storage/v1/object/public/hwcn-photos/__probe_nonexistent__.jpg)",
+      "Bash(curl -s -w '\\\\nHTTP %{http_code}\\\\n' -X POST https://vfpismkhdxcnioblynvk.supabase.co/storage/v1/object/hwcn-photos/supplier-returns/__probe_test__.txt -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZmcGlzbWtoZHhjbmlvYmx5bnZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1NDEzNTMsImV4cCI6MjA5MzExNzM1M30.LggQnb9La31NSAwxIWbEZqgOcWEF30Y3wRq3g2ZO7ws' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZmcGlzbWtoZHhjbmlvYmx5bnZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1NDEzNTMsImV4cCI6MjA5MzExNzM1M30.LggQnb9La31NSAwxIWbEZqgOcWEF30Y3wRq3g2ZO7ws' -H 'Content-Type: text/plain' --data-binary probe)",
+      "Bash(npm run *)",
+      "Bash(node -e \"console.log\\('@serwist/next', require\\('@serwist/next/package.json'\\).version\\); console.log\\('serwist', require\\('serwist/package.json'\\).version\\)\")",
+      "Bash(node -e \"const p=require\\('@serwist/next/package.json'\\); console.log\\(JSON.stringify\\(p.exports, null, 1\\)\\)\")",
+      "Bash(node -e \"const p=require\\('serwist/package.json'\\); console.log\\(Object.keys\\(p.exports||{}\\).slice\\(0,20\\).join\\('\\\\n'\\)\\)\")",
+      "Bash(node -e \"console.log\\(require\\('serwist/package.json'\\).exports['.'].types\\)\")",
+      "Bash(grep -oE '\\(Serwist|PrecacheEntry|SerwistGlobalConfig\\)' node_modules/serwist/__CMDSUB_OUTPUT__)",
+      "Bash(npx next *)"
     ]
   }
 }

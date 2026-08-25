@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthContext";
 import { compressImage } from "@/lib/utils";
+import { ActiveVehicleBanner } from "@/components/ActiveVehicleBanner";
 
 export default function MoveBottlePage() {
   const router = useRouter();
@@ -40,7 +41,7 @@ export default function MoveBottlePage() {
   const [intendedDest, setIntendedDest] = useState("");
   const [hwcnSites, setHwcnSites] = useState<any[]>([]);
 
-  const { user } = useAuth();
+  const { user, activeVehicleReg, activeVehicleOwner } = useAuth();
 
   useEffect(() => {
     db.getCompanySettings().then(s => { if (s?.carrierReg) setCarrierRegNo(s.carrierReg); });
@@ -77,14 +78,15 @@ export default function MoveBottlePage() {
     });
 
     if (user?.id) {
-      if (user?.vehicleReg) setVehicleReg(user.vehicleReg);
+      const initialReg = activeVehicleReg || user.vehicleReg || "";
+      if (initialReg) setVehicleReg(initialReg);
       if (user?.name) setCarrierName(user.name);
       db.getEngineerProfiles().then(profiles => {
         // Filter out current user
         setEngineers(profiles.filter(p => p.id !== user.id));
         
         const myProfile = profiles.find(p => p.id === user.id);
-        if (myProfile?.vehicleReg) {
+        if (myProfile?.vehicleReg && !activeVehicleReg) {
           setVehicleReg(myProfile.vehicleReg);
         }
         if (myProfile?.name) {
@@ -92,7 +94,7 @@ export default function MoveBottlePage() {
         }
       });
     }
-  }, [serialParam, user]);
+  }, [serialParam, user, activeVehicleReg]);
 
   const requiresHWCN = bottle?.category === "reclaim" && (bottle?.currentWeight > 0) && destination !== "supplier";
 
@@ -109,22 +111,35 @@ export default function MoveBottlePage() {
       const finalDest = destination === "engineer" ? "van" : destination;
       let finalLocationId = "";
       
-      let effectiveEngineerName = user?.name;
+      let effectiveEngineerName = activeVehicleOwner || user?.name;
       if (destination === "engineer") {
         const targetUser = engineers.find(e => e.id === selectedEngineer);
         finalLocationId = `${targetUser?.name || "Engineer"} - Van`;
         effectiveEngineerName = targetUser?.name || user?.name;
       } else if (destination === "van") {
-        finalLocationId = `${user?.name} - Van`;
+        finalLocationId = `${activeVehicleOwner || user?.name} - Van`;
+        effectiveEngineerName = activeVehicleOwner || user?.name;
       } else if (destination === "office") {
         finalLocationId = "HQ-Stores";
+        effectiveEngineerName = activeVehicleOwner || user?.name;
+      } else if (destination === "site") {
+        const cleanJob = (locationId || "").trim().replace(/\s+/g, "").toUpperCase();
+        if (!/^[A-Za-z]\d+$/.test(cleanJob)) {
+          alert("Job number must start with 1 letter followed by numbers without spaces (e.g. J12345, M98201).");
+          setIsSubmitting(false);
+          return;
+        }
+        finalLocationId = cleanJob;
+        effectiveEngineerName = activeVehicleOwner || user?.name;
       } else if (destination === "other") {
         finalLocationId = `${customDestination.name}, ${customDestination.address}, ${customDestination.postcode}`;
+        effectiveEngineerName = activeVehicleOwner || user?.name;
       } else {
-        finalLocationId = locationId || (destination === "supplier" ? "Supplier" : `${user?.name} - Van`);
+        finalLocationId = locationId || (destination === "supplier" ? "Supplier" : `${activeVehicleOwner || user?.name} - Van`);
       }
 
-      await db.updateBottleLocation(serialParam, finalDest as any, finalLocationId, undefined, undefined, undefined, effectiveEngineerName);
+      const targetVanReg = (finalDest === "van") ? (activeVehicleReg || vehicleReg || user?.vehicleReg) : undefined;
+      await db.updateBottleLocation(serialParam, finalDest as any, finalLocationId, undefined, undefined, undefined, effectiveEngineerName, targetVanReg, user?.name);
       
       // If returning directly to supplier or office, also update status
       if (destination === "supplier" || destination === "office") {
@@ -142,13 +157,14 @@ export default function MoveBottlePage() {
       }
       const fullDestinationString = destination === "other" ? `${customDestination.name}, ${customDestination.address}, ${customDestination.postcode}` : finalLocationId;
       
+      const targetVanReg = activeVehicleReg || vehicleReg || user?.vehicleReg;
       let hwcnId = undefined;
       if (requiresInternalHWCN) {
         hwcnId = await db.createHWCN({
           serial: serialParam,
           destination: intendedDest || fullDestinationString,
           sites: hwcnSites,
-          vehicleReg,
+          vehicleReg: targetVanReg || vehicleReg,
           engineer: carrierName || user?.name,
           date: new Date().toISOString(),
           gasType: bottle?.gasType || "Unknown",
@@ -162,7 +178,17 @@ export default function MoveBottlePage() {
         intendedLocType = intendedDest === "HQ-Stores" ? "office" : "site";
       }
 
-      await db.updateBottleLocation(serialParam, "van", `${user?.name} - Van`, intendedDest || fullDestinationString, intendedLocType as any, hwcnId, user?.name);
+      await db.updateBottleLocation(
+        serialParam,
+        "van",
+        `${activeVehicleOwner || user?.name} - Van`,
+        intendedDest || fullDestinationString,
+        intendedLocType as any,
+        hwcnId,
+        activeVehicleOwner || user?.name,
+        targetVanReg,
+        user?.name
+      );
     }
 
     if (isDiscrepancy) {
@@ -383,7 +409,17 @@ export default function MoveBottlePage() {
                     style={{ background: 'var(--primary)', color: '#000' }}
                     onClick={async () => {
                       const intLocType = bottle?.intendedDestination === "HQ-Stores" ? "office" : "site";
-                      await db.updateBottleLocation(serialParam, "van", `${user?.name} - Van`, bottle.intendedDestination, intLocType as any, bottle.activeHWCN, user?.name);
+                      await db.updateBottleLocation(
+                        serialParam,
+                        "van",
+                        `${activeVehicleOwner || user?.name} - Van`,
+                        bottle.intendedDestination,
+                        intLocType as any,
+                        bottle.activeHWCN,
+                        activeVehicleOwner || user?.name,
+                        activeVehicleReg || user?.vehicleReg,
+                        user?.name
+                      );
                       router.push("/engineer");
                     }}
                   >
@@ -451,12 +487,14 @@ export default function MoveBottlePage() {
         <div className={`${styles.dynamicSection} glass-panel`} style={{borderColor: 'var(--primary)', marginTop: '2rem'}}>
           <h3 style={{color: 'var(--primary)', marginBottom: '1rem'}}>Transfer to Job Site</h3>
           <div className={styles.inputGroup} style={{marginBottom: '1.5rem'}}>
-            <label>Job Number</label>
+            <label>Job Number (e.g. J12345, M98201)</label>
             <input 
               type="text" 
-              placeholder="e.g. JOB-88219" 
+              placeholder="e.g. J12345" 
+              pattern="^[A-Za-z][0-9]+$"
+              title="Job number must start with 1 letter followed by numbers without spaces (e.g. J12345)"
               value={divertSiteJobNo} 
-              onChange={(e) => setDivertSiteJobNo(e.target.value)}
+              onChange={(e) => setDivertSiteJobNo(e.target.value.replace(/\s+/g, "").toUpperCase())}
               required
             />
           </div>
@@ -470,13 +508,28 @@ export default function MoveBottlePage() {
               Back
             </button>
             <button 
-              type="button"
+              type="button" 
               className={styles.primaryBtn} 
               disabled={!divertSiteJobNo || isSubmitting}
               onClick={async () => {
+                const cleanJob = (divertSiteJobNo || "").trim().replace(/\s+/g, "").toUpperCase();
+                if (!/^[A-Za-z]\d+$/.test(cleanJob)) {
+                  alert("Job number must start with 1 letter followed by numbers without spaces (e.g. J12345, M98201).");
+                  return;
+                }
                 setIsSubmitting(true);
                 await db.clearTransitState(serialParam);
-                await db.updateBottleLocation(serialParam, "site", divertSiteJobNo, undefined, undefined, undefined, user?.name);
+                await db.updateBottleLocation(
+                  serialParam,
+                  "site",
+                  cleanJob,
+                  undefined,
+                  undefined,
+                  undefined,
+                  activeVehicleOwner || user?.name,
+                  undefined,
+                  user?.name
+                );
                 setIsSubmitting(false);
                 router.push("/engineer");
               }}
@@ -504,7 +557,7 @@ export default function MoveBottlePage() {
           </p>
           <div style={{display: 'flex', gap: '1rem'}}>
             <button 
-              type="button"
+              type="button" 
               className={styles.primaryBtn} 
               style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', border: '1px solid var(--border)' }}
               onClick={() => setReclaimFlowStep("divert_destination")}
@@ -512,7 +565,7 @@ export default function MoveBottlePage() {
               Back
             </button>
             <button 
-              type="button"
+              type="button" 
               className={styles.primaryBtn} 
               disabled={isSubmitting}
               onClick={async () => {
@@ -521,17 +574,28 @@ export default function MoveBottlePage() {
                 const sites = bottle?.producerSites?.length > 0 
                   ? bottle.producerSites 
                   : [{name: "Unknown Site", address: "See recovery logs", postcode: ""}];
+                const targetVanReg = activeVehicleReg || vehicleReg || user?.vehicleReg;
                 const hwcnId = await db.createHWCN({
                   serial: serialParam,
                   destination: "HQ-Stores",
                   sites: sites,
-                  vehicleReg: vehicleReg,
-                  engineer: user?.name,
+                  vehicleReg: targetVanReg,
+                  engineer: carrierName || user?.name,
                   date: new Date().toISOString(),
                   gasType: bottle?.gasType || "Unknown",
                   fillWeight: bottle?.currentWeight
                 });
-                await db.updateBottleLocation(serialParam, "van", `${user?.name} - Van`, "HQ-Stores", "office" as any, hwcnId, user?.name);
+                await db.updateBottleLocation(
+                  serialParam,
+                  "van",
+                  `${activeVehicleOwner || user?.name} - Van`,
+                  "HQ-Stores",
+                  "office" as any,
+                  hwcnId,
+                  activeVehicleOwner || user?.name,
+                  targetVanReg,
+                  user?.name
+                );
                 setIsSubmitting(false);
                 setGeneratedHWCN(hwcnId);
                 setIsSuccess(true);
@@ -756,13 +820,16 @@ export default function MoveBottlePage() {
               disabled={isSubmitting}
               onClick={async () => {
                 setIsSubmitting(true);
+                const targetVanReg = activeVehicleReg || vehicleReg || user?.vehicleReg;
                 await db.updateBottleLocation(
                   serialParam,
                   "van",
-                  `${user?.name} - Van`,
+                  `${activeVehicleOwner || user?.name} - Van`,
                   intendedBranch,
                   "supplier" as any,
                   undefined,
+                  activeVehicleOwner || user?.name,
+                  targetVanReg,
                   user?.name
                 );
                 setIsSubmitting(false);
@@ -795,13 +862,14 @@ export default function MoveBottlePage() {
             </label>
             
             {(bottle?.locationType === "site" || bottle?.locationType === "office") && !isDiscrepancy ? (
-              <div style={{marginTop: "0.5rem"}}>
+              <div style={{marginTop: "0.5rem", marginBottom: "1.5rem"}}>
+                <ActiveVehicleBanner />
                 <div style={{
-                  padding: "1.5rem", border: "1px solid var(--primary)", borderRadius: "12px",
-                  background: "rgba(0, 229, 255, 0.05)", marginBottom: "1.5rem", color: "#fff",
-                  fontSize: "1rem"
+                  padding: "1rem 1.25rem", border: "1px solid var(--primary)", borderRadius: "12px",
+                  background: "rgba(0, 229, 255, 0.05)", color: "#fff",
+                  fontSize: "0.9rem"
                 }}>
-                  This bottle will be added to your active Van Stock.
+                  This cylinder will be transferred into your selected active van stock above.
                 </div>
               </div>
             ) : (
@@ -948,12 +1016,14 @@ export default function MoveBottlePage() {
             <div className={`${styles.dynamicSection} glass-panel`} style={{borderColor: 'var(--primary)', marginBottom: '1.5rem'}}>
               <h3 style={{color: 'var(--primary)'}}>Job Site Details</h3>
               <div className={styles.inputGroup}>
-                <label>Job Number</label>
+                <label>Job Number (e.g. J12345, M98201)</label>
                 <input 
                   type="text" 
                   value={locationId}
-                  onChange={(e) => setLocationId(e.target.value)}
-                  placeholder="e.g. JOB-88219" 
+                  pattern="^[A-Za-z][0-9]+$"
+                  title="Job number must start with 1 letter followed by numbers without spaces (e.g. J12345)"
+                  onChange={(e) => setLocationId(e.target.value.replace(/\s+/g, "").toUpperCase())}
+                  placeholder="e.g. J12345" 
                   required 
                 />
               </div>

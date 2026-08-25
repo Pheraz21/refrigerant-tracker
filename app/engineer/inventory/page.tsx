@@ -6,12 +6,16 @@ import styles from "./page.module.css";
 import Link from "next/link";
 import { db, Bottle } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
+import { ActiveVehicleBanner } from "@/components/ActiveVehicleBanner";
 
-export default function InventoryPage() {
-  const { user } = useAuth();
+export default function EngineerInventoryPage() {
+  const { user, activeVehicleReg, activeVehicleOwner, activePairingStatus, activePairing } = useAuth();
   const [bottles, setBottles] = useState<Bottle[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGas, setSelectedGas] = useState<string>("");
+
+  const isMateOrApprentice = user?.role === "mate" || user?.role === "apprentice";
+  const isApproved = !isMateOrApprentice || activePairingStatus === "approved";
 
   useEffect(() => {
     if (!user) return;
@@ -23,21 +27,27 @@ export default function InventoryPage() {
       });
     } else {
       db.getAllBottles().then(all => {
-        // Match by vehicleReg (preferred) or name-in-locationId (fallback for older bottles)
+        const effectiveReg = isApproved 
+          ? (activeVehicleReg || user.vehicleReg || "").trim().toUpperCase()
+          : (user.vehicleReg || "").trim().toUpperCase();
+        const effectiveOwner = isApproved ? (activeVehicleOwner || user.name) : user.name;
+
         const vanBottles = all.filter(b =>
           b.locationType === "van" && (
-            (user.vehicleReg && b.vehicleReg === user.vehicleReg) ||
-            b.locationId?.toLowerCase().includes((user.name || "").toLowerCase())
+            (effectiveReg && b.vehicleReg && b.vehicleReg.toUpperCase() === effectiveReg) ||
+            (!effectiveReg && b.locationId?.toLowerCase().includes((user.name || "").toLowerCase())) ||
+            (effectiveOwner && b.locationId?.toLowerCase().includes(effectiveOwner.toLowerCase()))
           )
         );
         setBottles(vanBottles);
         setLoading(false);
       });
     }
-  }, [user]);
+  }, [user, activeVehicleReg, activeVehicleOwner, activePairingStatus]);
 
   const printReport = () => {
     const reportDate = new Date().toLocaleDateString("en-GB");
+    const targetReg = activeVehicleReg || user?.vehicleReg || "Unassigned";
     const rows = bottles.map(b => `
       <tr>
         <td>${b.serial}</td>
@@ -79,9 +89,9 @@ export default function InventoryPage() {
               </div>
             </div>
             <div class="report-info">
-              <div class="report-title">${user?.canViewStores ? "Stores Inventory Report" : "Van Stock Report"}</div>
+              <div class="report-title">${user?.canViewStores ? "Stores Inventory Report" : `Van Stock Report (${targetReg})`}</div>
               <div class="report-meta">
-                ${user?.canViewStores ? "" : `<div>Engineer: ${user?.name || "N/A"}</div>`}
+                ${user?.canViewStores ? "" : `<div>Operative: ${user?.name || "N/A"}</div><div>Vehicle: ${targetReg}</div>`}
                 <div>Generated: ${reportDate}</div>
                 <div>Results: ${bottles.length} Bottles</div>
               </div>
@@ -120,12 +130,18 @@ export default function InventoryPage() {
     <div className={styles.container}>
       <header className={styles.header}>
         <div>
-          <h1 className={styles.name}>{user?.canViewStores ? "Stores Inventory" : "My Van Stock"}</h1>
+          <h1 className={styles.name}>{user?.canViewStores ? "Stores Inventory" : "Van Stock"}</h1>
           <p className={styles.greeting}>
-            {user?.canViewStores ? "All bottles currently in HQ Stores" : `Currently assigned to ${user?.name || "you"}`}
+            {user?.canViewStores
+              ? "All bottles currently in HQ Stores"
+              : activeVehicleReg
+                ? `Cylinders in ${activeVehicleReg}${activeVehicleOwner ? ` (${activeVehicleOwner})` : ''}`
+                : `Currently assigned to ${user?.name || "you"}`}
           </p>
         </div>
       </header>
+
+      {!user?.canViewStores && <ActiveVehicleBanner />}
 
       {user?.canViewStores && !loading && (
         <div style={{display: "flex", gap: "0.75rem", alignItems: "center", marginBottom: "1.25rem"}}>
@@ -158,6 +174,24 @@ export default function InventoryPage() {
               Reset
             </button>
           )}
+        </div>
+      )}
+
+      {isMateOrApprentice && activePairingStatus === "pending" && (
+        <div style={{
+          background: "linear-gradient(90deg, rgba(234, 179, 8, 0.15) 0%, rgba(234, 179, 8, 0.05) 100%)",
+          border: "1px solid rgba(234, 179, 8, 0.4)",
+          borderRadius: "12px",
+          padding: "0.85rem 1rem",
+          marginBottom: "1.25rem",
+          display: "flex",
+          alignItems: "center",
+          gap: "0.75rem"
+        }}>
+          <span style={{ fontSize: "1.2rem" }}>⏳</span>
+          <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", lineHeight: 1.4 }}>
+            Access request sent to <strong style={{ color: "#fff" }}>{activePairing?.leadEngineerName} ({activePairing?.vehicleReg})</strong>. Displaying your assigned vehicle inventory until approved.
+          </div>
         </div>
       )}
 

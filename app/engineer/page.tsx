@@ -8,6 +8,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { db } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
+import { ActiveVehicleBanner } from "@/components/ActiveVehicleBanner";
+import { LeadEngineerCrewBanner } from "@/components/LeadEngineerCrewBanner";
 
 interface ScanData {
   barcode: string;
@@ -154,22 +156,7 @@ export default function DashboardScannerPage() {
         </div>
       </header>
 
-      {!user?.vehicleReg && (
-        <Link href="/engineer/profile" style={{textDecoration: "none", display: "block", marginBottom: "1.25rem"}}>
-          <div style={{
-            background: "rgba(255,170,0,0.08)", border: "1px solid rgba(255,170,0,0.3)",
-            borderRadius: "10px", padding: "0.85rem 1.1rem",
-            display: "flex", alignItems: "center", gap: "0.75rem"
-          }}>
-            <span style={{fontSize: "1rem"}}>🚐</span>
-            <div>
-              <span style={{fontWeight: 700, color: "#ffaa00", fontSize: "0.9rem"}}>Van registration not set</span>
-              <span style={{color: "rgba(255,255,255,0.5)", fontSize: "0.82rem", marginLeft: "0.5rem"}}>Required before making transfers</span>
-            </div>
-            <span style={{marginLeft: "auto", color: "#ffaa00", fontSize: "0.8rem", fontWeight: 600}}>Set now →</span>
-          </div>
-        </Link>
-      )}
+      <ActiveVehicleBanner />
 
       {!scanResult && !isCameraOpen && !isProcessingScan && (
         <>
@@ -201,7 +188,7 @@ export default function DashboardScannerPage() {
             </div>
           </button>
           
-          <div className={styles.manualEntryContainer} style={{maxWidth: '100%'}}>
+          <div className={styles.manualEntryContainer} style={{maxWidth: '100%', marginBottom: '1.5rem'}}>
             <p className={styles.manualEntryText} style={{textAlign: 'left'}}>Or enter serial manually:</p>
             <div className={styles.manualInputGroup}>
               <input 
@@ -230,6 +217,8 @@ export default function DashboardScannerPage() {
               </button>
             </div>
           </div>
+
+          <LeadEngineerCrewBanner />
 
           {user?.availableRoles?.includes("office") && (
             <Link href="/engineer/bulk" style={{textDecoration: 'none', display: 'block', marginTop: '1.5rem'}}>

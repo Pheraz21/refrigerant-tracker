@@ -151,6 +151,7 @@ export default function VanInventoryPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [engineers, setEngineers] = useState<AppUser[]>([]);
+  const [activePairings, setActivePairings] = useState<any[]>([]);
   const [selectedEngineer, setSelectedEngineer] = useState<string>("");
   const [bottles, setBottles] = useState<Bottle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -169,8 +170,20 @@ export default function VanInventoryPage() {
   }, [searchParams]);
 
   useEffect(() => {
-    db.getEngineerProfiles().then(eng => {
-      setEngineers(eng);
+    Promise.all([
+      db.getAllUsers(),
+      db.getAllActivePairings()
+    ]).then(([users, pairings]) => {
+      const fieldUsers = users.filter(u => 
+        u.status === "approved" && (
+          u.role === "engineer" || 
+          u.role === "mate" || 
+          u.role === "apprentice" || 
+          (u.vehicleReg && u.vehicleReg.trim().length > 0)
+        )
+      );
+      setEngineers(fieldUsers);
+      setActivePairings(pairings.filter(p => p.pairingStatus === "approved"));
       setSelectedEngineer("all");
       setLoading(false);
     });
@@ -378,6 +391,29 @@ export default function VanInventoryPage() {
         <p style={{color: "var(--text-muted)", fontSize: "0.9rem"}}>View bottles assigned to each engineer&apos;s van</p>
       </div>
 
+      {activePairings.length > 0 && (
+        <div style={{
+          background: "rgba(34, 197, 94, 0.06)",
+          border: "1px solid rgba(34, 197, 94, 0.25)",
+          borderRadius: "12px",
+          padding: "0.85rem 1.1rem",
+          marginBottom: "1.5rem",
+          display: "flex",
+          alignItems: "center",
+          gap: "0.75rem",
+          flexWrap: "wrap"
+        }}>
+          <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#22c55e", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            Live Van Pairings:
+          </span>
+          {activePairings.map(p => (
+            <span key={p.id} style={{ fontSize: "0.82rem", background: "rgba(34, 197, 94, 0.15)", border: "1px solid rgba(34, 197, 94, 0.3)", padding: "0.25rem 0.6rem", borderRadius: "6px", color: "#fff" }}>
+              <strong style={{ color: "#fff" }}>{p.mateName}</strong> <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>({p.mateRole.toUpperCase()})</span> ➔ <strong style={{ color: "#22c55e" }}>{p.leadEngineerName}</strong> <span style={{ fontFamily: "monospace", fontSize: "0.78rem" }}>({p.vehicleReg})</span>
+            </span>
+          ))}
+        </div>
+      )}
+
       <div style={{display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "1.5rem", flexWrap: "wrap", gap: "1rem"}}>
         <div style={{display: "flex", alignItems: "center", gap: "0.75rem"}}>
           <div>
@@ -388,9 +424,14 @@ export default function VanInventoryPage() {
               style={{padding: "0.6rem 1.25rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "8px", color: "#fff", fontSize: "0.95rem", fontWeight: 600, outline: "none", textTransform: "capitalize", minWidth: "180px"}}
             >
               <option value="all" style={{color: "#fff", background: "#222"}}>All Engineers</option>
-              {engineers.map(e => (
-                <option key={e.id} value={e.id} style={{color: "#fff", background: "#222"}}>{e.name}</option>
-              ))}
+              {engineers.map(e => {
+                const paired = activePairings.filter(p => p.leadEngineerName.toLowerCase() === e.name.toLowerCase());
+                return (
+                  <option key={e.id} value={e.id} style={{color: "#fff", background: "#222"}}>
+                    {e.name} {paired.length > 0 ? `(Paired: ${paired.map(p => p.mateName).join(", ")})` : ""}
+                  </option>
+                );
+              })}
             </select>
           </div>
           <div style={{marginTop: "1.6rem"}}>

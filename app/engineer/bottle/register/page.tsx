@@ -109,7 +109,17 @@ export default function RegisterBottlePage() {
       });
     }
 
+    if (locationType === "site") {
+      const cleanJob = (locationId || "").trim().replace(/\s+/g, "").toUpperCase();
+      if (!/^[A-Za-z]\d+$/.test(cleanJob)) {
+        alert("Job number must start with 1 letter followed by numbers without spaces (e.g. J12345, M98201).");
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
     try {
+      const cleanLocationId = locationType === "site" ? (locationId || "").trim().replace(/\s+/g, "").toUpperCase() : locationId;
       await db.registerBottle({
         serial: serialParam,
         category,
@@ -117,7 +127,7 @@ export default function RegisterBottlePage() {
         initialWeight: Number(weight),
         currentWeight: category === "reclaim" ? 0 : Number(weight),
         locationType: locationType as any,
-        locationId: locationType === "van" ? `${user?.name} - Van` : (locationType === "office" || locationType === "office_collected") ? "HQ-Stores" : locationId,
+        locationId: locationType === "van" ? `${user?.name} - Van` : (locationType === "office" || locationType === "office_collected") ? "HQ-Stores" : cleanLocationId,
         vehicleReg: locationType === "van" ? vehicleReg : undefined,
         poNumber: poNumber,
         supplier: supplier,
@@ -309,12 +319,14 @@ export default function RegisterBottlePage() {
         {locationType === "site" && (
           <div className={`${styles.dynamicSection} glass-panel`} style={{ borderColor: 'var(--primary)', marginBottom: '1rem', marginTop: '-0.5rem' }}>
             <div className={styles.inputGroup}>
-              <label>Job Number</label>
+              <label>Job Number (e.g. J12345, M98201)</label>
               <input
                 type="text"
                 value={locationId}
-                onChange={(e) => setLocationId(e.target.value)}
-                placeholder="e.g. JOB-88219"
+                pattern="^[A-Za-z][0-9]+$"
+                title="Job number must start with 1 letter followed by numbers without spaces (e.g. J12345)"
+                onChange={(e) => setLocationId(e.target.value.replace(/\s+/g, "").toUpperCase())}
+                placeholder="e.g. J12345"
                 required
               />
             </div>

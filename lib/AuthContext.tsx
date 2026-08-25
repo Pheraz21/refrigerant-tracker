@@ -1,9 +1,11 @@
-﻿"use client";
+"use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
-type Role = "engineer" | "office" | "admin";
+import { VanPairing, PairingStatus } from "./db";
+
+type Role = "engineer" | "office" | "admin" | "mate" | "apprentice";
 type UserStatus = "pending" | "approved" | "disabled";
 
 interface User {
@@ -21,6 +23,13 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
+  activeVehicleReg: string | null;
+  activeVehicleOwner: string | null;
+  activePairingStatus: PairingStatus | "none";
+  activePairing: VanPairing | null;
+  setActiveVehicle: (reg: string, ownerName?: string) => void;
+  requestPairing: (leadReg: string, leadOwnerName: string) => Promise<void>;
+  refreshPairing: () => Promise<void>;
   login: (email: string, password: string, role: Role) => Promise<void>;
   switchRole: (newRole: Role) => Promise<void>;
   logout: () => void;
@@ -32,13 +41,94 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [activeVehicleReg, setActiveVehicleRegState] = useState<string | null>(null);
+  const [activeVehicleOwner, setActiveVehicleOwnerState] = useState<string | null>(null);
+  const [activePairingStatus, setActivePairingStatus] = useState<PairingStatus | "none">("none");
+  const [activePairing, setActivePairing] = useState<VanPairing | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
 
+  const syncPairing = async (currentUser: User | null) => {
+    if (!currentUser) {
+      setActivePairing(null);
+      setActivePairingStatus("none");
+      return;
+    }
+
+    if (currentUser.role === "mate" || currentUser.role === "apprentice") {
+      try {
+        const { db } = await import("./db");
+        const pairing = await db.getActivePairingForUser(currentUser.id);
+        if (pairing) {
+          setActivePairing(pairing);
+          setActivePairingStatus(pairing.pairingStatus);
+          if (pairing.pairingStatus === "approved") {
+            setActiveVehicleRegState(pairing.vehicleReg);
+            setActiveVehicleOwnerState(pairing.leadEngineerName);
+          } else if (pairing.pairingStatus === "pending") {
+            // Stay with own van until approved
+            if (!activeVehicleReg) {
+              setActiveVehicleRegState(currentUser.vehicleReg || null);
+              setActiveVehicleOwnerState(currentUser.name);
+            }
+          }
+        } else {
+          setActivePairing(null);
+          setActivePairingStatus("none");
+          if (!activeVehicleReg) {
+            setActiveVehicleRegState(currentUser.vehicleReg || null);
+            setActiveVehicleOwnerState(currentUser.name);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to sync pairing", e);
+      }
+    }
+  };
+
+  const refreshPairing = async () => {
+    await syncPairing(user);
+  };
+
+  const setActiveVehicle = (reg: string, ownerName?: string) => {
+    const cleanReg = reg ? reg.trim().toUpperCase() : "";
+    const cleanOwner = ownerName || (user?.vehicleReg === cleanReg ? user.name : "Assigned Van");
+    setActiveVehicleRegState(cleanReg);
+    setActiveVehicleOwnerState(cleanOwner);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("fgas_active_vehicle", JSON.stringify({ reg: cleanReg, ownerName: cleanOwner }));
+    }
+  };
+
+  const requestPairing = async (leadReg: string, leadOwnerName: string) => {
+    if (!user) return;
+    const { db } = await import("./db");
+    await db.requestVanPairing({
+      mateId: user.id,
+      mateName: user.name,
+      mateEmail: user.email,
+      mateRole: user.role,
+      leadEngineerName: leadOwnerName,
+      vehicleReg: leadReg
+    });
+    await syncPairing(user);
+  };
+
   useEffect(() => {
     async function syncSession() {
       const storedUser = localStorage.getItem("fgas_user");
+      const storedVehicle = localStorage.getItem("fgas_active_vehicle");
+      if (storedVehicle) {
+        try {
+          const parsedV = JSON.parse(storedVehicle);
+          if (parsedV.reg) {
+            setActiveVehicleRegState(parsedV.reg);
+            setActiveVehicleOwnerState(parsedV.ownerName || null);
+          }
+        } catch {}
+      }
+
       if (!storedUser) {
         setLoading(false);
         return;
@@ -61,12 +151,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             name: dbUser.name,
             status: dbUser.status,
             availableRoles: dbUser.availableRoles,
-            role: dbUser.role
+            role: dbUser.role,
+            vehicleReg: dbUser.vehicleReg,
+            employer: dbUser.employer,
+            canViewStores: dbUser.canViewStores,
           };
           setUser(updated);
           localStorage.setItem("fgas_user", JSON.stringify(updated));
+
+          await syncPairing(updated);
+
+          // Set default vehicle if not explicitly set
+          if (!storedVehicle && dbUser.vehicleReg) {
+            setActiveVehicleRegState(dbUser.vehicleReg);
+            setActiveVehicleOwnerState(dbUser.name);
+          }
         } else {
           setUser(parsed);
+          await syncPairing(parsed);
+          if (!storedVehicle && parsed.vehicleReg) {
+            setActiveVehicleRegState(parsed.vehicleReg);
+            setActiveVehicleOwnerState(parsed.name);
+          }
         }
       } catch (err) {
         console.error("Session sync failed", err);
@@ -104,8 +210,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // If approved and on pending page, redirect to dashboard
         if (user.status === "approved" && pathname === "/pending") {
-          if (user.role === "engineer") router.push("/engineer");
-          else router.push("/admin");
+          if (user.role === "office" || user.role === "admin") router.push("/admin");
+          else router.push("/engineer");
           return;
         }
 
@@ -113,7 +219,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           user.availableRoles?.includes("admin") || user.availableRoles?.includes("office") ||
           user.role === "admin" || user.role === "office";
         const canAccessDashboard =
-          user.availableRoles?.includes("engineer") || user.role === "engineer";
+          user.availableRoles?.includes("engineer") || user.availableRoles?.includes("mate") || user.availableRoles?.includes("apprentice") ||
+          user.role === "engineer" || user.role === "mate" || user.role === "apprentice";
 
         if (canAccessAdmin && isAdminLogin) {
           router.push("/admin");
@@ -122,7 +229,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           router.push("/engineer");
           return;
         } else if (isEngineerLogin) {
-          router.push("/engineer");
+          if (user.role === "office" || user.role === "admin") router.push("/admin");
+          else router.push("/engineer");
           return;
         }
       }
@@ -182,11 +290,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setUser(userToSet);
     localStorage.setItem("fgas_user", JSON.stringify(userToSet));
+
+    if (dbUser.vehicleReg) {
+      setActiveVehicleRegState(dbUser.vehicleReg);
+      setActiveVehicleOwnerState(dbUser.name);
+      localStorage.setItem("fgas_active_vehicle", JSON.stringify({ reg: dbUser.vehicleReg, ownerName: dbUser.name }));
+    }
   };
 
   const logout = () => {
     setUser(null);
+    setActiveVehicleRegState(null);
+    setActiveVehicleOwnerState(null);
     localStorage.removeItem("fgas_user");
+    localStorage.removeItem("fgas_active_vehicle");
     router.push("/");
   };
 
@@ -206,7 +323,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, switchRole, logout, refreshUser, loading }}>
+    <AuthContext.Provider value={{ user, activeVehicleReg, activeVehicleOwner, activePairingStatus, activePairing, setActiveVehicle, requestPairing, refreshPairing, login, switchRole, logout, refreshUser, loading }}>
       {loading ? (
         <div style={{minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0a0a"}}>
            <div style={{width: "40px", height: "40px", border: "3px solid rgba(255,255,255,0.1)", borderTopColor: "var(--primary)", borderRadius: "50%", animation: "spin 1s linear infinite"}}></div>

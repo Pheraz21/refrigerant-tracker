@@ -61,6 +61,8 @@ export default function SignupPage() {
       return;
     }
 
+    const isFieldRole = role === "engineer" || role === "mate" || role === "apprentice";
+
     setIsSubmitting(true);
     try {
       const { error: signUpError } = await supabase.auth.signUp({ email, password });
@@ -72,8 +74,8 @@ export default function SignupPage() {
         name,
         role,
         phone,
-        vehicleReg: role === "engineer" ? vehicleReg : undefined,
-        employer: role === "engineer"
+        vehicleReg: isFieldRole && vehicleReg.trim() ? vehicleReg.trim().toUpperCase() : undefined,
+        employer: isFieldRole
           ? (employmentType === "direct" ? "Direct Staff" : subContractorName)
           : undefined,
       });
@@ -84,6 +86,8 @@ export default function SignupPage() {
       setIsSubmitting(false);
     }
   };
+
+  const isFieldRole = role === "engineer" || role === "mate" || role === "apprentice";
 
   if (isSuccess) {
     return (
@@ -108,17 +112,17 @@ export default function SignupPage() {
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0a0a", color: "#fff", padding: "2rem" }}>
-      <div style={{ maxWidth: "500px", width: "100%" }}>
+      <div style={{ maxWidth: "520px", width: "100%" }}>
         <Link href={backHref} style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", color: "var(--text-muted)", textDecoration: "none", marginBottom: "2rem", fontSize: "0.9rem" }}>
           <ArrowLeft size={16} /> Back to Login
         </Link>
 
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "20px", padding: "2.5rem" }}>
-          <div style={{ marginBottom: "2.5rem" }}>
-            <h1 style={{ fontSize: "2rem", fontWeight: 800, marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
-              <UserPlus size={32} color="var(--primary)" /> Create Account
+          <div style={{ marginBottom: "2rem" }}>
+            <h1 style={{ fontSize: "1.8rem", fontWeight: 800, marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <UserPlus size={30} color="var(--primary)" /> Create Account
             </h1>
-            <p style={{ color: "var(--text-muted)" }}>Join the F-Gas tracking network</p>
+            <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>Join the 21 Degrees F-Gas tracking network</p>
           </div>
 
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
@@ -128,17 +132,26 @@ export default function SignupPage() {
               <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", padding: "0.85rem 1rem" }}>
                 {roleParam === "office" ? <Shield size={16} color="var(--primary)" /> : <Wrench size={16} color="var(--primary)" />}
                 <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "#fff" }}>
-                  {roleParam === "office" ? "Registering as Office / Admin" : "Registering as Engineer"}
+                  {roleParam === "office" ? "Registering as Office / Admin" : `Registering as ${roleParam.toUpperCase()}`}
                 </span>
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", background: "rgba(255,255,255,0.03)", padding: "0.5rem", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.05)" }}>
-                <button type="button" onClick={() => setRole("engineer")} style={{ padding: "0.75rem", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "0.85rem", fontWeight: 700, background: role === "engineer" ? "var(--primary)" : "transparent", color: role === "engineer" ? "#000" : "var(--text-muted)", transition: "all 0.2s" }}>
-                  Engineer
-                </button>
-                <button type="button" onClick={() => setRole("office")} style={{ padding: "0.75rem", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "0.85rem", fontWeight: 700, background: role === "office" ? "var(--primary)" : "transparent", color: role === "office" ? "#000" : "var(--text-muted)", transition: "all 0.2s" }}>
-                  Office / Admin
-                </button>
+              <div>
+                <label style={{ ...labelStyle, display: "block", marginBottom: "0.5rem" }}>Select Your Role</label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", background: "rgba(255,255,255,0.03)", padding: "0.4rem", borderRadius: "12px", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <button type="button" onClick={() => setRole("engineer")} style={{ padding: "0.65rem 0.5rem", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "0.8rem", fontWeight: 700, background: role === "engineer" ? "var(--primary)" : "transparent", color: role === "engineer" ? "#000" : "var(--text-muted)", transition: "all 0.2s" }}>
+                    F-Gas Engineer
+                  </button>
+                  <button type="button" onClick={() => setRole("mate")} style={{ padding: "0.65rem 0.5rem", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "0.8rem", fontWeight: 700, background: role === "mate" ? "var(--primary)" : "transparent", color: role === "mate" ? "#000" : "var(--text-muted)", transition: "all 0.2s" }}>
+                    Engineer Mate
+                  </button>
+                  <button type="button" onClick={() => setRole("apprentice")} style={{ padding: "0.65rem 0.5rem", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "0.8rem", fontWeight: 700, background: role === "apprentice" ? "var(--primary)" : "transparent", color: role === "apprentice" ? "#000" : "var(--text-muted)", transition: "all 0.2s" }}>
+                    Apprentice
+                  </button>
+                  <button type="button" onClick={() => setRole("office")} style={{ padding: "0.65rem 0.5rem", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "0.8rem", fontWeight: 700, background: role === "office" ? "var(--primary)" : "transparent", color: role === "office" ? "#000" : "var(--text-muted)", transition: "all 0.2s" }}>
+                    Office / Admin
+                  </button>
+                </div>
               </div>
             )}
 
@@ -176,11 +189,23 @@ export default function SignupPage() {
               </div>
             </div>
 
-            {/* Van Registration — engineer only */}
-            {role === "engineer" && (
+            {/* Van Registration — field staff */}
+            {isFieldRole && (
               <div style={fieldStyle}>
-                <label style={labelStyle}>Van Registration</label>
-                <input type="text" required value={vehicleReg} onChange={e => setVehicleReg(e.target.value.toUpperCase())} placeholder="e.g. VA68 LNE" style={inputStyle} />
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <label style={labelStyle}>Assigned Van Registration</label>
+                  {(role === "mate" || role === "apprentice") && (
+                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Optional (if you have your own van)</span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  required={role === "engineer"}
+                  value={vehicleReg}
+                  onChange={e => setVehicleReg(e.target.value.toUpperCase())}
+                  placeholder={role === "engineer" ? "e.g. VA68 LNE" : "e.g. VA68 LNE (or leave blank if sharing lead van)"}
+                  style={inputStyle}
+                />
               </div>
             )}
 
@@ -190,8 +215,8 @@ export default function SignupPage() {
               <input type="tel" required value={phone} onChange={e => setPhone(e.target.value)} placeholder="e.g. 07700 900000" style={inputStyle} />
             </div>
 
-            {/* Employment — engineer only */}
-            {role === "engineer" && (
+            {/* Employment — field staff */}
+            {isFieldRole && (
               <>
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                   <label style={labelStyle}>Are you employed by 21 Degrees or a Sub-contractor?</label>

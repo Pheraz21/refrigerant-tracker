@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Truck, Wrench, AlertTriangle, ArrowLeft, Loader2, PackageCheck, MapPin, Building2, Users, Building, CheckCircle2, Camera, Image as ImageIcon } from "lucide-react";
+import { Truck, Wrench, AlertTriangle, ArrowLeft, Loader2, PackageCheck, MapPin, Building2, Users, Building, CheckCircle2, Camera, Image as ImageIcon, RotateCcw } from "lucide-react";
 import styles from "./page.module.css";
 import Link from "next/link";
 import { db, Bottle } from "@/lib/db";
@@ -24,7 +24,7 @@ export default function BottleActionHub() {
   const router = useRouter();
   const params = useParams();
   const serial = decodeURIComponent(params.serial as string);
-  const { user } = useAuth();
+  const { user, activeVehicleReg, activeVehicleOwner } = useAuth();
   
   const [bottle, setBottle] = useState<Bottle | null>(null);
   const [loading, setLoading] = useState(true);
@@ -121,21 +121,29 @@ export default function BottleActionHub() {
       if (!needsTransit) {
         const finalDest = destination === "engineer" ? "van" : destination;
         let finalLocationId = "";
-        let effectiveEngineerName = user?.name;
+        let effectiveEngineerName = activeVehicleOwner || user?.name;
 
         if (destination === "engineer") {
           const targetUser = engineers.find(e => e.id === selectedEngineer);
           finalLocationId = `${targetUser?.name || "Engineer"} - Van`;
           effectiveEngineerName = targetUser?.name || user?.name;
         } else if (destination === "van") {
-          finalLocationId = `${user?.name} - Van`;
-        } else if (destination === "office") {
-          finalLocationId = "HQ-Stores";
+          finalLocationId = `${activeVehicleOwner || user?.name} - Van`;
+        } else if (destination === "site") {
+          const cleanJob = (locationId || "").trim().replace(/\s+/g, "").toUpperCase();
+          if (!/^[A-Za-z]\d+$/.test(cleanJob)) {
+            alert("Job number must start with 1 letter followed by numbers without spaces (e.g. J12345, M98201).");
+            setIsSubmittingTransfer(false);
+            return;
+          }
+          finalLocationId = cleanJob;
+          effectiveEngineerName = activeVehicleOwner || user?.name;
         } else {
-          finalLocationId = locationId || (destination === "supplier" ? "Supplier" : `${user?.name} - Van`);
+          finalLocationId = locationId || (destination === "supplier" ? "Supplier" : `${activeVehicleOwner || user?.name} - Van`);
         }
 
-        await db.updateBottleLocation(serial, finalDest as any, finalLocationId, undefined, undefined, undefined, effectiveEngineerName);
+        const targetVanReg = (finalDest === "van") ? (activeVehicleReg || user?.vehicleReg) : undefined;
+        await db.updateBottleLocation(serial, finalDest as any, finalLocationId, undefined, undefined, undefined, effectiveEngineerName, targetVanReg, user?.name);
         
         if (destination === "supplier" || destination === "office") {
           const updates: any = { status: destination === "supplier" ? "returned" : "active" };
@@ -147,7 +155,8 @@ export default function BottleActionHub() {
       } else {
         // Needs transit (Reclaim with gas to Supplier)
         const finalLocationId = locationId || "Supplier";
-        await db.updateBottleLocation(serial, "van", `${user?.name} - Van`, finalLocationId, destination as any, undefined, user?.name);
+        const targetVanReg = activeVehicleReg || user?.vehicleReg;
+        await db.updateBottleLocation(serial, "van", `${activeVehicleOwner || user?.name} - Van`, finalLocationId, destination as any, undefined, activeVehicleOwner || user?.name, targetVanReg, user?.name);
       }
       setTransferSuccess(true);
     } catch (err) {
@@ -748,13 +757,16 @@ export default function BottleActionHub() {
                     <div className={`${styles.dynamicSection} glass-panel`} style={{borderColor: 'var(--primary)', marginBottom: '1.5rem'}}>
                       <h3 style={{color: 'var(--primary)', fontSize: '1rem', marginBottom: '1rem'}}>Job Site Details</h3>
                       <div className={styles.inputGroup}>
-                        <label>Job Number</label>
+                        <label>Job Number (e.g. J12345, M98201)</label>
                         <input 
                           type="text" 
                           value={locationId}
-                          onChange={(e) => setLocationId(e.target.value)}
-                          placeholder="e.g. JOB-88219" 
+                          pattern="^[A-Za-z][0-9]+$"
+                          title="Job number must start with 1 letter followed by numbers without spaces (e.g. J12345)"
+                          onChange={(e) => setLocationId(e.target.value.replace(/\s+/g, "").toUpperCase())}
+                          placeholder="e.g. J12345" 
                           className={styles.textInput}
+                          required
                         />
                       </div>
                     </div>
@@ -826,115 +838,138 @@ export default function BottleActionHub() {
                     </div>
                   </Link>
 
-                  {/* COMPLIANCE: Using the gas inside */}
-                  {bottle.category !== "nitrogen" ? (
-                    bottle.status === 'empty' && bottle.category === 'new' ? (
-                      <div className={styles.actionCard} style={{ opacity: 0.6, cursor: 'not-allowed' }}>
-                        <div className={styles.iconWrapper} style={{ background: 'rgba(255,255,255,0.1)' }}>
-                          <CheckCircle2 size={32} color="var(--text-muted)" />
-                        </div>
-                        <div className={styles.actionText}>
-                          <h3>Bottle Empty</h3>
-                          <p>This cylinder is completely empty and cannot be used.</p>
-                        </div>
-                      </div>
-                    ) : bottle.status === 'full' && bottle.category === 'reclaim' ? (
-                      <div className={styles.actionCard} style={{ opacity: 0.6, cursor: 'not-allowed' }}>
-                        <div className={styles.iconWrapper} style={{ background: 'rgba(255,255,255,0.1)' }}>
-                          <CheckCircle2 size={32} color="var(--text-muted)" />
-                        </div>
-                        <div className={styles.actionText}>
-                          <h3>Bottle Full</h3>
-                          <p>This reclaim cylinder is full. No more gas can be recovered into it.</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <Link 
-                        href={(bottle.locationType as string) === 'van' ? '#' : `/engineer/log?serial=${bottle.serial}`} 
-                        className={`${styles.actionCard} ${bottle.category === 'reclaim' ? styles.reclaimCard : styles.useCard} ${(bottle.locationType as string) === 'van' ? styles.disabledCard : ''}`}
-                      >
-                        <div className={styles.iconWrapper}>
-                          <Wrench size={32} />
-                        </div>
-                        <div className={styles.actionText}>
-                          {bottle.category === "reclaim" ? (
-                            <>
-                              <h3>Log Recovered Gas</h3>
-                              <p>{(bottle.locationType as string) === 'van' ? "Bottle currently in van, transfer bottle to site to enable recovery." : "Log contaminated gas pumped into this cylinder"}</p>
-                            </>
-                          ) : (
-                            <>
-                              <h3>Log Gas Usage</h3>
-                              <p>{(bottle.locationType as string) === 'van' ? "Bottle currently in van, transfer bottle to site to enable usage." : "Log refrigerant dispensed into a system"}</p>
-                            </>
-                          )}
-                        </div>
-                      </Link>
-                    )
-                  ) : (
-                    <>
-                      {bottle.status !== 'empty' ? (
-                        <button 
-                          onClick={() => (bottle.locationType as string) !== 'van' && setShowNitrogenUsage(true)}
-                          className={`${styles.actionCard} ${styles.nitrogenCard} ${(bottle.locationType as string) === 'van' ? styles.disabledCard : ''}`}
-                          style={{ textAlign: 'left', width: '100%', cursor: (bottle.locationType as string) === 'van' ? 'not-allowed' : 'pointer' }}
-                          disabled={(bottle.locationType as string) === 'van'}
-                        >
-                          <div className={styles.iconWrapper}>
-                            <Wrench size={32} />
-                          </div>
-                          <div className={styles.actionText}>
-                            <h3>Log Nitrogen Usage</h3>
-                            <p>{(bottle.locationType as string) === 'van' ? "Bottle currently in van, transfer bottle to site to enable usage." : "Record nitrogen usage for pressure testing or purging"}</p>
-                          </div>
-                        </button>
-                      ) : (
+                  {/* COMPLIANCE: Using the gas inside (Hidden for non-F-Gas Mates) */}
+                  {user?.role !== "mate" && (
+                    bottle.category !== "nitrogen" ? (
+                      bottle.status === 'empty' && bottle.category === 'new' ? (
                         <div className={styles.actionCard} style={{ opacity: 0.6, cursor: 'not-allowed' }}>
                           <div className={styles.iconWrapper} style={{ background: 'rgba(255,255,255,0.1)' }}>
                             <CheckCircle2 size={32} color="var(--text-muted)" />
                           </div>
                           <div className={styles.actionText}>
                             <h3>Bottle Empty</h3>
-                            <p>This nitrogen bottle is empty and cannot be used.</p>
+                            <p>This cylinder is completely empty and cannot be used.</p>
                           </div>
                         </div>
-                      )}
+                      ) : (
+                        <>
+                          {/* ON-SITE RECYCLED GAS ACTION (Only if reclaim cylinder on site with gas) */}
+                          {bottle.category === "reclaim" && (bottle.locationType as string) === "site" && (bottle.currentWeight || 0) > 0 && (
+                            <Link 
+                              href={`/engineer/log?serial=${bottle.serial}&mode=recycle`} 
+                              className={`${styles.actionCard} ${styles.useCard}`}
+                              style={{ borderLeftColor: 'var(--success)', marginBottom: '0.75rem' }}
+                            >
+                              <div className={styles.iconWrapper} style={{ background: 'rgba(34, 197, 94, 0.15)' }}>
+                                <RotateCcw size={32} color="var(--success)" />
+                              </div>
+                              <div className={styles.actionText}>
+                                <h3 style={{ color: 'var(--success)' }}>Use / Re-charge Recycled Gas on Site</h3>
+                                <p>Re-charge recovered gas ({bottle.currentWeight} kg available) into equipment on this site</p>
+                              </div>
+                            </Link>
+                          )}
 
-                      {showNitrogenUsage && (
-                        <div className={`${styles.dynamicSection} glass-panel`} style={{ borderColor: '#00e5ff', marginTop: '1rem', animation: 'fadeIn 0.3s ease-out' }}>
-                          <h3 style={{ color: '#00e5ff', marginBottom: '1rem', fontSize: '1rem' }}>Is the Nitrogen bottle empty?</h3>
-                          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-                            Nitrogen cannot be weighed accurately. If the bottle is empty press &quot;Yes&quot;, if the bottle is not empty press &quot;No&quot;.
-                          </p>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                            <button 
-                              className={styles.primaryBtn}
-                              style={{ background: 'var(--error)', color: '#fff' }}
-                              disabled={isSubmittingNitrogen}
-                              onClick={() => handleNitrogenUsage(true)}
+                          {bottle.status === 'full' && bottle.category === 'reclaim' ? (
+                            <div className={styles.actionCard} style={{ opacity: 0.6, cursor: 'not-allowed' }}>
+                              <div className={styles.iconWrapper} style={{ background: 'rgba(255,255,255,0.1)' }}>
+                                <CheckCircle2 size={32} color="var(--text-muted)" />
+                              </div>
+                              <div className={styles.actionText}>
+                                <h3>Bottle Full</h3>
+                                <p>This reclaim cylinder is full. No more gas can be recovered into it.</p>
+                              </div>
+                            </div>
+                          ) : (
+                            <Link 
+                              href={(bottle.locationType as string) === 'van' ? '#' : `/engineer/log?serial=${bottle.serial}`} 
+                              className={`${styles.actionCard} ${bottle.category === 'reclaim' ? styles.reclaimCard : styles.useCard} ${(bottle.locationType as string) === 'van' ? styles.disabledCard : ''}`}
                             >
-                              {isSubmittingNitrogen ? <Loader2 size={18} className={styles.spinner} /> : "Yes, Empty"}
-                            </button>
+                              <div className={styles.iconWrapper}>
+                                <Wrench size={32} />
+                              </div>
+                              <div className={styles.actionText}>
+                                {bottle.category === "reclaim" ? (
+                                  <>
+                                    <h3>Log Recovered Gas</h3>
+                                    <p>{(bottle.locationType as string) === 'van' ? "Bottle currently in van, transfer bottle to site to enable recovery." : "Log contaminated gas pumped into this cylinder"}</p>
+                                  </>
+                                ) : (
+                                  <>
+                                    <h3>Log Gas Usage</h3>
+                                    <p>{(bottle.locationType as string) === 'van' ? "Bottle currently in van, transfer bottle to site to enable usage." : "Log refrigerant dispensed into a system"}</p>
+                                  </>
+                                )}
+                              </div>
+                            </Link>
+                          )}
+                        </>
+                      )
+                    ) : (
+                      <>
+                        {bottle.status !== 'empty' ? (
+                          <button 
+                            onClick={() => (bottle.locationType as string) !== 'van' && setShowNitrogenUsage(true)}
+                            className={`${styles.actionCard} ${styles.nitrogenCard} ${(bottle.locationType as string) === 'van' ? styles.disabledCard : ''}`}
+                            style={{ textAlign: 'left', width: '100%', cursor: (bottle.locationType as string) === 'van' ? 'not-allowed' : 'pointer' }}
+                            disabled={(bottle.locationType as string) === 'van'}
+                          >
+                            <div className={styles.iconWrapper}>
+                              <Wrench size={32} />
+                            </div>
+                            <div className={styles.actionText}>
+                              <h3>Log Nitrogen Usage</h3>
+                              <p>{(bottle.locationType as string) === 'van' ? "Bottle currently in van, transfer bottle to site to enable usage." : "Record nitrogen usage for pressure testing or purging"}</p>
+                            </div>
+                          </button>
+                        ) : (
+                          <div className={styles.actionCard} style={{ opacity: 0.6, cursor: 'not-allowed' }}>
+                            <div className={styles.iconWrapper} style={{ background: 'rgba(255,255,255,0.1)' }}>
+                              <CheckCircle2 size={32} color="var(--text-muted)" />
+                            </div>
+                            <div className={styles.actionText}>
+                              <h3>Bottle Empty</h3>
+                              <p>This nitrogen bottle is empty and cannot be used.</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {showNitrogenUsage && (
+                          <div className={`${styles.dynamicSection} glass-panel`} style={{ borderColor: '#00e5ff', marginTop: '1rem', animation: 'fadeIn 0.3s ease-out' }}>
+                            <h3 style={{ color: '#00e5ff', marginBottom: '1rem', fontSize: '1rem' }}>Is the Nitrogen bottle empty?</h3>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+                              Nitrogen cannot be weighed accurately. If the bottle is empty press &quot;Yes&quot;, if the bottle is not empty press &quot;No&quot;.
+                            </p>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                              <button 
+                                className={styles.primaryBtn}
+                                style={{ background: 'var(--error)', color: '#fff' }}
+                                disabled={isSubmittingNitrogen}
+                                onClick={() => handleNitrogenUsage(true)}
+                              >
+                                {isSubmittingNitrogen ? <Loader2 size={18} className={styles.spinner} /> : "Yes, Empty"}
+                              </button>
+                              <button 
+                                className={styles.primaryBtn}
+                                style={{ background: 'var(--success)', color: '#fff' }}
+                                disabled={isSubmittingNitrogen}
+                                onClick={() => handleNitrogenUsage(false)}
+                              >
+                                {isSubmittingNitrogen ? <Loader2 size={18} className={styles.spinner} /> : "No, Not Empty"}
+                              </button>
+                            </div>
                             <button 
-                              className={styles.primaryBtn}
-                              style={{ background: 'var(--success)', color: '#fff' }}
+                              className={styles.secondaryBtn} 
+                              style={{ width: '100%', marginTop: '1rem' }}
+                              onClick={() => setShowNitrogenUsage(false)}
                               disabled={isSubmittingNitrogen}
-                              onClick={() => handleNitrogenUsage(false)}
                             >
-                              {isSubmittingNitrogen ? <Loader2 size={18} className={styles.spinner} /> : "No, Not Empty"}
+                              Cancel
                             </button>
                           </div>
-                          <button 
-                            className={styles.secondaryBtn} 
-                            style={{ width: '100%', marginTop: '1rem' }}
-                            onClick={() => setShowNitrogenUsage(false)}
-                            disabled={isSubmittingNitrogen}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      )}
-                    </>
+                        )}
+                      </>
+                    )
                   )}
                 </>
               )}
