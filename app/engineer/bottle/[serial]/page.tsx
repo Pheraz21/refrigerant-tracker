@@ -877,14 +877,13 @@ export default function BottleActionHub() {
                         ) : (
                           <Link 
                             href={(bottle.locationType as string) === 'van' ? '#' : `/engineer/log?serial=${bottle.serial}&mode=recycled_charge`}
-                            className={`${styles.actionCard} ${styles.useCard} ${(bottle.locationType as string) === 'van' ? styles.disabledCard : ''}`}
-                            style={{ borderLeftColor: '#10b981' }}
+                            className={`${styles.actionCard} ${styles.recycledCard} ${(bottle.locationType as string) === 'van' ? styles.disabledCard : ''}`}
                           >
-                            <div className={styles.iconWrapper} style={{ background: 'rgba(16, 185, 129, 0.15)' }}>
-                              <RotateCcw size={32} color="#10b981" />
+                            <div className={styles.iconWrapper}>
+                              <RotateCcw size={32} />
                             </div>
                             <div className={styles.actionText}>
-                              <h3 style={{ color: '#10b981' }}>Charge Recycled Gas into Equipment</h3>
+                              <h3>Charge Recycled Gas into Equipment</h3>
                               <p>
                                 {(bottle.locationType as string) === 'van'
                                   ? "Bottle currently in van, transfer bottle to site to enable charging."

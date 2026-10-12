@@ -184,6 +184,26 @@
   color: #fff;
 }
 
+.recycledCard {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: #fff;
+  border: none;
+  box-shadow: 0 4px 15px rgba(5, 150, 105, 0.35);
+}
+
+.recycledCard .iconWrapper {
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+}
+
+.recycledCard h3 {
+  color: #fff;
+}
+
+.recycledCard p {
+  color: rgba(255, 255, 255, 0.9);
+}
+
 .reclaimCard {
   background: rgba(255, 170, 0, 0.1);
   border-color: rgba(255, 170, 0, 0.3);
