@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { CheckCircle2, Truck, ArrowLeft, MapPin, Building2, Users, AlertTriangle, Building } from "lucide-react";
+import { CheckCircle2, Truck, ArrowLeft, MapPin, Building2, Users, AlertTriangle, Building, Recycle } from "lucide-react";
 import styles from "../log/page.module.css"; // Reuse existing form styles
 import { db } from "@/lib/db";
 import Link from "next/link";
@@ -277,16 +277,20 @@ export default function MoveBottlePage() {
             marginBottom: '1.5rem',
             borderLeft: '4px solid',
             borderLeftColor: 
+              bottle.category === "recycled" ? "#10b981" :
               bottle.category === "reclaim" ? "var(--warning)" : 
               bottle.category === "nitrogen" ? "#22c55e" : "var(--primary)",
             background: 
+              bottle.category === "recycled" ? "rgba(16, 185, 129, 0.05)" :
               bottle.category === "reclaim" ? "rgba(255, 170, 0, 0.03)" : 
               bottle.category === "nitrogen" ? "rgba(34, 197, 94, 0.03)" : "rgba(0, 229, 255, 0.03)"
           }}
         >
           <div className={styles.bottleHeader}>
             <div className={styles.bottleType}>
-              {bottle.category === "reclaim" ? (
+              {bottle.category === "recycled" ? (
+                <Recycle size={20} color="#10b981" />
+              ) : bottle.category === "reclaim" ? (
                 <AlertTriangle size={20} color="var(--warning)" />
               ) : (
                 <div 
@@ -298,10 +302,12 @@ export default function MoveBottlePage() {
               )}
               <span style={{ 
                 color: 
+                  bottle.category === "recycled" ? "#10b981" :
                   bottle.category === "reclaim" ? "var(--warning)" : 
                   bottle.category === "nitrogen" ? "#22c55e" : "var(--primary)" 
               }}>
                 {bottle.category === "new" ? "New Refrigerant" : 
+                 bottle.category === "recycled" ? "Recycled Bottle" :
                  bottle.category === "nitrogen" ? "Nitrogen" : "Reclaim / Haz"}
               </span>
             </div>

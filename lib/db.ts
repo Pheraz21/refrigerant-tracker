@@ -652,13 +652,15 @@ export const db = {
 
     const bottleUpdatePayload: any = {};
 
+    if (bottle.category === "recycled" && (jobType === "recovery" || jobType === "retrofit" || jobType === "waste")) {
+      throw new Error("Recycled bottles cannot be used to receive waste gas in the field. They are designated strictly for charging equipment.");
+    }
+
     if (jobType === "service" || jobType === "install" || jobType === "maintenance" || jobType === "recycled_charge") {
       newWeight = Math.max(0, newWeight - weightChange);
       if (newWeight === 0) {
-        if (bottle.category === "new" || bottle.category === "nitrogen") {
+        if (bottle.category === "new" || bottle.category === "nitrogen" || bottle.category === "recycled") {
           newStatus = "empty";
-        } else if (bottle.category === "recycled") {
-          newStatus = "active";
         } else if (bottle.category === "reclaim") {
           newStatus = "active";
           // If all recycled gas has been used up on site, reset producer sites to clean/empty reclaim
