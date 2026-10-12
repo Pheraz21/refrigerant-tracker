@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Truck, Wrench, AlertTriangle, ArrowLeft, Loader2, PackageCheck, MapPin, Building2, Users, Building, CheckCircle2, Camera, Image as ImageIcon, RotateCcw } from "lucide-react";
+import { Truck, Wrench, AlertTriangle, ArrowLeft, Loader2, PackageCheck, MapPin, Building2, Users, Building, CheckCircle2, Camera, Image as ImageIcon, RotateCcw, Recycle } from "lucide-react";
 import styles from "./page.module.css";
 import Link from "next/link";
 import { db, Bottle } from "@/lib/db";
@@ -205,16 +205,20 @@ export default function BottleActionHub() {
           className={`${styles.bottleInfoCard} glass-panel`}
           style={{ 
             borderLeftColor: 
+              bottle.category === "recycled" ? "#10b981" :
               bottle.category === "reclaim" ? "var(--warning)" : 
               bottle.category === "nitrogen" ? "#22c55e" : "var(--primary)",
             background: 
+              bottle.category === "recycled" ? "rgba(16, 185, 129, 0.05)" :
               bottle.category === "reclaim" ? "rgba(255, 170, 0, 0.03)" : 
               bottle.category === "nitrogen" ? "rgba(34, 197, 94, 0.03)" : "rgba(0, 229, 255, 0.03)"
           }}
         >
           <div className={styles.bottleHeader}>
             <div className={styles.bottleType}>
-              {bottle.category === "reclaim" ? (
+              {bottle.category === "recycled" ? (
+                <Recycle size={20} color="#10b981" />
+              ) : bottle.category === "reclaim" ? (
                 <AlertTriangle size={20} color="var(--warning)" />
               ) : (
                 <div 
@@ -226,10 +230,12 @@ export default function BottleActionHub() {
               )}
               <span style={{ 
                 color: 
+                  bottle.category === "recycled" ? "#10b981" :
                   bottle.category === "reclaim" ? "var(--warning)" : 
                   bottle.category === "nitrogen" ? "#22c55e" : "var(--primary)" 
               }}>
                 {bottle.category === "new" ? "New Refrigerant" : 
+                 bottle.category === "recycled" ? "Recycled Bottle" :
                  bottle.category === "nitrogen" ? "Nitrogen" : "Reclaim / Haz"}
               </span>
             </div>
@@ -851,6 +857,58 @@ export default function BottleActionHub() {
                             <p>This cylinder is completely empty and cannot be used.</p>
                           </div>
                         </div>
+                      ) : bottle.category === "recycled" ? (
+                        <>
+                          {/* 1. RECYCLED BOTTLE ACTION 1: Charge Gas into System */}
+                          <Link 
+                            href={(bottle.locationType as string) === 'van' || (bottle.currentWeight || 0) <= 0 ? '#' : `/engineer/log?serial=${bottle.serial}&mode=recycled_charge`}
+                            className={`${styles.actionCard} ${styles.useCard} ${(bottle.locationType as string) === 'van' || (bottle.currentWeight || 0) <= 0 ? styles.disabledCard : ''}`}
+                            style={{ borderLeftColor: '#10b981', marginBottom: '0.75rem' }}
+                          >
+                            <div className={styles.iconWrapper} style={{ background: 'rgba(16, 185, 129, 0.15)' }}>
+                              <RotateCcw size={32} color="#10b981" />
+                            </div>
+                            <div className={styles.actionText}>
+                              <h3 style={{ color: '#10b981' }}>Charge Recycled Gas into Equipment</h3>
+                              <p>
+                                {(bottle.locationType as string) === 'van'
+                                  ? "Bottle currently in van, transfer to site to enable charging."
+                                  : (bottle.currentWeight || 0) <= 0
+                                  ? "Bottle is empty (0 kg). Decant clean gas into bottle first."
+                                  : `Recharge cleaned gas (${bottle.currentWeight} kg available) into equipment`}
+                              </p>
+                            </div>
+                          </Link>
+
+                          {/* 2. RECYCLED BOTTLE ACTION 2: Decant Clean Gas into Bottle */}
+                          {(() => {
+                            const cap = bottle.initialWeight || 20;
+                            const cur = bottle.currentWeight || 0;
+                            const space = Math.max(0, cap - cur);
+                            const isFull = cur >= cap;
+                            return (
+                              <Link 
+                                href={(bottle.locationType as string) === 'van' || isFull ? '#' : `/engineer/log?serial=${bottle.serial}&mode=decant_fill`}
+                                className={`${styles.actionCard} ${styles.reclaimCard} ${(bottle.locationType as string) === 'van' || isFull ? styles.disabledCard : ''}`}
+                                style={{ borderLeftColor: '#00e5ff' }}
+                              >
+                                <div className={styles.iconWrapper} style={{ background: 'rgba(0, 229, 255, 0.15)' }}>
+                                  <Recycle size={32} color="#00e5ff" />
+                                </div>
+                                <div className={styles.actionText}>
+                                  <h3 style={{ color: '#00e5ff' }}>Decant Clean Gas into Bottle</h3>
+                                  <p>
+                                    {(bottle.locationType as string) === 'van'
+                                      ? "Bottle currently in van, transfer to site to enable decanting."
+                                      : isFull
+                                      ? "Bottle is full. No more gas can be decanted into it."
+                                      : `Decant clean ${bottle.gasType} into this bottle (${space.toFixed(2)} kg space available)`}
+                                  </p>
+                                </div>
+                              </Link>
+                            );
+                          })()}
+                        </>
                       ) : (
                         <>
                           {/* ON-SITE RECYCLED GAS ACTION (Only if reclaim cylinder on site with gas) */}

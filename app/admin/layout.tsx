@@ -31,7 +31,8 @@ import {
   ChevronRight,
   Wrench,
   BookOpen,
-  PackageCheck
+  PackageCheck,
+  Recycle
 } from "lucide-react";
 
 const navGroups = [
@@ -70,6 +71,7 @@ const navGroups = [
       { href: "/admin/haz-waste-summary", label: "Haz Waste In Company", icon: ShieldAlert },
       { href: "/admin/supplier-returns-waste", label: "Waste Return from Office to Supplier", icon: Building2, subLabel: "Office Returns to Supplier" },
       { href: "/admin/stores-collection", label: "Supplier Collection from Stores", icon: PackageCheck },
+      { href: "/admin/reclassify-reclaim-to-recycled", label: "Recycled Bottle: Reclassify Reclaim Bottle to Recycled Bottle", icon: Recycle },
     ]
   },
   {

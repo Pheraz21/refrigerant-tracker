@@ -19,6 +19,7 @@ const locationFilters = [
 const categoryFilters = [
   { key: "all", label: "All Types" },
   { key: "new", label: "New Refrigerant" },
+  { key: "recycled", label: "Recycled Bottle" },
   { key: "reclaim", label: "Reclaim / Haz" },
   { key: "nitrogen", label: "Nitrogen" },
 ];
@@ -120,7 +121,12 @@ export default function AllBottlesPage() {
   };
 
   const getCatColor = (cat: string) => {
-    switch (cat) { case "reclaim": return "#ffaa00"; case "new": return "#00e5ff"; default: return "rgba(255,255,255,0.5)"; }
+    switch (cat) {
+      case "reclaim": return "#ffaa00";
+      case "new": return "#00e5ff";
+      case "recycled": return "#10b981";
+      default: return "rgba(255,255,255,0.5)";
+    }
   };
 
   const getLocDisplay = (b: Bottle) => {
@@ -237,7 +243,7 @@ export default function AllBottlesPage() {
         return (
           <td key={key} style={{padding: "0.85rem 1rem"}}>
             <span style={{color: getCatColor(b.category), fontSize: "0.85rem", fontWeight: 600}}>
-              {b.category === "new" ? "New" : isReclaim ? "Reclaim" : "N₂"}
+              {b.category === "new" ? "New" : b.category === "recycled" ? "Recycled" : isReclaim ? "Reclaim" : "N₂"}
             </span>
           </td>
         );

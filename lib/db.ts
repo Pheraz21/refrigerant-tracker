@@ -1,6 +1,6 @@
 import { supabase } from "./supabaseClient";
 
-export type BottleCategory = "new" | "reclaim" | "nitrogen";
+export type BottleCategory = "new" | "reclaim" | "nitrogen" | "recycled";
 export type LocationType = "van" | "site" | "supplier" | "office";
 export type UserRole = "admin" | "office" | "engineer" | "mate" | "apprentice";
 export type UserStatus = "pending" | "approved" | "disabled" | "rejected";
@@ -657,6 +657,8 @@ export const db = {
       if (newWeight === 0) {
         if (bottle.category === "new" || bottle.category === "nitrogen") {
           newStatus = "empty";
+        } else if (bottle.category === "recycled") {
+          newStatus = "active";
         } else if (bottle.category === "reclaim") {
           newStatus = "active";
           // If all recycled gas has been used up on site, reset producer sites to clean/empty reclaim
@@ -671,7 +673,7 @@ export const db = {
       newWeight += weightChange;
       const initialWeight = parseFloat(bottle.initial_weight || bottle.initialWeight || 0);
       
-      if (bottle.category === "reclaim") {
+      if (bottle.category === "reclaim" || bottle.category === "recycled") {
         if (newWeight >= initialWeight && initialWeight > 0) {
           newStatus = "full";
         } else {
@@ -679,7 +681,7 @@ export const db = {
         }
       }
 
-      if (jobType === "recovery") {
+      if (jobType === "recovery" && bottle.category !== "recycled") {
         // Handle producer sites (JSONB)
         const sites = bottle.producer_sites || bottle.producerSites || [];
         if (producerSite) {
@@ -1971,6 +1973,142 @@ export const db = {
     }
 
     return { deletedLogs, updatedLogs, deletedJobs };
+  },
+
+  async reclassifyReclaimToRecycled(data: {
+    serial: string;
+    gasType: string;
+    currentWeight: number;
+    initialWeight: number;
+    performedBy: string;
+    notes?: string;
+  }): Promise<void> {
+    const { data: bottle } = await supabase.from('bottles').select('*').eq('serial', data.serial).single();
+    if (!bottle) throw new Error("Cylinder not found");
+    if (bottle.location_type !== "office") {
+      throw new Error("Only cylinders physically located in Stores can be reclassified.");
+    }
+    if (bottle.category !== "reclaim") {
+      throw new Error("Only reclaim cylinders can be reclassified to recycled.");
+    }
+
+    const prevWeight = bottle.current_weight ?? 0;
+    const prevGas = bottle.gas_type ?? "Unknown";
+
+    const { error: updateError } = await supabase.from('bottles').update({
+      category: 'recycled',
+      gas_type: data.gasType,
+      current_weight: data.currentWeight,
+      initial_weight: data.initialWeight,
+      status: data.currentWeight > 0 ? 'active' : 'empty',
+      producer_sites: [],
+      active_hwcn: null,
+      intended_destination: null,
+      intended_location_type: null,
+      location_changed_at: new Date().toISOString()
+    }).eq('serial', data.serial);
+
+    if (updateError) throw updateError;
+
+    const logNotes = data.notes 
+      ? `Reclassified from Reclaim (${prevGas}, ${prevWeight}kg) to Recycled (${data.gasType}, ${data.currentWeight}kg). Notes: ${data.notes}`
+      : `Reclassified from Reclaim (${prevGas}, ${prevWeight}kg) to Recycled (${data.gasType}, ${data.currentWeight}kg). Cleaned & filtered for reuse.`;
+
+    await supabase.from('movement_logs').insert({
+      serial: data.serial,
+      action: 'reclassified_recycled',
+      from_location: 'HQ-Stores (Reclaim)',
+      to_location: 'HQ-Stores (Recycled)',
+      engineer: data.performedBy,
+      notes: logNotes
+    });
+  },
+
+  async transferGasReclaimToRecycled(data: {
+    donorSerial: string;
+    recipientSerial: string;
+    transferWeight: number;
+    performedBy: string;
+    notes?: string;
+  }): Promise<void> {
+    if (data.transferWeight <= 0) throw new Error("Transfer weight must be greater than 0 kg");
+
+    const [{ data: donor }, { data: recipient }] = await Promise.all([
+      supabase.from('bottles').select('*').eq('serial', data.donorSerial).single(),
+      supabase.from('bottles').select('*').eq('serial', data.recipientSerial).single()
+    ]);
+
+    if (!donor) throw new Error("Donor reclaim bottle not found");
+    if (!recipient) throw new Error("Recipient recycled bottle not found");
+
+    if (donor.location_type !== "office") {
+      throw new Error("Donor bottle must be physically located in Stores.");
+    }
+    if (recipient.location_type !== "office") {
+      throw new Error("Recipient recycled bottle must be physically located in Stores.");
+    }
+    if (donor.category !== "reclaim") {
+      throw new Error("Donor cylinder must be a Reclaim category cylinder.");
+    }
+    if (recipient.category !== "recycled") {
+      throw new Error("Recipient cylinder must already be classified as a Recycled bottle.");
+    }
+
+    const donorWeight = parseFloat(donor.current_weight || 0);
+    if (donorWeight < data.transferWeight) {
+      throw new Error(`Insufficient gas in donor bottle. Available: ${donorWeight.toFixed(2)}kg, Requested: ${data.transferWeight.toFixed(2)}kg`);
+    }
+
+    const recipientWeight = parseFloat(recipient.current_weight || 0);
+    const recipientCapacity = parseFloat(recipient.initial_weight || 20);
+    const newRecipientWeight = Number((recipientWeight + data.transferWeight).toFixed(2));
+    if (newRecipientWeight > recipientCapacity) {
+      const spaceLeft = Math.max(0, recipientCapacity - recipientWeight);
+      throw new Error(`Transfer exceeds recipient cylinder capacity (${recipientCapacity}kg). Available space: ${spaceLeft.toFixed(2)}kg`);
+    }
+
+    const newDonorWeight = Math.max(0, Number((donorWeight - data.transferWeight).toFixed(2)));
+    const donorStatus = newDonorWeight === 0 ? "empty" : "active";
+
+    // Update donor bottle
+    const donorUpdate: any = {
+      current_weight: newDonorWeight,
+      status: donorStatus
+    };
+    if (newDonorWeight === 0) {
+      donorUpdate.producer_sites = [];
+    }
+    const { error: donorErr } = await supabase.from('bottles').update(donorUpdate).eq('serial', data.donorSerial);
+    if (donorErr) throw donorErr;
+
+    // Update recipient bottle
+    const { error: recipientErr } = await supabase.from('bottles').update({
+      current_weight: newRecipientWeight,
+      status: 'active'
+    }).eq('serial', data.recipientSerial);
+    if (recipientErr) throw recipientErr;
+
+    const baseNotes = data.notes ? ` Notes: ${data.notes}` : "";
+
+    // Insert movement logs on both bottles
+    await Promise.all([
+      supabase.from('movement_logs').insert({
+        serial: data.donorSerial,
+        action: 'workshop_decant_out',
+        from_location: 'HQ-Stores',
+        to_location: `Decanted to ${data.recipientSerial}`,
+        engineer: data.performedBy,
+        notes: `Transferred ${data.transferWeight}kg filtered ${recipient.gas_type || 'gas'} to Recycled cylinder ${data.recipientSerial}. Remaining: ${newDonorWeight}kg.${baseNotes}`
+      }),
+      supabase.from('movement_logs').insert({
+        serial: data.recipientSerial,
+        action: 'workshop_decant_in',
+        from_location: `Decanted from ${data.donorSerial}`,
+        to_location: 'HQ-Stores',
+        engineer: data.performedBy,
+        notes: `Received ${data.transferWeight}kg cleaned/filtered gas from Reclaim cylinder ${data.donorSerial}. New balance: ${newRecipientWeight}kg.${baseNotes}`
+      })
+    ]);
   }
 };
 

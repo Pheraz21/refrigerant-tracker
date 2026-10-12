@@ -16,9 +16,12 @@ export default function LogBottlePage() {
   const searchParams = useSearchParams();
   const serialParam = searchParams.get("serial") || "UNKNOWN";
   const modeParam = searchParams.get("mode");
-  const isRecycleMode = modeParam === "recycle";
+  const isRecycleMode = modeParam === "recycle" || modeParam === "recycled_charge";
+  const isDecantMode = modeParam === "decant_fill";
   
-  const [jobType, setJobType] = useState<JobType>(isRecycleMode ? "recycled_charge" : "service");
+  const [jobType, setJobType] = useState<JobType>(
+    isRecycleMode ? "recycled_charge" : isDecantMode ? "recovery" : "service"
+  );
   const [refrigerantType, setRefrigerantType] = useState("R410A");
   const [customRefrigerant, setCustomRefrigerant] = useState("");
   const [jobNumber, setJobNumber] = useState("");
@@ -82,6 +85,12 @@ export default function LogBottlePage() {
         setBottleCategory(b.category);
         setBottleData(b);
         if (isRecycleMode) {
+          setJobType("recycled_charge");
+          setRefrigerantType(b.gasType || "Recycled Gas");
+        } else if (isDecantMode) {
+          setJobType("recovery");
+          setRefrigerantType(b.gasType || "R410A");
+        } else if (b.category === "recycled") {
           setJobType("recycled_charge");
           setRefrigerantType(b.gasType || "Recycled Gas");
         } else if (b.category === "reclaim") {
@@ -174,14 +183,14 @@ export default function LogBottlePage() {
         setValidationError(`Cannot dispense ${totalWeight.toFixed(2)}kg. Only ${availableReclaim.toFixed(2)}kg of recycled gas is currently in this cylinder.`);
         return;
       }
-    } else if (bottleCategory === "reclaim") {
+    } else if (bottleCategory === "reclaim" || (bottleCategory === "recycled" && (isDecantMode || jobType === "recovery"))) {
       const currentFill = bottleData.currentWeight || 0;
-      const maxFill = bottleData.maxWeight || 20; // Default to 20 if not set
+      const maxFill = bottleData.maxWeight || bottleData.initialWeight || 20; // Default to 20 if not set
       if (currentFill + totalWeight > maxFill) {
         setValidationError(`Cannot add ${totalWeight.toFixed(2)}kg. Bottle only has ${(maxFill - currentFill).toFixed(2)}kg of space left.`);
         return;
       }
-    } else if (bottleCategory === "supply" || bottleCategory === "new") {
+    } else if (bottleCategory === "supply" || bottleCategory === "new" || (bottleCategory === "recycled" && !isDecantMode && jobType !== "recovery")) {
       const currentSupply = bottleData.currentWeight || 0;
       if (totalWeight > currentSupply) {
         setValidationError(`Cannot log ${totalWeight.toFixed(2)}kg usage. Only ${currentSupply.toFixed(2)}kg of gas remains in this bottle.`);
@@ -190,7 +199,7 @@ export default function LogBottlePage() {
     }
 
     // §4.2: Check if this is adding a 2nd producer site
-    const isRecovery = jobType === "recovery";
+    const isRecovery = jobType === "recovery" && bottleCategory !== "recycled";
     const hasExistingSites = existingProducerSites.length > 0;
     
     const currentLocation = bottleData?.locationId || jobNumber;
@@ -400,8 +409,10 @@ export default function LogBottlePage() {
           <ArrowLeft size={20} />
         </Link>
         <h1>
-          {isRecycleMode
-            ? "Re-charge Recycled Gas (On-Site)"
+          {isDecantMode
+            ? "Decant Clean Gas into Bottle"
+            : isRecycleMode || jobType === "recycled_charge"
+            ? "Charge Recycled Gas into Equipment"
             : bottleCategory === "reclaim"
               ? "Log Gas Recovery"
               : "Log Bottle Activity"}
@@ -527,8 +538,16 @@ export default function LogBottlePage() {
 
         <div className={styles.row}>
           <div className={styles.inputGroup} style={{flex: 1}}>
-            <label>{isRecycleMode ? "Recycled Refrigerant Type" : jobType === "recovery" ? "Gas Type Being Recovered" : "Refrigerant Type"}</label>
-            {isRecycleMode ? (
+            <label>
+              {isDecantMode
+                ? "Gas Type Being Decanted"
+                : isRecycleMode || jobType === "recycled_charge"
+                ? "Recycled Refrigerant Type"
+                : jobType === "recovery"
+                ? "Gas Type Being Recovered"
+                : "Refrigerant Type"}
+            </label>
+            {isRecycleMode || (bottleCategory === "recycled" && !isDecantMode) ? (
               <div style={{marginTop: '0.25rem'}}>
                 <div style={{
                   display: 'inline-block', padding: '0.4rem 1.1rem',
@@ -539,7 +558,21 @@ export default function LogBottlePage() {
                   {bottleData?.gasType || "Recycled Refrigerant"}
                 </div>
                 <p style={{fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.3rem'}}>
-                  Gas will be drawn directly from this reclaim cylinder ({bottleData?.currentWeight || 0} kg in cylinder).
+                  Gas will be drawn directly from this recycled cylinder ({bottleData?.currentWeight || 0} kg in cylinder).
+                </p>
+              </div>
+            ) : isDecantMode ? (
+              <div style={{marginTop: '0.25rem'}}>
+                <div style={{
+                  display: 'inline-block', padding: '0.4rem 1.1rem',
+                  background: 'rgba(0, 229, 255, 0.1)', border: '1px solid #00e5ff',
+                  borderRadius: '6px', color: '#00e5ff', fontWeight: 700,
+                  fontSize: '0.9rem', letterSpacing: '0.03em'
+                }}>
+                  {bottleData?.gasType || "Clean Gas"}
+                </div>
+                <p style={{fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.3rem'}}>
+                  Decanting clean {bottleData?.gasType} into this cylinder ({Math.max(0, (bottleData?.initialWeight || 20) - (bottleData?.currentWeight || 0)).toFixed(2)} kg space available).
                 </p>
               </div>
             ) : bottleCategory === "reclaim" ? (
