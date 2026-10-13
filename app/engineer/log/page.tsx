@@ -529,17 +529,17 @@ export default function LogBottlePage() {
         </div>
       )}
       <header className={styles.header}>
-        <Link
-          href={`/engineer/bottle/${serialParam}`}
-          className={styles.backBtn}
-          onClick={(e) => {
-            if (!requestNavigate(`/engineer/bottle/${serialParam}`)) {
-              e.preventDefault();
+        <button
+          type="button"
+          onClick={() => {
+            if (requestNavigate(`/engineer/bottle/${serialParam}`)) {
+              router.back();
             }
           }}
+          className={styles.backBtn}
         >
           <ArrowLeft size={20} />
-        </Link>
+        </button>
         <h1>
           {isRecycleMode || bottleCategory === "recycled" || jobType === "recycled_charge"
             ? "Charge Recycled Gas into Equipment"

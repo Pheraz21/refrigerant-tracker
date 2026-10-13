@@ -166,9 +166,9 @@ export default function BulkDeliveryPage() {
   return (
     <div className={styles.container}>
       <header className={styles.header}>
-        <Link href="/engineer" className={styles.backBtn}>
+        <button type="button" onClick={() => router.back()} className={styles.backBtn}>
           <ArrowLeft size={20} />
-        </Link>
+        </button>
         <div>
           <h1>Bulk Receive Delivery</h1>
           <p className={styles.subtitle}>Scan multiple bottles onto one PO</p>

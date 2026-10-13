@@ -95,11 +95,11 @@ export default function BottleActionHub() {
         if (profile?.vehicleReg) setVehicleReg(profile.vehicleReg);
       }
 
-      // Only load active HWCNs if this is a reclaim cylinder currently in transit
-      if (b.category === "reclaim" && b.activeHWCN) {
+      // Load associated HWCNs (both in-progress and completed) for reclaim cylinders so engineer can view prior and active notes
+      if (b.category === "reclaim") {
         const hwcns = await db.getHWCNsForBottle(serial);
-        const activeOnly = hwcns.filter((h: any) => h.id === b.activeHWCN && h.hwcnStatus !== "complete");
-        setAssociatedHWCNs(activeOnly);
+        const sorted = (hwcns || []).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setAssociatedHWCNs(sorted);
       } else {
         setAssociatedHWCNs([]);
       }
@@ -114,10 +114,10 @@ export default function BottleActionHub() {
     if (!bottle) return;
     setIsSubmittingTransfer(true);
     
-    // Check if HWCN is required
+    // Check if HWCN is required: only when transferring waste to Office/Stores or Other facility (NOT when taking bottle to a Job Site or van handover)
     const isReclaimWithGas = bottle.category === "reclaim" && (bottle.currentWeight || 0) > 0;
     const isMultiSite = (bottle.producerSites?.length || 0) > 1;
-    const requiresHWCN = isReclaimWithGas && destination !== "supplier";
+    const requiresHWCN = isReclaimWithGas && destination !== "supplier" && destination !== "site" && destination !== "engineer";
     
     if (requiresHWCN) {
       // Need to redirect to full move flow to handle HWCN generation
@@ -214,9 +214,9 @@ export default function BottleActionHub() {
   return (
     <div className={styles.container}>
       <header className={styles.header}>
-        <Link href="/engineer" className={styles.backBtn}>
+        <button type="button" onClick={() => router.back()} className={styles.backBtn}>
           <ArrowLeft size={20} />
-        </Link>
+        </button>
         <h1>Bottle Actions</h1>
       </header>
 
@@ -365,28 +365,38 @@ export default function BottleActionHub() {
             <h3 style={{color: 'var(--primary)', margin: 0}}>Associated HWCNs</h3>
           </div>
           <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem'}}>
-            {associatedHWCNs.map(hwcn => (
-              <div key={hwcn.id} style={{
-                padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid var(--border)',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-              }}>
-                <div>
-                  <div style={{fontWeight: 600, color: 'var(--text-main)'}}>{hwcn.id}</div>
-                  <div style={{fontSize: '0.75rem', color: 'var(--text-muted)'}}>
-                    {new Date(hwcn.date).toLocaleDateString()} · Dest: {hwcn.destination}
+              {associatedHWCNs.map(hwcn => (
+                <div key={hwcn.id} style={{
+                  padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid var(--border)',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap'
+                }}>
+                  <div>
+                    <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem'}}>
+                      <span style={{fontWeight: 600, color: 'var(--text-main)'}}>{hwcn.id}</span>
+                      <span style={{
+                        fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 600,
+                        background: hwcn.hwcnStatus === 'complete' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 187, 0, 0.15)',
+                        color: hwcn.hwcnStatus === 'complete' ? 'var(--success)' : 'var(--warning)',
+                        border: `1px solid ${hwcn.hwcnStatus === 'complete' ? 'rgba(34, 197, 94, 0.3)' : 'rgba(255, 187, 0, 0.3)'}`
+                      }}>
+                        {hwcn.hwcnStatus === 'complete' ? 'Completed' : hwcn.hwcnStatus === 'awaiting_consignee' ? 'Awaiting Consignee' : 'In Transit / Draft'}
+                      </span>
+                    </div>
+                    <div style={{fontSize: '0.75rem', color: 'var(--text-muted)'}}>
+                      {new Date(hwcn.date).toLocaleDateString()} · Dest: {hwcn.destination} {hwcn.fillWeight ? `· ${Number(hwcn.fillWeight).toFixed(2)} kg` : ''}
+                    </div>
                   </div>
+                  <Link 
+                    href={`/engineer/hwcn/${encodeURIComponent(hwcn.id)}`}
+                    style={{
+                      padding: '0.5rem 1rem', borderRadius: '4px', background: 'var(--primary)', color: '#000',
+                      fontSize: '0.8rem', fontWeight: 600, textDecoration: 'none'
+                    }}
+                  >
+                    View Note
+                  </Link>
                 </div>
-                <Link 
-                  href={`/engineer/hwcn/${encodeURIComponent(hwcn.id)}`}
-                  style={{
-                    padding: '0.5rem 1rem', borderRadius: '4px', background: 'var(--primary)', color: '#000',
-                    fontSize: '0.8rem', fontWeight: 600, textDecoration: 'none'
-                  }}
-                >
-                  View Note
-                </Link>
-              </div>
-            ))}
+              ))}
           </div>
         </div>
       )}

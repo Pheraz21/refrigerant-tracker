@@ -126,6 +126,20 @@ export default function AdminHWCNDetailPage() {
             <div><span style={{color: "var(--text-muted)", fontSize: "0.78rem"}}>Bottle Serial</span><div style={{fontFamily: "var(--font-geist-mono)", fontWeight: 700}}>{hwcn.serial}</div></div>
             <div><span style={{color: "var(--text-muted)", fontSize: "0.78rem"}}>Gas Type</span><div>{hwcn.gasType || "Mixed / Unknown"}</div></div>
             <div><span style={{color: "var(--text-muted)", fontSize: "0.78rem"}}>Fill Weight</span><div>{hwcn.fillWeight ? `${hwcn.fillWeight} kg` : "—"}</div></div>
+            {hwcn.priorHWCN && (
+              <div style={{background: "rgba(0, 229, 255, 0.08)", padding: "0.5rem", borderRadius: "6px", border: "1px dashed rgba(0, 229, 255, 0.4)"}}>
+                <span style={{color: "#00e5ff", fontSize: "0.78rem", fontWeight: 700}}>Cross-Referenced Prior Consignment:</span>
+                <div style={{fontSize: "0.85rem", marginTop: "0.2rem"}}>
+                  <Link href={`/admin/hwcn/${encodeURIComponent(hwcn.priorHWCN)}`} style={{color: "#00e5ff", textDecoration: "underline", fontWeight: 700}}>
+                    {hwcn.priorHWCN}
+                  </Link>
+                  {hwcn.priorWeight ? ` (${Number(hwcn.priorWeight).toFixed(2)} kg prior)` : ""}
+                </div>
+                <div style={{fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.2rem"}}>
+                  Previous transfer acknowledged; this note covers current increment ({Number(hwcn.fillWeight || 0).toFixed(2)} kg) to avoid double-counting.
+                </div>
+              </div>
+            )}
             <div><span style={{color: "var(--text-muted)", fontSize: "0.78rem"}}>Removal Site(s)</span>
               {hwcn.sites?.map((s: any, i: number) => (
                 <div key={i} style={{fontSize: "0.85rem"}}>{s.name}, {s.address} {s.postcode}</div>

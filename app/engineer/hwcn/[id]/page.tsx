@@ -39,6 +39,8 @@ export default function HWCNViewPage() {
   const [partEReceivedBy, setPartEReceivedBy] = useState("");
   const [partEVehicleReg, setPartEVehicleReg] = useState("");
 
+  const [bottleHwcns, setBottleHwcns] = useState<any[]>([]);
+
   const loadData = () => {
     db.getCompanySettings().then(setCompanySettings);
     db.getHWCN(hwcnId).then(data => {
@@ -47,6 +49,7 @@ export default function HWCNViewPage() {
       if (data?.serial) {
         db.getUsageLogs(data.serial).then(logs => setUsageLogs(logs));
         db.getBottle(data.serial).then(b => setBottle(b));
+        db.getHWCNsForBottle(data.serial).then(hwcns => setBottleHwcns(hwcns || []));
       }
     });
   };
@@ -382,6 +385,36 @@ export default function HWCNViewPage() {
           <div style={{ fontSize: "0.72rem", color: "#555", marginTop: "0.4rem" }}>
             Packing Group: None quoted on ADR 2017, UN 1078 (refrigerant gas N.O.S) UN 3161 (Liquefied Gas, Flammable, N.O.S)
           </div>
+
+          {(() => {
+            const priorList = bottleHwcns
+              .filter((h: any) => h.id !== hwcn.id && new Date(h.date).getTime() < new Date(hwcn.date).getTime() && h.hwcnStatus === "complete")
+              .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            
+            const referencedId = hwcn.priorHWCN || (priorList.length > 0 ? priorList[0].id : null);
+            const referencedWeight = hwcn.priorWeight || (priorList.length > 0 ? priorList.reduce((acc: number, x: any) => acc + Number(x.fillWeight || 0), 0) : null);
+            
+            if (!referencedId) return null;
+
+            return (
+              <div style={{
+                marginTop: "0.5rem",
+                padding: "0.35rem 0.5rem",
+                background: "#f8f9fa",
+                border: "1px dashed #666",
+                borderRadius: "4px",
+                fontSize: "0.72rem",
+                color: "#222"
+              }}>
+                <strong>Cross-Reference / Prior Consignment Note:</strong> This cylinder previously underwent waste transfer under{" "}
+                <Link href={`/engineer/hwcn/${encodeURIComponent(referencedId)}`} style={{ fontWeight: 700, color: "#0066cc", textDecoration: "underline" }}>
+                  {referencedId}
+                </Link>
+                {referencedWeight ? ` (${Number(referencedWeight).toFixed(2)} kg previously consigned)` : ""}.
+                {" "}This consignment covers the incremental recovery from the current producer site(s) without double-counting previous transfers.
+              </div>
+            );
+          })()}
         </div>
       </div>
 

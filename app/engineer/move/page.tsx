@@ -142,12 +142,18 @@ export default function MoveBottlePage() {
       }
       
       const action = searchParams.get("action");
+      const destParam = searchParams.get("dest");
       
       if (isDiscrepancy) {
         setReclaimFlowStep("standard");
         setReclaimFlowPath("normal");
       } else if (action === "divert") {
         setReclaimFlowStep("divert_destination");
+      } else if (destParam === "site" || destParam === "engineer") {
+        // Engineer is moving cylinder to a job site or handing over to a colleague; does not require HWCN
+        setDestination(destParam);
+        setReclaimFlowStep("standard");
+        setReclaimFlowPath("normal");
       } else {
         if (b?.activeHWCN && b?.intendedDestination) {
           setReclaimFlowStep("in_transit");
@@ -183,14 +189,14 @@ export default function MoveBottlePage() {
     }
   }, [serialParam, user, activeVehicleReg]);
 
-  const requiresHWCN = bottle?.category === "reclaim" && (bottle?.currentWeight > 0) && destination !== "supplier";
+  const requiresHWCN = bottle?.category === "reclaim" && (bottle?.currentWeight > 0) && destination !== "supplier" && destination !== "site" && destination !== "engineer";
 
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     
     const isReclaimWithGas = bottle?.category === "reclaim" && (bottle?.currentWeight > 0);
-    const requiresInternalHWCN = isReclaimWithGas && destination !== "supplier";
+    const requiresInternalHWCN = isReclaimWithGas && destination !== "supplier" && destination !== "site" && destination !== "engineer";
     const requiresSupplierHWCN = isReclaimWithGas && (destination === "supplier");
     const needsTransit = requiresInternalHWCN || requiresSupplierHWCN;
 
@@ -247,6 +253,15 @@ export default function MoveBottlePage() {
       const targetVanReg = activeVehicleReg || vehicleReg || user?.vehicleReg;
       let hwcnId = undefined;
       if (requiresInternalHWCN) {
+        // Query prior completed HWCNs to determine incremental weight and cross-reference
+        const priorHwcns = await db.getHWCNsForBottle(serialParam);
+        const priorCompleted = (priorHwcns || []).filter((h: any) => h.hwcnStatus === "complete");
+        const lastPrior = priorCompleted.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+        
+        const priorConsignedWeight = priorCompleted.reduce((sum: number, h: any) => sum + Number(h.incrementalWeight || h.fillWeight || 0), 0);
+        const currentTotal = bottle?.currentWeight || 0;
+        const incremental = priorCompleted.length > 0 ? Math.max(0, currentTotal - priorConsignedWeight) : currentTotal;
+
         hwcnId = await db.createHWCN({
           serial: serialParam,
           destination: intendedDest || fullDestinationString,
@@ -255,7 +270,11 @@ export default function MoveBottlePage() {
           engineer: carrierName || user?.name,
           date: new Date().toISOString(),
           gasType: bottle?.gasType || "Unknown",
-          fillWeight: bottle?.currentWeight
+          fillWeight: incremental > 0 ? incremental : currentTotal,
+          incrementalWeight: incremental > 0 ? incremental : currentTotal,
+          priorHWCN: lastPrior ? lastPrior.id : undefined,
+          priorWeight: priorConsignedWeight > 0 ? priorConsignedWeight : undefined,
+          totalCylinderWeight: currentTotal
         });
         setGeneratedHWCN(hwcnId);
       }
@@ -332,17 +351,13 @@ export default function MoveBottlePage() {
   return (
     <div className={styles.container}>
       <header className={styles.header}>
-        <Link
-          href={`/engineer/bottle/${serialParam}`}
-          onClick={(e) => {
-            if (!requestNavigate(`/engineer/bottle/${serialParam}`)) {
-              e.preventDefault();
-            }
-          }}
+        <button
+          type="button"
+          onClick={() => router.back()}
           className={styles.backBtn}
         >
           <ArrowLeft size={20} />
-        </Link>
+        </button>
         <div>
           <h1 style={{color: "var(--text-main)", fontSize: "1.5rem", margin: 0}}>
             {isDiscrepancy 
@@ -676,6 +691,14 @@ export default function MoveBottlePage() {
                   ? bottle.producerSites 
                   : [{name: "Unknown Site", address: "See recovery logs", postcode: ""}];
                 const targetVanReg = activeVehicleReg || vehicleReg || user?.vehicleReg;
+                
+                const priorHwcns = await db.getHWCNsForBottle(serialParam);
+                const priorCompleted = (priorHwcns || []).filter((h: any) => h.hwcnStatus === "complete");
+                const lastPrior = priorCompleted.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+                const priorConsignedWeight = priorCompleted.reduce((sum: number, h: any) => sum + Number(h.incrementalWeight || h.fillWeight || 0), 0);
+                const currentTotal = bottle?.currentWeight || 0;
+                const incremental = priorCompleted.length > 0 ? Math.max(0, currentTotal - priorConsignedWeight) : currentTotal;
+
                 const hwcnId = await db.createHWCN({
                   serial: serialParam,
                   destination: "HQ-Stores",
@@ -684,7 +707,11 @@ export default function MoveBottlePage() {
                   engineer: carrierName || user?.name,
                   date: new Date().toISOString(),
                   gasType: bottle?.gasType || "Unknown",
-                  fillWeight: bottle?.currentWeight
+                  fillWeight: incremental > 0 ? incremental : currentTotal,
+                  incrementalWeight: incremental > 0 ? incremental : currentTotal,
+                  priorHWCN: lastPrior ? lastPrior.id : undefined,
+                  priorWeight: priorConsignedWeight > 0 ? priorConsignedWeight : undefined,
+                  totalCylinderWeight: currentTotal
                 });
                 await db.updateBottleLocation(
                   serialParam,
