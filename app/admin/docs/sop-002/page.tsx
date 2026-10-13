@@ -83,8 +83,8 @@ export default function Sop002Page() {
           </div>
           <table className="control-table">
             <tbody>
-              <tr><td>Document Number</td><td>SOP-002</td><td>Version</td><td>3.0</td></tr>
-              <tr><td>Issue Date</td><td>25 April 2026</td><td>Next Review</td><td>25 April 2027</td></tr>
+              <tr><td>Document Number</td><td>SOP-002</td><td>Version</td><td>3.1</td></tr>
+              <tr><td>Issue Date</td><td>14 October 2026</td><td>Next Review</td><td>14 October 2027</td></tr>
               <tr><td>Author</td><td>_________________________</td><td>Approved By</td><td>_________________________</td></tr>
               <tr><td>F-Gas Certification No.</td><td>REF1010728</td><td>System</td><td>21 Degrees F-Gas Tracker Pro</td></tr>
               <tr><td>Carrier Registration (CBDU)</td><td>CBDU368286</td><td>EWC Waste Code</td><td>14 06 01</td></tr>
@@ -176,7 +176,14 @@ export default function Sop002Page() {
         <p>The quantity recovered is calculated automatically as Weight After minus Weight Before. A permanent usage log and movement log entry are created in the system.</p>
         <blockquote><strong>Control:</strong> Weight before and after are recorded independently to provide a verifiable audit trail. If the gas type recovered differs from what is already in the cylinder, a different clean cylinder must be used. Mixing refrigerant types is not permitted.</blockquote>
 
-        <h3>5.4 Equipment Decommissioning Record (Where Applicable)</h3>
+        <h3>5.4 On-Site Re-charge Restrictions (Waste vs. Clean Recycled Gas)</h3>
+        <p>Under UK F-Gas and Hazardous Waste Regulations, strict segregation applies between raw recovered waste and certified recycled stock:</p>
+        <ul>
+          <li><strong>Raw Recovery / Waste Cylinders (Category: Reclaim):</strong> Uncleaned refrigerant decanted into a reclaim cylinder is legally classified as hazardous waste. It may strictly <strong>ONLY be re-charged into equipment on the exact same job number</strong> from which it was recovered (the statutory on-site repair exemption). F-Gas Tracker Pro programmatically restricts the <em>&quot;Use / Re-charge Recycled Gas on Site&quot;</em> action card so that it will <strong>only appear</strong> when the cylinder is currently located on that exact matching job number. Re-charging raw waste from a reclaim cylinder across different sites or jobs is strictly blocked.</li>
+          <li><strong>Certified Recycled Cylinders (Category: Recycled):</strong> Where recovered refrigerant has been transferred to HQ-Stores/Workshop, passed through certified reclamation/filtration rigs, and formally reclassified under the Reclassification Procedure, the cylinder holds clean recycled gas. Certified recycled cylinders may be dispatched and charged into equipment on <strong>any site for any job</strong>.</li>
+        </ul>
+
+        <h3>5.5 Equipment Decommissioning Record (Where Applicable)</h3>
         <p>If the system being worked on is being <strong>permanently decommissioned</strong>, the engineer flags this when logging the recovery in F-Gas Tracker Pro. A separate decommissioning record is created capturing the job number, site details, engineer name, equipment manufacturer, model and serial number, weight of gas recovered per unit, and date and time.</p>
         <p>These records are available in the <strong>Decommissioned Equipment Register</strong> for regulatory submissions demonstrating refrigerant removal from circulation.</p>
 
@@ -271,6 +278,25 @@ export default function Sop002Page() {
         <p>When the supplier attends HQ-Stores to collect the waste cylinder, they bring their own HWCN paperwork. This is completed as part of the handover — covering the transfer of the waste from 21 Degrees Ltd to the supplier for reclamation or destruction.</p>
         <p>Office staff photograph the completed supplier paperwork and upload it against the cylinder record in F-Gas Tracker Pro. The system marks the cylinder as returned to the supplier and the photo is stored permanently against the bottle, completing the audit trail.</p>
 
+        <h3>6.7 Cross-Referencing Prior Consignment Notes and Incremental Weight Tracking</h3>
+        <p>Where a recovery cylinder undergoes a subsequent transfer (for example, where a cylinder already holding consigned waste receives additional recovery gas from another site, or where residual waste is returned to HQ-Stores/Supplier following site work):</p>
+        <ul>
+          <li><strong>Prior HWCN Cross-Reference:</strong> F-Gas Tracker Pro automatically checks for prior completed consignment notes for that cylinder. The new HWCN explicitly cross-references the previous note code (e.g. <em>21Degr-XXXXXX</em>) and records the prior consigned weight.</li>
+          <li><strong>Incremental Liability Tracking:</strong> To prevent double-counting the initial waste producer&apos;s liability, the system assigns only the incremental/net weight transferred on the new note.</li>
+          <li><strong>Field Engineer Transparency:</strong> All prior and active consignment notes linked to a cylinder are displayed directly in the mobile <em>Bottle Action Hub</em> under &quot;Associated Hazardous Waste Notes&quot;, allowing engineers to inspect the note history at any time.</li>
+        </ul>
+
+        <h3>6.8 Temporary Holding at HQ-Stores and On-Site Re-charge Reconciliation</h3>
+        <p>In standard HVAC service operations, refrigerant may be decanted from a malfunctioning system into a recovery cylinder and transported to HQ-Stores for safe overnight or short-term holding under an internal HWCN while waiting for replacement parts or workshop repairs. Once parts arrive, the cylinder is taken back to the same job site to re-charge the repaired or replaced equipment.</p>
+        <p>Under statutory waste rules, an executed HWCN represents a historical point-in-time transfer on the public highway and cannot be altered retroactively. F-Gas Tracker Pro reconciles this lifecycle as follows:</p>
+        <ul>
+          <li><strong>On-Site Re-charge Action:</strong> When the cylinder is returned to the original job site, the engineer logs the re-charge via <em>&quot;Use / Re-charge Recycled Gas on Site&quot;</em>. The bottle&apos;s physical weight is decremented in real time.</li>
+          <li><strong>Automatic Audit Reconciliation:</strong> F-Gas Tracker Pro links the re-charge usage log to the earlier HWCN and generates an <strong>On-Site Re-charge &amp; Waste Reconciliation Log</strong> displayed in both the admin portal and printed on Part B of the official HWCN manifest:
+            <blockquote>Original Consigned Weight &minus; Total Re-charged on Site = Net Residual Waste in Cylinder</blockquote>
+          </li>
+          <li><strong>Residual Waste Handling:</strong> If 100% of the gas is re-charged back into equipment (0.00 kg remaining), the cylinder transitions to an empty reclaim cylinder and is automatically removed from active hazardous waste holding metrics. If residual gas remains, any subsequent consignment note records only the net residual weight.</li>
+        </ul>
+
         {/* 7 */}
         <h2>7. Records Generated and Retention</h2>
         <table>
@@ -280,6 +306,8 @@ export default function Sop002Page() {
             <tr><td>Movement Log</td><td>Every location change — from/to location, engineer, vehicle registration, date and time. Permanent and cannot be edited.</td><td>Minimum 5 years</td></tr>
             <tr><td>Recovery / Usage Log (per job)</td><td>Job number, producer site name, address and postcode, engineer, weight before and after, quantity recovered, equipment details, date and time</td><td>Minimum 5 years</td></tr>
             <tr><td>Decommissioned Equipment Record</td><td>Job number, site details, engineer, equipment manufacturer/model/serial number, weight recovered per unit, date and time</td><td>Minimum 5 years</td></tr>
+            <tr><td>Internal Consignment Note (HWCN)</td><td>Unique code, parts A–E, carrier signature, vehicle reg, producer sites, incremental weight, and prior HWCN cross-reference</td><td>Minimum 5 years</td></tr>
+            <tr><td>On-Site Re-charge Reconciliation Log</td><td>Linked HWCN code, date, quantity re-charged into equipment, job number, engineer, and net residual waste calculation</td><td>Minimum 5 years</td></tr>
             <tr><td>Supplier Return Record</td><td>Return date and time, staff member who processed the return, supplier name and branch, supplier's HWCN reference number, photo of supplier's HWCN documentation</td><td>Minimum 5 years</td></tr>
           </tbody>
         </table>
@@ -288,9 +316,11 @@ export default function Sop002Page() {
         <ul>
           <li><strong>Full Job Report</strong> — all recovery events on a job, quantities, producer site and equipment details</li>
           <li><strong>Cylinder Usage / Audit Trail</strong> — complete lifecycle per cylinder from registration to return</li>
+          <li><strong>Hazardous Waste Consignment Notes (HWCNs)</strong> — full registry with digital Part E signatures, prior HWCN references, and on-site re-charge reconciliation</li>
           <li><strong>Decommissioned Equipment Register</strong> — all decommissioning events by date, site, engineer and equipment</li>
           <li><strong>On-Site Inventory Report</strong> — all cylinders currently at customer sites, with site details and last engineer</li>
           <li><strong>Van Inventory Report</strong> — cylinders on each engineer's van</li>
+          <li><strong>Haz Waste in Company Summary</strong> — live dynamic hazardous waste holdings across vans, sites and stores</li>
           <li><strong>Returned to Supplier Register</strong> — all returned cylinders with supplier HWCN references</li>
         </ul>
 
@@ -301,6 +331,9 @@ export default function Sop002Page() {
           <tbody>
             <tr><td>Mandatory weight recording</td><td>Weight before and after are both required fields; quantity recovered is calculated by the system, not manually entered</td></tr>
             <tr><td>Producer site capture</td><td>Site name, address and postcode are mandatory fields for all recovery log entries</td></tr>
+            <tr><td>Same-job re-charge restriction</td><td>Uncertified waste in reclaim cylinders is programmatically locked to the originating recovery job number; re-charging across different sites is blocked</td></tr>
+            <tr><td>Prior consignment cross-referencing</td><td>Subsequent waste transfers automatically cite prior completed HWCN numbers and deduct prior weight to prevent double-counting liabilities</td></tr>
+            <tr><td>Net residual waste reconciliation</td><td>HWCN manifests record on-site re-charge deductions to explain differences between initial stores receipts and residual returns</td></tr>
             <tr><td>Equipment traceability</td><td>Manufacturer, model and serial number recorded at every recovery event</td></tr>
             <tr><td>Supplier HWCN reference required</td><td>The supplier's HWCN reference number must be recorded when processing a return; the supplier's document is retained as a photo upload</td></tr>
             <tr><td>Immutable audit trail</td><td>All records are permanent — no editing or deletion of historical entries is permitted</td></tr>

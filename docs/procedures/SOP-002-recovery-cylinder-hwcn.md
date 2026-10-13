@@ -5,9 +5,9 @@
 | | |
 |---|---|
 | **Document Number** | SOP-002 |
-| **Version** | 3.0 |
-| **Issue Date** | 25 April 2026 |
-| **Next Review Date** | 25 April 2027 |
+| **Version** | 3.1 |
+| **Issue Date** | 14 October 2026 |
+| **Next Review Date** | 14 October 2027 |
 | **Author** | _________________________ |
 | **Approved By** | _________________________ |
 | **REFCOM Registration** | REF1010728 |
@@ -152,7 +152,16 @@ When recovering refrigerant from a customer's system on site:
 
 ---
 
-### 6.4 Equipment Decommissioning Record (Where Applicable)
+### 6.4 On-Site Re-charge Restrictions (Waste vs. Clean Recycled Gas)
+
+Under UK F-Gas and Hazardous Waste Regulations, strict legal segregation applies between raw recovered waste and certified recycled stock:
+
+- **Raw Recovery / Waste Cylinders (Category: Reclaim):** Uncleaned refrigerant decanted into a reclaim cylinder is legally classified as hazardous waste. It may strictly **ONLY be re-charged into equipment on the exact same job number** from which it was recovered (under the statutory on-site repair exemption). F-Gas Tracker Pro programmatically restricts the *"Use / Re-charge Recycled Gas on Site"* action card so that it will **only appear** when the cylinder is currently located on that exact matching job number. Re-charging raw waste across different customer sites or jobs is strictly blocked.
+- **Certified Recycled Cylinders (Category: Recycled):** Where recovered refrigerant has been transferred to HQ-Stores/Workshop, passed through certified reclamation/filtration rigs, and formally reclassified under the Reclassification Procedure, the cylinder holds clean recycled gas. Certified recycled cylinders may be dispatched and charged into equipment on **any site for any job**.
+
+---
+
+### 6.5 Equipment Decommissioning Record (Where Applicable)
 
 If the system being worked on is being **permanently decommissioned** (i.e. equipment is being removed from service):
 
@@ -268,6 +277,23 @@ When the supplier attends HQ-Stores to collect the waste cylinder, they bring th
 
 Office staff photograph the completed supplier paperwork and upload it against the cylinder record in F-Gas Tracker Pro. The system marks the cylinder as returned to the supplier and the photo is stored permanently against the bottle, completing the audit trail.
 
+### 7.7 Cross-Referencing Prior Consignment Notes and Incremental Weight Tracking
+
+Where a recovery cylinder undergoes a subsequent transfer (e.g. where a cylinder already holding consigned waste receives additional recovery gas from another site, or where residual waste is returned following on-site repair):
+
+1. **Prior HWCN Cross-Reference:** F-Gas Tracker Pro automatically checks for prior completed consignment notes for that cylinder. The new HWCN explicitly cites the previous note code (e.g. `21Degr-XXXXXX`) and records the prior consigned weight.
+2. **Incremental Liability Tracking:** To prevent double-counting the initial waste producer's liability, the system assigns only the incremental/net weight transferred on the new note.
+3. **Field Engineer Transparency:** All prior and active consignment notes linked to a cylinder are displayed directly in the mobile *Bottle Action Hub* under "Associated Hazardous Waste Notes", allowing engineers to inspect the note history at any time.
+
+### 7.8 Temporary Holding at HQ-Stores and On-Site Re-charge Reconciliation
+
+In standard HVAC service operations, refrigerant may be decanted from a malfunctioning system into a recovery cylinder and transported to HQ-Stores under an internal HWCN for safe short-term holding while waiting for replacement parts or repairs. Once parts arrive, the cylinder is taken back to the same job site to re-charge the repaired or replaced equipment:
+
+1. **On-Site Re-charge Action:** When the cylinder is returned to the original job site, the engineer logs the re-charge via *"Use / Re-charge Recycled Gas on Site"*. The bottle's physical weight is decremented in real time.
+2. **Automatic Audit Reconciliation:** F-Gas Tracker Pro links the re-charge usage log to the earlier HWCN and generates an **On-Site Re-charge & Waste Reconciliation Log** displayed in both the admin portal and printed on Part B of the official HWCN manifest:
+   > Original Consigned Weight − Total Re-charged on Site = Net Residual Waste in Cylinder
+3. **Residual Waste Handling:** If 100% of the gas is re-charged back into equipment (0.00 kg remaining), the cylinder transitions to an empty reclaim cylinder and is automatically removed from active hazardous waste holding metrics. If residual gas remains, any subsequent consignment note records only the net residual weight.
+
 ---
 
 ## 8. HWCN Reference Data
@@ -294,8 +320,9 @@ These values are pre-populated in the F-Gas Tracker Pro HWCN print template.
 | Movement Logs | `movement_logs` table — append-only | Minimum 5 years |
 | Recovery / Usage Logs (per job) | `usage_logs` table — append-only, with producer site and equipment details | Minimum 5 years |
 | Producer Sites Array | `producer_sites` JSONB field on bottle record | Retained for life of record |
-| Internal HWCN (digital) | `hwcns` table — includes all parts, timestamps, signatures | Minimum 3 years (Hazardous Waste Regs) — retain 5 years for F-Gas compliance |
+| Internal HWCN (digital) | `hwcns` table — includes all parts, timestamps, signatures, prior HWCN reference | Minimum 3 years (Hazardous Waste Regs) — retain 5 years for F-Gas compliance |
 | HWCN Part E Sign-Off | Recorded within HWCN record: `receivedBy`, `partECompletedAt`, `accepted` | As above |
+| On-Site Re-charge Reconciliation Log | `usage_logs` linked to HWCN record; printed on Part B | Minimum 5 years |
 | Supplier Return Record | `bottles` table — `returnedAt`, `returnHwcnNumber`, `supplierHwcnPhotoUrl` | Minimum 5 years |
 | Supplier HWCN Photo | Cloud storage (URL stored in `supplierHwcnPhotoUrl`) | Minimum 5 years |
 | Decommissioned Equipment Records | `decommissioned_equipment` table | Minimum 5 years |
@@ -303,8 +330,10 @@ These values are pre-populated in the F-Gas Tracker Pro HWCN print template.
 **Reports available for audit:**
 - **Full Job Report** (per job — all recovery events, quantities, producer sites, equipment details)
 - **Cylinder Usage / Audit Trail** (per cylinder — complete lifecycle from registration to return)
+- **Hazardous Waste Consignment Notes (HWCNs)** (registry with digital Part E signatures, prior HWCN references, and on-site re-charge reconciliation)
 - **Decommissioned Equipment Register** (all decommissioning events by date, site, engineer, equipment)
-- **HWCN Print** (printable consignment note per consignment, `/admin/hwcn/[id]`)
+- **HWCN Print** (statutory consignment note with Part B reconciliation, `/admin/hwcn/[id]/print`)
+- **Haz Waste in Company Summary** (live dynamic hazardous waste holdings across vans, sites and stores)
 - **Returned to Supplier Register** (all returned cylinders with supplier HWCN references)
 - **On-Site Inventory Report** (cylinders currently at customer sites)
 - **Van Inventory Report** (cylinders on each engineer's van)
@@ -317,6 +346,9 @@ These values are pre-populated in the F-Gas Tracker Pro HWCN print template.
 |---|---|
 | Mandatory weight recording | Engineer cannot submit a recovery log without entering weight before and weight after; quantity recovered is system-calculated |
 | Producer site capture | Site name, address and postcode are mandatory fields for all recovery log entries |
+| Same-job re-charge restriction | Uncertified waste in reclaim cylinders is programmatically locked to the originating recovery job number; re-charging across different sites is blocked |
+| Prior consignment cross-referencing | Subsequent waste transfers automatically cite prior completed HWCN numbers and deduct prior weight to prevent double-counting liabilities |
+| Net residual waste reconciliation | HWCN manifests record on-site re-charge deductions to explain differences between initial stores receipts and residual returns |
 | HWCN paperwork confirmation | App requires engineer to confirm supplier HWCN paperwork is completed before transfer proceeds |
 | HWCN generation | Internal HWCN is generated automatically by the system on Route B transfer; cannot be bypassed |
 | Part E sign-off required | HWCN remains in *awaiting consignee* status until office staff completes Part E; appears as open item in admin panel |
