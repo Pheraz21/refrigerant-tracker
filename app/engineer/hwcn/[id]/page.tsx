@@ -415,6 +415,41 @@ export default function HWCNViewPage() {
               </div>
             );
           })()}
+
+          {(() => {
+            const rechargeLogs = (usageLogs || []).filter(
+              (l: any) => (l.jobType === "recycled_charge" || l.jobType === "service") &&
+                   new Date(l.date).getTime() >= new Date(hwcn.date).getTime()
+            ).sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+            if (rechargeLogs.length === 0) return null;
+
+            const totalRecharged = rechargeLogs.reduce((sum: number, l: any) => sum + Number(l.weightUsed || 0), 0);
+            const initialConsigned = Number(hwcn.fillWeight || hwcn.incrementalWeight || hwcn.totalWeight || 0);
+            const netRemaining = Math.max(0, initialConsigned - totalRecharged);
+
+            return (
+              <div style={{
+                marginTop: "0.35rem",
+                padding: "0.3rem 0.5rem",
+                background: "#f0fdf4",
+                border: "1px dashed #16a34a",
+                borderRadius: "4px",
+                fontSize: "0.72rem",
+                color: "#166534"
+              }}>
+                <strong>On-Site Re-charge &amp; Waste Reconciliation:</strong> Gas from this consignment was subsequently returned to the original site to re-charge repaired equipment:{" "}
+                {rechargeLogs.map((log: any, idx: number) => (
+                  <span key={idx} style={{ display: "inline-block", marginRight: "0.5rem" }}>
+                    [{Number(log.weightUsed).toFixed(2)} kg on {new Date(log.date).toLocaleDateString("en-GB")} (Job: {log.siteRef || log.siteName || "Site"}) by {log.engineer}]
+                  </span>
+                ))}
+                <div style={{ marginTop: "0.15rem", fontWeight: "bold" }}>
+                  Total Re-charged on Site: -{totalRecharged.toFixed(2)} kg | Net Residual Waste: {netRemaining.toFixed(2)} kg
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 

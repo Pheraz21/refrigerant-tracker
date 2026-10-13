@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
-import { ArrowLeft, CheckCircle2, Loader2, PenTool } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, PenTool, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import SignaturePad from "@/components/SignaturePad";
 
@@ -13,6 +13,7 @@ export default function AdminHWCNDetailPage() {
   const router = useRouter();
   const { user } = useAuth();
   const [hwcn, setHwcn] = useState<any>(null);
+  const [usageLogs, setUsageLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [companySettings, setCompanySettings] = useState<any>(null);
 
@@ -33,6 +34,9 @@ export default function AdminHWCNDetailPage() {
       setHwcn(data);
       setLoading(false);
       if (data?.receivedBy) setReceivedBy(data.receivedBy);
+      if (data?.serial) {
+        db.getUsageLogs(data.serial).then(setUsageLogs).catch(() => setUsageLogs([]));
+      }
     });
   }, [id]);
 
@@ -66,6 +70,22 @@ export default function AdminHWCNDetailPage() {
 
   const carrierReg = companySettings?.carrierReg || "CBDU368286";
   const exemptionNo = companySettings?.exemptionNo || "31Z 3725 34";
+
+  const rechargeLogs = useMemo(() => {
+    if (!hwcn || !usageLogs) return [];
+    const hwcnTime = new Date(hwcn.date).getTime();
+    return usageLogs.filter(
+      l => (l.jobType === "recycled_charge" || l.jobType === "service") &&
+           new Date(l.date).getTime() >= hwcnTime
+    ).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [hwcn, usageLogs]);
+
+  const totalRecharged = useMemo(() => {
+    return rechargeLogs.reduce((sum, l) => sum + Number(l.weightUsed || 0), 0);
+  }, [rechargeLogs]);
+
+  const initialConsignedWeight = Number(hwcn.fillWeight || hwcn.incrementalWeight || hwcn.totalWeight || 0);
+  const netRemainingWeight = Math.max(0, initialConsignedWeight - totalRecharged);
 
   if (success) {
     return (
@@ -137,6 +157,27 @@ export default function AdminHWCNDetailPage() {
                 </div>
                 <div style={{fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.2rem"}}>
                   Previous transfer acknowledged; this note covers current increment ({Number(hwcn.fillWeight || 0).toFixed(2)} kg) to avoid double-counting.
+                </div>
+              </div>
+            )}
+            {rechargeLogs.length > 0 && (
+              <div style={{background: "rgba(34, 197, 94, 0.08)", padding: "0.6rem 0.75rem", borderRadius: "8px", border: "1px solid rgba(34, 197, 94, 0.3)"}}>
+                <div style={{display: "flex", alignItems: "center", gap: "0.4rem", color: "#22c55e", fontSize: "0.8rem", fontWeight: 700}}>
+                  <RotateCcw size={14} /> On-Site Re-charge &amp; Waste Reconciliation
+                </div>
+                <div style={{fontSize: "0.74rem", color: "var(--text-muted)", marginTop: "0.25rem"}}>
+                  Gas from this consignment was returned to the original site to re-charge repaired equipment:
+                </div>
+                <div style={{display: "flex", flexDirection: "column", gap: "0.25rem", marginTop: "0.4rem"}}>
+                  {rechargeLogs.map((log: any, idx: number) => (
+                    <div key={idx} style={{fontSize: "0.76rem", color: "#fff", background: "rgba(0,0,0,0.25)", padding: "0.25rem 0.45rem", borderRadius: "4px"}}>
+                      • <strong>{Number(log.weightUsed).toFixed(2)} kg</strong> re-charged on {new Date(log.date).toLocaleDateString("en-GB")} (Job: {log.siteRef || log.siteName || "Site"}) by {log.engineer}
+                    </div>
+                  ))}
+                </div>
+                <div style={{display: "flex", justifyContent: "space-between", fontSize: "0.78rem", fontWeight: 700, marginTop: "0.5rem", paddingTop: "0.35rem", borderTop: "1px dashed rgba(34, 197, 94, 0.25)"}}>
+                  <span style={{color: "var(--text-muted)"}}>Re-charged: <strong style={{color: "#22c55e"}}>-{totalRecharged.toFixed(2)} kg</strong></span>
+                  <span style={{color: "var(--text-muted)"}}>Net Remaining: <strong style={{color: "#00e5ff"}}>{netRemainingWeight.toFixed(2)} kg</strong></span>
                 </div>
               </div>
             )}

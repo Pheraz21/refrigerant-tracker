@@ -259,8 +259,18 @@ export default function MoveBottlePage() {
         const lastPrior = priorCompleted.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
         
         const priorConsignedWeight = priorCompleted.reduce((sum: number, h: any) => sum + Number(h.incrementalWeight || h.fillWeight || 0), 0);
+        
+        // Check if any gas from prior consignment was recharged on site
+        const usageLogs = await db.getUsageLogs(serialParam);
+        const rechargeLogs = (usageLogs || []).filter(
+          (l: any) => (l.jobType === "recycled_charge" || l.jobType === "service") &&
+          (!lastPrior || new Date(l.date).getTime() >= new Date(lastPrior.date).getTime())
+        );
+        const rechargedSincePrior = rechargeLogs.reduce((sum: number, l: any) => sum + Number(l.weightUsed || 0), 0);
+        const netPriorRemaining = Math.max(0, priorConsignedWeight - rechargedSincePrior);
+
         const currentTotal = bottle?.currentWeight || 0;
-        const incremental = priorCompleted.length > 0 ? Math.max(0, currentTotal - priorConsignedWeight) : currentTotal;
+        const incremental = priorCompleted.length > 0 ? Math.max(0, currentTotal - netPriorRemaining) : currentTotal;
 
         hwcnId = await db.createHWCN({
           serial: serialParam,

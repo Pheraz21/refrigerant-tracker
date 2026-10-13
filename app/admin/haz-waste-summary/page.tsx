@@ -11,8 +11,8 @@ export default function HazWasteSummaryPage() {
 
   useEffect(() => {
     db.getAllBottles().then(data => {
-      // Only include active reclaim bottles (waste)
-      const wasteBottles = data.filter(b => b.category === "reclaim" && b.status === "active");
+      // Only include active reclaim bottles that currently hold waste (currentWeight > 0)
+      const wasteBottles = data.filter(b => b.category === "reclaim" && b.status === "active" && (b.currentWeight || 0) > 0);
       setBottles(wasteBottles);
       setLoading(false);
     });
