@@ -46,6 +46,19 @@ export function OfflineBanner() {
               {pendingCount} pending
             </span>
           )}
+          <span
+            style={{
+              marginLeft: "0.5rem",
+              background: "rgba(0,0,0,0.15)",
+              color: "#000",
+              padding: "0.1rem 0.4rem",
+              borderRadius: "4px",
+              fontSize: "0.7rem",
+              fontWeight: 800,
+            }}
+          >
+            v3.2
+          </span>
         </div>
       </div>
     );

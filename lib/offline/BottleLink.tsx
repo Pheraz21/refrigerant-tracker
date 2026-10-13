@@ -61,13 +61,14 @@ export function BottleLink({
     }
 
     // 2. Active network probe to catch Airplane Mode when navigator.onLine is a false-positive on mobile OS
-    // In airplane mode, fetch to static asset fails in 0-1ms with TypeError: Failed to fetch
+    // In airplane mode, uncached ping fails in 0-1ms with TypeError: Failed to fetch
     try {
       const probe = await withTimeout(
-        fetch("/manifest.webmanifest", { method: "HEAD", cache: "no-store" }),
-        450
+        fetch(`/_ping?t=${Date.now()}`, { method: "HEAD", cache: "no-store" }),
+        350
       );
-      if (probe.ok || probe.status === 304) {
+      if (probe.ok || probe.status === 304 || probe.status === 404) {
+        // If we received any HTTP response from the server, the network is genuinely reachable
         router.push(`/engineer/bottle/${encodeURIComponent(serial)}`);
         return;
       }
