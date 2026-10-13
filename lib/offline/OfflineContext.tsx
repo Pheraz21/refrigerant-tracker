@@ -17,6 +17,9 @@ interface OfflineContextType {
   offlineBottle: Bottle | null;
   openOfflineBottleModal: (bottle: Bottle) => void;
   closeOfflineBottleModal: () => void;
+  gateModal: { isOpen: boolean; title: string; reason: string };
+  openOfflineGateModal: (reason: string, title?: string) => void;
+  closeOfflineGateModal: () => void;
 }
 
 const OfflineContext = createContext<OfflineContextType>({
@@ -29,6 +32,9 @@ const OfflineContext = createContext<OfflineContextType>({
   offlineBottle: null,
   openOfflineBottleModal: () => {},
   closeOfflineBottleModal: () => {},
+  gateModal: { isOpen: false, title: "Signal Required", reason: "" },
+  openOfflineGateModal: () => {},
+  closeOfflineGateModal: () => {},
 });
 
 export function OfflineProvider({ children }: { children: React.ReactNode }) {
@@ -39,9 +45,21 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [offlineBottle, setOfflineBottle] = useState<Bottle | null>(null);
+  const [gateModal, setGateModal] = useState<{ isOpen: boolean; title: string; reason: string }>({
+    isOpen: false,
+    title: "Signal Required",
+    reason: "",
+  });
 
   const openOfflineBottleModal = useCallback((b: Bottle) => setOfflineBottle(b), []);
   const closeOfflineBottleModal = useCallback(() => setOfflineBottle(null), []);
+
+  const openOfflineGateModal = useCallback((reason: string, title: string = "Signal Required") => {
+    setGateModal({ isOpen: true, title, reason });
+  }, []);
+  const closeOfflineGateModal = useCallback(() => {
+    setGateModal((prev) => ({ ...prev, isOpen: false }));
+  }, []);
 
   const refreshMeta = useCallback(() => {
     getCacheLastUpdated().then(setLastUpdated).catch(() => {});
@@ -116,6 +134,9 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
         offlineBottle,
         openOfflineBottleModal,
         closeOfflineBottleModal,
+        gateModal,
+        openOfflineGateModal,
+        closeOfflineGateModal,
       }}
     >
       {children}

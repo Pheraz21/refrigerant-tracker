@@ -4,9 +4,11 @@ import { useState, useEffect } from "react";
 import { Truck, ChevronDown, Check, X, User, Car } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
 import { db } from "@/lib/db";
+import { useOffline } from "@/lib/offline/OfflineContext";
 
 export function ActiveVehicleBanner() {
   const { user, activeVehicleReg, activeVehicleOwner, activePairingStatus, activePairing, setActiveVehicle, requestPairing, refreshPairing } = useAuth();
+  const { isOnline, openOfflineGateModal } = useOffline();
   const [modalOpen, setModalOpen] = useState(false);
   const [companyVans, setCompanyVans] = useState<Array<{ vehicleReg: string; ownerName: string; role: string; userId: string }>>([]);
   const [customReg, setCustomReg] = useState("");
@@ -71,7 +73,16 @@ export function ActiveVehicleBanner() {
   return (
     <>
       <div 
-        onClick={() => setModalOpen(true)}
+        onClick={() => {
+          if (!isOnline) {
+            openOfflineGateModal(
+              "Changing your active vehicle or requesting van pairing requires an active internet connection.",
+              "Vehicle Pairing Requires Signal"
+            );
+            return;
+          }
+          setModalOpen(true);
+        }}
         style={{
           background: isPending
             ? "linear-gradient(90deg, rgba(234, 179, 8, 0.15) 0%, rgba(234, 179, 8, 0.05) 100%)"
@@ -149,7 +160,7 @@ export function ActiveVehicleBanner() {
         <div style={{
           display: "flex",
           alignItems: "center",
-          gap: "0.3rem",
+          gap: "0.4rem",
           background: "rgba(255, 255, 255, 0.05)",
           padding: "0.3rem 0.6rem",
           borderRadius: "6px",
@@ -158,6 +169,21 @@ export function ActiveVehicleBanner() {
           color: isPending ? "#eab308" : "var(--primary)",
           flexShrink: 0
         }}>
+          {!isOnline && (
+            <span
+              style={{
+                fontSize: "0.62rem",
+                fontWeight: 700,
+                padding: "0.1rem 0.3rem",
+                borderRadius: "3px",
+                background: "rgba(245, 158, 11, 0.2)",
+                color: "var(--warning)",
+                border: "1px solid rgba(245, 158, 11, 0.4)",
+              }}
+            >
+              ☁️
+            </span>
+          )}
           <span>{isPending ? "Pending" : "Change"}</span>
           <ChevronDown size={14} />
         </div>

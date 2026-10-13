@@ -67,17 +67,21 @@ export default function BottleActionHub() {
     async function loadInitialData() {
       const offlineUrl = `/engineer/bottle-view?serial=${encodeURIComponent(serial)}`;
       if (typeof navigator !== "undefined" && !navigator.onLine) {
-        window.location.replace(offlineUrl);
+        router.replace(offlineUrl);
         return;
       }
       let b: Bottle | null = null;
       try {
         b = await db.getBottle(serial);
       } catch {
-        window.location.replace(offlineUrl);
+        router.replace(offlineUrl);
         return;
       }
       if (!b) {
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          router.replace(offlineUrl);
+          return;
+        }
         router.push(`/engineer/bottle/register?serial=${serial}`);
         return;
       }

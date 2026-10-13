@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { compressImage } from "@/lib/utils";
 import { supabase } from "@/lib/supabaseClient";
 import { ActiveVehicleBanner } from "@/components/ActiveVehicleBanner";
+import { useOffline } from "@/lib/offline/OfflineContext";
 
 async function uploadHwcnPhoto(base64: string, serial: string): Promise<string> {
   try {
@@ -61,6 +62,7 @@ export default function MoveBottlePage() {
   const [hwcnSites, setHwcnSites] = useState<any[]>([]);
 
   const { user, activeVehicleReg, activeVehicleOwner } = useAuth();
+  const { isOnline, openOfflineGateModal } = useOffline();
 
   useEffect(() => {
     db.getCompanySettings().then(s => { if (s?.carrierReg) setCarrierRegNo(s.carrierReg); });
@@ -119,6 +121,17 @@ export default function MoveBottlePage() {
 
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!isOnline && (destination === "engineer" || destination === "supplier")) {
+      openOfflineGateModal(
+        destination === "engineer"
+          ? "Bottle handover to another engineer requires an active internet connection so both engineers' accounts update simultaneously."
+          : "Supplier returns require an active internet connection to submit paperwork.",
+        destination === "engineer" ? "Handover Requires Signal" : "Supplier Return Requires Signal"
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     
     const isReclaimWithGas = bottle?.category === "reclaim" && (bottle?.currentWeight > 0);
@@ -938,14 +951,43 @@ export default function MoveBottlePage() {
                 {(reclaimFlowPath === "normal" || reclaimFlowPath === "supplier_direct") && (
                   <button 
                     type="button"
-                    onClick={() => setDestination("supplier")}
+                    onClick={() => {
+                      if (!isOnline) {
+                        openOfflineGateModal(
+                          "Returning cylinders to a supplier and uploading HWCN documentation requires an active internet connection.",
+                          "Supplier Return Requires Signal"
+                        );
+                        return;
+                      }
+                      setDestination("supplier");
+                    }}
                     style={{
                       display: "flex", flexDirection: "column", alignItems: "center", gap: "0.75rem",
                       padding: "1.5rem 1rem", borderRadius: "12px", border: destination === "supplier" ? "2px solid var(--primary)" : "1px solid rgba(255,255,255,0.1)",
                       background: destination === "supplier" ? "rgba(0, 229, 255, 0.1)" : "rgba(255,255,255,0.03)",
-                      color: destination === "supplier" ? "var(--primary)" : "var(--text-main)", cursor: "pointer", transition: "all 0.2s"
+                      color: destination === "supplier" ? "var(--primary)" : "var(--text-main)", cursor: "pointer", transition: "all 0.2s",
+                      position: "relative",
+                      opacity: isOnline ? 1 : 0.65,
                     }}
                   >
+                    {!isOnline && (
+                      <span
+                        style={{
+                          position: "absolute",
+                          top: "8px",
+                          right: "8px",
+                          fontSize: "0.65rem",
+                          fontWeight: 700,
+                          padding: "0.15rem 0.4rem",
+                          borderRadius: "4px",
+                          background: "rgba(245, 158, 11, 0.2)",
+                          color: "var(--warning)",
+                          border: "1px solid rgba(245, 158, 11, 0.4)",
+                        }}
+                      >
+                        ☁️ Online
+                      </span>
+                    )}
                     <Building size={32} />
                     <span style={{fontSize: "0.9rem", fontWeight: 600}}>Supplier</span>
                   </button>
@@ -972,15 +1014,44 @@ export default function MoveBottlePage() {
                 {(reclaimFlowPath === "normal" || reclaimFlowPath === "supplier_direct") && (
                   <button 
                     type="button"
-                    onClick={() => setDestination("engineer")}
+                    onClick={() => {
+                      if (!isOnline) {
+                        openOfflineGateModal(
+                          "Bottle handover to another engineer requires an active internet connection so both engineers' accounts update simultaneously.",
+                          "Handover Requires Signal"
+                        );
+                        return;
+                      }
+                      setDestination("engineer");
+                    }}
                     style={{
                       display: "flex", flexDirection: "column", alignItems: "center", gap: "0.75rem",
                       padding: "1.5rem 1rem", borderRadius: "12px", border: destination === "engineer" ? "2px solid var(--primary)" : "1px solid rgba(255,255,255,0.1)",
                       background: destination === "engineer" ? "rgba(0, 229, 255, 0.1)" : "rgba(255,255,255,0.03)",
                       color: destination === "engineer" ? "var(--primary)" : "var(--text-main)", cursor: "pointer", transition: "all 0.2s",
-                      gridColumn: "span 2"
+                      gridColumn: "span 2",
+                      position: "relative",
+                      opacity: isOnline ? 1 : 0.65,
                     }}
                   >
+                    {!isOnline && (
+                      <span
+                        style={{
+                          position: "absolute",
+                          top: "8px",
+                          right: "8px",
+                          fontSize: "0.65rem",
+                          fontWeight: 700,
+                          padding: "0.15rem 0.4rem",
+                          borderRadius: "4px",
+                          background: "rgba(245, 158, 11, 0.2)",
+                          color: "var(--warning)",
+                          border: "1px solid rgba(245, 158, 11, 0.4)",
+                        }}
+                      >
+                        ☁️ Online
+                      </span>
+                    )}
                     <Users size={32} />
                     <span style={{fontSize: "0.9rem", fontWeight: 600, textAlign: "center"}}>Handover to another Engineer</span>
                   </button>

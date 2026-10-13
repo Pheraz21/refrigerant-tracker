@@ -4,11 +4,15 @@ import { useEffect, useState } from "react";
 import { Truck, AlertTriangle, FileText, ArrowRight, Loader2, Bell } from "lucide-react";
 import styles from "./page.module.css";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { db, Bottle } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
+import { useOffline } from "@/lib/offline/OfflineContext";
 
 export default function NotificationsPage() {
+  const router = useRouter();
   const { user } = useAuth();
+  const { isOnline, openOfflineGateModal } = useOffline();
   const [loading, setLoading] = useState(true);
   const [missingPaperwork, setMissingPaperwork] = useState<Bottle[]>([]);
 
@@ -56,11 +60,44 @@ export default function NotificationsPage() {
         )}
 
         {missingPaperwork.map(bottle => (
-          <Link 
+          <div 
             key={bottle.serial} 
-            href={`/engineer/bottle/${bottle.serial}`}
+            onClick={() => {
+              if (!isOnline) {
+                openOfflineGateModal(
+                  "Uploading supplier HWCN paperwork photos requires an active internet connection to securely transfer the document to storage.",
+                  "Photo Upload Requires Signal"
+                );
+                return;
+              }
+              router.push(`/engineer/bottle/${bottle.serial}`);
+            }}
             className={`${styles.notificationCard} ${styles.urgent}`}
+            style={{
+              cursor: "pointer",
+              position: "relative",
+              opacity: isOnline ? 1 : 0.75,
+            }}
           >
+            {!isOnline && (
+              <span
+                style={{
+                  position: "absolute",
+                  top: "12px",
+                  right: "12px",
+                  fontSize: "0.65rem",
+                  fontWeight: 700,
+                  padding: "0.15rem 0.4rem",
+                  borderRadius: "4px",
+                  background: "rgba(245, 158, 11, 0.2)",
+                  color: "var(--warning)",
+                  border: "1px solid rgba(245, 158, 11, 0.4)",
+                  zIndex: 2,
+                }}
+              >
+                ☁️ Online
+              </span>
+            )}
             <div className={styles.cardIcon}>
               <AlertTriangle size={24} color="var(--error)" />
             </div>
@@ -74,11 +111,11 @@ export default function NotificationsPage() {
                 Bottle <strong>{bottle.serial}</strong> ({bottle.gasType}) was returned to supplier but is missing physical HWCN photo proof.
               </p>
               <div className={styles.cardFooter}>
-                <span>Click to upload now</span>
+                <span>{isOnline ? "Click to upload now" : "Requires signal to upload"}</span>
                 <ArrowRight size={16} />
               </div>
             </div>
-          </Link>
+          </div>
         ))}
 
         {/* Placeholder for future notification types */}

@@ -10,13 +10,14 @@ import { NavigationGuardProvider, useNavigationGuard } from "@/lib/NavigationGua
 import { OfflineProvider, useOffline } from "@/lib/offline/OfflineContext";
 import { OfflineBanner } from "@/lib/offline/OfflineBanner";
 import { OfflineBottleModal } from "@/lib/offline/OfflineBottleModal";
+import { OfflineGateModal } from "@/lib/offline/OfflineGateModal";
 import styles from "./layout.module.css";
 
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, refreshUser } = useAuth();
   const { requestNavigate } = useNavigationGuard();
-  const { offlineBottle, closeOfflineBottleModal } = useOffline();
+  const { offlineBottle, closeOfflineBottleModal, gateModal, closeOfflineGateModal } = useOffline();
 
   useEffect(() => {
     refreshUser();
@@ -47,6 +48,12 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
         bottle={offlineBottle}
         isOpen={!!offlineBottle}
         onClose={closeOfflineBottleModal}
+      />
+      <OfflineGateModal
+        isOpen={gateModal.isOpen}
+        title={gateModal.title}
+        reason={gateModal.reason}
+        onClose={closeOfflineGateModal}
       />
       {(user?.role === "admin" || user?.role === "office") && (
         <div

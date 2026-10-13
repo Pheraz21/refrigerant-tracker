@@ -7,8 +7,10 @@ import { ArrowLeft, PackageSearch, Wrench, Truck, AlertTriangle, Recycle } from 
 import { db, type Bottle } from "@/lib/db";
 import { getCachedBottle, cacheBottle } from "@/lib/offline/bottleCache";
 import { withTimeout } from "@/lib/offline/withTimeout";
+import { useOffline } from "@/lib/offline/OfflineContext";
 
 function BottleViewContent() {
+  const { openOfflineBottleModal } = useOffline();
   const searchParams = useSearchParams();
   const serial = searchParams.get("serial") || "";
   const [bottle, setBottle] = useState<Bottle | null>(null);
@@ -94,8 +96,12 @@ function BottleViewContent() {
       ) : !bottle ? (
         <div style={{ textAlign: "center", padding: "3rem 1rem", color: "var(--text-muted)" }}>
           <PackageSearch size={48} style={{ marginBottom: "1rem", opacity: 0.4 }} />
-          <p>Bottle {serial ? `“${serial}” ` : ""}isn&apos;t available offline.</p>
-          <p style={{ fontSize: "0.85rem" }}>Open it once while you have signal so it&apos;s cached to this device.</p>
+          <p style={{ color: "#fff", fontSize: "1.05rem", fontWeight: 700, margin: "0 0 0.5rem" }}>
+            Cylinder {serial ? `“${serial}” ` : ""}is not in your local cache. Connect to signal to view company history.
+          </p>
+          <p style={{ fontSize: "0.85rem" }}>
+            Cylinders assigned to your van or recently accessed are automatically stored locally.
+          </p>
         </div>
       ) : (
         <>
@@ -141,51 +147,48 @@ function BottleViewContent() {
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {/* Hard navigations (<a>) so these open reliably offline from cached documents */}
-            <a href={`/engineer/log?serial=${encodeURIComponent(bottle.serial)}`} style={{ textDecoration: "none" }}>
-              <button
-                className="glass-panel"
-                style={{
-                  width: "100%",
-                  padding: "1rem",
-                  borderRadius: "10px",
-                  border: "1px solid var(--primary)",
-                  background: "rgba(0,229,255,0.06)",
-                  color: "#fff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "0.5rem",
-                  fontSize: "1rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                <Wrench size={18} /> {isReclaim ? "Log Recovery" : "Log Gas Usage"}
-              </button>
-            </a>
-            <a href={`/engineer/move?serial=${encodeURIComponent(bottle.serial)}`} style={{ textDecoration: "none" }}>
-              <button
-                className="glass-panel"
-                style={{
-                  width: "100%",
-                  padding: "1rem",
-                  borderRadius: "10px",
-                  border: "1px solid var(--border)",
-                  background: "rgba(255,255,255,0.03)",
-                  color: "#fff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "0.5rem",
-                  fontSize: "1rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                <Truck size={18} /> Move Bottle
-              </button>
-            </a>
+            <button
+              onClick={() => openOfflineBottleModal(bottle)}
+              className="glass-panel"
+              style={{
+                width: "100%",
+                padding: "1rem",
+                borderRadius: "10px",
+                border: "1px solid var(--primary)",
+                background: "rgba(0,229,255,0.06)",
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "0.5rem",
+                fontSize: "1rem",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              <Wrench size={18} /> {isReclaim ? "Log Recovery" : "Log Gas Usage"}
+            </button>
+            <button
+              onClick={() => openOfflineBottleModal(bottle)}
+              className="glass-panel"
+              style={{
+                width: "100%",
+                padding: "1rem",
+                borderRadius: "10px",
+                border: "1px solid var(--border)",
+                background: "rgba(255,255,255,0.03)",
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "0.5rem",
+                fontSize: "1rem",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              <Truck size={18} /> Move Bottle
+            </button>
           </div>
 
           <p

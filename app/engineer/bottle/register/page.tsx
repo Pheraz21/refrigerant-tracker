@@ -7,12 +7,15 @@ import styles from "../../log/page.module.css"; // Reuse existing form styles
 import { db, BottleCategory } from "@/lib/db";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthContext";
+import { useOffline } from "@/lib/offline/OfflineContext";
+import { AlertTriangle } from "lucide-react";
 
 export default function RegisterBottlePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const serialParam = searchParams.get("serial") || "UNKNOWN";
   const { user } = useAuth();
+  const { isOnline, openOfflineGateModal } = useOffline();
 
   const [category, setCategory] = useState<BottleCategory>("new");
   const [gasType, setGasType] = useState("R410A");
@@ -87,6 +90,13 @@ export default function RegisterBottlePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isOnline) {
+      openOfflineGateModal(
+        "Cylinder registration requires an active internet connection to verify uniqueness in the company registry.",
+        "Registration Requires Signal"
+      );
+      return;
+    }
     setIsSubmitting(true);
 
     const finalGas = gasType === "Other" ? customGas : gasType;
@@ -172,6 +182,29 @@ export default function RegisterBottlePage() {
       </header>
 
       <form onSubmit={handleSubmit} className={styles.form}>
+        {!isOnline && (
+          <div
+            style={{
+              background: "rgba(245, 158, 11, 0.12)",
+              border: "1px solid rgba(245, 158, 11, 0.35)",
+              borderRadius: "10px",
+              padding: "0.85rem",
+              marginBottom: "1rem",
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "0.6rem",
+            }}
+          >
+            <AlertTriangle size={18} color="var(--warning)" style={{ flexShrink: 0, marginTop: "0.1rem" }} />
+            <div style={{ fontSize: "0.85rem", color: "#e2e8f0", lineHeight: 1.45 }}>
+              <strong style={{ color: "var(--warning)", display: "block", marginBottom: "0.15rem" }}>
+                Signal Required to Register
+              </strong>
+              Cylinder registration requires an active internet connection to verify uniqueness in the company registry. Please reconnect to submit.
+            </div>
+          </div>
+        )}
+
         <div className={styles.readonlyField}>
           <span className={styles.label}>Scanned Serial Number</span>
           <span className={styles.value}>{serialParam}</span>
@@ -394,6 +427,10 @@ export default function RegisterBottlePage() {
         <button
           type="submit"
           className={styles.submitBtn}
+          style={{
+            position: "relative",
+            opacity: isOnline ? 1 : 0.7,
+          }}
           disabled={
             isSubmitting ||
             !weight ||
@@ -404,6 +441,24 @@ export default function RegisterBottlePage() {
             (category === "new" && gasType === "Other" && !customGas)
           }
         >
+          {!isOnline && (
+            <span
+              style={{
+                position: "absolute",
+                top: "8px",
+                right: "12px",
+                fontSize: "0.65rem",
+                fontWeight: 700,
+                padding: "0.15rem 0.4rem",
+                borderRadius: "4px",
+                background: "rgba(245, 158, 11, 0.25)",
+                color: "var(--warning)",
+                border: "1px solid rgba(245, 158, 11, 0.4)",
+              }}
+            >
+              ☁️ Online Only
+            </span>
+          )}
           {isSubmitting ? <span className={styles.spinner}></span> : <><Database size={20} /> Register into System</>}
         </button>
       </form>

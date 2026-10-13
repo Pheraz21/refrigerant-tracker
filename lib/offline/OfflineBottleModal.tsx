@@ -13,6 +13,7 @@ import {
   MapPin,
   Building2,
   ShieldAlert,
+  Users,
 } from "lucide-react";
 import { db, Bottle, LocationType } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
@@ -34,7 +35,7 @@ export function OfflineBottleModal({
   onUpdated,
 }: OfflineBottleModalProps) {
   const { user, activeVehicleReg, activeVehicleOwner } = useAuth();
-  const { syncNow, refreshMeta } = useOffline();
+  const { syncNow, refreshMeta, openOfflineGateModal } = useOffline();
 
   const [bottle, setBottle] = useState<Bottle | null>(initialBottle);
   const [activeTab, setActiveTab] = useState<ModalTab>("overview");
@@ -634,28 +635,39 @@ export function OfflineBottleModal({
                   >
                     New Destination
                   </label>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
                     {[
-                      { id: "site", label: "Job Site", icon: <MapPin size={16} /> },
-                      { id: "van", label: "My Van", icon: <Truck size={16} /> },
-                      { id: "office", label: "Stores", icon: <Building2 size={16} /> },
+                      { id: "site", label: "Job Site", icon: <MapPin size={16} />, onlineOnly: false },
+                      { id: "van", label: "My Van", icon: <Truck size={16} />, onlineOnly: false },
+                      { id: "office", label: "Stores", icon: <Building2 size={16} />, onlineOnly: false },
+                      { id: "engineer", label: "Handover", icon: <Users size={16} />, onlineOnly: true },
                     ].map((d) => (
                       <button
                         key={d.id}
                         type="button"
-                        onClick={() => setMoveDest(d.id as LocationType)}
+                        onClick={() => {
+                          if (d.onlineOnly) {
+                            openOfflineGateModal(
+                              "Bottle handover to another engineer requires an active internet connection so both engineers' accounts update simultaneously.",
+                              "Handover Requires Signal"
+                            );
+                            return;
+                          }
+                          setMoveDest(d.id as LocationType);
+                        }}
                         style={{
                           padding: "0.75rem 0.5rem",
                           borderRadius: "8px",
+                          position: "relative",
                           border:
-                            moveDest === d.id
+                            !d.onlineOnly && moveDest === d.id
                               ? "2px solid var(--primary)"
                               : "1px solid rgba(255, 255, 255, 0.1)",
                           background:
-                            moveDest === d.id
+                            !d.onlineOnly && moveDest === d.id
                               ? "rgba(0, 229, 255, 0.12)"
                               : "rgba(255, 255, 255, 0.03)",
-                          color: moveDest === d.id ? "var(--primary)" : "#fff",
+                          color: !d.onlineOnly && moveDest === d.id ? "var(--primary)" : "#fff",
                           fontWeight: 700,
                           fontSize: "0.82rem",
                           cursor: "pointer",
@@ -663,8 +675,27 @@ export function OfflineBottleModal({
                           flexDirection: "column",
                           alignItems: "center",
                           gap: "0.35rem",
+                          opacity: d.onlineOnly ? 0.65 : 1,
                         }}
                       >
+                        {d.onlineOnly && (
+                          <span
+                            style={{
+                              position: "absolute",
+                              top: "4px",
+                              right: "4px",
+                              fontSize: "0.6rem",
+                              fontWeight: 700,
+                              padding: "0.1rem 0.35rem",
+                              borderRadius: "4px",
+                              background: "rgba(245, 158, 11, 0.2)",
+                              color: "var(--warning)",
+                              border: "1px solid rgba(245, 158, 11, 0.4)",
+                            }}
+                          >
+                            ☁️ Online
+                          </span>
+                        )}
                         {d.icon}
                         <span>{d.label}</span>
                       </button>

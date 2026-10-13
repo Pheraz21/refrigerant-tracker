@@ -2,12 +2,14 @@
 
 import { useEffect, useState, useRef } from "react";
 import { Html5QrcodeScanner, Html5QrcodeScanType } from "html5-qrcode";
-import { CheckCircle2, ScanLine, ArrowRight, PackageSearch, Camera, User } from "lucide-react";
+import { CheckCircle2, ScanLine, ArrowRight, PackageSearch, Camera, User, AlertTriangle } from "lucide-react";
 import styles from "./page.module.css";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { db } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
+import { useOffline } from "@/lib/offline/OfflineContext";
+import { getCachedBottle } from "@/lib/offline/bottleCache";
 import { ActiveVehicleBanner } from "@/components/ActiveVehicleBanner";
 import { LeadEngineerCrewBanner } from "@/components/LeadEngineerCrewBanner";
 
@@ -21,7 +23,9 @@ export default function DashboardScannerPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
+  const { isOnline, openOfflineBottleModal, openOfflineGateModal } = useOffline();
   const [scanResult, setScanResult] = useState<ScanData | null>(null);
+  const [uncachedOfflineSerial, setUncachedOfflineSerial] = useState<string | null>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
@@ -81,21 +85,39 @@ export default function DashboardScannerPage() {
     setIsScanning(true);
   };
 
-  const onScanSuccess = (decodedText: string) => {
+  const onScanSuccess = async (decodedText: string) => {
     // Stop scanning immediately to prevent multiple scans
     if (scannerRef.current) {
-      scannerRef.current.clear();
+      scannerRef.current.clear().catch(() => {});
     }
     setIsScanning(false);
     setIsCameraOpen(false);
-    setIsProcessingScan(true);
 
+    const serial = decodedText.trim().toUpperCase();
+    const isCurrentlyOnline = isOnline && (typeof navigator === "undefined" || navigator.onLine);
+
+    if (!isCurrentlyOnline) {
+      setIsProcessingScan(true);
+      const cached = await getCachedBottle(serial);
+      setIsProcessingScan(false);
+      if (cached && cached.status !== "returned") {
+        openOfflineBottleModal(cached);
+        setScanResult(null);
+        setUncachedOfflineSerial(null);
+      } else {
+        setUncachedOfflineSerial(serial);
+        setScanResult(null);
+      }
+      return;
+    }
+
+    setIsProcessingScan(true);
     const timestamp = new Date().toLocaleString("en-GB", {
       dateStyle: "medium",
       timeStyle: "short"
     });
 
-    setScanResult({ barcode: decodedText, timestamp, location: null });
+    setScanResult({ barcode: serial, timestamp, location: null });
     setIsProcessingScan(false);
   };
 
@@ -105,6 +127,7 @@ export default function DashboardScannerPage() {
 
   const resetScanner = () => {
     setScanResult(null);
+    setUncachedOfflineSerial(null);
     setIsCameraOpen(true);
     setIsScanning(true);
   };
@@ -112,11 +135,28 @@ export default function DashboardScannerPage() {
   const handleContinue = async () => {
     if (!scanResult) return;
     setIsLoadingRoute(true);
-    const bottle = await db.getBottle(scanResult.barcode);
+    const serial = scanResult.barcode.trim().toUpperCase();
+    const isCurrentlyOnline = isOnline && (typeof navigator === "undefined" || navigator.onLine);
+
+    if (!isCurrentlyOnline) {
+      const cached = await getCachedBottle(serial);
+      setIsLoadingRoute(false);
+      if (cached && cached.status !== "returned") {
+        openOfflineBottleModal(cached);
+        setScanResult(null);
+        setUncachedOfflineSerial(null);
+      } else {
+        setUncachedOfflineSerial(serial);
+        setScanResult(null);
+      }
+      return;
+    }
+
+    const bottle = await db.getBottle(serial);
     if (bottle && bottle.status !== 'returned') {
-      router.push(`/engineer/bottle/${encodeURIComponent(scanResult.barcode)}`);
+      router.push(`/engineer/bottle/${encodeURIComponent(serial)}`);
     } else {
-      router.push(`/engineer/bottle/register?serial=${encodeURIComponent(scanResult.barcode)}`);
+      router.push(`/engineer/bottle/register?serial=${encodeURIComponent(serial)}`);
     }
   };
 
@@ -158,7 +198,7 @@ export default function DashboardScannerPage() {
 
       <ActiveVehicleBanner />
 
-      {!scanResult && !isCameraOpen && !isProcessingScan && (
+      {!scanResult && !isCameraOpen && !isProcessingScan && !uncachedOfflineSerial && (
         <>
           <button
             onClick={startCamera}
@@ -201,17 +241,35 @@ export default function DashboardScannerPage() {
               <button 
                 className={styles.manualSubmitBtn}
                 onClick={async () => {
-                  if (!manualSerial) return;
-                  const serial = manualSerial.toUpperCase();
+                  if (!manualSerial.trim()) return;
+                  const serial = manualSerial.trim().toUpperCase();
+                  const isCurrentlyOnline = isOnline && (typeof navigator === "undefined" || navigator.onLine);
+
+                  if (!isCurrentlyOnline) {
+                    setIsProcessingScan(true);
+                    const cached = await getCachedBottle(serial);
+                    setIsProcessingScan(false);
+                    if (cached && cached.status !== "returned") {
+                      openOfflineBottleModal(cached);
+                      setManualSerial("");
+                      setUncachedOfflineSerial(null);
+                    } else {
+                      setUncachedOfflineSerial(serial);
+                      setManualSerial("");
+                    }
+                    return;
+                  }
+
+                  setIsProcessingScan(true);
                   const bottle = await db.getBottle(serial);
+                  setIsProcessingScan(false);
                   if (bottle && bottle.status !== 'returned') {
                     router.push(`/engineer/bottle/${encodeURIComponent(serial)}`);
                   } else {
-                    // Not found or returned — show the "New Scan" overlay so they can register it
                     onScanSuccess(serial);
                   }
                 }}
-                disabled={!manualSerial}
+                disabled={!manualSerial.trim()}
               >
                 Go
               </button>
@@ -221,8 +279,43 @@ export default function DashboardScannerPage() {
           <LeadEngineerCrewBanner />
 
           {user?.availableRoles?.includes("office") && (
-            <Link href="/engineer/bulk" style={{textDecoration: 'none', display: 'block', marginTop: '1.5rem'}}>
-              <div className={styles.bulkLinkCard}>
+            <div style={{ marginTop: '1.5rem' }}>
+              <div
+                className={styles.bulkLinkCard}
+                onClick={() => {
+                  if (!isOnline) {
+                    openOfflineGateModal(
+                      "Bulk pallet delivery receiving requires an active internet connection to import PO records from suppliers.",
+                      "Bulk Receive Requires Signal"
+                    );
+                    return;
+                  }
+                  router.push("/engineer/bulk");
+                }}
+                style={{
+                  cursor: "pointer",
+                  position: "relative",
+                  opacity: isOnline ? 1 : 0.65,
+                }}
+              >
+                {!isOnline && (
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: "8px",
+                      right: "8px",
+                      fontSize: "0.65rem",
+                      fontWeight: 700,
+                      padding: "0.15rem 0.4rem",
+                      borderRadius: "4px",
+                      background: "rgba(245, 158, 11, 0.2)",
+                      color: "var(--warning)",
+                      border: "1px solid rgba(245, 158, 11, 0.4)",
+                    }}
+                  >
+                    ☁️ Online
+                  </span>
+                )}
                 <div className={styles.bulkIcon}>
                   <PackageSearch size={24} color="var(--primary)" />
                 </div>
@@ -232,7 +325,7 @@ export default function DashboardScannerPage() {
                 </div>
                 <ArrowRight size={20} color="var(--primary)" />
               </div>
-            </Link>
+            </div>
           )}
 
         </>
@@ -274,6 +367,96 @@ export default function DashboardScannerPage() {
               {isLoadingRoute ? <span className={styles.spinner}></span> : "Continue"}
             </button>
             <button className={styles.secondaryBtn} onClick={resetScanner}>Scan Another</button>
+          </div>
+        </div>
+      )}
+
+      {uncachedOfflineSerial && (
+        <div className={`${styles.successCard} glass-panel`} style={{ borderLeft: "4px solid var(--warning, #f59e0b)" }}>
+          <div className={styles.successHeader}>
+            <div
+              style={{
+                width: "52px",
+                height: "52px",
+                borderRadius: "50%",
+                background: "rgba(245, 158, 11, 0.15)",
+                border: "1px solid rgba(245, 158, 11, 0.3)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 0.5rem",
+              }}
+            >
+              <AlertTriangle size={28} color="var(--warning, #f59e0b)" />
+            </div>
+            <h2 style={{ fontSize: "1.25rem", margin: "0.25rem 0" }}>Not in Local Cache</h2>
+          </div>
+
+          <div
+            style={{
+              background: "rgba(255, 255, 255, 0.03)",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
+              borderRadius: "10px",
+              padding: "1rem",
+              margin: "1rem 0",
+              textAlign: "left",
+            }}
+          >
+            <p style={{ fontSize: "0.95rem", color: "#fff", lineHeight: 1.5, margin: 0 }}>
+              Cylinder <strong style={{ color: "var(--primary, #00e5ff)", fontFamily: "var(--font-geist-mono, monospace)" }}>{uncachedOfflineSerial}</strong> is not in your local cache. Connect to signal to view company history.
+            </p>
+            <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", lineHeight: 1.4, margin: "0.6rem 0 0" }}>
+              Cylinders assigned to your van or used on recent sites are automatically available offline. New or unassigned cylinders require signal to verify against the central company database.
+            </p>
+          </div>
+
+          <div className={styles.actionButtons}>
+            <button
+              type="button"
+              className={styles.secondaryBtn}
+              onClick={() => {
+                setUncachedOfflineSerial(null);
+                setScanResult(null);
+                setManualSerial("");
+              }}
+            >
+              Scan Another
+            </button>
+            <button
+              type="button"
+              className={styles.primaryBtn}
+              style={{
+                opacity: 0.75,
+                background: "rgba(255, 255, 255, 0.05)",
+                border: "1px solid rgba(245, 158, 11, 0.4)",
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "0.4rem",
+              }}
+              onClick={() => {
+                openOfflineGateModal(
+                  "Cylinder registration requires an active internet connection to verify uniqueness in the company registry.",
+                  "Registration Requires Signal"
+                );
+              }}
+            >
+              <span>Register Cylinder</span>
+              <span
+                style={{
+                  fontSize: "0.65rem",
+                  fontWeight: 700,
+                  padding: "0.15rem 0.35rem",
+                  borderRadius: "4px",
+                  background: "rgba(245, 158, 11, 0.2)",
+                  color: "var(--warning)",
+                  border: "1px solid rgba(245, 158, 11, 0.4)",
+                }}
+              >
+                ☁️ Online Only
+              </span>
+            </button>
           </div>
         </div>
       )}
