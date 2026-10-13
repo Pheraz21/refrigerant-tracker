@@ -303,6 +303,30 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {!collapsed && <div style={{fontSize: "0.85rem", color: "#fff", fontWeight: 600, marginBottom: "0.25rem"}}>{user.name}</div>}
           {!collapsed && <div style={{fontSize: "0.75rem", color: "rgba(255,255,255,0.4)", marginBottom: "0.75rem"}}>{user.email}</div>}
           
+          <Link
+            href="/engineer"
+            title="Open Engineer App (Mobile View)"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: collapsed ? "center" : "center",
+              gap: "0.5rem",
+              background: "linear-gradient(135deg, rgba(0, 229, 255, 0.2) 0%, rgba(0, 136, 255, 0.2) 100%)",
+              border: "1px solid rgba(0, 229, 255, 0.4)",
+              color: "#00e5ff",
+              padding: "0.55rem 0.75rem",
+              borderRadius: "8px",
+              textDecoration: "none",
+              fontSize: "0.82rem",
+              fontWeight: 700,
+              width: "100%",
+              marginBottom: "0.65rem",
+              transition: "all 0.15s"
+            }}
+          >
+            <Wrench size={15} /> {!collapsed && "Open Engineer App"}
+          </Link>
+
           <button
             onClick={logout}
             title="Sign Out"
@@ -342,8 +366,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           onClose={() => setIsCommandPaletteOpen(false)}
         />
 
-        {/* Top Header Quick Search Trigger */}
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1.25rem" }}>
+        {/* Top Header Quick Search Trigger & Engineer Mode Switcher */}
+        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "0.75rem", marginBottom: "1.25rem" }}>
+          <Link
+            href="/engineer"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.4rem",
+              background: "rgba(0, 229, 255, 0.12)",
+              border: "1px solid rgba(0, 229, 255, 0.3)",
+              color: "#00e5ff",
+              padding: "0.45rem 0.8rem",
+              borderRadius: "8px",
+              fontSize: "0.8rem",
+              fontWeight: 700,
+              textDecoration: "none"
+            }}
+          >
+            <Wrench size={14} /> Open Engineer App
+          </Link>
           <button
             onClick={() => setIsCommandPaletteOpen(true)}
             style={{

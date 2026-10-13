@@ -41,6 +41,41 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   return (
     <div className={styles.layout}>
       <OfflineBanner />
+      {(user?.role === "admin" || user?.role === "office") && (
+        <div
+          className="no-print"
+          style={{
+            background: "rgba(15, 23, 42, 0.95)",
+            borderBottom: "1px solid rgba(0, 229, 255, 0.2)",
+            padding: "0.45rem 1rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            fontSize: "0.8rem",
+            zIndex: 90,
+            position: "relative",
+          }}
+        >
+          <span style={{ color: "#94a3b8" }}>
+            Admin Testing Mode • <strong style={{ color: "#fff" }}>{user?.name}</strong>
+          </span>
+          <Link
+            href="/admin"
+            style={{
+              color: "#00e5ff",
+              textDecoration: "none",
+              fontWeight: 700,
+              fontSize: "0.75rem",
+              background: "rgba(0, 229, 255, 0.12)",
+              border: "1px solid rgba(0, 229, 255, 0.3)",
+              padding: "0.25rem 0.65rem",
+              borderRadius: "6px",
+            }}
+          >
+            ← Back to Desktop
+          </Link>
+        </div>
+      )}
       {missingPhotos > 0 && (
         <Link
           href="/engineer/notifications"

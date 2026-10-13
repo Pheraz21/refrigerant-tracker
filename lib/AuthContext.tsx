@@ -230,8 +230,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           router.push("/engineer");
           return;
         } else if (isEngineerLogin) {
-          if (user.role === "office" || user.role === "admin") router.push("/admin");
-          else router.push("/engineer");
+          const isMobileViewport = typeof window !== "undefined" && window.innerWidth < 768;
+          if ((user.role === "office" || user.role === "admin") && !isMobileViewport) {
+            router.push("/admin");
+          } else {
+            router.push("/engineer");
+          }
           return;
         }
       }
