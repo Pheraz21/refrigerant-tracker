@@ -163,3 +163,125 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Floating Save Reminder Bar (Mobile & Field UX) */
+.floatingSaveBar {
+  position: fixed;
+  bottom: calc(64px + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 24px);
+  max-width: 560px;
+  background: rgba(15, 23, 42, 0.96);
+  backdrop-filter: blur(12px);
+  border: 1.5px solid rgba(245, 158, 11, 0.65);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7), 0 0 18px rgba(245, 158, 11, 0.25);
+  border-radius: 14px;
+  padding: 0.75rem 1rem;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  animation: slideUpFloating 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUpFloating {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 15px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.floatingSaveInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.floatingSavePulseDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #f59e0b;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+  animation: dotPulse 1.5s infinite;
+}
+
+@keyframes dotPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(245, 158, 11, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+  }
+}
+
+.floatingSaveTitle {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.floatingSaveSub {
+  font-size: 0.75rem;
+  color: #f59e0b;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.floatingSaveAction {
+  background: linear-gradient(135deg, #00e5ff 0%, #0088ff 100%);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  padding: 0.55rem 0.95rem;
+  font-size: 0.85rem;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  box-shadow: 0 2px 10px rgba(0, 229, 255, 0.3);
+  transition: transform 0.15s ease;
+}
+
+.floatingSaveAction:active {
+  transform: scale(0.96);
+}
+
+/* Save Button Attention Pulse */
+@keyframes pulseGlow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 229, 255, 0.8);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 25px 6px rgba(0, 229, 255, 0.95);
+    transform: scale(1.02);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 229, 255, 0);
+    transform: scale(1);
+  }
+}
+
+.saveButtonPulse {
+  animation: pulseGlow 1.2s ease-in-out 3;
+  outline: 2px solid #00e5ff !important;
+}

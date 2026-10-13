@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { CheckCircle2, Save, ArrowLeft } from "lucide-react";
+import { CheckCircle2, Save, ArrowLeft, AlertTriangle } from "lucide-react";
 import styles from "./page.module.css";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
-import { AlertTriangle } from "lucide-react";
+import { useNavigationGuard } from "@/lib/NavigationGuardContext";
 
 type JobType = "service" | "install" | "retrofit" | "recovery" | "waste" | "recycled_charge" | "leak_test";
 
@@ -26,6 +26,9 @@ export default function LogBottlePage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+
+  // Navigation Guard & Dirty Form State Tracking
+  const { isDirty, setIsDirty, requestNavigate, setCustomMessage } = useNavigationGuard();
   const [bottleCategory, setBottleCategory] = useState<string | null>(null);
   const [existingProducerSites, setExistingProducerSites] = useState<any[]>([]);
   const [showMultiSiteWarning, setShowMultiSiteWarning] = useState(false);
@@ -70,6 +73,82 @@ export default function LogBottlePage() {
   const removeEquipment = (id: number) => {
     setEquipmentList(equipmentList.filter(eq => eq.id !== id));
   };
+
+  const isFormDirty = useMemo(() => {
+    if (isSuccess || isSubmitting) return false;
+
+    // 1. Any equipment details entered
+    const hasEquipmentData = equipmentList.some(eq => {
+      const weightNum = parseFloat(eq.weight);
+      return (
+        (!isNaN(weightNum) && weightNum > 0) ||
+        (eq.serial && eq.serial.trim().length > 0) ||
+        (eq.model && eq.model.trim().length > 0) ||
+        (eq.manufacturer && eq.manufacturer.trim().length > 0) ||
+        (eq.nominalChargeKg && eq.nominalChargeKg.trim().length > 0) ||
+        (eq.leakCheckResult && eq.leakCheckResult !== "pass")
+      );
+    });
+
+    if (hasEquipmentData) return true;
+    if (equipmentList.length > 1) return true;
+
+    // 2. Custom refrigerant entered
+    if (customRefrigerant && customRefrigerant.trim().length > 0) return true;
+
+    // 3. Job number entered by user (and not just initial pre-filled bottle location)
+    const initialLocation = (bottleData?.locationType === "site" && bottleData?.locationId) ? bottleData.locationId : "";
+    if (jobNumber && jobNumber.trim().length > 0 && jobNumber.trim() !== initialLocation.trim()) {
+      return true;
+    }
+
+    // 4. Producer site entered by user
+    if (producerSite.name && producerSite.name.trim().length > 0) {
+      const initialSiteName = bottleData?.producerSites?.[0]?.name || "";
+      if (producerSite.name.trim() !== initialSiteName.trim() && producerSite.name.trim() !== initialLocation.trim()) {
+        return true;
+      }
+    }
+
+    return false;
+  }, [equipmentList, customRefrigerant, jobNumber, producerSite, bottleData, isSuccess, isSubmitting]);
+
+  // Synchronize dirty state and custom warning prompt
+  useEffect(() => {
+    setIsDirty(isFormDirty);
+    if (isFormDirty) {
+      const weightDesc = totalWeight > 0 ? ` (${totalWeight.toFixed(2)} kg entered)` : "";
+      setCustomMessage(
+        `You have unsaved gas usage / recovery details${weightDesc}. If you navigate away now, this compliance entry will be discarded and the cylinder balance will NOT be updated.`
+      );
+    } else {
+      setCustomMessage(undefined);
+    }
+  }, [isFormDirty, totalWeight, setIsDirty, setCustomMessage]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      setIsDirty(false);
+    };
+  }, [setIsDirty]);
+
+  // Smooth-scroll and highlight save button when user chooses to stay from gate modal
+  useEffect(() => {
+    const handleFocusSave = () => {
+      const saveBtn = document.getElementById("save-compliance-log-btn");
+      if (saveBtn) {
+        saveBtn.scrollIntoView({ behavior: "smooth", block: "center" });
+        saveBtn.focus();
+        saveBtn.classList.add(styles.saveButtonPulse);
+        setTimeout(() => {
+          saveBtn.classList.remove(styles.saveButtonPulse);
+        }, 3600);
+      }
+    };
+    window.addEventListener("focus-save-log-button", handleFocusSave);
+    return () => window.removeEventListener("focus-save-log-button", handleFocusSave);
+  }, []);
 
   useEffect(() => {
     if (user?.role === "apprentice" || user?.role === "mate") {
@@ -313,6 +392,7 @@ export default function LogBottlePage() {
       }
     }
 
+    setIsDirty(false);
     setIsSubmitting(false);
     setIsSuccess(true);
   };
@@ -349,7 +429,7 @@ export default function LogBottlePage() {
         <CheckCircle2 size={64} color="var(--success)" />
         <h2>{isRecycleMode ? "Recycled Gas Charged!" : "Log Saved Successfully!"}</h2>
         <p>{isRecycleMode ? "Re-charge into on-site equipment recorded." : "REFCOM compliance data recorded."}</p>
-        <button onClick={() => router.push("/engineer")} className={styles.primaryBtn}>
+        <button onClick={() => { setIsDirty(false); router.push("/engineer"); }} className={styles.primaryBtn}>
           Return to Dashboard
         </button>
       </div>
@@ -421,7 +501,15 @@ export default function LogBottlePage() {
         </div>
       )}
       <header className={styles.header}>
-        <Link href={`/engineer/bottle/${serialParam}`} className={styles.backBtn}>
+        <Link
+          href={`/engineer/bottle/${serialParam}`}
+          className={styles.backBtn}
+          onClick={(e) => {
+            if (!requestNavigate(`/engineer/bottle/${serialParam}`)) {
+              e.preventDefault();
+            }
+          }}
+        >
           <ArrowLeft size={20} />
         </Link>
         <h1>
@@ -937,10 +1025,51 @@ export default function LogBottlePage() {
           </div>
         )}
 
-        <button type="submit" className={styles.submitBtn} disabled={isSubmitting}>
+        <button
+          id="save-compliance-log-btn"
+          type="submit"
+          className={styles.submitBtn}
+          disabled={isSubmitting}
+        >
           {isSubmitting ? <span className={styles.spinner}></span> : <><Save size={20} /> Save Compliance Log</>}
         </button>
       </form>
+
+      {/* Floating Save Reminder Bar (Prompts engineer before bottom nav) */}
+      {isFormDirty && !isSuccess && (
+        <aside
+          className={`no-print ${styles.floatingSaveBar}`}
+          aria-label="Unsaved compliance log alert"
+        >
+          <div className={styles.floatingSaveInfo}>
+            <span className={styles.floatingSavePulseDot} />
+            <div>
+              <div className={styles.floatingSaveTitle}>Unsaved Compliance Entry</div>
+              <div className={styles.floatingSaveSub}>
+                {totalWeight > 0 ? `${totalWeight.toFixed(2)} kg entered • ` : ""}
+                Tap to Save Log
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const saveBtn = document.getElementById("save-compliance-log-btn");
+              if (saveBtn) {
+                saveBtn.scrollIntoView({ behavior: "smooth", block: "center" });
+                saveBtn.focus();
+                saveBtn.classList.add(styles.saveButtonPulse);
+                setTimeout(() => {
+                  saveBtn.classList.remove(styles.saveButtonPulse);
+                }, 3000);
+              }
+            }}
+            className={styles.floatingSaveAction}
+          >
+            <Save size={16} /> Save Now
+          </button>
+        </aside>
+      )}
     </div>
   );
 }
