@@ -1,14 +1,11 @@
 "use client";
 
-// Links a bottle card to its detail view.
-// Online  → dynamic detail page via router (/engineer/bottle/[serial]).
-// Offline → native inline action drawer (0ms delay, zero browser navigation, no offline error screen).
+// Links a bottle card to its detail action drawer.
+// Native inline action drawer (0ms delay, zero browser navigation, no offline error screen).
 import React from "react";
-import { useRouter } from "next/navigation";
 import { Bottle } from "@/lib/db";
 import { useOffline } from "./OfflineContext";
 import { getCachedBottle } from "./bottleCache";
-import { withTimeout } from "./withTimeout";
 
 export function BottleLink({
   bottle,
@@ -23,10 +20,12 @@ export function BottleLink({
   style?: React.CSSProperties;
   children: React.ReactNode;
 }) {
-  const router = useRouter();
-  const { isOnline, openOfflineBottleModal, markOffline } = useOffline();
+  const { openOfflineBottleModal } = useOffline();
 
-  const openModal = async () => {
+  const handleClick = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
     if (bottle) {
       openOfflineBottleModal(bottle);
       return;
@@ -48,38 +47,6 @@ export function BottleLink({
         status: "active",
       } as Bottle);
     }
-  };
-
-  const handleClick = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    // 1. Direct offline check from React state or navigator
-    if (!isOnline || (typeof navigator !== "undefined" && !navigator.onLine)) {
-      await openModal();
-      return;
-    }
-
-    // 2. Active network probe to catch Airplane Mode when navigator.onLine is a false-positive on mobile OS
-    // In airplane mode, uncached ping fails in 0-1ms with TypeError: Failed to fetch
-    try {
-      const probe = await withTimeout(
-        fetch(`/_ping?t=${Date.now()}`, { method: "HEAD", cache: "no-store" }),
-        350
-      );
-      if (probe.ok || probe.status === 304 || probe.status === 404) {
-        // If we received any HTTP response from the server, the network is genuinely reachable
-        router.push(`/engineer/bottle/${encodeURIComponent(serial)}`);
-        return;
-      }
-    } catch {
-      // Network unreachable! We are actually in airplane mode / offline
-      markOffline();
-      await openModal();
-      return;
-    }
-
-    router.push(`/engineer/bottle/${encodeURIComponent(serial)}`);
   };
 
   return (

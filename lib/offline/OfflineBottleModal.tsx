@@ -586,6 +586,38 @@ export function OfflineBottleModal({
                 <Truck size={18} />
                 Move Bottle Location
               </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof navigator !== "undefined" && !navigator.onLine) {
+                    openOfflineGateModal(
+                      "Viewing full supplier paperwork, digital HWCN certificates, and photos requires an active internet connection.",
+                      "History Requires Signal"
+                    );
+                    return;
+                  }
+                  window.location.href = `/engineer/bottle/${encodeURIComponent(bottle.serial)}`;
+                }}
+                style={{
+                  width: "100%",
+                  padding: "0.85rem",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  background: "rgba(255, 255, 255, 0.02)",
+                  color: "#94a3b8",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.5rem",
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                <span>View Full History & Paperwork</span>
+                <span style={{ fontSize: "0.7rem", color: "var(--warning)" }}>☁️ Online</span>
+              </button>
             </div>
 
             <p
