@@ -45,24 +45,75 @@ export default function DailyActionsPage() {
     return log.to;
   };
 
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+
+  const getCategoryBadge = (category?: string, action?: string, notes?: string) => {
+    const cat = (category || "").toLowerCase();
+    const isRecycledAction = action === "reclassified_recycled" || action === "workshop_decant_in";
+    const isRecycledNotes = (notes || "").toLowerCase().includes("reclassified") || (notes || "").toLowerCase().includes("recycled");
+
+    if (cat === "recycled" || cat === "recycle" || isRecycledAction || isRecycledNotes) {
+      return {
+        key: "recycled",
+        label: "Recycled",
+        color: "#10b981",
+        bg: "rgba(16, 185, 129, 0.15)",
+        border: "rgba(16, 185, 129, 0.35)",
+        icon: "♻️"
+      };
+    }
+    if (cat === "reclaim") {
+      return {
+        key: "reclaim",
+        label: "Reclaim",
+        color: "#ffaa00",
+        bg: "rgba(255, 170, 0, 0.15)",
+        border: "rgba(255, 170, 0, 0.3)",
+        icon: null
+      };
+    }
+    if (cat === "nitrogen") {
+      return {
+        key: "nitrogen",
+        label: "Nitrogen",
+        color: "#22c55e",
+        bg: "rgba(34, 197, 94, 0.15)",
+        border: "rgba(34, 197, 94, 0.3)",
+        icon: null
+      };
+    }
+    return {
+      key: "new",
+      label: "New",
+      color: "#00e5ff",
+      bg: "rgba(0, 229, 255, 0.15)",
+      border: "rgba(0, 229, 255, 0.3)",
+      icon: null
+    };
+  };
+
   const filteredLogs = logs.filter(log => {
     const bInfo = bottleMap[log.serial];
     const displayFrom = getDisplayFrom(log);
     const displayTo = getDisplayTo(log);
+    const catBadge = getCategoryBadge(bInfo?.category, log.action, log.notes);
+
+    const matchesCategory = categoryFilter === "all" || catBadge.key === categoryFilter;
 
     const matchesSearch = !search || 
       log.serial.toLowerCase().includes(search.toLowerCase()) || 
       log.engineer.toLowerCase().includes(search.toLowerCase()) ||
       displayTo.toLowerCase().includes(search.toLowerCase()) ||
       displayFrom.toLowerCase().includes(search.toLowerCase()) ||
+      catBadge.label.toLowerCase().includes(search.toLowerCase()) ||
       (bInfo && bInfo.gasType.toLowerCase().includes(search.toLowerCase())) ||
-      (bInfo && bInfo.category.toLowerCase().includes(search.toLowerCase())) ||
-      (bInfo && bInfo.supplier && bInfo.supplier.toLowerCase().includes(search.toLowerCase()));
+      (bInfo && bInfo.supplier && bInfo.supplier.toLowerCase().includes(search.toLowerCase())) ||
+      (log.notes && log.notes.toLowerCase().includes(search.toLowerCase()));
     
     const logDate = log.date.slice(0, 10);
     const matchesDate = (!dateFrom || logDate >= dateFrom) && (!dateTo || logDate <= dateTo);
     
-    return matchesSearch && matchesDate;
+    return matchesCategory && matchesSearch && matchesDate;
   });
 
   // Group logs by day
@@ -75,13 +126,25 @@ export default function DailyActionsPage() {
 
   const getActionColor = (action: string) => {
     switch (action) {
-      case "registered": return "#00e5ff";
+      case "registered":
+      case "re_registered": return "#00e5ff";
+      case "moved": return "#38bdf8";
       case "moved_to_site": return "#ff8800";
       case "moved_to_van": return "#22c55e";
       case "handover": return "#a855f7";
       case "signed_out": return "#0088ff";
+      case "reclassified_recycled":
+      case "workshop_decant_in": return "#10b981";
+      case "returned_to_supplier": return "#f43f5e";
+      case "received": return "#22c55e";
       default: return "rgba(255,255,255,0.5)";
     }
+  };
+
+  const formatAction = (action: string) => {
+    if (action === "reclassified_recycled") return "Reclassified to Recycled";
+    if (action === "workshop_decant_in") return "Decanted to Recycled";
+    return action.replace(/_/g, " ");
   };
 
   const exportCSV = () => {
@@ -91,7 +154,8 @@ export default function DailyActionsPage() {
       const b = bottleMap[l.serial];
       const fromLoc = getDisplayFrom(l);
       const toLoc = getDisplayTo(l);
-      return `${d.toLocaleDateString()},${d.toLocaleTimeString()},${l.serial},${b?.gasType || ""},${b?.category || ""},${b?.supplier || ""},${l.action},${fromLoc},${toLoc},${l.engineer},${l.notes || ""}`;
+      const catBadge = getCategoryBadge(b?.category, l.action, l.notes);
+      return `${d.toLocaleDateString()},${d.toLocaleTimeString()},${l.serial},${b?.gasType || ""},${catBadge.label},${b?.supplier || ""},${formatAction(l.action)},${fromLoc},${toLoc},${l.engineer},${(l.notes || "").replace(/,/g, ";")}`;
     }).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -103,6 +167,14 @@ export default function DailyActionsPage() {
 
   const exportPDF = () => {
     window.print(); // Browser print is often better for simple reports
+  };
+
+  const categoryCounts = {
+    all: logs.length,
+    new: logs.filter(l => getCategoryBadge(bottleMap[l.serial]?.category, l.action, l.notes).key === "new").length,
+    recycled: logs.filter(l => getCategoryBadge(bottleMap[l.serial]?.category, l.action, l.notes).key === "recycled").length,
+    reclaim: logs.filter(l => getCategoryBadge(bottleMap[l.serial]?.category, l.action, l.notes).key === "reclaim").length,
+    nitrogen: logs.filter(l => getCategoryBadge(bottleMap[l.serial]?.category, l.action, l.notes).key === "nitrogen").length,
   };
 
   return (
@@ -124,7 +196,7 @@ export default function DailyActionsPage() {
         </div>
       </div>
 
-      <div style={{display: "flex", gap: "1rem", marginBottom: "2rem", flexWrap: "wrap"}}>
+      <div style={{display: "flex", gap: "1rem", marginBottom: "1.25rem", flexWrap: "wrap"}}>
         <div style={{position: "relative", flex: 1, maxWidth: "400px"}}>
           <Search size={18} style={{position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)"}} />
           <input 
@@ -163,6 +235,57 @@ export default function DailyActionsPage() {
         </div>
       </div>
 
+      {/* Category Filter Pills */}
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "2rem", flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: "0.04em", marginRight: "0.25rem" }}>
+          Category:
+        </span>
+        {[
+          { key: "all", label: "All Cylinders", count: categoryCounts.all, color: "#fff" },
+          { key: "new", label: "New Gas", count: categoryCounts.new, color: "#00e5ff" },
+          { key: "recycled", label: "Recycled", count: categoryCounts.recycled, color: "#10b981", icon: "♻️" },
+          { key: "reclaim", label: "Reclaim", count: categoryCounts.reclaim, color: "#ffaa00" },
+          { key: "nitrogen", label: "Nitrogen", count: categoryCounts.nitrogen, color: "#22c55e" },
+        ].map(cat => {
+          const isActive = categoryFilter === cat.key;
+          return (
+            <button
+              key={cat.key}
+              onClick={() => setCategoryFilter(cat.key)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.35rem",
+                padding: "0.4rem 0.85rem",
+                borderRadius: "20px",
+                border: isActive ? `1.5px solid ${cat.color}` : "1px solid rgba(255, 255, 255, 0.1)",
+                background: isActive ? `${cat.color}22` : "rgba(255, 255, 255, 0.03)",
+                color: isActive ? cat.color : "rgba(255, 255, 255, 0.7)",
+                cursor: "pointer",
+                fontSize: "0.8rem",
+                fontWeight: isActive ? 700 : 500,
+                transition: "all 0.15s ease",
+              }}
+            >
+              {cat.icon && <span>{cat.icon}</span>}
+              <span>{cat.label}</span>
+              <span
+                style={{
+                  fontSize: "0.72rem",
+                  padding: "0.1rem 0.4rem",
+                  borderRadius: "10px",
+                  background: isActive ? `${cat.color}33` : "rgba(255, 255, 255, 0.08)",
+                  color: isActive ? "#fff" : "rgba(255, 255, 255, 0.5)",
+                  fontWeight: 700,
+                }}
+              >
+                {cat.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       {loading ? (
         <div style={{padding: "3rem", textAlign: "center", color: "var(--text-muted)"}}>Loading audit logs...</div>
       ) : Object.keys(groupedLogs).length === 0 ? (
@@ -188,44 +311,61 @@ export default function DailyActionsPage() {
                         <span style={{fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "#00e5ff", cursor: "pointer", fontSize: "0.95rem"}}>
                           {log.serial}
                         </span>
-                        {bottleMap[log.serial] && (
-                          <div style={{display: "flex", alignItems: "center", gap: "0.35rem", flexWrap: "wrap"}}>
-                            <span style={{
-                              fontSize: "0.75rem",
-                              fontWeight: 700,
-                              color: bottleMap[log.serial].category === "reclaim" ? "#ffaa00" : bottleMap[log.serial].category === "nitrogen" ? "#22c55e" : "#00e5ff"
-                            }}>
-                              {bottleMap[log.serial].gasType}
-                            </span>
-                            <span style={{
-                              fontSize: "0.62rem",
-                              padding: "0.05rem 0.35rem",
-                              borderRadius: "3px",
-                              background: bottleMap[log.serial].category === "reclaim" ? "rgba(255, 170, 0, 0.15)" : bottleMap[log.serial].category === "nitrogen" ? "rgba(34, 197, 94, 0.15)" : "rgba(0, 229, 255, 0.15)",
-                              color: bottleMap[log.serial].category === "reclaim" ? "#ffaa00" : bottleMap[log.serial].category === "nitrogen" ? "#22c55e" : "#00e5ff",
-                              textTransform: "uppercase",
-                              fontWeight: 700,
-                              border: `1px solid ${bottleMap[log.serial].category === "reclaim" ? "rgba(255, 170, 0, 0.3)" : bottleMap[log.serial].category === "nitrogen" ? "rgba(34, 197, 94, 0.3)" : "rgba(0, 229, 255, 0.3)"}`
-                            }}>
-                              {bottleMap[log.serial].category === "reclaim" ? "Reclaim" : bottleMap[log.serial].category === "nitrogen" ? "Nitrogen" : "Supply"}
-                            </span>
-                          </div>
-                        )}
+                        {(() => {
+                          const badge = getCategoryBadge(bottleMap[log.serial]?.category, log.action, log.notes);
+                          const gas = bottleMap[log.serial]?.gasType || "Refrigerant";
+                          return (
+                            <div style={{display: "flex", alignItems: "center", gap: "0.35rem", flexWrap: "wrap"}}>
+                              <span style={{
+                                fontSize: "0.75rem",
+                                fontWeight: 700,
+                                color: badge.color
+                              }}>
+                                {gas}
+                              </span>
+                              <span style={{
+                                fontSize: "0.62rem",
+                                padding: "0.05rem 0.35rem",
+                                borderRadius: "3px",
+                                background: badge.bg,
+                                color: badge.color,
+                                textTransform: "uppercase",
+                                fontWeight: 700,
+                                border: `1px solid ${badge.border}`,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "0.2rem"
+                              }}>
+                                {badge.icon && <span>{badge.icon}</span>}
+                                {badge.label}
+                              </span>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </Link>
                     <div style={{display: "flex", alignItems: "center", gap: "0.75rem"}}>
                       <span style={{
                         fontSize: "0.75rem", fontWeight: 700, padding: "0.25rem 0.6rem", borderRadius: "4px",
                         background: `${getActionColor(log.action)}22`, color: getActionColor(log.action),
-                        textTransform: "uppercase", border: `1px solid ${getActionColor(log.action)}44`
+                        textTransform: "uppercase", border: `1px solid ${getActionColor(log.action)}44`,
+                        display: "inline-flex", alignItems: "center", gap: "0.3rem"
                       }}>
-                        {log.action.replace(/_/g, " ")}
+                        {(log.action === "reclassified_recycled" || log.action === "workshop_decant_in") && <span>♻️</span>}
+                        {formatAction(log.action)}
                       </span>
                     </div>
-                    <div style={{fontSize: "0.85rem", color: "rgba(255,255,255,0.8)", display: "flex", alignItems: "center", gap: "0.5rem"}}>
-                      <span style={{color: "rgba(255,255,255,0.5)"}}>{getDisplayFrom(log)}</span>
-                      <ArrowRight size={14} style={{opacity: 0.3}} />
-                      <span style={{fontWeight: 600}}>{getDisplayTo(log)}</span>
+                    <div>
+                      <div style={{fontSize: "0.85rem", color: "rgba(255,255,255,0.8)", display: "flex", alignItems: "center", gap: "0.5rem"}}>
+                        <span style={{color: "rgba(255,255,255,0.5)"}}>{getDisplayFrom(log)}</span>
+                        <ArrowRight size={14} style={{opacity: 0.3}} />
+                        <span style={{fontWeight: 600}}>{getDisplayTo(log)}</span>
+                      </div>
+                      {log.notes && (
+                        <div style={{fontSize: "0.74rem", color: "rgba(255,255,255,0.45)", marginTop: "0.2rem", fontStyle: "italic", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"}} title={log.notes}>
+                          {log.notes}
+                        </div>
+                      )}
                     </div>
                     <div style={{fontSize: "0.85rem", color: "#fff", display: "flex", alignItems: "center", gap: "0.5rem", justifyContent: "flex-end"}}>
                       <User size={14} style={{opacity: 0.5}} />
