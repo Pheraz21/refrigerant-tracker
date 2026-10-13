@@ -32,6 +32,7 @@ const labelStyle: React.CSSProperties = {
 };
 
 export default function SignupPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const roleParam = searchParams.get("role") as UserRole | null;
 
@@ -113,9 +114,31 @@ export default function SignupPage() {
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0a0a", color: "#fff", padding: "2rem" }}>
       <div style={{ maxWidth: "520px", width: "100%" }}>
-        <Link href={backHref} style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", color: "var(--text-muted)", textDecoration: "none", marginBottom: "2rem", fontSize: "0.9rem" }}>
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== "undefined" && window.history.length > 1) {
+              router.back();
+            } else {
+              router.push(backHref);
+            }
+          }}
+          style={{
+            background: "none",
+            border: "none",
+            padding: 0,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            color: "var(--text-muted)",
+            cursor: "pointer",
+            marginBottom: "2rem",
+            fontSize: "0.9rem"
+          }}
+          title="Go back"
+        >
           <ArrowLeft size={16} /> Back to Login
-        </Link>
+        </button>
 
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "20px", padding: "2.5rem" }}>
           <div style={{ marginBottom: "2rem" }}>

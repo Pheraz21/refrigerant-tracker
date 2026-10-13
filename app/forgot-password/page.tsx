@@ -4,9 +4,11 @@ import { useState } from "react";
 import { Mail, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 import styles from "../page.module.css";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function ForgotPasswordPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -55,17 +57,31 @@ export default function ForgotPasswordPage() {
       
       <div className={`${styles.loginCard} glass-panel`}>
         <div className={styles.header}>
-          <Link href="/" style={{ 
-            display: "inline-flex", 
-            alignItems: "center", 
-            gap: "0.5rem", 
-            color: "var(--text-muted)", 
-            textDecoration: "none",
-            fontSize: "0.9rem",
-            marginBottom: "1.5rem"
-          }}>
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) {
+                router.back();
+              } else {
+                router.push("/");
+              }
+            }}
+            style={{ 
+              background: "none",
+              border: "none",
+              padding: 0,
+              display: "inline-flex", 
+              alignItems: "center", 
+              gap: "0.5rem", 
+              color: "var(--text-muted)", 
+              cursor: "pointer",
+              fontSize: "0.9rem",
+              marginBottom: "1.5rem"
+            }}
+            title="Go back"
+          >
             <ArrowLeft size={16} /> Back to Login
-          </Link>
+          </button>
           <h1 className="text-gradient">Reset Password</h1>
           <p className={styles.subtitle}>Enter your email to receive a reset link</p>
         </div>

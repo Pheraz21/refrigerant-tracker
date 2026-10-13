@@ -267,17 +267,25 @@ export default function ReclassifyRecycledPage() {
       {/* Top Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-          <Link
-            href="/admin/stores"
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) {
+                router.back();
+              } else {
+                router.push("/admin/stores");
+              }
+            }}
             style={{
               display: "flex", alignItems: "center", justifyContent: "center",
               width: "40px", height: "40px", borderRadius: "10px",
               background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
-              color: "#fff", textDecoration: "none"
+              color: "#fff", cursor: "pointer"
             }}
+            title="Go back"
           >
             <ArrowLeft size={18} />
-          </Link>
+          </button>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <span

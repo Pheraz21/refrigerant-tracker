@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { db, CrmJob, Bottle } from "@/lib/db";
 import { Printer, ArrowLeft, Wrench, FileText, ExternalLink } from "lucide-react";
 import Link from "next/link";
@@ -22,6 +22,7 @@ interface ActionItem {
 }
 
 function EquipmentReportContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const targetSn = (searchParams.get("sn") || "").trim();
   const targetMfr = (searchParams.get("mfr") || "").trim();
@@ -239,12 +240,31 @@ function EquipmentReportContent() {
       {/* ── Screen-Only Header Bar ───────────────────────────────────────────── */}
       <div className="no-print" style={{ background: "#111827", borderBottom: "1px solid rgba(255,255,255,0.08)", padding: "0.85rem 1.5rem", position: "sticky", top: 0, zIndex: 50, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-          <Link
-            href="/admin/jobs/equipment"
-            style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", color: "#94a3b8", textDecoration: "none", fontSize: "0.85rem", fontWeight: 500 }}
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) {
+                router.back();
+              } else {
+                router.push("/admin/jobs/equipment");
+              }
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.4rem",
+              color: "#94a3b8",
+              fontSize: "0.85rem",
+              fontWeight: 500,
+              cursor: "pointer",
+            }}
+            title="Go back"
           >
-            <ArrowLeft size={16} /> Back to Equipment Register
-          </Link>
+            <ArrowLeft size={16} /> Back
+          </button>
           <span style={{ color: "rgba(255,255,255,0.15)" }}>|</span>
           <Link
             href="/admin/jobs"

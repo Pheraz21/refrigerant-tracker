@@ -73,6 +73,7 @@ const mapMovement = (m: any): MovementLog => ({
 
 const mapUsage = (u: any): UsageLog => ({
   ...u,
+  gasType: u.gas_type || u.gasType,
   jobType: u.job_type || u.jobType,
   siteRef: u.site_ref || u.siteRef,
   siteName: u.site_name || u.siteName,
@@ -105,6 +106,7 @@ export interface UsageLog {
   id: string;
   serial: string;
   date: string;
+  gasType?: string;
   jobType: string; // service, install, recovery, maintenance, leak_test
   siteRef: string; // e.g. JOB-1234
   siteName: string;
@@ -806,15 +808,23 @@ export const db = {
 
         // Update gas type based on what was recovered
         if (gasType && bottle.category === "reclaim") {
-          const currentGasType = bottle.gas_type || "Mixed/Recovery";
-          const currentWeight = parseFloat(bottle.current_weight || 0);
+          const currentGasType = (bottle.gas_type || bottle.gasType || "").trim();
+          const currentWeight = parseFloat(bottle.current_weight || bottle.currentWeight || 0);
           let resolvedGasType: string;
 
-          if (currentWeight === 0 || currentGasType === "Mixed/Recovery" || currentGasType === "Unknown") {
+          if (currentWeight === 0) {
+            // Bottle was empty: takes on whatever gas is recovered into it
             resolvedGasType = gasType;
-          } else if (currentGasType === gasType) {
+          } else if (!currentGasType || currentGasType === "Unknown") {
+            resolvedGasType = gasType;
+          } else if (currentGasType.toLowerCase() === "mixed" || currentGasType.toLowerCase() === "mixed/recovery") {
+            // Bottle already contains mixed gas
+            resolvedGasType = "Mixed/Recovery";
+          } else if (currentGasType.toLowerCase() === gasType.trim().toLowerCase()) {
+            // Same gas added to bottle
             resolvedGasType = currentGasType;
           } else {
+            // Different gas added to bottle that already contains gas -> mixed
             resolvedGasType = "Mixed/Recovery";
           }
 
@@ -860,6 +870,7 @@ export const db = {
       weight_before: parseFloat(bottle.current_weight || bottle.currentWeight || 0),
       weight_after: newWeight,
       engineer: finalEngineerName,
+      ...(gasType ? { gas_type: gasType } : {}),
       ...(equipmentDetails && equipmentDetails.length > 0 ? { equipment_details: equipmentDetails } : {}),
     };
     if (supervisingEngineer) {
@@ -873,6 +884,7 @@ export const db = {
     if (logErr && logErr.message?.includes('column')) {
       delete logPayload.supervising_engineer;
       delete logPayload.supervising_certificate;
+      delete logPayload.gas_type;
       const retry = await supabase.from('usage_logs').insert(logPayload);
       logErr = retry.error;
     }

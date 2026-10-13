@@ -87,7 +87,18 @@ export default function AdminHWCNDetailPage() {
       {/* Header */}
       <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem"}}>
         <div style={{display: "flex", alignItems: "center", gap: "1rem"}}>
-          <button onClick={() => router.back()} style={{background: "none", border: "none", padding: 0, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer", fontSize: "0.9rem"}}>
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) {
+                router.back();
+              } else {
+                router.push("/admin/hwcn");
+              }
+            }}
+            style={{background: "none", border: "none", padding: 0, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer", fontSize: "0.9rem"}}
+            title="Go back"
+          >
             <ArrowLeft size={18} /> Back
           </button>
           <span style={{fontFamily: "var(--font-geist-mono)", fontSize: "1.3rem", fontWeight: 800, color: "#00e5ff"}}>{hwcn.id}</span>

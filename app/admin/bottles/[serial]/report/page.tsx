@@ -162,7 +162,14 @@ export default function BottleAuditReportPage({ params }: { params: Promise<{ se
       >
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
           <button
-            onClick={() => router.push(`/admin/bottles/${serial}`)}
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) {
+                router.back();
+              } else {
+                router.push(`/admin/bottles/${serial}`);
+              }
+            }}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -176,8 +183,9 @@ export default function BottleAuditReportPage({ params }: { params: Promise<{ se
               fontWeight: 600,
               cursor: "pointer",
             }}
+            title="Go back"
           >
-            <ArrowLeft size={16} /> Back to Cylinder
+            <ArrowLeft size={16} /> Back
           </button>
           <span style={{ color: "rgba(255, 255, 255, 0.2)" }}>|</span>
           <span style={{ fontSize: "0.85rem", color: "rgba(255, 255, 255, 0.6)", fontFamily: "var(--font-geist-mono)" }}>

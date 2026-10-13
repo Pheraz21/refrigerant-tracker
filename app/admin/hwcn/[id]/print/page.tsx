@@ -91,8 +91,16 @@ export default function AdminHWCNPrintPage() {
       {/* Nav bar (no-print) */}
       <div className="no-print" style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.75rem", padding: "0.75rem 1rem", background: "#111", borderRadius: "8px" }}>
         <button
-          onClick={() => router.back()}
+          type="button"
+          onClick={() => {
+            if (typeof window !== "undefined" && window.history.length > 1) {
+              router.back();
+            } else {
+              router.push(`/admin/hwcn/${encodeURIComponent(hwcn.id)}`);
+            }
+          }}
           style={{ background: "none", border: "none", color: "#00e5ff", display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", fontSize: "0.9rem", padding: 0 }}
+          title="Go back"
         >
           <ArrowLeft size={18} /> Back
         </button>

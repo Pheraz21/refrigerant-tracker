@@ -111,7 +111,14 @@ export default function JobAuditReportPage({ params }: { params: Promise<{ ref: 
       >
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
           <button
-            onClick={() => router.push(`/admin/jobs/${encodeURIComponent(jobRef)}`)}
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) {
+                router.back();
+              } else {
+                router.push(`/admin/jobs/${encodeURIComponent(jobRef)}`);
+              }
+            }}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -125,8 +132,9 @@ export default function JobAuditReportPage({ params }: { params: Promise<{ ref: 
               fontWeight: 600,
               cursor: "pointer",
             }}
+            title="Go back"
           >
-            <ArrowLeft size={16} /> Back to Job
+            <ArrowLeft size={16} /> Back
           </button>
           <span style={{ color: "rgba(255, 255, 255, 0.2)" }}>|</span>
           <span style={{ fontSize: "0.85rem", color: "rgba(255, 255, 255, 0.6)", fontFamily: "var(--font-geist-mono)" }}>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Printer, Camera, Package, Maximize2 } from "lucide-react";
 import Link from "next/link";
 import { db, SupplierReturnGroup, Bottle } from "@/lib/db";
@@ -12,6 +12,7 @@ interface BottleDetail extends Bottle {
 }
 
 export default function SupplierHWCNDetailPage() {
+  const router = useRouter();
   const params = useParams();
   const hwcnNumber = decodeURIComponent(params.hwcnNumber as string);
 
@@ -68,12 +69,30 @@ export default function SupplierHWCNDetailPage() {
       <div style={{ maxWidth: "1000px" }}>
         {/* Header bar */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: "1rem" }}>
-          <Link
-            href="/admin/supplier-returns-waste"
-            style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", color: "var(--text-muted)", textDecoration: "none", fontSize: "0.88rem" }}
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) {
+                router.back();
+              } else {
+                router.push("/admin/supplier-returns-waste");
+              }
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.4rem",
+              color: "var(--text-muted)",
+              cursor: "pointer",
+              fontSize: "0.88rem"
+            }}
+            title="Go back"
           >
-            <ArrowLeft size={16} /> Back to Supplier Returns & Waste
-          </Link>
+            <ArrowLeft size={16} /> Back
+          </button>
         </div>
 
         {/* Note Card */}

@@ -329,17 +329,25 @@ export default function SupplierReturnPage() {
       />
       <div style={{ minHeight: "100vh", background: "#0a0e17", color: "#e2e8f0", padding: "2rem 1.5rem" }}>
       <div style={{ maxWidth: "1000px", margin: "0 auto 1.5rem auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Link
-          href="/admin"
-          onClick={(e) => {
-            if (!requestNavigate("/admin")) {
-              e.preventDefault();
+        <button
+          type="button"
+          onClick={() => {
+            const navigateBack = () => {
+              if (typeof window !== "undefined" && window.history.length > 1) {
+                router.back();
+              } else {
+                router.push("/admin");
+              }
+            };
+            if (requestNavigate(navigateBack)) {
+              navigateBack();
             }
           }}
-          style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", color: "#94a3b8", textDecoration: "none", fontSize: "0.9rem", fontWeight: 600 }}
+          style={{ background: "none", border: "none", padding: 0, display: "inline-flex", alignItems: "center", gap: "0.5rem", color: "#94a3b8", cursor: "pointer", fontSize: "0.9rem", fontWeight: 600 }}
+          title="Go back"
         >
-          <ArrowLeft size={16} /> Back to Admin
-        </Link>
+          <ArrowLeft size={16} /> Back
+        </button>
       </div>
 
       <form onSubmit={handleSubmit} style={{ maxWidth: "1000px", margin: "0 auto" }}>

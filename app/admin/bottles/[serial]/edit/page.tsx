@@ -68,7 +68,18 @@ export default function EditBottlePage() {
   return (
     <div style={{maxWidth: "800px"}}>
       <div style={{marginBottom: "2rem", display: "flex", alignItems: "center", gap: "1rem"}}>
-        <button onClick={() => router.back()} style={{background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer"}}>
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== "undefined" && window.history.length > 1) {
+              router.back();
+            } else {
+              router.push(`/admin/bottles/${serial}`);
+            }
+          }}
+          style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer" }}
+          title="Go back"
+        >
           <ArrowLeft size={24} />
         </button>
         <div>

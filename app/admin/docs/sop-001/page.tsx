@@ -1,16 +1,30 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Printer } from "lucide-react";
 
 export default function Sop001Page() {
+  const router = useRouter();
+
   return (
     <div>
       {/* Toolbar */}
       <div className="no-print" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
-        <Link href="/admin/docs" style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "rgba(255,255,255,0.5)", textDecoration: "none", fontSize: "0.9rem" }}>
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== "undefined" && window.history.length > 1) {
+              router.back();
+            } else {
+              router.push("/admin/docs");
+            }
+          }}
+          style={{ background: "none", border: "none", padding: 0, display: "flex", alignItems: "center", gap: "0.5rem", color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: "0.9rem" }}
+          title="Go back"
+        >
           <ArrowLeft size={16} /> Back to Procedures
-        </Link>
+        </button>
         <button
           onClick={() => window.print()}
           style={{

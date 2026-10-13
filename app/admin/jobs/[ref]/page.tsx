@@ -350,7 +350,17 @@ export default function JobDetailPage() {
       <p style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.4)", marginBottom: "1.5rem" }}>
         No data found for job reference <strong style={{ color: "#00e5ff" }}>{ref}</strong>.
       </p>
-      <button onClick={() => router.back()} style={{ ...pdfBtn("0,229,255"), fontSize: "0.85rem" }}>
+      <button
+        type="button"
+        onClick={() => {
+          if (typeof window !== "undefined" && window.history.length > 1) {
+            router.back();
+          } else {
+            router.push("/admin/jobs");
+          }
+        }}
+        style={{ ...pdfBtn("0,229,255"), fontSize: "0.85rem" }}
+      >
         <ArrowLeft size={14} /> Go Back
       </button>
     </div>
@@ -363,9 +373,20 @@ export default function JobDetailPage() {
 
       {/* ── Back + action header ─────────────────────────────────────────────── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem", flexWrap: "wrap", gap: "0.75rem" }}>
-        <Link href="/admin/jobs" style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", color: "rgba(255,255,255,0.45)", fontSize: "0.85rem", textDecoration: "none" }}>
-          <ArrowLeft size={15} /> Refrigerant Jobs
-        </Link>
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== "undefined" && window.history.length > 1) {
+              router.back();
+            } else {
+              router.push("/admin/jobs");
+            }
+          }}
+          style={{ background: "none", border: "none", padding: 0, display: "inline-flex", alignItems: "center", gap: "0.4rem", color: "rgba(255,255,255,0.45)", fontSize: "0.85rem", cursor: "pointer" }}
+          title="Go back"
+        >
+          <ArrowLeft size={15} /> Back
+        </button>
         <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
           {(hasRefLog || decomRecords.length > 0) && (
             <button onClick={() => router.push(`/admin/jobs/${encodeURIComponent(ref)}/report`)} style={pdfBtn("0,229,255")}>

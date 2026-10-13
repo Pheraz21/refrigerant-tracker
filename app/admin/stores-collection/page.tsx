@@ -180,9 +180,20 @@ export default function StoresCollectionPage() {
   return (
     <div style={{ maxWidth: "1000px" }}>
       <div style={{ marginBottom: "2rem" }}>
-        <Link href="/admin" style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--text-muted)", textDecoration: "none", fontSize: "0.9rem", marginBottom: "1rem" }}>
-          <ArrowLeft size={16} /> Back to Dashboard
-        </Link>
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== "undefined" && window.history.length > 1) {
+              router.back();
+            } else {
+              router.push("/admin");
+            }
+          }}
+          style={{ background: "none", border: "none", padding: 0, display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--text-muted)", fontSize: "0.9rem", marginBottom: "1rem", cursor: "pointer" }}
+          title="Go back"
+        >
+          <ArrowLeft size={16} /> Back
+        </button>
         <h1 style={{ fontSize: "1.8rem", fontWeight: 700, marginBottom: "0.25rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
           <PackageCheck size={28} color="var(--primary)" /> Supplier Collection from Stores
         </h1>

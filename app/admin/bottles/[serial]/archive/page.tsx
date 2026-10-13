@@ -113,20 +113,31 @@ export default function BottleArchivePage() {
     <div style={{ maxWidth: "860px", margin: "0 auto", paddingBottom: "4rem" }}>
       {/* Top back navigation */}
       <div style={{ marginBottom: "1.5rem" }}>
-        <Link
-          href={`/admin/bottles/${encodeURIComponent(serialStr)}`}
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== "undefined" && window.history.length > 1) {
+              router.back();
+            } else {
+              router.push(`/admin/bottles/${encodeURIComponent(serialStr)}`);
+            }
+          }}
           style={{
+            background: "none",
+            border: "none",
+            padding: 0,
             display: "inline-flex",
             alignItems: "center",
             gap: "0.5rem",
             color: "var(--text-muted)",
-            textDecoration: "none",
+            cursor: "pointer",
             fontSize: "0.9rem",
             marginBottom: "0.75rem"
           }}
+          title="Go back"
         >
-          <ArrowLeft size={16} /> Back to Cylinder {serialStr}
-        </Link>
+          <ArrowLeft size={16} /> Back
+        </button>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
           <ShieldAlert size={28} color="#f59e0b" />
           <h1 style={{ fontSize: "1.8rem", fontWeight: 800, margin: 0 }}>
