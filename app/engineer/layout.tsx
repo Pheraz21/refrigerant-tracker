@@ -7,6 +7,8 @@ import { useEffect, useState } from "react";
 import { db } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { NavigationGuardProvider, useNavigationGuard } from "@/lib/NavigationGuardContext";
+import { OfflineProvider } from "@/lib/offline/OfflineContext";
+import { OfflineBanner } from "@/lib/offline/OfflineBanner";
 import styles from "./layout.module.css";
 
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
@@ -38,6 +40,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={styles.layout}>
+      <OfflineBanner />
       {missingPhotos > 0 && (
         <Link
           href="/engineer/notifications"
@@ -120,8 +123,10 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <NavigationGuardProvider>
-      <DashboardLayoutContent>{children}</DashboardLayoutContent>
-    </NavigationGuardProvider>
+    <OfflineProvider>
+      <NavigationGuardProvider>
+        <DashboardLayoutContent>{children}</DashboardLayoutContent>
+      </NavigationGuardProvider>
+    </OfflineProvider>
   );
 }

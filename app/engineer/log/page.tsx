@@ -424,11 +424,16 @@ export default function LogBottlePage() {
   }
 
   if (isSuccess) {
+    const isSavedOffline = typeof navigator !== "undefined" && !navigator.onLine;
     return (
       <div className={styles.successContainer}>
         <CheckCircle2 size={64} color="var(--success)" />
-        <h2>{isRecycleMode ? "Recycled Gas Charged!" : "Log Saved Successfully!"}</h2>
-        <p>{isRecycleMode ? "Re-charge into on-site equipment recorded." : "REFCOM compliance data recorded."}</p>
+        <h2>{isSavedOffline ? "Log Saved Offline!" : (isRecycleMode ? "Recycled Gas Charged!" : "Log Saved Successfully!")}</h2>
+        <p>
+          {isSavedOffline
+            ? "Your compliance data is stored securely on this device and will automatically sync to HQ as soon as signal returns."
+            : (isRecycleMode ? "Re-charge into on-site equipment recorded." : "REFCOM compliance data recorded.")}
+        </p>
         <button onClick={() => { setIsDirty(false); router.push("/engineer"); }} className={styles.primaryBtn}>
           Return to Dashboard
         </button>

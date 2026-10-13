@@ -1,5 +1,9 @@
 import { supabase } from "./supabaseClient";
 import { getGwp, calculateCO2e } from "./gwp";
+import { cacheBottle, cacheBottles, getCachedBottle, getCachedBottles } from "./offline/bottleCache";
+import { withTimeout } from "./offline/withTimeout";
+import { enqueueMutation } from "./offline/queue";
+import { applyUsageOptimistic, applyMoveOptimistic } from "./offline/optimistic";
 
 export type BottleCategory = "new" | "reclaim" | "nitrogen" | "recycled";
 export type LocationType = "van" | "site" | "supplier" | "office";
@@ -344,14 +348,28 @@ const INITIAL_REFRIGERANTS = [
 
 export const db = {
   async getBottle(serial: string): Promise<Bottle | null> {
-    const { data, error } = await supabase
-      .from('bottles')
-      .select('*')
-      .eq('serial', serial)
-      .single();
-    
-    if (error || !data) return null;
-    return mapBottle(data);
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      return getCachedBottle(serial);
+    }
+    try {
+      const fetchPromise = supabase
+        .from('bottles')
+        .select('*')
+        .eq('serial', serial)
+        .single();
+      
+      const { data, error } = await withTimeout<any>(fetchPromise, 3500);
+      if (error || !data) {
+        const cached = await getCachedBottle(serial);
+        if (cached) return cached;
+        return null;
+      }
+      const b = mapBottle(data);
+      cacheBottle(b).catch(() => {});
+      return b;
+    } catch {
+      return getCachedBottle(serial);
+    }
   },
 
   async removeBottle(serial: string, archivedBy?: string, reason?: string): Promise<void> {
@@ -647,11 +665,48 @@ export const db = {
     }
   },
 
-  async updateBottleLocation(serial: string, locationType: LocationType, locationId: string, intendedDestination?: string, intendedLocationType?: LocationType, activeHWCN?: string, engineerName?: string, vehicleReg?: string, movedBy?: string): Promise<void> {
+  async updateBottleLocation(
+    serial: string,
+    locationType: LocationType,
+    locationId: string,
+    intendedDestination?: string,
+    intendedLocationType?: LocationType,
+    activeHWCN?: string,
+    engineerName?: string,
+    vehicleReg?: string,
+    movedBy?: string,
+    occurredAt?: string,
+    isReplay?: boolean
+  ): Promise<void> {
+    const isClientOffline = typeof navigator !== "undefined" && !navigator.onLine;
+    if (!isReplay && isClientOffline) {
+      await applyMoveOptimistic(serial, locationType, locationId);
+      await enqueueMutation({
+        type: "move",
+        serial,
+        label: `Move to ${locationId}`,
+        occurredAt: occurredAt || new Date().toISOString(),
+        args: [serial, locationType, locationId, intendedDestination, intendedLocationType, activeHWCN, engineerName, vehicleReg, movedBy],
+      });
+      return;
+    }
+
     console.log(`Updating bottle ${serial} location to ${locationId} (${locationType}), vehicle: ${vehicleReg}, movedBy: ${movedBy}, leadEngineer: ${engineerName}`);
     const { data: bottle, error: fetchError } = await supabase.from('bottles').select('*').eq('serial', serial).single();
     
     if (fetchError) {
+      if (!isReplay) {
+        // Fallback to queue if network drop occurs during move
+        await applyMoveOptimistic(serial, locationType, locationId);
+        await enqueueMutation({
+          type: "move",
+          serial,
+          label: `Move to ${locationId}`,
+          occurredAt: occurredAt || new Date().toISOString(),
+          args: [serial, locationType, locationId, intendedDestination, intendedLocationType, activeHWCN, engineerName, vehicleReg, movedBy],
+        });
+        return;
+      }
       console.error(`Error fetching bottle ${serial} for move:`, fetchError);
       throw fetchError;
     }
@@ -748,8 +803,37 @@ export const db = {
       archiveReason?: string;
     }>,
     supervisingEngineer?: string,
-    supervisingCertificate?: string
+    supervisingCertificate?: string,
+    occurredAt?: string,
+    isReplay?: boolean
   ): Promise<void> {
+    const isClientOffline = typeof navigator !== "undefined" && !navigator.onLine;
+
+    // If device is offline and this is not a replay from sync, queue locally with optimistic update
+    if (!isReplay && isClientOffline) {
+      await applyUsageOptimistic(serial, jobType, weightChange);
+      await enqueueMutation({
+        type: "usage",
+        serial,
+        label: `${jobType} · ${weightChange}kg`,
+        occurredAt: occurredAt || new Date().toISOString(),
+        args: [
+          serial,
+          jobType,
+          weightChange,
+          isWaste,
+          producerSite,
+          gasType,
+          engineerName,
+          siteRef,
+          equipmentDetails,
+          supervisingEngineer,
+          supervisingCertificate,
+        ],
+      });
+      return;
+    }
+
     const { data: bottle } = await supabase.from('bottles').select('*').eq('serial', serial).single();
     if (!bottle) return;
 
@@ -860,6 +944,7 @@ export const db = {
       weight_before: parseFloat(bottle.current_weight || bottle.currentWeight || 0),
       weight_after: newWeight,
       engineer: finalEngineerName,
+      date: occurredAt || new Date().toISOString(),
       ...(equipmentDetails && equipmentDetails.length > 0 ? { equipment_details: equipmentDetails } : {}),
     };
     if (supervisingEngineer) {
@@ -893,6 +978,28 @@ export const db = {
         }
       }
     }
+
+    // Refresh cached bottle snapshot with the updated weight and status
+    this.getBottle(serial).catch(() => {});
+  },
+
+  async replayOfflineUsage(...args: any[]): Promise<void> {
+    const occurredAt = args[args.length - 1];
+    await this.logUsage(
+      args[0],
+      args[1],
+      args[2],
+      args[3],
+      args[4],
+      args[5],
+      args[6],
+      args[7],
+      args[8],
+      args[9],
+      args[10],
+      occurredAt,
+      true
+    );
   },
 
   async completeTransit(serial: string, supplierPhotoUrl?: string, engineerName?: string, altDestination?: string): Promise<void> {
@@ -973,8 +1080,23 @@ export const db = {
   },
   
   async getAllBottles(): Promise<Bottle[]> {
-    const { data } = await supabase.from('bottles').select('*');
-    return data ? data.map(mapBottle) : [];
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      return getCachedBottles();
+    }
+    try {
+      const fetchPromise = supabase.from('bottles').select('*');
+      const { data, error } = await withTimeout<any>(fetchPromise, 4000);
+      if (error || !data) {
+        const cached = await getCachedBottles();
+        if (cached && cached.length > 0) return cached;
+        return [];
+      }
+      const mapped = data.map(mapBottle);
+      cacheBottles(mapped).catch(() => {});
+      return mapped;
+    } catch {
+      return getCachedBottles();
+    }
   },
 
   async signOutFromStores(serial: string, engineerName: string, engineerId?: string): Promise<void> {
