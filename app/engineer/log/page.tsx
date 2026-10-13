@@ -298,6 +298,38 @@ export default function LogBottlePage() {
         setValidationError(`Cannot dispense ${totalWeight.toFixed(2)}kg. Only ${availableReclaim.toFixed(2)}kg of recycled gas is currently in this cylinder.`);
         return;
       }
+      if (bottleCategory === "reclaim") {
+        const logs = await db.getUsageLogs(serialParam);
+        const currentRecoveryLogs: any[] = [];
+        for (const log of logs) {
+          if (log.jobType === "recovery" || log.jobType === "waste") {
+            currentRecoveryLogs.push(log);
+          }
+          if (log.weightAfter === 0 && log.jobType !== "recovery") {
+            break;
+          }
+        }
+        const reclaimedRefs = new Set<string>();
+        for (const log of currentRecoveryLogs) {
+          if (log.siteRef) reclaimedRefs.add(log.siteRef.trim().replace(/\s+/g, "").toUpperCase());
+          if (log.siteName) reclaimedRefs.add(log.siteName.trim().replace(/\s+/g, "").toUpperCase());
+        }
+        if (bottleData.producerSites && Array.isArray(bottleData.producerSites)) {
+          for (const site of bottleData.producerSites) {
+            if (site.name) reclaimedRefs.add(site.name.trim().replace(/\s+/g, "").toUpperCase());
+          }
+        }
+        let crmTitleNorm = "";
+        if (cleanJobNumber) {
+          const crm = await db.getCrmJobByNumber(cleanJobNumber);
+          if (crm?.siteTitle) crmTitleNorm = crm.siteTitle.trim().replace(/\s+/g, "").toUpperCase();
+        }
+        const isMatch = reclaimedRefs.has(cleanJobNumber) || (crmTitleNorm ? reclaimedRefs.has(crmTitleNorm) : false);
+        if (!isMatch) {
+          setValidationError("Recycled gas from a reclaim cylinder can only be re-charged into equipment on the same job number it was reclaimed from.");
+          return;
+        }
+      }
     } else if (bottleCategory === "reclaim") {
       const currentFill = bottleData.currentWeight || 0;
       const maxFill = bottleData.maxWeight || bottleData.initialWeight || 20; // Default to 20 if not set

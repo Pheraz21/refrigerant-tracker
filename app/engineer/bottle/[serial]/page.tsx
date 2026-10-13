@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Truck, Wrench, AlertTriangle, ArrowLeft, Loader2, PackageCheck, MapPin, Building2, Users, Building, CheckCircle2, Camera, Image as ImageIcon, RotateCcw, Recycle } from "lucide-react";
 import styles from "./page.module.css";
 import Link from "next/link";
-import { db, Bottle, MovementLog } from "@/lib/db";
+import { db, Bottle, MovementLog, UsageLog } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { compressImage } from "@/lib/utils";
 import { supabase } from "@/lib/supabaseClient";
@@ -46,6 +46,8 @@ export default function BottleActionHub() {
   const [generatedHWCN, setGeneratedHWCN] = useState<string | null>(null);
   const [vehicleReg, setVehicleReg] = useState("");
   const [associatedHWCNs, setAssociatedHWCNs] = useState<any[]>([]);
+  const [usageLogs, setUsageLogs] = useState<UsageLog[]>([]);
+  const [currentCrmJob, setCurrentCrmJob] = useState<any>(null);
   const [showNitrogenUsage, setShowNitrogenUsage] = useState(false);
   const [isSubmittingNitrogen, setIsSubmittingNitrogen] = useState(false);
   const [showMismatchConfirm, setShowMismatchConfirm] = useState(false);
@@ -53,6 +55,66 @@ export default function BottleActionHub() {
   const [returnConfirmed, setReturnConfirmed] = useState(false);
 
   const genealogy = useMemo(() => getCylinderGenealogy(bottle, moveLogs), [bottle, moveLogs]);
+
+  // Load CRM job details for current site if bottle is at a site
+  useEffect(() => {
+    if (bottle?.locationType === "site" && bottle.locationId) {
+      db.getCrmJobByNumber(bottle.locationId).then(crm => setCurrentCrmJob(crm)).catch(() => setCurrentCrmJob(null));
+    } else {
+      setCurrentCrmJob(null);
+    }
+  }, [bottle?.locationType, bottle?.locationId]);
+
+  // Determine if bottle is currently on the exact job number where the waste was reclaimed from
+  const isCurrentJobMatch = useMemo(() => {
+    if (!bottle || bottle.category !== "reclaim" || (bottle.locationType as string) !== "site" || !bottle.locationId) {
+      return false;
+    }
+
+    const normalizeJob = (val?: string | null) => (val || "").trim().replace(/\s+/g, "").toUpperCase();
+
+    // 1. Gather recovery logs for the CURRENT batch of gas in the cylinder
+    const currentRecoveryLogs: UsageLog[] = [];
+    for (const log of usageLogs) {
+      if (log.jobType === "recovery" || log.jobType === "waste") {
+        currentRecoveryLogs.push(log);
+      }
+      // If the cylinder was emptied prior to this log, older logs belong to a previous lifecycle
+      if (log.weightAfter === 0 && log.jobType !== "recovery") {
+        break;
+      }
+    }
+
+    // Check distinct recovery job references
+    const distinctRecoveryRefs = Array.from(new Set(
+      currentRecoveryLogs.map(l => normalizeJob(l.siteRef)).filter(Boolean)
+    ));
+
+    // Multi-site gas cannot be re-charged on site
+    const isMultiSite = distinctRecoveryRefs.length > 1 || ((bottle.producerSites?.length || 0) > 1);
+    if (isMultiSite) {
+      return false;
+    }
+
+    // Collect all valid job identifiers/site titles from where the gas was reclaimed
+    const reclaimedIdentifiers = new Set<string>();
+
+    for (const log of currentRecoveryLogs) {
+      if (log.siteRef) reclaimedIdentifiers.add(normalizeJob(log.siteRef));
+      if (log.siteName) reclaimedIdentifiers.add(normalizeJob(log.siteName));
+    }
+
+    if (bottle.producerSites && Array.isArray(bottle.producerSites)) {
+      for (const site of bottle.producerSites) {
+        if (site.name) reclaimedIdentifiers.add(normalizeJob(site.name));
+      }
+    }
+
+    const curJobNorm = normalizeJob(bottle.locationId);
+    const curCrmTitleNorm = currentCrmJob?.siteTitle ? normalizeJob(currentCrmJob.siteTitle) : "";
+
+    return reclaimedIdentifiers.has(curJobNorm) || (curCrmTitleNorm ? reclaimedIdentifiers.has(curCrmTitleNorm) : false);
+  }, [bottle, usageLogs, currentCrmJob]);
 
   const handleNitrogenUsage = async (isEmpty: boolean) => {
     if (!bottle) return;
@@ -95,13 +157,18 @@ export default function BottleActionHub() {
         if (profile?.vehicleReg) setVehicleReg(profile.vehicleReg);
       }
 
-      // Load associated HWCNs (both in-progress and completed) for reclaim cylinders so engineer can view prior and active notes
+      // Load associated HWCNs (both in-progress and completed) and usage logs for reclaim cylinders so engineer can view prior and active notes and verify reclaim origin
       if (b.category === "reclaim") {
-        const hwcns = await db.getHWCNsForBottle(serial);
+        const [hwcns, logs] = await Promise.all([
+          db.getHWCNsForBottle(serial),
+          db.getUsageLogs(serial)
+        ]);
         const sorted = (hwcns || []).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
         setAssociatedHWCNs(sorted);
+        setUsageLogs(logs || []);
       } else {
         setAssociatedHWCNs([]);
+        setUsageLogs([]);
       }
 
       setLoading(false);
@@ -899,8 +966,8 @@ export default function BottleActionHub() {
                         )
                       ) : (
                         <>
-                          {/* ON-SITE RECYCLED GAS ACTION (Only if reclaim cylinder on site with gas) */}
-                          {bottle.category === "reclaim" && (bottle.locationType as string) === "site" && (bottle.currentWeight || 0) > 0 && (
+                          {/* ON-SITE RECYCLED GAS ACTION (Only if reclaim cylinder on site with gas AND currently on the same job no as the waste was reclaimed from) */}
+                          {bottle.category === "reclaim" && (bottle.locationType as string) === "site" && (bottle.currentWeight || 0) > 0 && isCurrentJobMatch && (
                             <Link 
                               href={`/engineer/log?serial=${bottle.serial}&mode=recycle`} 
                               className={`${styles.actionCard} ${styles.useCard}`}
@@ -911,7 +978,7 @@ export default function BottleActionHub() {
                               </div>
                               <div className={styles.actionText}>
                                 <h3 style={{ color: 'var(--success)' }}>Use / Re-charge Recycled Gas on Site</h3>
-                                <p>Re-charge recovered gas ({bottle.currentWeight} kg available) into equipment on this site</p>
+                                <p>Re-charge recovered gas ({bottle.currentWeight} kg available) into equipment on this site ({bottle.locationId})</p>
                               </div>
                             </Link>
                           )}
