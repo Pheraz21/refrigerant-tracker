@@ -2,9 +2,10 @@
 
 import React, { useEffect, useState, useMemo, use } from "react";
 import { db, Bottle, MovementLog, UsageLog } from "@/lib/db";
-import { Printer, ArrowLeft, Package, Calendar, User, MapPin, Truck, AlertCircle, FileText, CheckCircle2 } from "lucide-react";
+import { Printer, ArrowLeft, Package, Calendar, User, MapPin, Truck, AlertCircle, FileText, CheckCircle2, Recycle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { getCylinderGenealogy } from "@/lib/genealogy";
 
 interface HistoryItem {
   id: string;
@@ -106,6 +107,8 @@ export default function BottleAuditReportPage({ params }: { params: Promise<{ se
       },
     };
   }, [movementLogs, usageLogs, bottle]);
+
+  const genealogy = useMemo(() => getCylinderGenealogy(bottle, movementLogs), [bottle, movementLogs]);
 
   if (loading) {
     return (
@@ -286,6 +289,73 @@ export default function BottleAuditReportPage({ params }: { params: Promise<{ se
             </div>
           </div>
         </div>
+
+        {/* ── REFCOM Statutory Audit Genealogy Block (Recycled Cylinders) ──────── */}
+        {genealogy && (
+          <div
+            style={{
+              background: "rgba(16, 185, 129, 0.08)",
+              border: "1.5px solid rgba(16, 185, 129, 0.35)",
+              borderRadius: "10px",
+              padding: "1rem 1.25rem",
+              marginBottom: "1.75rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: "1rem",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <div
+                style={{
+                  background: "rgba(16, 185, 129, 0.2)",
+                  border: "1px solid rgba(16, 185, 129, 0.4)",
+                  borderRadius: "8px",
+                  padding: "0.5rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Recycle size={20} color="#10b981" />
+              </div>
+              <div>
+                <div style={{ fontSize: "0.75rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "#10b981" }}>
+                  REFCOM Statutory Audit Genealogy · Parent Reclaim Cylinder Chain of Custody
+                </div>
+                <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#fff", marginTop: "0.15rem" }}>
+                  {genealogy.displayText}
+                </div>
+                <div style={{ fontSize: "0.78rem", color: "#94a3b8", marginTop: "0.2rem" }}>
+                  Cleaned, filtered, and certified for reuse under SOP-001/SOP-002. Environment Agency hazardous waste tracking linked.
+                  {genealogy.date && ` Conversion Date: ${new Date(genealogy.date).toLocaleDateString("en-GB")}.`}
+                  {genealogy.engineer && ` Certified By: ${genealogy.engineer}.`}
+                </div>
+              </div>
+            </div>
+
+            <Link
+              href={`/admin/bottles/${encodeURIComponent(genealogy.sourceSerial)}/report`}
+              className="no-print"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                background: "rgba(16, 185, 129, 0.2)",
+                border: "1px solid rgba(16, 185, 129, 0.5)",
+                color: "#a7f3d0",
+                padding: "0.5rem 0.9rem",
+                borderRadius: "6px",
+                fontSize: "0.82rem",
+                fontWeight: 700,
+                textDecoration: "none",
+              }}
+            >
+              <span>View Parent Reclaim Report #{genealogy.sourceSerial} &rarr;</span>
+            </Link>
+          </div>
+        )}
 
         {/* ── Summary Metric Cards ────────────────────────────────────────────── */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem", marginBottom: "1.75rem" }}>

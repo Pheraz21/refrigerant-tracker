@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { db, Bottle } from "@/lib/db";
 import { supabase } from "@/lib/supabaseClient";
@@ -9,10 +9,12 @@ import { Truck, Search, Plus, Trash2, Camera, AlertCircle, CheckCircle2, Loader2
 import Link from "next/link";
 import HwcnLightboxModal from "@/components/HwcnLightboxModal";
 import { compressImage } from "@/lib/utils";
+import { useNavigationGuard } from "@/lib/NavigationGuardContext";
 
 export default function SupplierReturnPage() {
   const { user } = useAuth();
   const router = useRouter();
+  const { setIsDirty, setCustomMessage, requestNavigate } = useNavigationGuard();
   const [hwcnNumber, setHwcnNumber] = useState("");
   const [returnSupplier, setReturnSupplier] = useState("");
   const [returnSupplierBranch, setReturnSupplierBranch] = useState("");
@@ -36,6 +38,48 @@ export default function SupplierReturnPage() {
   const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
+
+  const isFormDirty = useMemo(() => {
+    if (isSuccess || loading) return false;
+    return (
+      selectedBottles.length > 0 ||
+      photoFiles.length > 0 ||
+      photoPreviewUrls.length > 0 ||
+      hwcnNumber.trim().length > 0 ||
+      returnSupplierBranch.trim().length > 0 ||
+      inputSerial.trim().length > 0
+    );
+  }, [
+    selectedBottles.length,
+    photoFiles.length,
+    photoPreviewUrls.length,
+    hwcnNumber,
+    returnSupplierBranch,
+    inputSerial,
+    isSuccess,
+    loading,
+  ]);
+
+  useEffect(() => {
+    setIsDirty(isFormDirty);
+    if (isFormDirty) {
+      const bottleDesc =
+        selectedBottles.length > 0
+          ? ` (${selectedBottles.length} cylinder${selectedBottles.length !== 1 ? "s" : ""} scanned)`
+          : "";
+      setCustomMessage(
+        `You have an active Supplier Return in progress${bottleDesc}. If you leave now, the scanned cylinder batch and attached paperwork will be lost.`
+      );
+    } else {
+      setCustomMessage(undefined);
+    }
+  }, [isFormDirty, selectedBottles.length, setIsDirty, setCustomMessage]);
+
+  useEffect(() => {
+    return () => {
+      setIsDirty(false);
+    };
+  }, [setIsDirty]);
 
   useEffect(() => {
     async function loadBottles() {
@@ -245,6 +289,7 @@ export default function SupplierReturnPage() {
         returnSupplierBranch: returnSupplierBranch.trim(),
         returnedAt: returnDate ? new Date(returnDate).toISOString() : new Date().toISOString()
       });
+      setIsDirty(false);
       setIsSuccess(true);
       setTimeout(() => router.push("/admin"), 3000);
     } catch (err: any) {
@@ -284,7 +329,15 @@ export default function SupplierReturnPage() {
       />
       <div style={{ minHeight: "100vh", background: "#0a0e17", color: "#e2e8f0", padding: "2rem 1.5rem" }}>
       <div style={{ maxWidth: "1000px", margin: "0 auto 1.5rem auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Link href="/admin" style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", color: "#94a3b8", textDecoration: "none", fontSize: "0.9rem", fontWeight: 600 }}>
+        <Link
+          href="/admin"
+          onClick={(e) => {
+            if (!requestNavigate("/admin")) {
+              e.preventDefault();
+            }
+          }}
+          style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", color: "#94a3b8", textDecoration: "none", fontSize: "0.9rem", fontWeight: 600 }}
+        >
           <ArrowLeft size={16} /> Back to Admin
         </Link>
       </div>

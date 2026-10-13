@@ -3,9 +3,10 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db, Bottle, MovementLog, UsageLog, CrmJob } from "@/lib/db";
-import { ArrowLeft, Edit3, History, ArrowRight, User, Package, Calendar, MapPin, Truck, Building2, FileText, FileSpreadsheet, ClipboardList, Wrench, Tag, CheckCircle, RotateCcw, RefreshCw, Camera, ZoomIn, ZoomOut, Printer, Maximize2, Trash2, Archive } from "lucide-react";
+import { ArrowLeft, Edit3, History, ArrowRight, User, Package, Calendar, MapPin, Truck, Building2, FileText, FileSpreadsheet, ClipboardList, Wrench, Tag, CheckCircle, RotateCcw, RefreshCw, Camera, ZoomIn, ZoomOut, Printer, Maximize2, Trash2, Archive, Recycle } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthContext";
+import { getCylinderGenealogy } from "@/lib/genealogy";
 
 type Lifecycle = { index: number; start: string; end: string | null };
 
@@ -320,6 +321,7 @@ export default function ViewBottlePage() {
   }, [serial]);
 
   const lifecycles = useMemo(() => deriveLifecycles(moveLogs), [moveLogs]);
+  const genealogy = useMemo(() => getCylinderGenealogy(bottle, moveLogs), [bottle, moveLogs]);
 
   // Default to the most recent (current) lifecycle whenever lifecycles change
   useEffect(() => {
@@ -610,6 +612,14 @@ export default function ViewBottlePage() {
           ${bottle.supplier ? `<td class="summary-cell"><div class="summary-label">Supplier</div><div class="summary-value">${bottle.supplier}</div></td>` : ""}
           ${bottle.poNumber ? `<td class="summary-cell"><div class="summary-label">PO Number</div><div class="summary-value">${bottle.poNumber}</div></td>` : ""}
         </tr></table>
+        ${genealogy ? `
+          <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 6px; padding: 10px 14px; margin-bottom: 15px; font-size: 11px; color: #166534; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <strong>REFCOM Audit Genealogy:</strong> Recycled refrigerant derived from source Reclaim Cylinder <strong>#${genealogy.sourceSerial}</strong> (${genealogy.relationType === 'decanted' ? 'Filtered Workshop Decant' : 'In-Place Reclassification'}). Full parent chain of custody verified.
+            </div>
+            <div style="font-family: monospace; font-weight: bold; color: #15803d;">Source Reclaim #${genealogy.sourceSerial}</div>
+          </div>
+        ` : ""}
         <h3 style="font-size: 14px; margin-bottom: 12px; color: #2d3748; border-left: 5px solid #a3e635; padding-left: 12px;">Full Audit History</h3>
         <table><thead><tr>
           <th style="width: 85px;">Date</th><th style="width: 100px;">Action</th>
@@ -799,6 +809,89 @@ export default function ViewBottlePage() {
         </div>
       )}
 
+      {genealogy && (
+        <div
+          style={{
+            background: "linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.08) 100%)",
+            border: "1px solid rgba(16, 185, 129, 0.35)",
+            boxShadow: "0 4px 20px -5px rgba(16, 185, 129, 0.2)",
+            borderRadius: "12px",
+            padding: "0.9rem 1.25rem",
+            marginBottom: "1.5rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "0.85rem",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <div
+              style={{
+                background: "rgba(16, 185, 129, 0.2)",
+                border: "1px solid rgba(16, 185, 129, 0.4)",
+                borderRadius: "8px",
+                padding: "0.5rem",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Recycle size={22} color="#10b981" />
+            </div>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                <span style={{ fontSize: "0.75rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "#10b981" }}>
+                  REFCOM Audit Genealogy
+                </span>
+                <span
+                  style={{
+                    background: "rgba(16, 185, 129, 0.2)",
+                    color: "#a7f3d0",
+                    fontSize: "0.72rem",
+                    fontWeight: 700,
+                    padding: "0.15rem 0.5rem",
+                    borderRadius: "4px",
+                    fontFamily: "var(--font-geist-mono)",
+                  }}
+                >
+                  {genealogy.relationType === "decanted" ? "Filtered Workshop Decant" : "In-Place Reclassification"}
+                </span>
+              </div>
+              <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#fff", marginTop: "0.15rem" }}>
+                {genealogy.displayText}
+              </div>
+              {genealogy.notes && (
+                <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginTop: "0.2rem" }}>
+                  {genealogy.notes}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <Link
+            href={`/admin/bottles/${encodeURIComponent(genealogy.sourceSerial)}`}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.45rem",
+              background: "rgba(16, 185, 129, 0.2)",
+              border: "1px solid rgba(16, 185, 129, 0.5)",
+              color: "#a7f3d0",
+              padding: "0.55rem 0.95rem",
+              borderRadius: "8px",
+              fontSize: "0.82rem",
+              fontWeight: 700,
+              textDecoration: "none",
+              transition: "all 0.15s ease",
+            }}
+          >
+            <span>Inspect Source Reclaim Cylinder #{genealogy.sourceSerial}</span>
+            <ArrowRight size={14} />
+          </Link>
+        </div>
+      )}
+
       <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: "2rem" }}>
         {/* Sidebar */}
         <div>
@@ -812,6 +905,33 @@ export default function ViewBottlePage() {
                   {catBadge.label}
                 </span>
               </div>
+
+              {genealogy && (
+                <div>
+                  <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)", marginBottom: "0.3rem" }}>
+                    Source Reclaim Cylinder
+                  </div>
+                  <Link
+                    href={`/admin/bottles/${encodeURIComponent(genealogy.sourceSerial)}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.4rem",
+                      background: "rgba(16, 185, 129, 0.15)",
+                      color: "#10b981",
+                      border: "1px solid rgba(16, 185, 129, 0.35)",
+                      padding: "0.3rem 0.65rem",
+                      borderRadius: "6px",
+                      fontSize: "0.8rem",
+                      fontWeight: 700,
+                      textDecoration: "none",
+                    }}
+                  >
+                    <Recycle size={14} />
+                    <span>#{genealogy.sourceSerial}</span>
+                  </Link>
+                </div>
+              )}
 
               <div>
                 <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)", marginBottom: "0.3rem" }}>Status</div>

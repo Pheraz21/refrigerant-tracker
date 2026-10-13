@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { CheckCircle2, Truck, ArrowLeft, MapPin, Building2, Users, AlertTriangle, Building, Recycle } from "lucide-react";
 import styles from "../log/page.module.css"; // Reuse existing form styles
@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { compressImage } from "@/lib/utils";
 import { supabase } from "@/lib/supabaseClient";
 import { ActiveVehicleBanner } from "@/components/ActiveVehicleBanner";
+import { useNavigationGuard } from "@/lib/NavigationGuardContext";
 
 async function uploadHwcnPhoto(base64: string, serial: string): Promise<string> {
   try {
@@ -61,6 +62,73 @@ export default function MoveBottlePage() {
   const [hwcnSites, setHwcnSites] = useState<any[]>([]);
 
   const { user, activeVehicleReg, activeVehicleOwner } = useAuth();
+  const { setIsDirty, setCustomMessage, requestNavigate } = useNavigationGuard();
+
+  const isMoveDirty = useMemo(() => {
+    if (isSuccess || isSubmitting) return false;
+
+    // 1. Moving to site with typed job number
+    if (destination === "site" && locationId.trim().length > 0) return true;
+
+    // 2. Colleague handover selected
+    if (destination === "engineer" && selectedEngineer) return true;
+
+    // 3. Custom destination entered
+    if (customDestination.name.trim() || customDestination.address.trim() || customDestination.postcode.trim()) {
+      return true;
+    }
+
+    // 4. Hazardous waste producer site entered or altered
+    if (hwcnSites && hwcnSites.length > 0) {
+      const initialSites = bottle?.producerSites || [];
+      const hasDiff = hwcnSites.some((s, idx) => {
+        const init = initialSites[idx];
+        return (
+          s.name?.trim() !== (init?.name || "").trim() ||
+          s.address?.trim() !== (init?.address || "").trim() ||
+          s.postcode?.trim() !== (init?.postcode || "").trim()
+        );
+      });
+      if (hasDiff) return true;
+    }
+
+    // 5. Photos or diverts entered
+    if (supplierPhoto !== null) return true;
+    if (divertedBranch.trim().length > 0 || divertSiteJobNo.trim().length > 0) return true;
+    if (intendedDest.trim().length > 0) return true;
+
+    return false;
+  }, [
+    isSuccess,
+    isSubmitting,
+    destination,
+    locationId,
+    selectedEngineer,
+    customDestination,
+    hwcnSites,
+    bottle?.producerSites,
+    supplierPhoto,
+    divertedBranch,
+    divertSiteJobNo,
+    intendedDest,
+  ]);
+
+  useEffect(() => {
+    setIsDirty(isMoveDirty);
+    if (isMoveDirty) {
+      setCustomMessage(
+        "You have entered cylinder movement / hazardous waste consignment details that have not been submitted yet. If you navigate away now, this compliance transfer will be discarded."
+      );
+    } else {
+      setCustomMessage(undefined);
+    }
+  }, [isMoveDirty, setIsDirty, setCustomMessage]);
+
+  useEffect(() => {
+    return () => {
+      setIsDirty(false);
+    };
+  }, [setIsDirty]);
 
   useEffect(() => {
     db.getCompanySettings().then(s => { if (s?.carrierReg) setCarrierRegNo(s.carrierReg); });
@@ -264,7 +332,15 @@ export default function MoveBottlePage() {
   return (
     <div className={styles.container}>
       <header className={styles.header}>
-        <Link href={`/engineer/bottle/${serialParam}`} className={styles.backBtn}>
+        <Link
+          href={`/engineer/bottle/${serialParam}`}
+          onClick={(e) => {
+            if (!requestNavigate(`/engineer/bottle/${serialParam}`)) {
+              e.preventDefault();
+            }
+          }}
+          className={styles.backBtn}
+        >
           <ArrowLeft size={20} />
         </Link>
         <div>

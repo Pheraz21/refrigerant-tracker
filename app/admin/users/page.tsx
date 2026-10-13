@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { db, AppUser, UserStatus, UserRole } from "@/lib/db";
 import { supabase } from "@/lib/supabaseClient";
 import { Users, ShieldCheck, ShieldAlert, UserX, Truck, Mail, Phone, Calendar, Search, Filter, Save, X, Settings2, Building, KeyRound } from "lucide-react";
+import Link from "next/link";
 
 export default function UserManagementPage() {
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -416,6 +417,48 @@ export default function UserManagementPage() {
         </h1>
         <p style={{color: "var(--text-muted)", fontSize: "0.9rem"}}>Manage engineers, office staff, and access roles</p>
       </div>
+
+      {activePairings.length > 0 && (
+        <div
+          style={{
+            background: "rgba(34, 197, 94, 0.08)",
+            border: "1px solid rgba(34, 197, 94, 0.3)",
+            borderRadius: "10px",
+            padding: "0.75rem 1rem",
+            marginBottom: "1.5rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "0.75rem",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <Truck size={18} color="#22c55e" />
+            <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "#fff" }}>
+              Live Field Crews:
+            </span>
+            <span style={{ fontSize: "0.85rem", color: "#a7f3d0" }}>
+              {activePairings.length} two-person crew{activePairings.length !== 1 ? "s" : ""} currently paired in company vehicles.
+            </span>
+          </div>
+
+          <Link
+            href="/admin/vans"
+            style={{
+              fontSize: "0.8rem",
+              fontWeight: 700,
+              color: "#22c55e",
+              textDecoration: "underline",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.3rem",
+            }}
+          >
+            Open Live Crews Van Dashboard &rarr;
+          </Link>
+        </div>
+      )}
 
       {/* Tools Bar */}
       <div style={{

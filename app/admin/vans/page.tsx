@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { db, Bottle, AppUser } from "@/lib/db";
-import { Truck, AlertTriangle, Search, ArrowUpDown, ArrowUp, ArrowDown, FileText, FileSpreadsheet, Calendar, Filter as FilterIcon, Settings2 } from "lucide-react";
+import { Truck, AlertTriangle, Search, ArrowUpDown, ArrowUp, ArrowDown, FileText, FileSpreadsheet, Calendar, Filter as FilterIcon, Settings2, Users, UserCheck, XCircle, Shield, Check, Package } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTablePrefs } from "@/lib/useTablePrefs";
 import { ColumnCustomizer } from "@/app/components/ColumnCustomizer";
@@ -198,6 +198,28 @@ export default function VanInventoryPage() {
       db.getBottlesByVan(selectedEngineer).then(setBottles);
     }
   }, [selectedEngineer]);
+
+  const handleUnpair = async (pairingId: string, mateName: string, leadName: string) => {
+    if (!confirm(`Are you sure you want to unpair ${mateName} from ${leadName}?`)) return;
+    try {
+      await db.respondToPairingRequest(pairingId, "revoked");
+      const updated = await db.getAllActivePairings();
+      setActivePairings(updated.filter(p => p.pairingStatus === "approved"));
+    } catch (err) {
+      console.error("Failed to unpair crew:", err);
+      alert("Failed to unpair crew. Please try again.");
+    }
+  };
+
+  const getCrewBottleCount = (reg: string, leadName: string) => {
+    const cleanReg = (reg || "").trim().toUpperCase();
+    const cleanLead = (leadName || "").trim().toLowerCase();
+    return bottles.filter(b => {
+      const bReg = (b.vehicleReg || "").trim().toUpperCase();
+      const bLoc = (b.locationId || "").trim().toLowerCase();
+      return (cleanReg && bReg === cleanReg) || (cleanLead && bLoc.includes(cleanLead));
+    }).length;
+  };
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -396,28 +418,302 @@ export default function VanInventoryPage() {
         <p style={{color: "var(--text-muted)", fontSize: "0.9rem"}}>View bottles assigned to each engineer&apos;s van</p>
       </div>
 
-      {activePairings.length > 0 && (
-        <div style={{
-          background: "rgba(34, 197, 94, 0.06)",
-          border: "1px solid rgba(34, 197, 94, 0.25)",
-          borderRadius: "12px",
-          padding: "0.85rem 1.1rem",
-          marginBottom: "1.5rem",
-          display: "flex",
-          alignItems: "center",
-          gap: "0.75rem",
-          flexWrap: "wrap"
-        }}>
-          <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#22c55e", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            Live Van Pairings:
-          </span>
-          {activePairings.map(p => (
-            <span key={p.id} style={{ fontSize: "0.82rem", background: "rgba(34, 197, 94, 0.15)", border: "1px solid rgba(34, 197, 94, 0.3)", padding: "0.25rem 0.6rem", borderRadius: "6px", color: "#fff" }}>
-              <strong style={{ color: "#fff" }}>{p.mateName}</strong> <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>({p.mateRole.toUpperCase()})</span> ➔ <strong style={{ color: "#22c55e" }}>{p.leadEngineerName}</strong> <span style={{ fontFamily: "monospace", fontSize: "0.78rem" }}>({p.vehicleReg})</span>
-            </span>
-          ))}
+      {/* ── Active Field Crews & Vehicle Pairings (Office Dispatch) ── */}
+      <div
+        className="glass-panel"
+        style={{
+          background: "linear-gradient(145deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 41, 59, 0.6) 100%)",
+          border: "1.5px solid rgba(34, 197, 94, 0.3)",
+          borderRadius: "14px",
+          padding: "1.25rem 1.5rem",
+          marginBottom: "2rem",
+          boxShadow: "0 10px 30px -10px rgba(0, 0, 0, 0.5)",
+        }}
+      >
+        {/* Widget Header & Metrics */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem", marginBottom: "1.25rem" }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+              <div
+                style={{
+                  background: "rgba(34, 197, 94, 0.15)",
+                  border: "1px solid rgba(34, 197, 94, 0.4)",
+                  borderRadius: "8px",
+                  padding: "0.45rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Users size={20} color="#22c55e" />
+              </div>
+              <div>
+                <h2 style={{ fontSize: "1.15rem", fontWeight: 700, margin: 0, color: "#fff", display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                  Active Field Crews &amp; Vehicle Deployments
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.35rem",
+                      background: "rgba(34, 197, 94, 0.15)",
+                      border: "1px solid rgba(34, 197, 94, 0.35)",
+                      color: "#4ade80",
+                      fontSize: "0.7rem",
+                      fontWeight: 800,
+                      padding: "0.15rem 0.5rem",
+                      borderRadius: "20px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                    }}
+                  >
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", display: "inline-block", boxShadow: "0 0 8px #22c55e" }} />
+                    Live Mobile Pairings
+                  </span>
+                </h2>
+                <p style={{ margin: "0.2rem 0 0", fontSize: "0.82rem", color: "rgba(255, 255, 255, 0.6)" }}>
+                  Real-time dispatch view: Mates and apprentices currently paired with lead engineers in company vehicles
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Metrics Bar */}
+          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+            <div style={{ background: "rgba(255, 255, 255, 0.04)", border: "1px solid rgba(255, 255, 255, 0.08)", borderRadius: "8px", padding: "0.45rem 0.85rem", textAlign: "center" }}>
+              <div style={{ fontSize: "0.68rem", color: "rgba(255, 255, 255, 0.5)", textTransform: "uppercase", fontWeight: 700 }}>Active Crews</div>
+              <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "#22c55e" }}>{activePairings.length}</div>
+            </div>
+            <div style={{ background: "rgba(255, 255, 255, 0.04)", border: "1px solid rgba(255, 255, 255, 0.08)", borderRadius: "8px", padding: "0.45rem 0.85rem", textAlign: "center" }}>
+              <div style={{ fontSize: "0.68rem", color: "rgba(255, 255, 255, 0.5)", textTransform: "uppercase", fontWeight: 700 }}>Paired Personnel</div>
+              <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "#00e5ff" }}>{activePairings.length * 2}</div>
+            </div>
+            <div style={{ background: "rgba(255, 255, 255, 0.04)", border: "1px solid rgba(255, 255, 255, 0.08)", borderRadius: "8px", padding: "0.45rem 0.85rem", textAlign: "center" }}>
+              <div style={{ fontSize: "0.68rem", color: "rgba(255, 255, 255, 0.5)", textTransform: "uppercase", fontWeight: 700 }}>Solo Engineers</div>
+              <div style={{ fontSize: "1.2rem", fontWeight: 800, color: "#94a3b8" }}>
+                {Math.max(0, engineers.filter(e => e.role === "engineer").length - new Set(activePairings.map(p => p.leadEngineerName.toLowerCase())).size)}
+              </div>
+            </div>
+          </div>
         </div>
-      )}
+
+        {/* Crew Cards Grid */}
+        {activePairings.length === 0 ? (
+          <div
+            style={{
+              background: "rgba(255, 255, 255, 0.02)",
+              border: "1px dashed rgba(255, 255, 255, 0.12)",
+              borderRadius: "10px",
+              padding: "2rem 1.5rem",
+              textAlign: "center",
+              color: "rgba(255, 255, 255, 0.6)",
+            }}
+          >
+            <Users size={32} style={{ color: "rgba(255, 255, 255, 0.3)", marginBottom: "0.5rem" }} />
+            <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#fff" }}>No Two-Person Crew Pairings Currently Active</div>
+            <div style={{ fontSize: "0.82rem", maxWidth: "540px", margin: "0.35rem auto 0", lineHeight: 1.5 }}>
+              All field personnel are currently operating solo. When an apprentice or mate boards a van and pairs with a lead engineer on their mobile hub, their live van team will appear here automatically.
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: "1rem" }}>
+            {activePairings.map(p => {
+              const leadUser = engineers.find(e => e.name.toLowerCase() === p.leadEngineerName.toLowerCase());
+              const vanBottles = getCrewBottleCount(p.vehicleReg, p.leadEngineerName);
+              const isApprentice = p.mateRole === "apprentice";
+
+              return (
+                <div
+                  key={p.id}
+                  style={{
+                    background: "rgba(15, 23, 42, 0.75)",
+                    border: "1px solid rgba(34, 197, 94, 0.25)",
+                    borderRadius: "12px",
+                    padding: "1rem 1.15rem",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    gap: "0.85rem",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  {/* Top: License Plate & Status */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div
+                      style={{
+                        background: "#facc15",
+                        color: "#000",
+                        fontFamily: "var(--font-geist-mono), monospace",
+                        fontWeight: 900,
+                        fontSize: "0.85rem",
+                        letterSpacing: "0.08em",
+                        padding: "0.25rem 0.65rem",
+                        borderRadius: "5px",
+                        border: "1px solid #ca8a04",
+                        boxShadow: "0 2px 6px rgba(0, 0, 0, 0.3)",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.35rem",
+                      }}
+                    >
+                      <Truck size={14} color="#000" />
+                      <span>{p.vehicleReg || "UNASSIGNED"}</span>
+                    </div>
+
+                    <span
+                      style={{
+                        fontSize: "0.72rem",
+                        color: "#4ade80",
+                        fontWeight: 700,
+                        background: "rgba(34, 197, 94, 0.12)",
+                        border: "1px solid rgba(34, 197, 94, 0.25)",
+                        padding: "0.2rem 0.55rem",
+                        borderRadius: "20px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.3rem",
+                      }}
+                    >
+                      <Check size={12} /> Paired Crew
+                    </span>
+                  </div>
+
+                  {/* Crew Members */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+                    {/* Lead Engineer */}
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                      <div
+                        style={{
+                          background: "rgba(0, 229, 255, 0.15)",
+                          border: "1px solid rgba(0, 229, 255, 0.3)",
+                          borderRadius: "6px",
+                          width: "28px",
+                          height: "28px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Shield size={15} color="#00e5ff" />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: "0.68rem", color: "#00e5ff", fontWeight: 700, textTransform: "uppercase" }}>
+                          Lead Engineer
+                        </div>
+                        <div style={{ fontSize: "0.92rem", fontWeight: 700, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {p.leadEngineerName}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Plus connection indicator */}
+                    <div style={{ paddingLeft: "10px", color: "#22c55e", fontSize: "0.75rem", fontWeight: 800 }}>
+                      &darr; paired with
+                    </div>
+
+                    {/* Mate / Apprentice */}
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                      <div
+                        style={{
+                          background: isApprentice ? "rgba(56, 189, 248, 0.15)" : "rgba(245, 158, 11, 0.15)",
+                          border: `1px solid ${isApprentice ? "rgba(56, 189, 248, 0.3)" : "rgba(245, 158, 11, 0.3)"}`,
+                          borderRadius: "6px",
+                          width: "28px",
+                          height: "28px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <UserCheck size={15} color={isApprentice ? "#38bdf8" : "#f59e0b"} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                          <span
+                            style={{
+                              fontSize: "0.65rem",
+                              fontWeight: 800,
+                              textTransform: "uppercase",
+                              background: isApprentice ? "rgba(56, 189, 248, 0.2)" : "rgba(245, 158, 11, 0.2)",
+                              color: isApprentice ? "#38bdf8" : "#f59e0b",
+                              padding: "0.1rem 0.4rem",
+                              borderRadius: "4px",
+                            }}
+                          >
+                            {p.mateRole}
+                          </span>
+                          <span style={{ fontSize: "0.7rem", color: "rgba(255, 255, 255, 0.4)" }}>
+                            Since {p.requestedAt ? new Date(p.requestedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "today"}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: "0.92rem", fontWeight: 700, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {p.mateName}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Footer & Actions */}
+                  <div
+                    style={{
+                      borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+                      paddingTop: "0.75rem",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <div style={{ fontSize: "0.78rem", color: "rgba(255, 255, 255, 0.65)", display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                      <Package size={14} color="#22c55e" />
+                      <span><strong>{vanBottles}</strong> bottle{vanBottles !== 1 ? "s" : ""} on van</span>
+                    </div>
+
+                    <div style={{ display: "flex", gap: "0.4rem" }}>
+                      <button
+                        onClick={() => {
+                          if (leadUser) setSelectedEngineer(leadUser.id);
+                          else setSelectedEngineer(p.leadEngineerName);
+                        }}
+                        style={{
+                          background: "rgba(0, 229, 255, 0.1)",
+                          border: "1px solid rgba(0, 229, 255, 0.25)",
+                          color: "#00e5ff",
+                          padding: "0.3rem 0.65rem",
+                          borderRadius: "6px",
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        View Van
+                      </button>
+
+                      <button
+                        onClick={() => handleUnpair(p.id, p.mateName, p.leadEngineerName)}
+                        style={{
+                          background: "rgba(239, 68, 68, 0.1)",
+                          border: "1px solid rgba(239, 68, 68, 0.25)",
+                          color: "#ef4444",
+                          padding: "0.3rem 0.55rem",
+                          borderRadius: "6px",
+                          fontSize: "0.75rem",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                        title="Unpair Crew"
+                      >
+                        Unpair
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       <div style={{display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "1.5rem", flexWrap: "wrap", gap: "1rem"}}>
         <div style={{display: "flex", alignItems: "center", gap: "0.75rem"}}>

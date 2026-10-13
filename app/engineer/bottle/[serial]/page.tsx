@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Truck, Wrench, AlertTriangle, ArrowLeft, Loader2, PackageCheck, MapPin, Building2, Users, Building, CheckCircle2, Camera, Image as ImageIcon, RotateCcw, Recycle } from "lucide-react";
 import styles from "./page.module.css";
 import Link from "next/link";
-import { db, Bottle } from "@/lib/db";
+import { db, Bottle, MovementLog } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { compressImage } from "@/lib/utils";
 import { supabase } from "@/lib/supabaseClient";
+import { getCylinderGenealogy } from "@/lib/genealogy";
 
 async function uploadHwcnPhotoToStorage(base64: string, serial: string): Promise<string> {
   const res = await fetch(base64);
@@ -27,6 +28,7 @@ export default function BottleActionHub() {
   const { user, activeVehicleReg, activeVehicleOwner } = useAuth();
   
   const [bottle, setBottle] = useState<Bottle | null>(null);
+  const [moveLogs, setMoveLogs] = useState<MovementLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
   const [isAltBranch, setIsAltBranch] = useState(false);
@@ -50,6 +52,8 @@ export default function BottleActionHub() {
   const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
   const [returnConfirmed, setReturnConfirmed] = useState(false);
 
+  const genealogy = useMemo(() => getCylinderGenealogy(bottle, moveLogs), [bottle, moveLogs]);
+
   const handleNitrogenUsage = async (isEmpty: boolean) => {
     if (!bottle) return;
     setIsSubmittingNitrogen(true);
@@ -71,6 +75,15 @@ export default function BottleActionHub() {
         return;
       }
       setBottle(b);
+
+      if (b.category === "recycled") {
+        try {
+          const m = await db.getMovementLogs(serial);
+          setMoveLogs(m || []);
+        } catch (e) {
+          console.warn("Could not load movement logs for genealogy", e);
+        }
+      }
       
       // Load engineers for handover
       const profiles = await db.getEngineerProfiles();
@@ -247,6 +260,30 @@ export default function BottleActionHub() {
             </div>
             <span className={styles.serial}>{bottle.serial}</span>
           </div>
+
+          {genealogy && (
+            <div style={{ marginBottom: "0.85rem" }}>
+              <Link
+                href={`/engineer/bottle/${encodeURIComponent(genealogy.sourceSerial)}`}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.45rem",
+                  background: "rgba(16, 185, 129, 0.15)",
+                  border: "1px solid rgba(16, 185, 129, 0.35)",
+                  borderRadius: "6px",
+                  padding: "0.35rem 0.75rem",
+                  color: "#a7f3d0",
+                  fontSize: "0.8rem",
+                  fontWeight: 700,
+                  textDecoration: "none",
+                }}
+              >
+                <Recycle size={15} color="#10b981" />
+                <span>{genealogy.displayText} &rarr;</span>
+              </Link>
+            </div>
+          )}
 
           <div className={styles.bottleStats} style={{display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'start', gap: '1rem'}}>
             {/* Left Column: Info */}

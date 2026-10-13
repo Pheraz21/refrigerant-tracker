@@ -93,11 +93,13 @@ const navGroups = [
 
 import { Search } from "lucide-react";
 import CommandPalette from "@/components/CommandPalette";
+import { NavigationGuardProvider, useNavigationGuard } from "@/lib/NavigationGuardContext";
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+function AdminLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, logout, loading } = useAuth();
   const router = useRouter();
+  const { requestNavigate } = useNavigationGuard();
 
   const [notifCount, setNotifCount] = useState(0);
   const [pendingUsersCount, setPendingUsersCount] = useState(0);
@@ -105,6 +107,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem("adminSidebarCollapsed") === "true"; } catch { return false; }
   });
+
+  const handleNavClick = (e: React.MouseEvent, href: string) => {
+    if (pathname === href) return;
+    if (!requestNavigate(href)) {
+      e.preventDefault();
+    }
+  };
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -229,6 +238,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     )}
                   <Link
                     href={item.href}
+                    onClick={(e) => handleNavClick(e, item.href)}
                     title={collapsed ? item.label : undefined}
                     style={{
                       display: "flex",
@@ -304,7 +314,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {!collapsed && <div style={{fontSize: "0.75rem", color: "rgba(255,255,255,0.4)", marginBottom: "0.75rem"}}>{user.email}</div>}
           
           <button
-            onClick={logout}
+            onClick={() => {
+              if (requestNavigate(logout)) {
+                logout();
+              }
+            }}
             title="Sign Out"
             style={{
               display: "flex",
@@ -381,5 +395,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {children}
       </main>
     </div>
+  );
+}
+
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <NavigationGuardProvider>
+      <AdminLayoutContent>{children}</AdminLayoutContent>
+    </NavigationGuardProvider>
   );
 }
