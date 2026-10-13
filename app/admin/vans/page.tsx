@@ -56,19 +56,21 @@ function exportVanPDF(bottles: Bottle[], engineer: string, engineerProfiles: App
   };
 
   // Type summary counts
-  const newCount     = bottles.filter(b => b.category === "new").length;
-  const reclaimCount = bottles.filter(b => b.category === "reclaim").length;
-  const n2Count      = bottles.filter(b => b.category === "nitrogen").length;
+  const newCount      = bottles.filter(b => b.category === "new").length;
+  const recycledCount = bottles.filter(b => b.category === "recycled").length;
+  const reclaimCount  = bottles.filter(b => b.category === "reclaim").length;
+  const n2Count       = bottles.filter(b => b.category === "nitrogen").length;
 
   // Per-engineer breakdown
-  const engMap = new Map<string, { name: string; reg: string; new: number; reclaim: number; nitrogen: number }>();
+  const engMap = new Map<string, { name: string; reg: string; new: number; recycled: number; reclaim: number; nitrogen: number }>();
   bottles.forEach(b => {
     const { name, reg } = resolveEngineer(b);
-    if (!engMap.has(name)) engMap.set(name, { name, reg, new: 0, reclaim: 0, nitrogen: 0 });
+    if (!engMap.has(name)) engMap.set(name, { name, reg, new: 0, recycled: 0, reclaim: 0, nitrogen: 0 });
     const entry = engMap.get(name)!;
-    if (b.category === "new")      entry.new++;
-    else if (b.category === "reclaim") entry.reclaim++;
-    else                            entry.nitrogen++;
+    if (b.category === "new")           entry.new++;
+    else if (b.category === "recycled") entry.recycled++;
+    else if (b.category === "reclaim")  entry.reclaim++;
+    else                                entry.nitrogen++;
   });
   const engRows = Array.from(engMap.values())
     .sort((a, b) => a.name.localeCompare(b.name))
@@ -76,13 +78,14 @@ function exportVanPDF(bottles: Bottle[], engineer: string, engineerProfiles: App
       <td>${e.name}</td>
       <td style="font-family:monospace">${e.reg}</td>
       <td style="text-align:center;font-weight:bold">${e.new}</td>
+      <td style="text-align:center;font-weight:bold">${e.recycled}</td>
       <td style="text-align:center;font-weight:bold">${e.reclaim}</td>
       <td style="text-align:center;font-weight:bold">${e.nitrogen}</td>
-      <td style="text-align:center;font-weight:bold">${e.new + e.reclaim + e.nitrogen}</td>
+      <td style="text-align:center;font-weight:bold">${e.new + e.recycled + e.reclaim + e.nitrogen}</td>
     </tr>`).join("");
 
   const rows = bottles.map(b => {
-    const catLabel = b.category === "new" ? "New" : b.category === "reclaim" ? "Reclaim / Haz" : "Nitrogen";
+    const catLabel = b.category === "new" ? "New" : b.category === "recycled" ? "Recycled" : b.category === "reclaim" ? "Reclaim / Haz" : "Nitrogen";
     const { name: engineerName, reg } = resolveEngineer(b);
     return `<tr>
       <td style="font-weight:bold">${b.serial}</td>
@@ -131,11 +134,12 @@ function exportVanPDF(bottles: Bottle[], engineer: string, engineerProfiles: App
       <div class="summary-boxes">
         <div class="summary-box"><div class="label">Total Cylinders</div><div class="value">${bottles.length}</div></div>
         <div class="summary-box"><div class="label">New Gas</div><div class="value">${newCount}</div></div>
+        <div class="summary-box"><div class="label">Recycled</div><div class="value">${recycledCount}</div></div>
         <div class="summary-box"><div class="label">Reclaim / Haz</div><div class="value">${reclaimCount}</div></div>
         <div class="summary-box"><div class="label">Nitrogen</div><div class="value">${n2Count}</div></div>
       </div>
       <div class="section-title">Engineer Summary</div>
-      <table><thead><tr><th>Engineer</th><th>Vehicle Reg</th><th style="text-align:center">New Gas</th><th style="text-align:center">Reclaim / Haz</th><th style="text-align:center">Nitrogen</th><th style="text-align:center">Total</th></tr></thead>
+      <table><thead><tr><th>Engineer</th><th>Vehicle Reg</th><th style="text-align:center">New Gas</th><th style="text-align:center">Recycled</th><th style="text-align:center">Reclaim / Haz</th><th style="text-align:center">Nitrogen</th><th style="text-align:center">Total</th></tr></thead>
       <tbody>${engRows}</tbody></table>
       <div class="section-title">Cylinder Detail</div>
       <table><thead><tr><th>Serial</th><th>Category</th><th>Gas Type</th><th>Capacity</th><th>Current</th><th>Since</th><th>Engineer</th><th>Vehicle Reg</th></tr></thead>
@@ -231,9 +235,10 @@ export default function VanInventoryPage() {
 
   const getCatBadge = (cat: string) => {
     switch (cat) {
-      case "reclaim": return { bg: "rgba(255,170,0,0.12)", color: "#ffaa00", label: "Reclaim / Haz" };
-      case "new":     return { bg: "rgba(0,229,255,0.08)", color: "#00e5ff",  label: "New"           };
-      default:        return { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", label: "N₂" };
+      case "reclaim":  return { bg: "rgba(255,170,0,0.12)", color: "#ffaa00", label: "Reclaim / Haz" };
+      case "new":      return { bg: "rgba(0,229,255,0.08)", color: "#00e5ff",  label: "New"           };
+      case "recycled": return { bg: "rgba(16,185,129,0.12)", color: "#10b981", label: "Recycled" };
+      default:         return { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", label: "N₂" };
     }
   };
 

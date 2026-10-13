@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { Truck, AlertTriangle, FileText, ArrowRight, Loader2, Bell } from "lucide-react";
@@ -17,10 +17,10 @@ export default function NotificationsPage() {
       if (!user) return;
       
       const bottles = await db.getAllBottles();
-      // Filter for bottles assigned to this engineer (or in their van) that are missing photos
-      // Note: In this mock db, we'll just check for global ones or if there's an engineer ID field
-      // For now, showing all where supplierHwcnPhotoPending is true as the engineer is logged in
-      const missing = bottles.filter(b => b.supplierHwcnPhotoPending);
+      const isManagement = user.role === "admin" || user.role === "office";
+      const missing = bottles.filter(b =>
+        b.supplierHwcnPhotoPending && (isManagement || b.returnedBy === user.name || b.lastEngineer === user.name)
+      );
       setMissingPaperwork(missing);
       setLoading(false);
     }

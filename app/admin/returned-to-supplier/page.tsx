@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { db, Bottle } from "@/lib/db";
-import { Truck, Search, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Filter, Download, Printer, Settings2 } from "lucide-react";
+import { Truck, Search, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Filter, Download, Printer, Settings2, Archive, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTablePrefs } from "@/lib/useTablePrefs";
 import { ColumnCustomizer } from "@/app/components/ColumnCustomizer";
@@ -29,12 +29,27 @@ export default function ReturnedToSupplierPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
+  const [retentionScope, setRetentionScope] = useState<"active_5yr" | "historical_5yr" | "all">("active_5yr");
   const [sortField, setSortField] = useState<keyof Bottle | "">("returnedAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [customizerOpen, setCustOpen] = useState(false);
 
   const { visibleCols, hidden, order, toggleCol, moveCol, reset } =
     useTablePrefs("returned", COLUMN_DEFS.map(c => c.key));
+
+  const fiveYearsAgo = useMemo(() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 5);
+    return d;
+  }, []);
+
+  const active5yrCount = useMemo(() => {
+    return bottles.filter(b => !b.returnedAt || new Date(b.returnedAt) >= fiveYearsAgo).length;
+  }, [bottles, fiveYearsAgo]);
+
+  const historical5yrCount = useMemo(() => {
+    return bottles.filter(b => b.returnedAt && new Date(b.returnedAt) < fiveYearsAgo).length;
+  }, [bottles, fiveYearsAgo]);
 
   useEffect(() => {
     db.getAllBottles().then(all => {
@@ -55,6 +70,15 @@ export default function ReturnedToSupplierPage() {
 
   const filteredBottles = bottles
     .filter(b => {
+      // Retention scope filter (Statutory active <= 5 years vs Historical vault > 5 years)
+      if (b.returnedAt) {
+        const isOver5 = new Date(b.returnedAt) < fiveYearsAgo;
+        if (retentionScope === "active_5yr" && isOver5) return false;
+        if (retentionScope === "historical_5yr" && !isOver5) return false;
+      } else if (retentionScope === "historical_5yr") {
+        return false;
+      }
+
       if (search) {
         const s = search.toLowerCase();
         const match = b.serial.toLowerCase().includes(s) ||
@@ -188,6 +212,8 @@ export default function ReturnedToSupplierPage() {
     const percent = Math.min(100, Math.max(0, ((b.currentWeight || 0) / (b.initialWeight || 1)) * 100));
     const catBadge = isReclaim
       ? { bg: "rgba(255,170,0,0.12)", color: "#ffaa00", label: "Reclaim / Haz" }
+      : b.category === "recycled"
+      ? { bg: "rgba(16,185,129,0.12)", color: "#10b981", label: "Recycled" }
       : isNitrogen
       ? { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", label: "N₂" }
       : { bg: "rgba(0,229,255,0.08)", color: "#00e5ff", label: "New" };
@@ -243,8 +269,32 @@ export default function ReturnedToSupplierPage() {
         );
       case "returnedBy":
         return <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.9rem"}}>{b.returnedBy || "—"}</td>;
-      case "returnDate":
-        return <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", color: "var(--text-muted)"}}>{b.returnedAt ? new Date(b.returnedAt).toLocaleDateString("en-GB") : "—"}</td>;
+      case "returnDate": {
+        const isOver5 = b.returnedAt && new Date(b.returnedAt) < fiveYearsAgo;
+        return (
+          <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", color: "var(--text-muted)"}}>
+            {b.returnedAt ? (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", marginBottom: "0.2rem" }}>
+                  <span style={{ fontWeight: 600, color: "#fff" }}>{new Date(b.returnedAt).toLocaleDateString("en-GB")}</span>
+                  {isOver5 ? (
+                    <span style={{ fontSize: "0.68rem", color: "#10b981", background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.3)", padding: "0.1rem 0.35rem", borderRadius: "4px", fontWeight: 600 }}>
+                      ✓ 5-Yr Fulfilled
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: "0.68rem", color: "#00e5ff", background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.25)", padding: "0.1rem 0.35rem", borderRadius: "4px", fontWeight: 600 }}>
+                      Active Retention
+                    </span>
+                  )}
+                </div>
+                <div style={{fontSize: "0.72rem", color: "rgba(255,255,255,0.4)"}}>
+                  {new Date(b.returnedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                </div>
+              </div>
+            ) : "—"}
+          </td>
+        );
+      }
       case "supplier":
         return (
           <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", color: "var(--text-muted)"}}>
@@ -272,11 +322,88 @@ export default function ReturnedToSupplierPage() {
 
   return (
     <div>
-      <div className="no-print" style={{marginBottom: "2rem"}}>
+      <div className="no-print" style={{marginBottom: "1.5rem"}}>
         <h1 style={{fontSize: "1.8rem", fontWeight: 700, marginBottom: "0.25rem", display: "flex", alignItems: "center", gap: "0.5rem"}}>
           <Truck size={28} /> Returned to Supplier
         </h1>
         <p style={{color: "var(--text-muted)", fontSize: "0.9rem"}}>All cylinders returned to suppliers — including refrigerant, nitrogen, and waste reclaim</p>
+      </div>
+
+      {/* Retention Lifecycle Segment Tabs */}
+      <div className="no-print" style={{ display: "flex", gap: "0.6rem", marginBottom: "1.25rem", flexWrap: "wrap" }}>
+        <button
+          type="button"
+          onClick={() => setRetentionScope("active_5yr")}
+          style={{
+            padding: "0.55rem 1.1rem",
+            borderRadius: "8px",
+            border: `1.5px solid ${retentionScope === "active_5yr" ? "#00e5ff" : "rgba(255,255,255,0.1)"}`,
+            background: retentionScope === "active_5yr" ? "rgba(0,229,255,0.12)" : "rgba(255,255,255,0.03)",
+            color: retentionScope === "active_5yr" ? "#00e5ff" : "rgba(255,255,255,0.7)",
+            fontWeight: 600,
+            fontSize: "0.85rem",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            transition: "all 0.15s"
+          }}
+        >
+          <ShieldCheck size={16} />
+          Active Statutory Retention (≤ 5 Years)
+          <span style={{ fontSize: "0.75rem", background: "rgba(0,229,255,0.25)", color: "#fff", padding: "0.1rem 0.45rem", borderRadius: "10px", fontWeight: 700 }}>
+            {active5yrCount}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setRetentionScope("historical_5yr")}
+          style={{
+            padding: "0.55rem 1.1rem",
+            borderRadius: "8px",
+            border: `1.5px solid ${retentionScope === "historical_5yr" ? "#10b981" : "rgba(255,255,255,0.1)"}`,
+            background: retentionScope === "historical_5yr" ? "rgba(16,185,129,0.12)" : "rgba(255,255,255,0.03)",
+            color: retentionScope === "historical_5yr" ? "#10b981" : "rgba(255,255,255,0.7)",
+            fontWeight: 600,
+            fontSize: "0.85rem",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            transition: "all 0.15s"
+          }}
+        >
+          <Archive size={16} />
+          Historical Vault (&gt; 5 Years Retention Fulfilled)
+          <span style={{ fontSize: "0.75rem", background: "rgba(16,185,129,0.25)", color: "#fff", padding: "0.1rem 0.45rem", borderRadius: "10px", fontWeight: 700 }}>
+            {historical5yrCount}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setRetentionScope("all")}
+          style={{
+            padding: "0.55rem 1.1rem",
+            borderRadius: "8px",
+            border: `1.5px solid ${retentionScope === "all" ? "rgba(255,255,255,0.4)" : "rgba(255,255,255,0.1)"}`,
+            background: retentionScope === "all" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.03)",
+            color: retentionScope === "all" ? "#fff" : "rgba(255,255,255,0.7)",
+            fontWeight: 600,
+            fontSize: "0.85rem",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            transition: "all 0.15s"
+          }}
+        >
+          All Returns Ledger
+          <span style={{ fontSize: "0.75rem", background: "rgba(255,255,255,0.15)", color: "#fff", padding: "0.1rem 0.45rem", borderRadius: "10px", fontWeight: 700 }}>
+            {bottles.length}
+          </span>
+        </button>
       </div>
 
       <div className="no-print" style={{

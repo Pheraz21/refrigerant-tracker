@@ -49,6 +49,31 @@ export default function AdminHWCNPrintPage() {
   const deliveredTime = hwcn.deliveredAt ? new Date(hwcn.deliveredAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
   const isOffice = hwcn.destination === "HQ-Stores" || hwcn.destination === "HQ-Stores";
 
+  // Dynamic company fields
+  const companyName = companySettings?.companyName || "21 Degrees Ltd";
+  const companyAddress = companySettings?.companyAddress || "Unit 10, Apollo Court, Monkton Business Park";
+  const companyPostcode = companySettings?.companyPostcode || "NE31 2ES";
+  const companyTel = companySettings?.companyTel || "0191 495 7224";
+  const carrierReg = companySettings?.carrierReg || "CBDU368286";
+  const exemptionNo = companySettings?.exemptionNo || "31Z 3725 34";
+
+  const renderSignature = (sig?: string, fallbackText?: string) => {
+    if (sig && sig.startsWith("data:image/")) {
+      return (
+        <img
+          src={sig}
+          alt="Signature"
+          style={{ maxHeight: "30px", maxWidth: "160px", objectFit: "contain", display: "block" }}
+        />
+      );
+    }
+    return (
+      <span style={{ fontFamily: "'Brush Script MT', 'Dancing Script', cursive, sans-serif", fontSize: "1.1rem" }}>
+        {sig || fallbackText || ""}
+      </span>
+    );
+  };
+
   return (
     <div className="hwcn-container" style={{ maxWidth: "820px", margin: "0 auto", padding: "0.4rem", background: "#fff", color: "#000", minHeight: "100vh", fontFamily: "Arial, sans-serif" }}>
       <style dangerouslySetInnerHTML={{ __html: `
@@ -60,7 +85,7 @@ export default function AdminHWCNPrintPage() {
         }
         .hwcn-section { border: 1px solid #888; margin-bottom: 0.25rem; }
         .hwcn-header { background: #ddd; padding: 0.2rem 0.5rem; font-weight: bold; font-size: 0.78rem; text-transform: uppercase; border-bottom: 1px solid #888; }
-        .sig-box { border: 1px solid #999; min-height: 1.8rem; }
+        .sig-box { border: 1px solid #999; min-height: 1.8rem; display: flex; align-items: center; }
       `}} />
 
       {/* Nav bar (no-print) */}
@@ -104,12 +129,12 @@ export default function AdminHWCNPrintPage() {
       {/* Document header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "0.4rem", paddingBottom: "0.4rem", borderBottom: "2px solid #333" }}>
         <div style={{ display: "flex", gap: "1rem", alignItems: "flex-end" }}>
-          <img src="/21-degrees-logo-reports.png" alt="21 Degrees Ltd" style={{ width: "90px", height: "auto", display: "block" }} />
+          <img src="/21-degrees-logo-reports.png" alt="Company Logo" style={{ width: "90px", height: "auto", display: "block" }} />
           <div style={{ fontSize: "0.65rem", lineHeight: 1.2, color: "#444", borderLeft: "1px solid #ccc", paddingLeft: "0.75rem" }}>
-            <strong style={{ fontSize: "0.75rem", color: "#000" }}>21 Degrees Ltd</strong><br />
-            Unit 10, Apollo Court, Monkton Business Park<br />
-            Hebburn, Tyne &amp; Wear, NE31 2ES<br />
-            Tel: 0191 495 7224
+            <strong style={{ fontSize: "0.75rem", color: "#000" }}>{companyName}</strong><br />
+            {companyAddress}<br />
+            {companyPostcode}<br />
+            Tel: {companyTel}
           </div>
         </div>
         <div style={{ textAlign: "right" }}>
@@ -143,12 +168,12 @@ export default function AdminHWCNPrintPage() {
           <div style={{ padding: "0.3rem 0.5rem" }}>
             <div style={{ fontSize: "0.68rem", color: "#555", marginBottom: "0.1rem", fontWeight: "bold" }}>3. The waste will be taken to:</div>
             <div style={{ fontSize: "0.78rem", marginBottom: "0.2rem" }}>
-              {isOffice ? "21 Degrees Ltd, Unit 10, Apollo Court, Monkton Business Park, NE31 2ES" : hwcn.destination}
+              {isOffice ? `${companyName}, ${companyAddress}, ${companyPostcode}` : hwcn.destination}
             </div>
             <div style={{ borderTop: "1px solid #ccc", marginTop: "0.2rem", paddingTop: "0.2rem" }}>
               <div style={{ fontSize: "0.68rem", color: "#555", marginBottom: "0.1rem", fontWeight: "bold" }}>4. The waste producer was:</div>
               <div style={{ fontSize: "0.78rem" }}>
-                21 Degrees Ltd, 10 Monkton Business Park, Apollo Court, Hebburn, NE31 2ES
+                {companyName}, {companyAddress}, {companyPostcode}
               </div>
             </div>
           </div>
@@ -184,7 +209,9 @@ export default function AdminHWCNPrintPage() {
                   const recoveryLogs = usageLogs
                     .filter(l => l.jobType === "recovery")
                     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
                   if (!hwcn.sites || hwcn.sites.length === 0) return null;
+
                   return hwcn.sites.map((site: any, i: number) => {
                     const siteLogs = recoveryLogs.filter(l =>
                       (l.siteName || "").trim().toLowerCase() === (site.name || "").trim().toLowerCase() ||
@@ -198,6 +225,7 @@ export default function AdminHWCNPrintPage() {
                     } else {
                       weight = Number(hwcn.fillWeight || 0) / (hwcn.sites?.length || 1);
                     }
+
                     return (
                       <tr key={i}>
                         {cell(`Site ${i + 1}`)}
@@ -249,7 +277,7 @@ export default function AdminHWCNPrintPage() {
                 I certify that I today collected/delivered the consignment and that the details in A2, A3 and B3 are correct and I have been advised of any specific handling requirements.
               </p>
               {field("1. Carrier's name", hwcn.engineer)}
-              {field("2. Carrier's reg no.", companySettings?.carrierReg || "CBDU368286")}
+              {field("2. Carrier's reg no.", carrierReg)}
               {field("3. Vehicle reg no.", hwcn.vehicleReg || "")}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem", marginTop: "0.3rem" }}>
                 {field("Date", formattedDate)}
@@ -257,7 +285,9 @@ export default function AdminHWCNPrintPage() {
               </div>
               <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginTop: "0.5rem" }}>
                 <span style={{ fontSize: "0.72rem", whiteSpace: "nowrap" }}>Signature:</span>
-                <div className="sig-box" style={{ flex: 1, padding: "0.1rem 0.5rem" }}>{hwcn.engineer}</div>
+                <div className="sig-box" style={{ flex: 1, padding: "0.1rem 0.5rem" }}>
+                  {renderSignature(hwcn.carrierSignature, hwcn.engineer)}
+                </div>
               </div>
             </div>
           </div>
@@ -268,10 +298,12 @@ export default function AdminHWCNPrintPage() {
               <p style={{ fontSize: "0.68rem", color: "#444", marginBottom: "0.3rem", lineHeight: 1.2 }}>
                 I certify that the information in A, B and C above is correct, that the carrier is registered or exempt and was advised of the appropriate precautionary measures. All of the waste is packaged and labelled correctly and I have fulfilled my duty to apply the waste hierarchy as required by Regulation 12 of Waste (England and Wales) Regulation 2011.
               </p>
-              {field("1. Consignor name", hwcn.engineer ? `${hwcn.engineer} (21 Degrees)` : "")}
+              {field("1. Consignor name", hwcn.engineer ? `${hwcn.engineer} (${companyName})` : "")}
               <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginTop: "0.3rem" }}>
                 <span style={{ fontSize: "0.68rem", whiteSpace: "nowrap" }}>2. Signature:</span>
-                <div className="sig-box" style={{ flex: 1, padding: "0.1rem 0.5rem", minHeight: "1.6rem" }}>{hwcn.engineer}</div>
+                <div className="sig-box" style={{ flex: 1, padding: "0.1rem 0.5rem", minHeight: "1.6rem" }}>
+                  {renderSignature(hwcn.consignorSignature, hwcn.engineer)}
+                </div>
               </div>
               {field("3. Name", hwcn.engineer)}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem", marginTop: "0.3rem" }}>
@@ -310,13 +342,13 @@ export default function AdminHWCNPrintPage() {
                 <div style={{ border: "1px solid #bbb", minHeight: "1.2rem", padding: "0.15rem", fontSize: "0.72rem" }}>
                   {hwcn.rejectionDetails || ""}
                 </div>
-                {field("4. Waste exemption no.", companySettings?.exemptionNo || "31Z 3725 34")}
+                {field("4. Waste exemption no.", exemptionNo)}
               </div>
               <div style={{ minWidth: "160px" }}>
                 <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.3rem" }}>
                   <span style={{ fontSize: "0.68rem", whiteSpace: "nowrap" }}>Signature:</span>
                   <div className="sig-box" style={{ flex: 1, minHeight: "2rem", padding: "0.15rem 0.5rem" }}>
-                    {hwcn.hwcnStatus === "complete" ? (hwcn.receivedSignature || "") : ""}
+                    {hwcn.hwcnStatus === "complete" ? renderSignature(hwcn.receivedSignature, hwcn.receivedBy) : ""}
                   </div>
                 </div>
                 {field("Name", hwcn.hwcnStatus === "complete" ? (hwcn.receivedBy || "") : "")}

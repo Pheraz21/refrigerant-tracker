@@ -1,9 +1,11 @@
 import { supabase } from "./supabaseClient";
+import { getGwp, calculateCO2e } from "./gwp";
 
 export type BottleCategory = "new" | "reclaim" | "nitrogen" | "recycled";
 export type LocationType = "van" | "site" | "supplier" | "office";
 export type UserRole = "admin" | "office" | "engineer" | "mate" | "apprentice";
 export type UserStatus = "pending" | "approved" | "disabled" | "rejected";
+export type BottleStatus = "active" | "empty" | "returned" | "full" | "archived" | "recycled";
 
 export interface AppUser {
   id: string;
@@ -17,6 +19,7 @@ export interface AppUser {
   phone?: string;
   createdAt: string;
   canViewStores?: boolean;
+  certificate?: string;
 }
 
 // Mapping helpers for Supabase (snake_case) to Frontend (camelCase)
@@ -27,6 +30,7 @@ const mapUser = (u: any): AppUser => ({
   phone: u.phone_number || u.phone,
   createdAt: u.created_at || u.createdAt,
   canViewStores: u.can_view_stores ?? false,
+  certificate: u.certificate || u.f_gas_cert || u.fgas_certificate || (u.role === 'engineer' ? 'REF1010728 (Cat I)' : undefined),
 });
 
 const mapBottle = (b: any): Bottle => ({
@@ -54,7 +58,10 @@ const mapBottle = (b: any): Bottle => ({
   locationChangedAt: b.location_changed_at || b.locationChangedAt,
   vehicleReg: b.vehicle_reg || b.vehicleReg,
   rentalExpiryDate: b.rental_expiry_date || b.rentalExpiryDate,
-  lastEngineer: b.last_engineer || b.lastEngineer
+  lastEngineer: b.last_engineer || b.lastEngineer,
+  archivedAt: b.archived_at || b.archivedAt,
+  archivedBy: b.archived_by || b.archivedBy,
+  archiveReason: b.archive_reason || b.archiveReason,
 });
 
 const mapMovement = (m: any): MovementLog => ({
@@ -74,6 +81,8 @@ const mapUsage = (u: any): UsageLog => ({
   weightBefore: u.weight_before || u.weightBefore,
   weightAfter: u.weight_after || u.weightAfter,
   equipmentDetails: u.equipment_details || u.equipmentDetails || null,
+  supervisingEngineer: u.supervising_engineer || u.supervisingEngineer,
+  supervisingCertificate: u.supervising_certificate || u.supervisingCertificate,
 });
 
 const mapHWCN = (h: any): any => ({
@@ -83,6 +92,8 @@ const mapHWCN = (h: any): any => ({
   deliveredAt: h.delivered_at || h.deliveredAt,
   receivedBy: h.received_by || h.receivedBy,
   receivedSignature: h.received_signature || h.receivedSignature,
+  carrierSignature: h.carrier_signature || h.carrierSignature,
+  consignorSignature: h.consignor_signature || h.consignorSignature,
   rejectionDetails: h.rejection_details || h.rejectionDetails,
   vehicleRegConsignee: h.vehicle_reg_consignee || h.vehicleRegConsignee,
   partECompletedAt: h.part_e_completed_at || h.partECompletedAt,
@@ -94,7 +105,7 @@ export interface UsageLog {
   id: string;
   serial: string;
   date: string;
-  jobType: string; // service, install, recovery
+  jobType: string; // service, install, recovery, maintenance, leak_test
   siteRef: string; // e.g. JOB-1234
   siteName: string;
   siteAddress: string;
@@ -102,14 +113,28 @@ export interface UsageLog {
   weightUsed: number; // kg dispensed or recovered
   weightBefore: number;
   weightAfter: number;
-  equipmentDetails?: Array<{ manufacturer: string; model: string; serial: string; weight: number }> | null;
+  equipmentDetails?: Array<{
+    manufacturer: string;
+    model: string;
+    serial: string;
+    weight: number;
+    nominalChargeKg?: number;
+    hermeticallySealed?: boolean;
+    leakCheckResult?: "pass" | "fail" | "repaired";
+    archived?: boolean;
+    archivedAt?: string;
+    archivedBy?: string;
+    archiveReason?: string;
+  }> | null;
+  supervisingEngineer?: string;
+  supervisingCertificate?: string;
 }
 
 export interface MovementLog {
   id: string;
   serial: string;
   date: string;
-  action: string; // registered, moved_to_site, moved_to_van, returned_office, signed_out, usage
+  action: string; // registered, moved_to_site, moved_to_van, returned_office, signed_out, usage, archived
   from: string;
   to: string;
   engineer: string;
@@ -128,7 +153,7 @@ export interface Bottle {
   poNumber?: string; // Purchase Order number when registered
   supplier?: string; // Supplier name
   registeredAt: string;
-  status: "active" | "empty" | "returned" | "full";
+  status: BottleStatus;
   intendedDestination?: string;
   intendedLocationType?: LocationType;
   activeHWCN?: string;
@@ -146,7 +171,44 @@ export interface Bottle {
   vehicleReg?: string;
   rentalExpiryDate?: string;
   lastEngineer?: string;
+  archivedAt?: string;
+  archivedBy?: string;
+  archiveReason?: string;
 }
+
+export interface EquipmentItem {
+  id: string; // serial or composite key
+  serial: string;
+  manufacturer: string;
+  model: string;
+  gasType?: string;
+  nominalChargeKg?: number; // Total System Charge (kg)
+  co2eTonnes?: number; // Calculated tCO2e
+  hermeticallySealed?: boolean;
+  leakCheckIntervalMonths?: number; // 0, 3, 6, 12
+  lastLeakCheckDate?: string;
+  nextLeakCheckDueDate?: string;
+  notes?: string;
+  archived?: boolean;
+  archivedAt?: string;
+  archivedBy?: string;
+  archiveReason?: string;
+}
+
+export function calculateLeakCheckInterval(co2eTonnes: number, hermeticallySealed: boolean = false): { intervalMonths: number; rule: string } {
+  if (hermeticallySealed) {
+    if (co2eTonnes < 10) return { intervalMonths: 0, rule: "Exempt (Hermetically sealed < 10 tCO2e)" };
+    if (co2eTonnes < 50) return { intervalMonths: 12, rule: "Every 12 Months (Hermetically sealed ≥ 10 tCO2e)" };
+    if (co2eTonnes < 500) return { intervalMonths: 6, rule: "Every 6 Months (Hermetically sealed ≥ 50 tCO2e)" };
+    return { intervalMonths: 3, rule: "Every 3 Months (Hermetically sealed ≥ 500 tCO2e)" };
+  } else {
+    if (co2eTonnes < 5) return { intervalMonths: 0, rule: "Below Statutory Threshold (< 5 tCO2e)" };
+    if (co2eTonnes < 50) return { intervalMonths: 12, rule: "Every 12 Months (≥ 5 tCO2e)" };
+    if (co2eTonnes < 500) return { intervalMonths: 6, rule: "Every 6 Months (≥ 50 tCO2e)" };
+    return { intervalMonths: 3, rule: "Every 3 Months (≥ 500 tCO2e)" };
+  }
+}
+
 
 export interface SupplierReturnGroup {
   hwcnNumber: string;
@@ -292,8 +354,8 @@ export const db = {
     return mapBottle(data);
   },
 
-  async removeBottle(serial: string): Promise<void> {
-    await supabase.from('bottles').delete().eq('serial', serial);
+  async removeBottle(serial: string, archivedBy?: string, reason?: string): Promise<void> {
+    await this.purgeBottleWithLogs(serial, archivedBy, reason);
   },
 
   async returnBottleToSupplier(data: {
@@ -342,6 +404,7 @@ export const db = {
 
       // Log movement safely without failing main return on audit log RLS warning
       try {
+        const photoTag = finalPhotoUrl && !finalPhotoUrl.startsWith("data:") ? ` [Photo: ${finalPhotoUrl}]` : "";
         const { error: logError } = await supabase.from('movement_logs').insert({
           serial,
           date: returnTimestamp,
@@ -349,7 +412,7 @@ export const db = {
           from_location: 'office',
           to_location: 'supplier',
           engineer: data.returnedBy,
-          notes: `Hazardous Waste Return (HWCN: ${data.returnHwcnNumber})`
+          notes: `Hazardous Waste Return (HWCN: ${data.returnHwcnNumber}${data.returnSupplier ? `, Supplier: ${data.returnSupplier}` : ""})${photoTag}`
         });
         if (logError) {
           console.warn(`Movement log RLS warning for bottle ${serial}:`, logError.message);
@@ -366,6 +429,8 @@ export const db = {
     collectedBy: string,
     supplier: string,
     supplierBranch: string,
+    driverName?: string,
+    driverSignature?: string,
   }): Promise<void> {
     const locationId = `${data.supplier} - ${data.supplierBranch}`;
     for (const serial of data.serials) {
@@ -373,19 +438,22 @@ export const db = {
         status: 'returned',
         location_type: 'supplier',
         location_id: locationId,
-        returned_by: data.collectedBy,
+        returned_by: data.driverName ? `${data.driverName} (${data.collectedBy})` : data.collectedBy,
         returned_at: new Date(data.collectionDate).toISOString(),
         return_supplier: data.supplier,
         return_supplier_branch: data.supplierBranch,
       }).eq('serial', serial);
+
+      const driverNote = data.driverName ? `Collected by driver ${data.driverName} for supplier: ${locationId}` : `Collected by supplier: ${locationId}`;
+      const sigNote = data.driverSignature ? " (Handover signature captured)" : "";
 
       await supabase.from('movement_logs').insert({
         serial,
         action: 'collected_by_supplier',
         from_location: 'office',
         to_location: 'supplier',
-        engineer: data.collectedBy,
-        notes: `Collected by supplier: ${locationId} on ${data.collectionDate}`,
+        engineer: data.driverName || data.collectedBy,
+        notes: `${driverNote} on ${data.collectionDate}.${sigNote}`,
       });
     }
   },
@@ -413,6 +481,8 @@ export const db = {
       date: hwcnData.date,
       gas_type: hwcnData.gasType,
       fill_weight: hwcnData.fillWeight,
+      carrier_signature: hwcnData.carrierSignature,
+      consignor_signature: hwcnData.consignorSignature,
       hwcn_status: "draft"
     });
     if (error) throw error;
@@ -432,7 +502,14 @@ export const db = {
     const dbUpdates: any = {};
     if (updates.hwcnStatus) dbUpdates.hwcn_status = updates.hwcnStatus;
     if (updates.deliveredAt) dbUpdates.delivered_at = updates.deliveredAt;
-    // ... add more if needed, but for now map basic ones
+    if (updates.carrierSignature !== undefined) dbUpdates.carrier_signature = updates.carrierSignature;
+    if (updates.consignorSignature !== undefined) dbUpdates.consignor_signature = updates.consignorSignature;
+    if (updates.receivedSignature !== undefined) dbUpdates.received_signature = updates.receivedSignature;
+    if (updates.receivedBy !== undefined) dbUpdates.received_by = updates.receivedBy;
+    if (updates.vehicleReg !== undefined) dbUpdates.vehicle_reg = updates.vehicleReg;
+    if (updates.vehicleRegConsignee !== undefined) dbUpdates.vehicle_reg_consignee = updates.vehicleRegConsignee;
+    if (updates.accepted !== undefined) dbUpdates.accepted = updates.accepted;
+    if (updates.rejectionDetails !== undefined) dbUpdates.rejection_details = updates.rejectionDetails;
     await supabase.from('hwcns').update(dbUpdates).eq('id', id);
   },
 
@@ -491,13 +568,20 @@ export const db = {
         }
 
         // Log the re-registration in movement_logs (old logs stay as-is for compliance)
+        const prevHwcn = existingBottle.return_hwcn_number;
+        const prevSupplier = existingBottle.return_supplier || existingBottle.supplier;
+        const prevPhoto = existingBottle.supplier_hwcn_photo_url;
+        const photoTag = prevPhoto && !prevPhoto.startsWith("data:") ? ` [Photo: ${prevPhoto}]` : "";
+        const prevSummary = prevHwcn
+          ? ` (Prev Return HWCN: ${prevHwcn}${prevSupplier ? `, Supplier: ${prevSupplier}` : ""}${photoTag})`
+          : "";
         const { error: logError } = await supabase.from('movement_logs').insert({
           serial: data.serial,
           action: "re_registered",
           from_location: "Supplier (Recirculated)",
           to_location: data.locationId,
           engineer: data.lastEngineer || "system",
-          notes: "Bottle returned by supplier and re-registered as fresh"
+          notes: `Bottle returned by supplier and re-registered as fresh${prevSummary}`
         });
         if (logError) console.error('Error logging re-registration:', logError);
 
@@ -641,7 +725,31 @@ export const db = {
     }).eq('serial', serial);
   },
 
-  async logUsage(serial: string, jobType: string, weightChange: number, isWaste: boolean = false, producerSite?: { name: string, address: string, postcode: string }, gasType?: string, engineerName: string = "Unknown", siteRef?: string, equipmentDetails?: Array<{ manufacturer: string; model: string; serial: string; weight: number }>, supervisingEngineer?: string): Promise<void> {
+  async logUsage(
+    serial: string,
+    jobType: string,
+    weightChange: number,
+    isWaste: boolean = false,
+    producerSite?: { name: string, address: string, postcode: string },
+    gasType?: string,
+    engineerName: string = "Unknown",
+    siteRef?: string,
+    equipmentDetails?: Array<{
+      manufacturer: string;
+      model: string;
+      serial: string;
+      weight: number;
+      nominalChargeKg?: number;
+      hermeticallySealed?: boolean;
+      leakCheckResult?: "pass" | "fail" | "repaired";
+      archived?: boolean;
+      archivedAt?: string;
+      archivedBy?: string;
+      archiveReason?: string;
+    }>,
+    supervisingEngineer?: string,
+    supervisingCertificate?: string
+  ): Promise<void> {
     const { data: bottle } = await supabase.from('bottles').select('*').eq('serial', serial).single();
     if (!bottle) return;
 
@@ -656,7 +764,10 @@ export const db = {
       throw new Error("Recycled bottles cannot be used to receive waste gas in the field. They are designated strictly for charging equipment.");
     }
 
-    if (jobType === "service" || jobType === "install" || jobType === "maintenance" || jobType === "recycled_charge") {
+    if (jobType === "leak_test") {
+      // Statutory leak checks record inspections without dispensing or recovering refrigerant
+      newWeight = parseFloat(bottle.current_weight || bottle.currentWeight || 0);
+    } else if (jobType === "service" || jobType === "install" || jobType === "maintenance" || jobType === "recycled_charge") {
       newWeight = Math.max(0, newWeight - weightChange);
       if (newWeight === 0) {
         if (bottle.category === "new" || bottle.category === "nitrogen" || bottle.category === "recycled") {
@@ -736,23 +847,52 @@ export const db = {
     }
     
     const finalEngineerName = supervisingEngineer
-      ? `${engineerName} (Supervised by ${supervisingEngineer})`
+      ? `${engineerName} (Supervised by ${supervisingEngineer}${supervisingCertificate ? ` - Cert: ${supervisingCertificate}` : ""})`
       : engineerName;
 
-    const { error: logErr } = await supabase.from('usage_logs').insert({
+    const logPayload: any = {
       serial,
       job_type: jobType,
       site_name: producerSite?.name || null,
       site_address: producerSite?.address || null,
       site_ref: siteRef || producerSite?.name || null,
-      weight_used: weightChange || 0,
+      weight_used: jobType === "leak_test" ? 0 : (weightChange || 0),
       weight_before: parseFloat(bottle.current_weight || bottle.currentWeight || 0),
       weight_after: newWeight,
       engineer: finalEngineerName,
       ...(equipmentDetails && equipmentDetails.length > 0 ? { equipment_details: equipmentDetails } : {}),
-    });
-    
+    };
+    if (supervisingEngineer) {
+      logPayload.supervising_engineer = supervisingEngineer;
+    }
+    if (supervisingCertificate) {
+      logPayload.supervising_certificate = supervisingCertificate;
+    }
+
+    let { error: logErr } = await supabase.from('usage_logs').insert(logPayload);
+    if (logErr && logErr.message?.includes('column')) {
+      delete logPayload.supervising_engineer;
+      delete logPayload.supervising_certificate;
+      const retry = await supabase.from('usage_logs').insert(logPayload);
+      logErr = retry.error;
+    }
     if (logErr) console.error("Error inserting usage log:", logErr);
+
+    // If equipment was leak-checked, update last leak check timestamps
+    if (equipmentDetails && equipmentDetails.length > 0) {
+      for (const eq of equipmentDetails) {
+        if (eq.serial || (eq.manufacturer && eq.model)) {
+          await this.saveEquipmentItem({
+            serial: eq.serial,
+            manufacturer: eq.manufacturer,
+            model: eq.model,
+            nominalChargeKg: eq.nominalChargeKg,
+            hermeticallySealed: eq.hermeticallySealed,
+            lastLeakCheckDate: new Date().toISOString(),
+          });
+        }
+      }
+    }
   },
 
   async completeTransit(serial: string, supplierPhotoUrl?: string, engineerName?: string, altDestination?: string): Promise<void> {
@@ -1839,60 +1979,257 @@ export const db = {
     return data ? data.map(mapBottle) : [];
   },
 
-  async purgeBottleWithLogs(serial: string): Promise<void> {
+  async purgeBottleWithLogs(serial: string, archivedBy?: string, reason?: string): Promise<void> {
     const s = (serial || "").trim();
     if (!s) return;
+    const now = new Date().toISOString();
+    const by = archivedBy || "Admin";
+    const archiveReason = reason || "Archived by administrator (5-year F-Gas statutory retention)";
     try {
-      await Promise.all([
-        supabase.from('bottles').delete().ilike('serial', s),
-        supabase.from('usage_logs').delete().ilike('serial', s),
-        supabase.from('movement_logs').delete().ilike('serial', s),
-        supabase.from('hwcns').delete().ilike('serial', s),
-      ]);
+      const { data: b } = await supabase.from('bottles').select('*').ilike('serial', s).single();
+      const currentLocation = b?.location_id || b?.locationId || 'Unknown';
+
+      // Soft archive bottle in bottles table (never delete historical records)
+      await supabase.from('bottles').update({
+        status: 'archived',
+        archived_at: now,
+        archived_by: by,
+        archive_reason: archiveReason
+      }).ilike('serial', s);
+
+      // Append immutable movement log for 5-year F-Gas audit compliance
+      await supabase.from('movement_logs').insert({
+        serial: s,
+        action: 'archived',
+        from_location: currentLocation,
+        to_location: 'Archived (Retention)',
+        engineer: by,
+        notes: archiveReason
+      });
     } catch (err) {
-      console.error(`Error purging bottle ${s}:`, err);
+      console.error(`Error archiving bottle ${s}:`, err);
     }
   },
 
-  async deleteEquipmentItem(serialToDel: string, mfrToDel: string, mdlToDel: string): Promise<void> {
+  async deleteEquipmentItem(serialToDel: string, mfrToDel: string, mdlToDel: string, archivedBy?: string, reason?: string): Promise<void> {
     const sTarget = (serialToDel || "").toLowerCase().trim();
     const mTarget = (mfrToDel || "").toLowerCase().trim();
     const mdlTarget = (mdlToDel || "").toLowerCase().trim();
+    const now = new Date().toISOString();
+    const by = archivedBy || "Admin";
+    const rsn = reason || "Equipment archived (retained in 5-year F-Gas audit history)";
 
+    // Soft-archive in dedicated equipment store
+    await this.archiveEquipment(serialToDel || `${mfrToDel}-${mdlToDel}`, by, rsn);
+
+    // Soft-archive matching equipment objects inside usage_logs without deleting logs
     const { data: logs } = await supabase.from('usage_logs').select('*');
-    if (!logs) return;
+    if (logs) {
+      for (const log of logs) {
+        const eqList: any[] = Array.isArray(log.equipment_details) ? log.equipment_details : Array.isArray(log.equipmentDetails) ? log.equipmentDetails : [];
+        if (!eqList.length) continue;
 
-    for (const log of logs) {
-      const eqList: any[] = Array.isArray(log.equipment_details) ? log.equipment_details : Array.isArray(log.equipmentDetails) ? log.equipmentDetails : [];
-      if (!eqList.length) continue;
-
-      const hasMatch = eqList.some(eq => {
-        const sn = (eq.serial || "").toLowerCase().trim();
-        const mfr = (eq.manufacturer || "").toLowerCase().trim();
-        const mdl = (eq.model || "").toLowerCase().trim();
-
-        if (sTarget && sn === sTarget) return true;
-        if (mTarget && mdlTarget && mfr === mTarget && mdl === mdlTarget) return true;
-        return false;
-      });
-
-      if (hasMatch) {
-        const filtered = eqList.filter(eq => {
+        let modified = false;
+        const updated = eqList.map(eq => {
           const sn = (eq.serial || "").toLowerCase().trim();
           const mfr = (eq.manufacturer || "").toLowerCase().trim();
           const mdl = (eq.model || "").toLowerCase().trim();
 
-          if (sTarget && sn === sTarget) return false;
-          if (mTarget && mdlTarget && mfr === mTarget && mdl === mdlTarget) return false;
-          return true;
+          const match = (sTarget && sn === sTarget) || (mTarget && mdlTarget && mfr === mTarget && mdl === mdlTarget);
+          if (match && !eq.archived) {
+            modified = true;
+            return {
+              ...eq,
+              archived: true,
+              archivedAt: now,
+              archivedBy: by,
+              archiveReason: rsn
+            };
+          }
+          return eq;
         });
 
-        if (filtered.length === 0) {
-          await supabase.from('usage_logs').delete().eq('id', log.id);
-        } else {
-          await supabase.from('usage_logs').update({ equipment_details: filtered }).eq('id', log.id);
+        if (modified) {
+          await supabase.from('usage_logs').update({ equipment_details: updated }).eq('id', log.id);
         }
       }
+    }
+
+    // Soft-archive matching equipment in decommissioned_equipment
+    const { data: decoms } = await supabase.from('decommissioned_equipment').select('*');
+    if (decoms) {
+      for (const d of decoms) {
+        const eqList: any[] = Array.isArray(d.equipment) ? d.equipment : [];
+        if (!eqList.length) continue;
+        let modified = false;
+        const updated = eqList.map(eq => {
+          const sn = (eq.serial || "").toLowerCase().trim();
+          const mfr = (eq.manufacturer || "").toLowerCase().trim();
+          const mdl = (eq.model || "").toLowerCase().trim();
+          const match = (sTarget && sn === sTarget) || (mTarget && mdlTarget && mfr === mTarget && mdl === mdlTarget);
+          if (match && !eq.archived) {
+            modified = true;
+            return {
+              ...eq,
+              archived: true,
+              archivedAt: now,
+              archivedBy: by,
+              archiveReason: rsn
+            };
+          }
+          return eq;
+        });
+
+        if (modified) {
+          await supabase.from('decommissioned_equipment').update({ equipment: updated }).eq('id', d.id);
+        }
+      }
+    }
+  },
+
+  async getEquipmentList(): Promise<EquipmentItem[]> {
+    const dedicated: Record<string, EquipmentItem> = getStored("equipment_register", {});
+    const usageLogs = await this.getUsageLogsWithEquipment();
+    const merged: Record<string, EquipmentItem> = { ...dedicated };
+
+    for (const log of usageLogs) {
+      const items: any[] = Array.isArray(log.equipment_details) ? log.equipment_details : [];
+      for (const eq of items) {
+        const serial = (eq.serial || "").trim();
+        const mfr = (eq.manufacturer || "").trim();
+        const mdl = (eq.model || "").trim();
+        const key = (serial || `${mfr}-${mdl}`).toUpperCase();
+        if (!key) continue;
+
+        const isLeakTest = log.job_type === "leak_test";
+        const logDate = log.date;
+
+        if (!merged[key]) {
+          const nominalChargeKg = eq.nominalChargeKg || eq.weight || 0;
+          const gasType = log.gas_type || "R410A";
+          const co2eTonnes = calculateCO2e(gasType, nominalChargeKg);
+          const hermeticallySealed = eq.hermeticallySealed ?? false;
+          const { intervalMonths } = calculateLeakCheckInterval(co2eTonnes, hermeticallySealed);
+
+          let nextDue: string | undefined = undefined;
+          if (intervalMonths > 0 && logDate) {
+            const d = new Date(logDate);
+            d.setMonth(d.getMonth() + intervalMonths);
+            nextDue = d.toISOString();
+          }
+
+          merged[key] = {
+            id: key,
+            serial: serial || key,
+            manufacturer: mfr || "Unknown",
+            model: mdl || "Unknown",
+            gasType,
+            nominalChargeKg,
+            co2eTonnes,
+            hermeticallySealed,
+            leakCheckIntervalMonths: intervalMonths,
+            lastLeakCheckDate: isLeakTest ? logDate : undefined,
+            nextLeakCheckDueDate: nextDue,
+            archived: eq.archived || false,
+            archivedAt: eq.archivedAt,
+            archivedBy: eq.archivedBy,
+            archiveReason: eq.archiveReason
+          };
+        } else {
+          if (isLeakTest && (!merged[key].lastLeakCheckDate || new Date(logDate) > new Date(merged[key].lastLeakCheckDate!))) {
+            merged[key].lastLeakCheckDate = logDate;
+            if (merged[key].leakCheckIntervalMonths && merged[key].leakCheckIntervalMonths! > 0) {
+              const d = new Date(logDate);
+              d.setMonth(d.getMonth() + merged[key].leakCheckIntervalMonths!);
+              merged[key].nextLeakCheckDueDate = d.toISOString();
+            }
+          }
+        }
+      }
+    }
+
+    return Object.values(merged);
+  },
+
+  async saveEquipmentItem(item: Partial<EquipmentItem> & { serial?: string; model?: string; manufacturer?: string }): Promise<EquipmentItem> {
+    const dedicated: Record<string, EquipmentItem> = getStored("equipment_register", {});
+    const key = (item.id || item.serial || `${item.manufacturer || ''}-${item.model || ''}`).toUpperCase();
+    const existing = dedicated[key] || {} as Partial<EquipmentItem>;
+
+    const gasType = item.gasType || existing.gasType || "R410A";
+    const nominalChargeKg = item.nominalChargeKg ?? existing.nominalChargeKg ?? 0;
+    const co2eTonnes = calculateCO2e(gasType, nominalChargeKg);
+    const hermeticallySealed = item.hermeticallySealed ?? existing.hermeticallySealed ?? false;
+    const { intervalMonths } = calculateLeakCheckInterval(co2eTonnes, hermeticallySealed);
+
+    let nextDue = item.nextLeakCheckDueDate || existing.nextLeakCheckDueDate;
+    const lastCheck = item.lastLeakCheckDate || existing.lastLeakCheckDate;
+    if (intervalMonths > 0 && lastCheck) {
+      const d = new Date(lastCheck);
+      d.setMonth(d.getMonth() + intervalMonths);
+      nextDue = d.toISOString();
+    }
+
+    const updated: EquipmentItem = {
+      id: key,
+      serial: item.serial || existing.serial || key,
+      manufacturer: item.manufacturer || existing.manufacturer || "Unknown",
+      model: item.model || existing.model || "Unknown",
+      gasType,
+      nominalChargeKg,
+      co2eTonnes,
+      hermeticallySealed,
+      leakCheckIntervalMonths: intervalMonths,
+      lastLeakCheckDate: lastCheck,
+      nextLeakCheckDueDate: nextDue,
+      notes: item.notes ?? existing.notes,
+      archived: item.archived ?? existing.archived ?? false,
+      archivedAt: item.archivedAt ?? existing.archivedAt,
+      archivedBy: item.archivedBy ?? existing.archivedBy,
+      archiveReason: item.archiveReason ?? existing.archiveReason
+    };
+
+    dedicated[key] = updated;
+    setStored("equipment_register", dedicated);
+    return updated;
+  },
+
+  async archiveEquipment(id: string, archivedBy?: string, reason?: string): Promise<void> {
+    const key = (id || "").toUpperCase();
+    const dedicated: Record<string, EquipmentItem> = getStored("equipment_register", {});
+    if (dedicated[key]) {
+      dedicated[key] = {
+        ...dedicated[key],
+        archived: true,
+        archivedAt: new Date().toISOString(),
+        archivedBy: archivedBy || "Admin",
+        archiveReason: reason || "Archived by user"
+      };
+      setStored("equipment_register", dedicated);
+    }
+  },
+
+  async recordLeakCheck(serial: string, date: string, engineer: string, notes?: string): Promise<void> {
+    const key = (serial || "").toUpperCase();
+    const dedicated: Record<string, EquipmentItem> = getStored("equipment_register", {});
+    const existing = dedicated[key];
+    const checkDate = date || new Date().toISOString();
+
+    let nextDue: string | undefined = undefined;
+    if (existing?.leakCheckIntervalMonths && existing.leakCheckIntervalMonths > 0) {
+      const d = new Date(checkDate);
+      d.setMonth(d.getMonth() + existing.leakCheckIntervalMonths);
+      nextDue = d.toISOString();
+    }
+
+    if (existing) {
+      dedicated[key] = {
+        ...existing,
+        lastLeakCheckDate: checkDate,
+        nextLeakCheckDueDate: nextDue,
+        notes: notes ? `${existing.notes ? existing.notes + " | " : ""}${notes}` : existing.notes
+      };
+      setStored("equipment_register", dedicated);
     }
   },
 
@@ -1958,15 +2295,20 @@ export const db = {
       }
 
       // Purge Decommission records
-      const { data: decoms } = await supabase.from('decommission_records').select('*');
+      const { data: decoms } = await supabase.from('decommissioned_equipment').select('*');
       if (decoms && decoms.length > 0) {
         for (const d of decoms) {
           const jobStr = (d.job_number || d.jobNumber || d.site_ref || d.siteRef || "").toLowerCase();
-          const sn = (d.serial || "").toLowerCase();
-          const mdl = (d.model || "").toLowerCase();
+          const eqList: any[] = Array.isArray(d.equipment) ? d.equipment : [];
+          const hasTestEq = eqList.some(eq => {
+            const sn = (eq.serial || "").toLowerCase();
+            const mfr = (eq.manufacturer || "").toLowerCase();
+            const mdl = (eq.model || "").toLowerCase();
+            return testSerials.some(t => sn.includes(t) || mfr.includes(t) || mdl.includes(t));
+          });
 
-          if (jobStr.includes("test1") || testSerials.some(t => sn.includes(t) || mdl.includes(t))) {
-            await supabase.from('decommission_records').delete().eq('id', d.id);
+          if (jobStr.includes("test1") || hasTestEq) {
+            await supabase.from('decommissioned_equipment').delete().eq('id', d.id);
           }
         }
       }

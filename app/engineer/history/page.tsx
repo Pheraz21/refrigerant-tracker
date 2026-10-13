@@ -92,6 +92,7 @@ export default function HistoryPage() {
 
   const getCategoryLabel = (b: Bottle) => {
     if (b.category === "reclaim") return "Reclaim / Haz";
+    if (b.category === "recycled") return `Recycled (${b.gasType || "Refrigerant"})`;
     if (b.category === "nitrogen") return "Nitrogen";
     return b.gasType || "New Refrigerant";
   };

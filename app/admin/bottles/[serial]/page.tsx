@@ -3,8 +3,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db, Bottle, MovementLog, UsageLog, CrmJob } from "@/lib/db";
-import { ArrowLeft, Edit3, History, ArrowRight, User, Package, Calendar, MapPin, Truck, Building2, FileText, FileSpreadsheet, ClipboardList, Wrench, Tag, CheckCircle, RotateCcw, RefreshCw, Camera, ZoomIn, ZoomOut, Printer, Maximize2, Trash2 } from "lucide-react";
+import { ArrowLeft, Edit3, History, ArrowRight, User, Package, Calendar, MapPin, Truck, Building2, FileText, FileSpreadsheet, ClipboardList, Wrench, Tag, CheckCircle, RotateCcw, RefreshCw, Camera, ZoomIn, ZoomOut, Printer, Maximize2, Trash2, Archive } from "lucide-react";
 import Link from "next/link";
+import { useAuth } from "@/lib/AuthContext";
 
 type Lifecycle = { index: number; start: string; end: string | null };
 
@@ -265,6 +266,7 @@ function CylinderWeightChart({
 export default function ViewBottlePage() {
   const { serial } = useParams();
   const router = useRouter();
+  const { user } = useAuth();
   const [bottle, setBottle] = useState<Bottle | null>(null);
   const [moveLogs, setMoveLogs] = useState<MovementLog[]>([]);
   const [usageLogs, setUsageLogs] = useState<UsageLog[]>([]);
@@ -346,6 +348,18 @@ export default function ViewBottlePage() {
   const filteredUsageLogs = useMemo(() => usageLogs.filter(l => inLifecycle(l.date)), [usageLogs, selectedLifecycle]);
   const filteredHwcns = useMemo(() => hwcns.filter(h => inLifecycle(h.date || h.created_at || h.createdAt)), [hwcns, selectedLifecycle]);
   const filteredDecommissions = useMemo(() => decommissions.filter(d => inLifecycle(d.date)), [decommissions, selectedLifecycle]);
+
+  const activePhotoUrl = useMemo(() => {
+    const isLatest = !selectedLifecycle || selectedLifecycle.index === lifecycles[0]?.index;
+    if (isLatest && bottle?.supplierHwcnPhotoUrl) return bottle.supplierHwcnPhotoUrl;
+
+    const logWithPhoto = filteredMoveLogs.find(l => l.notes?.includes("[Photo: "));
+    if (logWithPhoto) {
+      const match = logWithPhoto.notes?.match(/\[Photo:\s*([^\]]+)\]/);
+      if (match) return match[1];
+    }
+    return isLatest ? (bottle?.supplierHwcnPhotoUrl || null) : null;
+  }, [bottle?.supplierHwcnPhotoUrl, filteredMoveLogs, selectedLifecycle, lifecycles]);
 
   // Build the combined Audit Trail rows from the filtered raw data (balance resets per lifecycle)
   const logs = useMemo(() => {
@@ -627,6 +641,7 @@ export default function ViewBottlePage() {
     switch (bottle.category) {
       case "new":     return { bg: "rgba(0,229,255,0.1)",   color: "#00e5ff", label: "New Refrigerant" };
       case "reclaim": return { bg: "rgba(255,170,0,0.12)",  color: "#ffaa00", label: "Reclaim / Haz" };
+      case "recycled": return { bg: "rgba(16,185,129,0.12)", color: "#10b981", label: "Recycled Refrigerant" };
       default:        return { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", label: "Nitrogen" };
     }
   };
@@ -635,6 +650,8 @@ export default function ViewBottlePage() {
     switch (bottle.status) {
       case "active":   return { bg: "rgba(34,197,94,0.12)",  color: "#22c55e", label: "Active" };
       case "returned": return { bg: "rgba(168,85,247,0.12)", color: "#a855f7", label: "Returned" };
+      case "archived": return { bg: "rgba(239,68,68,0.12)",  color: "#ef4444", label: "Archived (Audit Trail)" };
+      case "full":     return { bg: "rgba(59,130,246,0.12)", color: "#3b82f6", label: "Full" };
       default:         return { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)", label: "Empty" };
     }
   };
@@ -683,7 +700,7 @@ export default function ViewBottlePage() {
   };
 
   const openHwcnPhotoFullSize = () => {
-    const raw = bottle?.supplierHwcnPhotoUrl || "";
+    const raw = activePhotoUrl || "";
     const urls = raw.split(",").map(s => s.trim()).filter(Boolean);
     if (urls.length === 0) return;
     urls.forEach(url => {
@@ -699,7 +716,7 @@ export default function ViewBottlePage() {
   };
 
   const printHwcnPhoto = () => {
-    const raw = bottle?.supplierHwcnPhotoUrl || "";
+    const raw = activePhotoUrl || "";
     const urls = raw.split(",").map(s => s.trim()).filter(Boolean);
     if (urls.length === 0) return;
     const win = window.open("", "_blank");
@@ -735,19 +752,52 @@ export default function ViewBottlePage() {
               <Edit3 size={18} /> Edit
             </button>
           </Link>
-          <button
-            onClick={async () => {
-              if (confirm(`Are you sure you want to PERMANENTLY delete bottle ${serialStr} and all associated movement and usage logs? This action cannot be undone.`)) {
-                await db.purgeBottleWithLogs(serialStr);
-                router.push("/admin/bottles");
-              }
-            }}
-            style={{ background: "rgba(255,51,102,0.1)", border: "1px solid rgba(255,51,102,0.4)", color: "#ff3366", padding: "0.6rem 1rem", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.4rem" }}
-          >
-            <Trash2 size={18} /> Delete Bottle
-          </button>
+          {bottle.status !== "archived" && (
+            <Link href={`/admin/bottles/${encodeURIComponent(serialStr)}/archive`} style={{ textDecoration: "none" }}>
+              <button
+                style={{
+                  background: "rgba(245, 158, 11, 0.1)",
+                  border: "1px solid rgba(245, 158, 11, 0.4)",
+                  color: "#f59e0b",
+                  padding: "0.6rem 1rem",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontSize: "0.85rem",
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.4rem"
+                }}
+              >
+                <Archive size={18} /> Archive Cylinder
+              </button>
+            </Link>
+          )}
         </div>
       </div>
+
+      {bottle.status === "archived" && (
+        <div style={{
+          background: "rgba(239, 68, 68, 0.1)",
+          border: "1px solid rgba(239, 68, 68, 0.3)",
+          borderRadius: "10px",
+          padding: "1rem 1.25rem",
+          marginBottom: "1.5rem",
+          display: "flex",
+          alignItems: "center",
+          gap: "1rem"
+        }}>
+          <Archive size={24} color="#ef4444" />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, color: "#ef4444", fontSize: "0.95rem" }}>
+              Cylinder Soft-Archived — Retained for 5-Year Statutory Audit Compliance (SOP-001 / SOP-002)
+            </div>
+            <div style={{ fontSize: "0.82rem", color: "rgba(255,255,255,0.7)", marginTop: "0.25rem" }}>
+              Archived on {bottle.archivedAt ? new Date(bottle.archivedAt).toLocaleString("en-GB") : "—"} by {bottle.archivedBy || "Admin"}. Reason: {bottle.archiveReason || "Archived by administrator"}. All historical movements and usage logs remain preserved.
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: "2rem" }}>
         {/* Sidebar */}
@@ -894,7 +944,7 @@ export default function ViewBottlePage() {
             </button>
             <button style={tabStyle("hwcns")} onClick={() => setActiveTab("hwcns")}>
               <ClipboardList size={14} style={{ display: "inline", marginRight: "0.35rem" }} />
-              HWCNs {(filteredHwcns.length + (bottle.supplierHwcnPhotoUrl ? 1 : 0)) > 0 ? `(${filteredHwcns.length + (bottle.supplierHwcnPhotoUrl ? 1 : 0)})` : ""}
+              HWCNs {(filteredHwcns.length + (activePhotoUrl ? 1 : 0)) > 0 ? `(${filteredHwcns.length + (activePhotoUrl ? 1 : 0)})` : ""}
             </button>
             <button style={tabStyle("usage")} onClick={() => setActiveTab("usage")}>
               <Tag size={14} style={{ display: "inline", marginRight: "0.35rem" }} />
@@ -983,7 +1033,7 @@ export default function ViewBottlePage() {
           {/* HWCNs */}
           {activeTab === "hwcns" && (
             <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-              {filteredHwcns.length === 0 && !bottle.supplierHwcnPhotoUrl ? (
+              {filteredHwcns.length === 0 && !activePhotoUrl ? (
                 emptyState(<ClipboardList size={40} style={{ opacity: 0.2 }} />, "No HWCNs recorded for this cylinder.")
               ) : (
                 <>
@@ -1027,8 +1077,8 @@ export default function ViewBottlePage() {
                       </table>
                     </div>
                   )}
-                  {bottle.supplierHwcnPhotoUrl && (() => {
-                    const photoUrls = bottle.supplierHwcnPhotoUrl.split(",").map(s => s.trim()).filter(Boolean);
+                  {activePhotoUrl && (() => {
+                    const photoUrls = activePhotoUrl.split(",").map(s => s.trim()).filter(Boolean);
                     return (
                       <div style={{ background: "rgba(168,85,247,0.05)", border: "1px solid rgba(168,85,247,0.2)", borderRadius: "10px", padding: "1.25rem" }}>
                         {/* Header + controls */}

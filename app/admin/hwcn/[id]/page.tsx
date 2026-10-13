@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
-import { ArrowLeft, CheckCircle2, Loader2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, PenTool } from "lucide-react";
 import Link from "next/link";
+import SignaturePad from "@/components/SignaturePad";
 
 export default function AdminHWCNDetailPage() {
   const { id } = useParams();
@@ -13,9 +14,11 @@ export default function AdminHWCNDetailPage() {
   const { user } = useAuth();
   const [hwcn, setHwcn] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [companySettings, setCompanySettings] = useState<any>(null);
 
   // Part E form
   const [receivedBy, setReceivedBy] = useState("");
+  const [signature, setSignature] = useState("");
   const [accepted, setAccepted] = useState(true);
   const [rejectionDetails, setRejectionDetails] = useState("");
   const [vehicleReg, setVehicleReg] = useState("");
@@ -25,6 +28,7 @@ export default function AdminHWCNDetailPage() {
   const hwcnId = decodeURIComponent(id as string);
 
   useEffect(() => {
+    db.getCompanySettings().then(setCompanySettings);
     db.getHWCN(hwcnId).then(data => {
       setHwcn(data);
       setLoading(false);
@@ -32,10 +36,17 @@ export default function AdminHWCNDetailPage() {
     });
   }, [id]);
 
+  useEffect(() => {
+    if (user?.name && !receivedBy) {
+      setReceivedBy(user.name);
+    }
+  }, [user]);
+
   const handleSubmitPartE = async () => {
     setSubmitting(true);
     await db.completePartE(hwcnId, {
       receivedBy: receivedBy || user?.name || "Office Staff",
+      receivedSignature: signature || receivedBy || user?.name || "Office Staff",
       accepted,
       rejectionDetails: !accepted ? rejectionDetails : undefined,
       vehicleReg: vehicleReg || undefined
@@ -51,9 +62,10 @@ export default function AdminHWCNDetailPage() {
   const formattedTime = new Date(hwcn.date).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   const deliveredDate = hwcn.deliveredAt ? new Date(hwcn.deliveredAt).toLocaleDateString("en-GB") : "—";
   const deliveredTime = hwcn.deliveredAt ? new Date(hwcn.deliveredAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
-  const primarySite = hwcn.sites?.[0];
-  const isOffice = hwcn.destination === "HQ-Stores";
   const isPending = hwcn.hwcnStatus === "awaiting_consignee";
+
+  const carrierReg = companySettings?.carrierReg || "CBDU368286";
+  const exemptionNo = companySettings?.exemptionNo || "31Z 3725 34";
 
   if (success) {
     return (
@@ -69,13 +81,6 @@ export default function AdminHWCNDetailPage() {
       </div>
     );
   }
-
-  const field = (label: string, value?: string) => (
-    <div style={{ marginBottom: "0.35rem", display: "flex", gap: "0.25rem", alignItems: "baseline" }}>
-      <span style={{ fontSize: "0.72rem", color: "#444", whiteSpace: "nowrap", minWidth: "80px" }}>{label}:</span>
-      <span style={{ borderBottom: "1px solid #aaa", flex: 1, minHeight: "1.1rem", fontSize: "0.9rem", fontWeight: 500 }}>{value || ""}</span>
-    </div>
-  );
 
   return (
     <div>
@@ -118,15 +123,29 @@ export default function AdminHWCNDetailPage() {
           </div>
         </div>
 
-        {/* Right: Parts C-D summary */}
+        {/* Right: Parts C-D summary & Regulatory Details */}
         <div style={{background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px", padding: "1.5rem"}}>
-          <h3 style={{fontSize: "1rem", fontWeight: 700, marginBottom: "1rem", color: "#00e5ff"}}>Transport Details</h3>
+          <h3 style={{fontSize: "1rem", fontWeight: 700, marginBottom: "1rem", color: "#00e5ff"}}>Transport &amp; Regulatory Details</h3>
           <div style={{display: "flex", flexDirection: "column", gap: "0.6rem", fontSize: "0.9rem"}}>
             <div><span style={{color: "var(--text-muted)", fontSize: "0.78rem"}}>Carrier (Engineer)</span><div style={{fontWeight: 600}}>{hwcn.engineer}</div></div>
+            <div><span style={{color: "var(--text-muted)", fontSize: "0.78rem"}}>Carrier Registration (CBDU)</span><div style={{fontWeight: 600, color: "#00e5ff"}}>{carrierReg}</div></div>
+            <div><span style={{color: "var(--text-muted)", fontSize: "0.78rem"}}>Waste Exemption Number</span><div style={{fontWeight: 600, color: "#00e5ff"}}>{exemptionNo}</div></div>
             <div><span style={{color: "var(--text-muted)", fontSize: "0.78rem"}}>Vehicle Registration</span><div style={{fontFamily: "var(--font-geist-mono)"}}>{hwcn.vehicleReg || "—"}</div></div>
             <div><span style={{color: "var(--text-muted)", fontSize: "0.78rem"}}>Destination</span><div>{hwcn.destination}</div></div>
             <div><span style={{color: "var(--text-muted)", fontSize: "0.78rem"}}>Consignment Date</span><div>{formattedDate} at {formattedTime}</div></div>
             <div><span style={{color: "var(--text-muted)", fontSize: "0.78rem"}}>Delivered</span><div style={{fontWeight: 600, color: hwcn.deliveredAt ? "#22c55e" : "#ffc107"}}>{deliveredDate} {deliveredTime}</div></div>
+            {hwcn.carrierSignature && (
+              <div>
+                <span style={{color: "var(--text-muted)", fontSize: "0.78rem"}}>Carrier Signature</span>
+                <div style={{marginTop: "0.2rem"}}>
+                  {hwcn.carrierSignature.startsWith("data:image/") ? (
+                    <img src={hwcn.carrierSignature} alt="Carrier Signature" style={{maxHeight: "36px", objectFit: "contain"}} />
+                  ) : (
+                    <div style={{fontFamily: "cursive", fontSize: "1.1rem", color: "#00e5ff"}}>{hwcn.carrierSignature}</div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -145,7 +164,7 @@ export default function AdminHWCNDetailPage() {
           {hwcn.hwcnStatus === "draft" 
             ? "This consignment is currently in transit. Has it arrived at your location?" 
             : isPending 
-            ? "Complete the fields below to sign off this consignment." 
+            ? "Complete the fields below to sign off this consignment with biometric touch signature." 
             : "This section has been completed."}
         </p>
 
@@ -154,9 +173,7 @@ export default function AdminHWCNDetailPage() {
             <button 
               onClick={async () => {
                 setSubmitting(true);
-                // Call completeTransit from the office side
                 await db.completeTransit(hwcn.serial, undefined, user?.name || "Office Staff");
-                // Refresh local data
                 const updatedHwcn = await db.getHWCN(hwcnId);
                 setHwcn(updatedHwcn);
                 setSubmitting(false);
@@ -169,7 +186,7 @@ export default function AdminHWCNDetailPage() {
               {submitting ? <Loader2 size={18} className="spinner" /> : "Confirm Arrival / Receive Bottle"}
             </button>
             <p style={{fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center'}}>
-              This will update the bottle location to your office and move the HWCN to 'Awaiting Part E'.
+              This will update the bottle location to your office and move the HWCN to &apos;Awaiting Part E&apos;.
             </p>
           </div>
         )}
@@ -223,6 +240,14 @@ export default function AdminHWCNDetailPage() {
               />
             </div>
 
+            <SignaturePad
+              label="Consignee Touch Signature (Part E)"
+              value={signature}
+              onChange={setSignature}
+              height={140}
+              theme="dark"
+            />
+
             <button
               onClick={handleSubmitPartE}
               disabled={submitting || !receivedBy}
@@ -252,6 +277,16 @@ export default function AdminHWCNDetailPage() {
             <div><span style={{color: "var(--text-muted)", fontSize: "0.78rem"}}>Status</span><div style={{fontWeight: 600, color: hwcn.accepted !== false ? "#22c55e" : "#ff3366"}}>{hwcn.accepted !== false ? "Accepted" : "Rejected"}</div></div>
             <div><span style={{color: "var(--text-muted)", fontSize: "0.78rem"}}>Completed</span><div>{hwcn.partECompletedAt ? new Date(hwcn.partECompletedAt).toLocaleString("en-GB") : "—"}</div></div>
             {hwcn.rejectionDetails && <div><span style={{color: "var(--text-muted)", fontSize: "0.78rem"}}>Rejection Details</span><div style={{color: "#ff3366"}}>{hwcn.rejectionDetails}</div></div>}
+            <div>
+              <span style={{color: "var(--text-muted)", fontSize: "0.78rem"}}>Consignee Signature</span>
+              <div style={{marginTop: "0.3rem"}}>
+                {hwcn.receivedSignature?.startsWith("data:image/") ? (
+                  <img src={hwcn.receivedSignature} alt="Consignee Signature" style={{maxHeight: "44px", objectFit: "contain"}} />
+                ) : (
+                  <div style={{fontWeight: 600, fontFamily: "cursive", fontSize: "1.2rem", color: "#22c55e"}}>{hwcn.receivedSignature || hwcn.receivedBy || "—"}</div>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>

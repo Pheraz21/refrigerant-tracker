@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { Home, ScanLine, History, User, PackageSearch, AlertTriangle, Bell, Warehouse } from "lucide-react";
 import Link from "next/link";
@@ -19,10 +19,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     db.getAllBottles().then(bottles => {
-      const missing = bottles.filter(b => b.supplierHwcnPhotoPending).length;
+      const isManagement = user?.role === "admin" || user?.role === "office";
+      const missing = bottles.filter(b =>
+        b.supplierHwcnPhotoPending && (isManagement || b.returnedBy === user?.name || b.lastEngineer === user?.name)
+      ).length;
       setMissingPhotos(missing);
     });
-  }, [pathname]);
+  }, [pathname, user]);
 
   return (
     <div className={styles.layout}>

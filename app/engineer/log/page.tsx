@@ -9,7 +9,7 @@ import { db } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { AlertTriangle } from "lucide-react";
 
-type JobType = "service" | "install" | "retrofit" | "recovery" | "waste" | "recycled_charge";
+type JobType = "service" | "install" | "retrofit" | "recovery" | "waste" | "recycled_charge" | "leak_test";
 
 export default function LogBottlePage() {
   const router = useRouter();
@@ -33,14 +33,26 @@ export default function LogBottlePage() {
   const [bottleData, setBottleData] = useState<any>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [hasExistingHWCN, setHasExistingHWCN] = useState(false);
-  const { user, activeVehicleOwner } = useAuth();
+  const { user, activeVehicleOwner, activePairing, activePairingStatus } = useAuth();
   const [crmMatch, setCrmMatch] = useState<string | null>(null);
 
-  // Apprentice Supervision State
+  // Apprentice & Mate Supervision State (SOP-002)
   const [qualifiedEngineers, setQualifiedEngineers] = useState<any[]>([]);
   const [supervisingEngineer, setSupervisingEngineer] = useState("");
+  const [supervisingCert, setSupervisingCert] = useState("");
 
-  const [equipmentList, setEquipmentList] = useState([
+  interface EquipmentFormItem {
+    id: number;
+    manufacturer: string;
+    model: string;
+    serial: string;
+    weight: string;
+    decommissioned: boolean;
+    nominalChargeKg?: string;
+    leakCheckResult?: string;
+  }
+
+  const [equipmentList, setEquipmentList] = useState<EquipmentFormItem[]>([
     { id: 1, manufacturer: "", model: "", serial: "", weight: "", decommissioned: false }
   ]);
 
@@ -60,21 +72,24 @@ export default function LogBottlePage() {
   };
 
   useEffect(() => {
-    if (user?.role === "apprentice") {
+    if (user?.role === "apprentice" || user?.role === "mate") {
       db.getQualifiedEngineers().then(engineers => {
         setQualifiedEngineers(engineers);
         // Default to active working van lead engineer if set
-        if (activeVehicleOwner) {
-          const match = engineers.find(e => e.name.toLowerCase() === activeVehicleOwner.toLowerCase());
+        const lead = activeVehicleOwner || activePairing?.leadEngineerName;
+        if (lead) {
+          const match = engineers.find(e => e.name.toLowerCase() === lead.toLowerCase());
           if (match) {
             setSupervisingEngineer(match.name);
-          } else if (engineers.some(e => e.name === activeVehicleOwner)) {
-            setSupervisingEngineer(activeVehicleOwner);
+            setSupervisingCert(match.certificate || "REF1010728 (Cat I)");
+          } else {
+            setSupervisingEngineer(lead);
+            setSupervisingCert("REF1010728 (Cat I)");
           }
         }
       });
     }
-  }, [user, activeVehicleOwner]);
+  }, [user, activeVehicleOwner, activePairing]);
 
   useEffect(() => {
     db.getBottle(serialParam).then(b => {
@@ -159,14 +174,28 @@ export default function LogBottlePage() {
       return;
     }
 
-    // Apprentice supervision check
-    if (user?.role === "apprentice" && !supervisingEngineer.trim()) {
-      setValidationError("Apprentice logging requires selecting an approved Supervising F-Gas Engineer.");
+    // Apprentice & Mate supervision check
+    if ((user?.role === "apprentice" || user?.role === "mate") && !supervisingEngineer.trim()) {
+      setValidationError("Supervised gas logging requires selecting an approved Supervising F-Gas Engineer.");
       return;
     }
 
+    const equipmentToSave = equipmentList
+      .filter(eq => eq.manufacturer || eq.model || eq.serial)
+      .map(eq => ({
+        manufacturer: (eq.manufacturer || "").trim(),
+        model: (eq.model || "").trim().toUpperCase(),
+        serial: (eq.serial || "").trim().toUpperCase(),
+        weight: parseFloat(eq.weight) || 0
+      }));
+
     // Weight Validation
-    if (isRecycleMode || jobType === "recycled_charge") {
+    if (jobType === "leak_test") {
+      if (equipmentToSave.length === 0) {
+        setValidationError("Statutory leak checks require entering at least one equipment item (serial/model) inspected.");
+        return;
+      }
+    } else if (isRecycleMode || jobType === "recycled_charge") {
       const availableReclaim = bottleData.currentWeight || 0;
       if (totalWeight <= 0) {
         setValidationError("Please enter the weight of recycled gas charged into equipment.");
@@ -212,17 +241,9 @@ export default function LogBottlePage() {
     
     setIsSubmitting(true);
     const finalRefrigerant = refrigerantType === "other" ? customRefrigerant : refrigerantType;
-    
-    const equipmentToSave = equipmentList
-      .filter(eq => eq.manufacturer || eq.model || eq.serial)
-      .map(eq => ({
-        manufacturer: (eq.manufacturer || "").trim(),
-        model: (eq.model || "").trim().toUpperCase(),
-        serial: (eq.serial || "").trim().toUpperCase(),
-        weight: parseFloat(eq.weight) || 0
-      }));
 
     const derivedJobType = (() => {
+      if (jobType === "leak_test") return "leak_test";
       if (isRecycleMode || jobType === "recycled_charge") return "recycled_charge";
       if (jobType === "recovery" || jobType === "waste") return jobType;
       const prefix = (jobNumber || "").split(/[-\s_]/)[0].toUpperCase();
@@ -234,14 +255,15 @@ export default function LogBottlePage() {
     await db.logUsage(
       serialParam,
       derivedJobType,
-      totalWeight,
+      derivedJobType === "leak_test" ? 0 : totalWeight,
       derivedJobType === "waste",
       derivedJobType === "recovery" ? producerSite : undefined,
       finalRefrigerant,
       user?.name || "Unknown",
       jobNumber || undefined,
       equipmentToSave.length > 0 ? equipmentToSave : undefined,
-      supervisingEngineer || undefined
+      supervisingEngineer || undefined,
+      supervisingCert || undefined
     );
 
     // §4.2: If multi-site was acknowledged, auto-generate Internal HWCN and set dest to Office
@@ -295,8 +317,9 @@ export default function LogBottlePage() {
     setIsSuccess(true);
   };
 
-  // Mate Role Intercept (Non-F-Gas qualified)
-  if (user?.role === "mate") {
+  // Mate Role Intercept (Non-F-Gas qualified without pairing)
+  const isMatePaired = (user?.role === "mate") && (activePairingStatus === "approved" || !!activeVehicleOwner || !!activePairing?.leadEngineerName);
+  if (user?.role === "mate" && !isMatePaired) {
     return (
       <div className={styles.container} style={{ textAlign: "center", padding: "3rem 1.5rem" }}>
         <div style={{
@@ -307,9 +330,9 @@ export default function LogBottlePage() {
         }}>
           <AlertTriangle size={42} color="var(--warning)" />
         </div>
-        <h2 style={{ color: "#fff", marginBottom: "0.75rem", fontSize: "1.3rem" }}>F-Gas Qualification Required</h2>
+        <h2 style={{ color: "#fff", marginBottom: "0.75rem", fontSize: "1.3rem" }}>Lead Engineer Pairing Required</h2>
         <p style={{ color: "var(--text-muted)", fontSize: "0.92rem", lineHeight: 1.6, maxWidth: "380px", margin: "0 auto 2rem" }}>
-          Under UK F-Gas and REFCOM regulations, only certified engineers (or supervised apprentices) may charge or recover refrigerant. Mates can move cylinders and manage van inventory.
+          Under UK F-Gas and REFCOM regulations, non-qualified mates must be paired to a certified Lead Engineer&apos;s van to log gas under direct supervision. Please pair with your Lead Engineer in the app to proceed.
         </p>
         <Link href="/engineer" style={{ textDecoration: "none" }}>
           <button className={styles.primaryBtn} style={{ width: "100%" }}>
@@ -410,8 +433,8 @@ export default function LogBottlePage() {
         </h1>
       </header>
 
-      {/* Apprentice Supervised Logging Banner */}
-      {user?.role === "apprentice" && (
+      {/* Supervised Logging Banner (SOP-002 Compliance) */}
+      {(user?.role === "apprentice" || user?.role === "mate") && (
         <div style={{
           background: "linear-gradient(90deg, rgba(192, 132, 252, 0.15) 0%, rgba(192, 132, 252, 0.05) 100%)",
           border: "1px solid rgba(192, 132, 252, 0.4)",
@@ -422,35 +445,60 @@ export default function LogBottlePage() {
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
             <span style={{ fontSize: "1.1rem" }}>🎓</span>
             <span style={{ fontWeight: 700, color: "#c084fc", fontSize: "0.95rem" }}>
-              Apprentice Supervised Logging
+              {user?.role === "mate" ? "Mate Supervised Gas Logging (SOP-002)" : "Apprentice Supervised Logging (SOP-002)"}
             </span>
           </div>
           <p style={{ fontSize: "0.82rem", color: "var(--text-muted)", margin: "0 0 0.75rem 0", lineHeight: 1.4 }}>
-            UK F-Gas regulations require apprentice activities to be directly supervised by a qualified F-Gas engineer.
+            Under UK F-Gas and REFCOM regulations, apprentice and mate activities are recorded under the direct supervision of a certified Lead Engineer.
           </p>
-          <div className={styles.inputGroup}>
-            <label style={{ color: "#c084fc", fontSize: "0.8rem", fontWeight: 700 }}>Supervising F-Gas Engineer *</label>
-            <select
-              value={supervisingEngineer}
-              onChange={e => setSupervisingEngineer(e.target.value)}
-              required
-              style={{
-                background: "rgba(0,0,0,0.3)",
-                border: "1px solid #c084fc",
-                borderRadius: "8px",
-                color: "#fff",
-                padding: "0.65rem 0.75rem",
-                width: "100%",
-                fontSize: "0.9rem"
-              }}
-            >
-              <option value="">-- Select Supervising Engineer --</option>
-              {qualifiedEngineers.map(eng => (
-                <option key={eng.id} value={eng.name}>
-                  {eng.name} {eng.vehicleReg ? `(${eng.vehicleReg})` : ""}
-                </option>
-              ))}
-            </select>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+            <div className={styles.inputGroup}>
+              <label style={{ color: "#c084fc", fontSize: "0.8rem", fontWeight: 700 }}>Supervising Lead Engineer *</label>
+              <select
+                value={supervisingEngineer}
+                onChange={e => {
+                  const name = e.target.value;
+                  setSupervisingEngineer(name);
+                  const match = qualifiedEngineers.find(eng => eng.name === name);
+                  if (match?.certificate) setSupervisingCert(match.certificate);
+                }}
+                required
+                style={{
+                  background: "rgba(0,0,0,0.3)",
+                  border: "1px solid #c084fc",
+                  borderRadius: "8px",
+                  color: "#fff",
+                  padding: "0.65rem 0.75rem",
+                  width: "100%",
+                  fontSize: "0.9rem"
+                }}
+              >
+                <option value="">-- Select Supervising Engineer --</option>
+                {qualifiedEngineers.map(eng => (
+                  <option key={eng.id} value={eng.name}>
+                    {eng.name} {eng.vehicleReg ? `(${eng.vehicleReg})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className={styles.inputGroup}>
+              <label style={{ color: "#c084fc", fontSize: "0.8rem", fontWeight: 700 }}>F-Gas Certificate *</label>
+              <input
+                type="text"
+                value={supervisingCert}
+                onChange={e => setSupervisingCert(e.target.value)}
+                placeholder="REF1010728 (Cat I)"
+                style={{
+                  background: "rgba(0,0,0,0.3)",
+                  border: "1px solid rgba(192, 132, 252, 0.4)",
+                  borderRadius: "8px",
+                  color: "#fff",
+                  padding: "0.65rem 0.75rem",
+                  width: "100%",
+                  fontSize: "0.9rem"
+                }}
+              />
+            </div>
           </div>
         </div>
       )}
@@ -476,16 +524,131 @@ export default function LogBottlePage() {
         </div>
       )}
 
+      {jobType === "leak_test" && (
+        <div style={{
+          background: "linear-gradient(90deg, rgba(168, 85, 247, 0.15) 0%, rgba(168, 85, 247, 0.05) 100%)",
+          border: "1px solid rgba(168, 85, 247, 0.4)",
+          borderRadius: "12px",
+          padding: "1rem",
+          marginBottom: "1.25rem"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+            <span style={{ fontSize: "1.1rem" }}>🔍</span>
+            <span style={{ fontWeight: 700, color: "#c084fc", fontSize: "0.95rem" }}>
+              Statutory F-Gas Leak Check Mode
+            </span>
+          </div>
+          <p style={{ fontSize: "0.82rem", color: "var(--text-muted)", margin: 0, lineHeight: 1.4 }}>
+            Routine statutory leak inspection per Regulation (EU) 517/2014 Article 4. No refrigerant is dispensed (Usage: 0.00 kg). Inspection date will be registered on the equipment profile.
+          </p>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className={styles.form}>
         <div className={styles.readonlyField}>
           <span className={styles.label}>Cylinder Serial Number</span>
           <span className={styles.value}>{serialParam}</span>
         </div>
 
-        {(jobType === "service" || jobType === "install" || jobType === "retrofit" || jobType === "recovery" || jobType === "recycled_charge") && (
-          <div className={`${styles.dynamicSection} glass-panel`} style={{ borderColor: isRecycleMode ? 'var(--success)' : 'var(--primary)', marginTop: '0.5rem', marginBottom: '1rem' }}>
-            <h3 style={{ color: isRecycleMode ? 'var(--success)' : 'var(--primary)', marginBottom: '1rem' }}>
-              {isRecycleMode ? "Recipient Job Details" : "Job & Site Details"}
+        {/* Activity / Job Type Selection */}
+        <div className={styles.inputGroup} style={{ marginTop: '0.75rem', marginBottom: '0.5rem' }}>
+          <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fff' }}>Activity / Job Type</label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.5rem', marginTop: '0.35rem' }}>
+            {bottleCategory !== "reclaim" && !isRecycleMode && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setJobType("service")}
+                  style={{
+                    padding: "0.6rem 0.75rem",
+                    borderRadius: "8px",
+                    border: jobType === "service" ? "1px solid var(--primary)" : "1px solid rgba(255,255,255,0.12)",
+                    background: jobType === "service" ? "rgba(0,229,255,0.15)" : "rgba(255,255,255,0.05)",
+                    color: jobType === "service" ? "#00e5ff" : "rgba(255,255,255,0.7)",
+                    fontWeight: 600,
+                    fontSize: "0.85rem",
+                    cursor: "pointer"
+                  }}
+                >
+                  Service / Addition
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setJobType("install")}
+                  style={{
+                    padding: "0.6rem 0.75rem",
+                    borderRadius: "8px",
+                    border: jobType === "install" ? "1px solid var(--primary)" : "1px solid rgba(255,255,255,0.12)",
+                    background: jobType === "install" ? "rgba(0,229,255,0.15)" : "rgba(255,255,255,0.05)",
+                    color: jobType === "install" ? "#00e5ff" : "rgba(255,255,255,0.7)",
+                    fontWeight: 600,
+                    fontSize: "0.85rem",
+                    cursor: "pointer"
+                  }}
+                >
+                  Commissioning
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setJobType("leak_test")}
+                  style={{
+                    padding: "0.6rem 0.75rem",
+                    borderRadius: "8px",
+                    border: jobType === "leak_test" ? "1px solid #c084fc" : "1px solid rgba(255,255,255,0.12)",
+                    background: jobType === "leak_test" ? "rgba(168,85,247,0.15)" : "rgba(255,255,255,0.05)",
+                    color: jobType === "leak_test" ? "#c084fc" : "rgba(255,255,255,0.7)",
+                    fontWeight: 600,
+                    fontSize: "0.85rem",
+                    cursor: "pointer"
+                  }}
+                >
+                  🔍 Statutory Leak Test (0 kg)
+                </button>
+              </>
+            )}
+            {(bottleCategory === "reclaim" || jobType === "recovery") && (
+              <button
+                type="button"
+                onClick={() => setJobType("recovery")}
+                style={{
+                  padding: "0.6rem 0.75rem",
+                  borderRadius: "8px",
+                  border: "1px solid #ffaa00",
+                  background: "rgba(255,170,0,0.15)",
+                  color: "#ffaa00",
+                  fontWeight: 600,
+                  fontSize: "0.85rem",
+                  cursor: "default"
+                }}
+              >
+                Refrigerant Recovery
+              </button>
+            )}
+            {(isRecycleMode || bottleCategory === "recycled" || jobType === "recycled_charge") && (
+              <button
+                type="button"
+                onClick={() => setJobType("recycled_charge")}
+                style={{
+                  padding: "0.6rem 0.75rem",
+                  borderRadius: "8px",
+                  border: "1px solid #10b981",
+                  background: "rgba(16,185,129,0.15)",
+                  color: "#10b981",
+                  fontWeight: 600,
+                  fontSize: "0.85rem",
+                  cursor: "default"
+                }}
+              >
+                Recycled Gas Charge
+              </button>
+            )}
+          </div>
+        </div>
+
+        {(jobType === "service" || jobType === "install" || jobType === "retrofit" || jobType === "recovery" || jobType === "recycled_charge" || jobType === "leak_test") && (
+          <div className={`${styles.dynamicSection} glass-panel`} style={{ borderColor: isRecycleMode ? 'var(--success)' : jobType === "leak_test" ? '#c084fc' : 'var(--primary)', marginTop: '0.5rem', marginBottom: '1rem' }}>
+            <h3 style={{ color: isRecycleMode ? 'var(--success)' : jobType === "leak_test" ? '#c084fc' : 'var(--primary)', marginBottom: '1rem' }}>
+              {isRecycleMode ? "Recipient Job Details" : jobType === "leak_test" ? "Statutory Leak Inspection Job" : "Job & Site Details"}
             </h3>
             <div className={styles.inputGroup}>
               <label>Job Number (e.g. J12345, M98201)</label>
@@ -615,23 +778,34 @@ export default function LogBottlePage() {
             )}
           </div>
           
-          {(jobType === "service" || jobType === "install" || jobType === "retrofit" || jobType === "recovery" || jobType === "recycled_charge") && (
+          {(jobType === "service" || jobType === "install" || jobType === "retrofit" || jobType === "recovery" || jobType === "recycled_charge" || jobType === "leak_test") && (
             <div className={styles.inputGroup}>
               <label>Total Logged Weight (kg)</label>
-              <div style={{ padding: '0.75rem 1rem', background: isRecycleMode ? 'rgba(34, 197, 94, 0.1)' : 'rgba(0, 229, 255, 0.1)', border: isRecycleMode ? '1px solid var(--success)' : '1px solid var(--primary)', borderRadius: 'var(--radius-sm)', color: isRecycleMode ? 'var(--success)' : 'var(--primary)', fontWeight: '700', fontSize: '1.2rem', textAlign: 'center' }}>
-                {totalWeight.toFixed(2)} kg
+              <div style={{
+                padding: '0.75rem 1rem',
+                background: jobType === "leak_test" ? 'rgba(168, 85, 247, 0.1)' : isRecycleMode ? 'rgba(34, 197, 94, 0.1)' : 'rgba(0, 229, 255, 0.1)',
+                border: jobType === "leak_test" ? '1px solid #c084fc' : isRecycleMode ? '1px solid var(--success)' : '1px solid var(--primary)',
+                borderRadius: 'var(--radius-sm)',
+                color: jobType === "leak_test" ? '#c084fc' : isRecycleMode ? 'var(--success)' : 'var(--primary)',
+                fontWeight: '700',
+                fontSize: '1.2rem',
+                textAlign: 'center'
+              }}>
+                {jobType === "leak_test" ? "0.00 kg (Statutory Inspection)" : `${totalWeight.toFixed(2)} kg`}
               </div>
             </div>
           )}
         </div>
 
         {/* Dynamic Fields based on REFCOM Requirements */}
-        {(jobType === "service" || jobType === "install" || jobType === "retrofit" || jobType === "recovery" || jobType === "recycled_charge") && (
-          <div className={`${styles.dynamicSection} glass-panel`} style={{ borderColor: isRecycleMode ? 'var(--success)' : 'var(--primary)', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <h3 style={{ color: isRecycleMode ? 'var(--success)' : 'var(--primary)' }}>{isRecycleMode ? "Recipient Equipment Asset Details" : "Equipment Details"}</h3>
+        {(jobType === "service" || jobType === "install" || jobType === "retrofit" || jobType === "recovery" || jobType === "recycled_charge" || jobType === "leak_test") && (
+          <div className={`${styles.dynamicSection} glass-panel`} style={{ borderColor: isRecycleMode ? 'var(--success)' : jobType === "leak_test" ? '#c084fc' : 'var(--primary)', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <h3 style={{ color: isRecycleMode ? 'var(--success)' : jobType === "leak_test" ? '#c084fc' : 'var(--primary)' }}>
+              {isRecycleMode ? "Recipient Equipment Asset Details" : jobType === "leak_test" ? "Inspected Equipment Asset Details" : "Equipment Details"}
+            </h3>
 
             {equipmentList.map((eq, index) => (
-              <div key={eq.id} style={{ position: 'relative', borderLeft: '2px solid var(--primary)', paddingLeft: '1rem' }}>
+              <div key={eq.id} style={{ position: 'relative', borderLeft: `2px solid ${jobType === "leak_test" ? '#c084fc' : 'var(--primary)'}`, paddingLeft: '1rem' }}>
                 {equipmentList.length > 1 && (
                   <button type="button" onClick={() => removeEquipment(eq.id)} style={{ position: 'absolute', top: '0', right: '0', background: 'transparent', border: 'none', color: '#ff3366', cursor: 'pointer' }}>Remove</button>
                 )}
@@ -678,22 +852,58 @@ export default function LogBottlePage() {
                   <label>Serial Number</label>
                   <input type="text" placeholder="e.g. 9948201B" value={eq.serial} onChange={(e) => updateEquipment(eq.id, 'serial', e.target.value)} style={{ textTransform: 'uppercase' }} required />
                 </div>
-                <div className={styles.inputGroup} style={{marginTop: '0.5rem'}}>
-                  <label>Weight Logged (kg)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="e.g. 1.5"
-                    value={eq.weight}
-                    onChange={(e) => updateEquipment(eq.id, 'weight', e.target.value)}
-                    required
-                    style={{ borderColor: 'var(--primary)', background: 'rgba(0, 229, 255, 0.02)' }}
-                  />
-                </div>
+                {jobType === "leak_test" ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginTop: '0.5rem' }}>
+                    <div className={styles.inputGroup}>
+                      <label>Total Nominal Charge (kg)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="e.g. 3.2"
+                        value={eq.nominalChargeKg || ""}
+                        onChange={(e) => updateEquipment(eq.id, 'nominalChargeKg', e.target.value)}
+                        style={{ borderColor: '#c084fc', background: 'rgba(168, 85, 247, 0.05)' }}
+                      />
+                    </div>
+                    <div className={styles.inputGroup}>
+                      <label>Inspection Outcome</label>
+                      <select
+                        value={eq.leakCheckResult || "pass"}
+                        onChange={(e) => updateEquipment(eq.id, 'leakCheckResult', e.target.value)}
+                        style={{
+                          background: 'rgba(0,0,0,0.3)',
+                          border: '1px solid #c084fc',
+                          borderRadius: '8px',
+                          color: '#fff',
+                          padding: '0.65rem 0.75rem',
+                          width: '100%',
+                          fontSize: '0.85rem'
+                        }}
+                      >
+                        <option value="pass">✓ Pass — No leaks detected</option>
+                        <option value="repaired">🔧 Leak identified & repaired</option>
+                        <option value="fail">✗ Leak detected — isolation required</option>
+                      </select>
+                    </div>
+                  </div>
+                ) : (
+                  <div className={styles.inputGroup} style={{marginTop: '0.5rem'}}>
+                    <label>Weight Logged (kg)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="e.g. 1.5"
+                      value={eq.weight}
+                      onChange={(e) => updateEquipment(eq.id, 'weight', e.target.value)}
+                      required
+                      style={{ borderColor: 'var(--primary)', background: 'rgba(0, 229, 255, 0.02)' }}
+                    />
+                  </div>
+                )}
               </div>
             ))}
 
-            <button type="button" onClick={addEquipment} style={{ background: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)', padding: '0.6rem 1rem', borderRadius: '8px', fontSize: '0.9rem', fontWeight: 600, width: '100%', cursor: 'pointer' }}>+ Add Another Asset</button>
+            <button type="button" onClick={addEquipment} style={{ background: 'transparent', border: `1px solid ${jobType === "leak_test" ? '#c084fc' : 'var(--primary)'}`, color: jobType === "leak_test" ? '#c084fc' : 'var(--primary)', padding: '0.6rem 1rem', borderRadius: '8px', fontSize: '0.9rem', fontWeight: 600, width: '100%', cursor: 'pointer' }}>+ Add Another Asset</button>
           </div>
         )}
 

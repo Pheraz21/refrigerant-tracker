@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { db, Bottle } from "@/lib/db";
-import { Package, Search, MapPin, Truck, Warehouse, Building2, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Filter as FilterIcon, FileText, FileSpreadsheet, Edit2, Trash2, Plus, Settings2 } from "lucide-react";
+import { Package, Search, MapPin, Truck, Warehouse, Building2, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Filter as FilterIcon, FileText, FileSpreadsheet, Edit2, Trash2, Plus, Settings2, Archive } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/AuthContext";
 import { useTablePrefs } from "@/lib/useTablePrefs";
 import { ColumnCustomizer } from "@/app/components/ColumnCustomizer";
 import { DoubleScrollContainer } from "@/app/components/DoubleScrollContainer";
@@ -45,6 +46,7 @@ const COLUMN_DEFS = [
 
 export default function AllBottlesPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [bottles, setBottles] = useState<Bottle[]>([]);
   const [engineers, setEngineers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -342,9 +344,9 @@ export default function AllBottlesPage() {
           <td key={key} style={{padding: "0.85rem 1rem"}}>
             <span style={{
               fontSize: "0.75rem", fontWeight: 600, padding: "0.2rem 0.6rem", borderRadius: "20px",
-              background: b.status === "active" ? "rgba(34,197,94,0.1)" : b.status === "returned" ? "rgba(168,85,247,0.1)" : "rgba(255,255,255,0.06)",
-              color: b.status === "active" ? "#22c55e" : b.status === "returned" ? "#a855f7" : "rgba(255,255,255,0.5)"
-            }}>{b.status}</span>
+              background: b.status === "active" ? "rgba(34,197,94,0.1)" : b.status === "returned" ? "rgba(168,85,247,0.1)" : b.status === "archived" ? "rgba(239,68,68,0.12)" : "rgba(255,255,255,0.06)",
+              color: b.status === "active" ? "#22c55e" : b.status === "returned" ? "#a855f7" : b.status === "archived" ? "#ef4444" : "rgba(255,255,255,0.5)"
+            }}>{b.status === "archived" ? "Archived" : b.status}</span>
           </td>
         );
       case "lastChanged":
@@ -360,19 +362,18 @@ export default function AllBottlesPage() {
               >
                 <Edit2 size={14} />
               </button>
-              <button
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  if (confirm(`Are you sure you want to PERMANENTLY REMOVE bottle ${b.serial} from the system?`)) {
-                    await db.removeBottle(b.serial);
-                    setBottles(prev => prev.filter(p => p.serial !== b.serial));
-                  }
-                }}
-                style={{background: "rgba(255,51,102,0.1)", border: "1px solid rgba(255,51,102,0.2)", color: "#ff3366", padding: "0.4rem", borderRadius: "6px", cursor: "pointer"}}
-                title="Remove Bottle"
-              >
-                <Trash2 size={14} />
-              </button>
+              {b.status !== "archived" && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(`/admin/bottles/${encodeURIComponent(b.serial)}/archive`);
+                  }}
+                  style={{background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.25)", color: "#f59e0b", padding: "0.4rem", borderRadius: "6px", cursor: "pointer"}}
+                  title="Compliance Archive (5-Year Audit Vault)"
+                >
+                  <Archive size={14} />
+                </button>
+              )}
             </div>
           </td>
         );

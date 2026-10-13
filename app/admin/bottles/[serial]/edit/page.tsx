@@ -111,6 +111,7 @@ export default function EditBottlePage() {
               style={{width: "100%", padding: "0.75rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "#fff", outline: "none"}}
             >
               <option value="new">New Refrigerant</option>
+              <option value="recycled">Recycled Refrigerant</option>
               <option value="reclaim">Reclaim / Haz</option>
               <option value="nitrogen">Nitrogen</option>
             </select>
@@ -203,6 +204,8 @@ export default function EditBottlePage() {
             style={{width: "100%", padding: "0.75rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "#fff", outline: "none"}}
           >
             <option value="active">Active</option>
+            <option value="low_gas">Low Gas</option>
+            <option value="full">Full (Reclaim)</option>
             <option value="empty">Empty</option>
             <option value="returned">Returned</option>
           </select>

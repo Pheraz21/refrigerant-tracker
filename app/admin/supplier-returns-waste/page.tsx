@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { Truck, Search, Plus, Trash2, Camera, AlertCircle, CheckCircle2, Loader2, ArrowLeft, X, Lock, Calendar } from "lucide-react";
 import Link from "next/link";
 import HwcnLightboxModal from "@/components/HwcnLightboxModal";
+import { compressImage } from "@/lib/utils";
 
 export default function SupplierReturnPage() {
   const { user } = useAuth();
@@ -212,8 +213,9 @@ export default function SupplierReturnPage() {
           if (uploadError) {
             console.error(`Photo ${i + 1} storage upload warning:`, uploadError);
             if (uploadError.message?.toLowerCase().includes("row-level security") || uploadError.message?.toLowerCase().includes("row security")) {
-              console.warn("Storage RLS bypass warning — saving photo data reference");
-              uploadedUrls.push(photoPreviewUrls[i] || "");
+              console.warn("Storage RLS bypass warning — falling back to persistent compressed data URL");
+              const fallbackDataUrl = await compressImage(file);
+              uploadedUrls.push(fallbackDataUrl);
             } else {
               throw new Error(`Photo ${i + 1} upload failed: ${uploadError.message}`);
             }
@@ -223,8 +225,9 @@ export default function SupplierReturnPage() {
           }
         } catch (stErr: any) {
           if (stErr.message?.toLowerCase().includes("row-level security") || stErr.message?.toLowerCase().includes("row security")) {
-            console.warn("Storage RLS warning caught in submit");
-            uploadedUrls.push(photoPreviewUrls[i] || "");
+            console.warn("Storage RLS warning caught in submit — falling back to persistent compressed data URL");
+            const fallbackDataUrl = await compressImage(file);
+            uploadedUrls.push(fallbackDataUrl);
           } else {
             throw stErr;
           }

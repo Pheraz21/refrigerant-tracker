@@ -19,7 +19,7 @@ export default function UserManagementPage() {
 
   const handleSendReset = async (email: string, userId: string) => {
     await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/engineer/reset-password`
+      redirectTo: `${window.location.origin}/reset-password`
     });
     setResetEmailSent(prev => ({ ...prev, [userId]: true }));
     setTimeout(() => setResetEmailSent(prev => ({ ...prev, [userId]: false })), 5000);

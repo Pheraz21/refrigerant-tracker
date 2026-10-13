@@ -203,10 +203,10 @@ export default function ReportsPage() {
                           </span>
                           <span style={{
                             fontSize: "0.72rem", fontWeight: 600, padding: "0.15rem 0.5rem", borderRadius: "12px",
-                            background: b.category === "reclaim" ? "rgba(255,170,0,0.1)" : "rgba(0,229,255,0.08)",
-                            color: b.category === "reclaim" ? "#ffaa00" : "#00e5ff"
+                            background: b.category === "reclaim" ? "rgba(255,170,0,0.1)" : b.category === "recycled" ? "rgba(16,185,129,0.12)" : "rgba(0,229,255,0.08)",
+                            color: b.category === "reclaim" ? "#ffaa00" : b.category === "recycled" ? "#10b981" : "#00e5ff"
                           }}>
-                            {b.category === "new" ? "New" : b.category === "reclaim" ? "Haz" : "N₂"}
+                            {b.category === "new" ? "New" : b.category === "recycled" ? "Recycled" : b.category === "reclaim" ? "Haz" : "N₂"}
                           </span>
                         </div>
                       </div>

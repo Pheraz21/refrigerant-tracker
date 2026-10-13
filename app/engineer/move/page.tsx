@@ -8,7 +8,26 @@ import { db } from "@/lib/db";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthContext";
 import { compressImage } from "@/lib/utils";
+import { supabase } from "@/lib/supabaseClient";
 import { ActiveVehicleBanner } from "@/components/ActiveVehicleBanner";
+
+async function uploadHwcnPhoto(base64: string, serial: string): Promise<string> {
+  try {
+    const res = await fetch(base64);
+    const blob = await res.blob();
+    const path = `supplier-returns/${serial}-${Date.now()}.jpg`;
+    const { error } = await supabase.storage.from("hwcn-photos").upload(path, blob, { contentType: "image/jpeg", upsert: true });
+    if (error) {
+      console.warn("Storage upload warning, falling back to compressed data URL:", error.message);
+      return base64;
+    }
+    const { data } = supabase.storage.from("hwcn-photos").getPublicUrl(path);
+    return data.publicUrl;
+  } catch (err) {
+    console.warn("Storage upload exception, falling back to compressed data URL:", err);
+    return base64;
+  }
+}
 
 export default function MoveBottlePage() {
   const router = useRouter();
@@ -674,15 +693,16 @@ export default function MoveBottlePage() {
             <button 
               type="button"
               className={styles.primaryBtn} 
-              disabled={!supplierPhoto && !isSubmitting}
+              disabled={!supplierPhoto || isSubmitting}
               onClick={async () => {
                 setIsSubmitting(true);
                 // Use divertedBranch if set, otherwise original intended destination
                 const finalLocId = divertedBranch || bottle?.intendedDestination || "Supplier";
-                await db.completeTransit(serialParam, supplierPhoto || "/mock-url.jpg", user?.name, finalLocId);
+                const photoUrl = supplierPhoto ? await uploadHwcnPhoto(supplierPhoto, serialParam) : undefined;
+                await db.completeTransit(serialParam, photoUrl, user?.name, finalLocId);
                 router.push("/engineer");
               }}
-              style={{flex: 1, opacity: (!supplierPhoto && !isSubmitting) ? 0.5 : 1}}
+              style={{flex: 1, opacity: (!supplierPhoto || isSubmitting) ? 0.5 : 1}}
             >
               {isSubmitting ? "Uploading..." : "Upload & Complete Return"}
             </button>

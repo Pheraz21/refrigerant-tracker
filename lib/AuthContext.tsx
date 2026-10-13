@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
 import { VanPairing, PairingStatus } from "./db";
+import { supabase } from "./supabaseClient";
 
 type Role = "engineer" | "office" | "admin" | "mate" | "apprentice";
 type UserStatus = "pending" | "approved" | "disabled";
@@ -32,7 +33,7 @@ interface AuthContextType {
   refreshPairing: () => Promise<void>;
   login: (email: string, password: string, role: Role) => Promise<void>;
   switchRole: (newRole: Role) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   loading: boolean;
 }
@@ -298,7 +299,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error("Error signing out from Supabase Auth:", err);
+    }
     setUser(null);
     setActiveVehicleRegState(null);
     setActiveVehicleOwnerState(null);

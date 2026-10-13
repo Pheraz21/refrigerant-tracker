@@ -6,6 +6,7 @@ import { db, Bottle } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { PackageCheck, AlertCircle, CheckCircle2, Loader2, ArrowLeft, Search, Lock, ArrowUp, ArrowDown } from "lucide-react";
 import Link from "next/link";
+import SignaturePad from "@/components/SignaturePad";
 
 function fmtDate(iso: string | undefined | null) {
   if (!iso) return null;
@@ -27,6 +28,8 @@ export default function StoresCollectionPage() {
   const [supplier, setSupplier] = useState("");
   const [supplierLock, setSupplierLock] = useState("");
   const [supplierBranch, setSupplierBranch] = useState("");
+  const [driverName, setDriverName] = useState("");
+  const [driverSignature, setDriverSignature] = useState("");
   const [collectionDate, setCollectionDate] = useState(
     new Date().toISOString().split("T")[0]
   );
@@ -147,6 +150,8 @@ export default function StoresCollectionPage() {
         collectedBy: user?.name || "Office Admin",
         supplier: supplier.trim(),
         supplierBranch: supplierBranch.trim(),
+        driverName: driverName.trim(),
+        driverSignature,
       });
       setSuccessCount(selected.size);
       setIsSuccess(true);
@@ -402,7 +407,7 @@ export default function StoresCollectionPage() {
               />
             </div>
 
-            <div style={{ marginBottom: "1.5rem" }}>
+            <div style={{ marginBottom: "1rem" }}>
               <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.5rem", fontWeight: 600 }}>
                 Supplier Branch <span style={{ color: "#ff3366" }}>*</span>
               </label>
@@ -417,6 +422,33 @@ export default function StoresCollectionPage() {
                   background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)",
                   borderRadius: "10px", color: "#fff", outline: "none"
                 }}
+              />
+            </div>
+
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.5rem", fontWeight: 600 }}>
+                Driver / Collector Name (Optional)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Dave Miller"
+                value={driverName}
+                onChange={e => setDriverName(e.target.value)}
+                style={{
+                  width: "100%", padding: "0.85rem 1rem",
+                  background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: "10px", color: "#fff", outline: "none"
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: "1.25rem" }}>
+              <SignaturePad
+                label="Driver Touch Signature (Handover Sign-off)"
+                value={driverSignature}
+                onChange={setDriverSignature}
+                height={120}
+                theme="dark"
               />
             </div>
 

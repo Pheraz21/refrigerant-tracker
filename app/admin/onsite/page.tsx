@@ -98,9 +98,10 @@ export default function BottlesOnSitePage() {
 
   const getCatBadge = (cat: string) => {
     switch (cat) {
-      case "reclaim": return { bg: "rgba(255,170,0,0.12)", color: "#ffaa00", label: "Reclaim / Haz" };
-      case "new":     return { bg: "rgba(0,229,255,0.08)", color: "#00e5ff",  label: "New"           };
-      default:        return { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", label: "N₂" };
+      case "reclaim":  return { bg: "rgba(255,170,0,0.12)", color: "#ffaa00", label: "Reclaim / Haz" };
+      case "new":      return { bg: "rgba(0,229,255,0.08)", color: "#00e5ff",  label: "New"           };
+      case "recycled": return { bg: "rgba(16,185,129,0.12)", color: "#10b981", label: "Recycled" };
+      default:         return { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", label: "N₂" };
     }
   };
 

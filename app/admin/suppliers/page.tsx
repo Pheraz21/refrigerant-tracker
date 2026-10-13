@@ -209,6 +209,8 @@ function SupplierInventoryContent() {
     const percent = Math.min(100, Math.max(0, ((b.currentWeight || 0) / (b.initialWeight || 1)) * 100));
     const catBadge = isReclaim
       ? { bg: "rgba(255,170,0,0.12)", color: "#ffaa00", label: "Reclaim / Haz" }
+      : b.category === "recycled"
+      ? { bg: "rgba(16,185,129,0.12)", color: "#10b981", label: "Recycled" }
       : isNitrogen
       ? { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", label: "N₂" }
       : { bg: "rgba(0,229,255,0.08)", color: "#00e5ff", label: "New" };
