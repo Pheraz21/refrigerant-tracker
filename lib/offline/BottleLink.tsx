@@ -1,13 +1,14 @@
 "use client";
 
 // Links a bottle card to its detail view.
-// Online → dynamic detail page via client-side navigation (/engineer/bottle/[serial]).
-// Offline → native inline action drawer (0ms delay, zero browser navigation, no dinosaur screen).
+// Online  → dynamic detail page via router (/engineer/bottle/[serial]).
+// Offline → native inline action drawer (0ms delay, zero browser navigation, no offline error screen).
 import React from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Bottle } from "@/lib/db";
 import { useOffline } from "./OfflineContext";
 import { getCachedBottle } from "./bottleCache";
+import { withTimeout } from "./withTimeout";
 
 export function BottleLink({
   bottle,
@@ -22,12 +23,10 @@ export function BottleLink({
   style?: React.CSSProperties;
   children: React.ReactNode;
 }) {
-  const { isOnline, openOfflineBottleModal } = useOffline();
+  const router = useRouter();
+  const { isOnline, openOfflineBottleModal, markOffline } = useOffline();
 
-  const handleOpenOffline = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-
+  const openModal = async () => {
     if (bottle) {
       openOfflineBottleModal(bottle);
       return;
@@ -51,34 +50,52 @@ export function BottleLink({
     }
   };
 
-  const isActuallyOffline = !isOnline || (typeof navigator !== "undefined" && !navigator.onLine);
+  const handleClick = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
 
-  if (isActuallyOffline) {
-    return (
-      <div
-        className={className}
-        style={{ ...style, cursor: "pointer" }}
-        onClick={handleOpenOffline}
-        role="button"
-        tabIndex={0}
-      >
-        {children}
-      </div>
-    );
-  }
+    // 1. Direct offline check from React state or navigator
+    if (!isOnline || (typeof navigator !== "undefined" && !navigator.onLine)) {
+      await openModal();
+      return;
+    }
+
+    // 2. Active network probe to catch Airplane Mode when navigator.onLine is a false-positive on mobile OS
+    // In airplane mode, fetch to static asset fails in 0-1ms with TypeError: Failed to fetch
+    try {
+      const probe = await withTimeout(
+        fetch("/manifest.webmanifest", { method: "HEAD", cache: "no-store" }),
+        450
+      );
+      if (probe.ok || probe.status === 304) {
+        router.push(`/engineer/bottle/${encodeURIComponent(serial)}`);
+        return;
+      }
+    } catch {
+      // Network unreachable! We are actually in airplane mode / offline
+      markOffline();
+      await openModal();
+      return;
+    }
+
+    router.push(`/engineer/bottle/${encodeURIComponent(serial)}`);
+  };
 
   return (
-    <Link
-      href={`/engineer/bottle/${serial}`}
+    <div
       className={className}
-      style={style}
-      onClick={(e) => {
-        if (typeof navigator !== "undefined" && !navigator.onLine) {
-          handleOpenOffline(e);
+      style={{ ...style, cursor: "pointer" }}
+      onClick={handleClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handleClick(e as any);
         }
       }}
     >
       {children}
-    </Link>
+    </div>
   );
 }

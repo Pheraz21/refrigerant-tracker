@@ -12,7 +12,18 @@ import { useOffline } from "@/lib/offline/OfflineContext";
 function BottleViewContent() {
   const { openOfflineBottleModal } = useOffline();
   const searchParams = useSearchParams();
-  const serial = searchParams.get("serial") || "";
+  const [pathnameSerial, setPathnameSerial] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const path = window.location.pathname;
+      if (path.startsWith("/engineer/bottle/")) {
+        setPathnameSerial(decodeURIComponent(path.replace("/engineer/bottle/", "")));
+      }
+    }
+  }, []);
+
+  const serial = searchParams.get("serial") || pathnameSerial || "";
   const [bottle, setBottle] = useState<Bottle | null>(null);
   const [loading, setLoading] = useState(true);
 

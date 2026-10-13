@@ -31,7 +31,7 @@ const OFFLINE_PAGES_CACHE = "engineer-offline-pages";
 
 // Bump on every SW change — shown on the diagnostic screen and reported to the app,
 // so we can always tell WHICH build of the service worker is actually in control.
-const SW_VERSION = "sw-2026-10-13-v2";
+const SW_VERSION = "sw-2026-10-13-v3";
 
 // Rolling log of navigations seen by the SW, readable by the app (banner diagnostics).
 const DIAG_LOG_CACHE = "sw-diag-log";
@@ -110,7 +110,12 @@ self.addEventListener("fetch", (event) => {
   const isNav = req.mode === "navigate";
   if (isNav) event.waitUntil(swLog({ nav: url.pathname + url.search }));
 
-  if (!OFFLINE_PAGES.includes(url.pathname)) return;
+  const isBottleDetailNav =
+    url.pathname.startsWith("/engineer/bottle/") &&
+    url.pathname !== "/engineer/bottle/register";
+  const isHandledOffline = OFFLINE_PAGES.includes(url.pathname) || isBottleDetailNav;
+
+  if (!isHandledOffline) return;
   if (url.searchParams.has("_rsc")) return; // let RSC data requests go to Serwist
 
   event.respondWith(
@@ -128,21 +133,23 @@ self.addEventListener("fetch", (event) => {
           info.networkError = String(e);
         }
         if (fresh) {
-          if (fresh.ok) {
+          if (fresh.ok && OFFLINE_PAGES.includes(url.pathname)) {
             const cache = await caches.open(OFFLINE_PAGES_CACHE);
             cache.put(url.pathname, await sanitizeResponse(fresh.clone()));
           }
           return fresh;
         }
         // Offline: prefer our own cache (refreshed every deploy), fall back to any.
+        // For dynamic /engineer/bottle/[serial] routes, serve the static cached /engineer/bottle-view shell.
         // ignoreVary is required because Next responses carry Vary: RSC headers.
+        const cacheLookupPath = isBottleDetailNav ? "/engineer/bottle-view" : url.pathname;
         const opts = { ignoreVary: true, ignoreSearch: true } as CacheQueryOptions;
         const cache = await caches.open(OFFLINE_PAGES_CACHE);
-        const own = await cache.match(url.pathname, opts);
+        const own = await cache.match(cacheLookupPath, opts);
         info.ownCacheHit = own ? "yes" : "no";
         let cached = own;
         if (!cached) {
-          cached = (await caches.match(url.pathname, opts)) || (await caches.match(req, opts));
+          cached = (await caches.match(cacheLookupPath, opts)) || (await caches.match(req, opts));
           info.anyCacheHit = cached ? "yes" : "no";
         }
         if (cached) {

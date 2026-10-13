@@ -9,6 +9,7 @@ import { Bottle } from "@/lib/db";
 
 interface OfflineContextType {
   isOnline: boolean;
+  markOffline: () => void;
   pendingCount: number;
   lastUpdated: string | null;
   isSyncing: boolean;
@@ -24,6 +25,7 @@ interface OfflineContextType {
 
 const OfflineContext = createContext<OfflineContextType>({
   isOnline: true,
+  markOffline: () => {},
   pendingCount: 0,
   lastUpdated: null,
   isSyncing: false,
@@ -50,6 +52,8 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
     title: "Signal Required",
     reason: "",
   });
+
+  const markOffline = useCallback(() => setIsOnline(false), []);
 
   const openOfflineBottleModal = useCallback((b: Bottle) => setOfflineBottle(b), []);
   const closeOfflineBottleModal = useCallback(() => setOfflineBottle(null), []);
@@ -126,6 +130,7 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
     <OfflineContext.Provider
       value={{
         isOnline,
+        markOffline,
         pendingCount,
         lastUpdated,
         isSyncing,
