@@ -112,7 +112,7 @@ export default function HistoryPage() {
   };
 
   const renderBottle = (b: Bottle) => (
-    <BottleLink key={b.serial} serial={b.serial} style={{ textDecoration: "none" }}>
+    <BottleLink key={b.serial} bottle={b} serial={b.serial} style={{ textDecoration: "none" }}>
       <div className={`${styles.card} glass-panel`}>
         <div className={styles.cardHeader}>
           <div className={styles.cardType}>

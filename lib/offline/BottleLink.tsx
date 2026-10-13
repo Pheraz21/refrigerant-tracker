@@ -2,42 +2,68 @@
 
 // Links a bottle card to its detail view.
 // Online → dynamic detail page via client-side navigation (/engineer/bottle/[serial]).
-// Offline → static precached screen via a hard navigation (<a>, /engineer/bottle-view?serial=)
-// so the service worker serves the precached document with no RSC network request.
+// Offline → native inline action drawer (0ms delay, zero browser navigation, no dinosaur screen).
 import React from "react";
 import Link from "next/link";
+import { Bottle } from "@/lib/db";
 import { useOffline } from "./OfflineContext";
+import { getCachedBottle } from "./bottleCache";
 
 export function BottleLink({
+  bottle,
   serial,
   className,
   style,
   children,
 }: {
+  bottle?: Bottle;
   serial: string;
   className?: string;
   style?: React.CSSProperties;
   children: React.ReactNode;
 }) {
-  const { isOnline } = useOffline();
+  const { isOnline, openOfflineBottleModal } = useOffline();
 
-  const handleClick = (e: React.MouseEvent) => {
-    // If the device just lost connectivity before state updated, hard route to offline view
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      e.preventDefault();
-      window.location.href = `/engineer/bottle-view?serial=${encodeURIComponent(serial)}`;
+  const handleOpenOffline = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (bottle) {
+      openOfflineBottleModal(bottle);
+      return;
+    }
+
+    const cached = await getCachedBottle(serial);
+    if (cached) {
+      openOfflineBottleModal(cached);
+    } else {
+      // Fallback object so engineer is never stranded
+      openOfflineBottleModal({
+        serial,
+        gasType: "Refrigerant",
+        category: "new",
+        locationType: "van",
+        locationId: "My Van",
+        currentWeight: 0,
+        initialWeight: 0,
+        status: "active",
+      } as Bottle);
     }
   };
 
-  if (!isOnline) {
+  const isActuallyOffline = !isOnline || (typeof navigator !== "undefined" && !navigator.onLine);
+
+  if (isActuallyOffline) {
     return (
-      <a
-        href={`/engineer/bottle-view?serial=${encodeURIComponent(serial)}`}
+      <div
         className={className}
-        style={style}
+        style={{ ...style, cursor: "pointer" }}
+        onClick={handleOpenOffline}
+        role="button"
+        tabIndex={0}
       >
         {children}
-      </a>
+      </div>
     );
   }
 
@@ -46,7 +72,11 @@ export function BottleLink({
       href={`/engineer/bottle/${serial}`}
       className={className}
       style={style}
-      onClick={handleClick}
+      onClick={(e) => {
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          handleOpenOffline(e);
+        }
+      }}
     >
       {children}
     </Link>

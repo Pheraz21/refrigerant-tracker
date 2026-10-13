@@ -226,6 +226,7 @@ export default function EngineerInventoryPage() {
           {displayedBottles.map(bottle => (
             <BottleLink 
               key={bottle.serial} 
+              bottle={bottle}
               serial={bottle.serial}
               style={{ textDecoration: "none", color: "inherit" }}
             >

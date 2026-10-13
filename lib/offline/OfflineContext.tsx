@@ -5,6 +5,8 @@ import { getCacheLastUpdated } from "./bottleCache";
 import { getQueueCount, QUEUE_CHANGED_EVENT } from "./queue";
 import { syncQueue } from "./sync";
 
+import { Bottle } from "@/lib/db";
+
 interface OfflineContextType {
   isOnline: boolean;
   pendingCount: number;
@@ -12,6 +14,9 @@ interface OfflineContextType {
   isSyncing: boolean;
   syncNow: () => Promise<void>;
   refreshMeta: () => void;
+  offlineBottle: Bottle | null;
+  openOfflineBottleModal: (bottle: Bottle) => void;
+  closeOfflineBottleModal: () => void;
 }
 
 const OfflineContext = createContext<OfflineContextType>({
@@ -21,6 +26,9 @@ const OfflineContext = createContext<OfflineContextType>({
   isSyncing: false,
   syncNow: async () => {},
   refreshMeta: () => {},
+  offlineBottle: null,
+  openOfflineBottleModal: () => {},
+  closeOfflineBottleModal: () => {},
 });
 
 export function OfflineProvider({ children }: { children: React.ReactNode }) {
@@ -30,6 +38,10 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [offlineBottle, setOfflineBottle] = useState<Bottle | null>(null);
+
+  const openOfflineBottleModal = useCallback((b: Bottle) => setOfflineBottle(b), []);
+  const closeOfflineBottleModal = useCallback(() => setOfflineBottle(null), []);
 
   const refreshMeta = useCallback(() => {
     getCacheLastUpdated().then(setLastUpdated).catch(() => {});
@@ -101,6 +113,9 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
         isSyncing,
         syncNow,
         refreshMeta,
+        offlineBottle,
+        openOfflineBottleModal,
+        closeOfflineBottleModal,
       }}
     >
       {children}

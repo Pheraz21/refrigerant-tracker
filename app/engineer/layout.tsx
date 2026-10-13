@@ -7,14 +7,16 @@ import { useEffect, useState } from "react";
 import { db } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { NavigationGuardProvider, useNavigationGuard } from "@/lib/NavigationGuardContext";
-import { OfflineProvider } from "@/lib/offline/OfflineContext";
+import { OfflineProvider, useOffline } from "@/lib/offline/OfflineContext";
 import { OfflineBanner } from "@/lib/offline/OfflineBanner";
+import { OfflineBottleModal } from "@/lib/offline/OfflineBottleModal";
 import styles from "./layout.module.css";
 
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, refreshUser } = useAuth();
   const { requestNavigate } = useNavigationGuard();
+  const { offlineBottle, closeOfflineBottleModal } = useOffline();
 
   useEffect(() => {
     refreshUser();
@@ -41,6 +43,11 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   return (
     <div className={styles.layout}>
       <OfflineBanner />
+      <OfflineBottleModal
+        bottle={offlineBottle}
+        isOpen={!!offlineBottle}
+        onClose={closeOfflineBottleModal}
+      />
       {(user?.role === "admin" || user?.role === "office") && (
         <div
           className="no-print"
