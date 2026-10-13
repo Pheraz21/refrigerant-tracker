@@ -444,7 +444,7 @@ export default function UserManagementPage() {
           </div>
 
           <Link
-            href="/admin/vans"
+            href="/admin/crews"
             style={{
               fontSize: "0.8rem",
               fontWeight: 700,
@@ -455,7 +455,7 @@ export default function UserManagementPage() {
               gap: "0.3rem",
             }}
           >
-            Open Live Crews Van Dashboard &rarr;
+            Open Active Field Crews Dashboard &rarr;
           </Link>
         </div>
       )}

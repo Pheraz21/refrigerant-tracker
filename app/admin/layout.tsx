@@ -32,7 +32,8 @@ import {
   Wrench,
   BookOpen,
   PackageCheck,
-  Recycle
+  Recycle,
+  UserCheck
 } from "lucide-react";
 
 const navGroups = [
@@ -83,6 +84,7 @@ const navGroups = [
   {
     title: "Administration",
     items: [
+      { href: "/admin/crews", label: "Active Field Crews", icon: UserCheck },
       { href: "/admin/users", label: "User Management", icon: Users },
       { href: "/admin/analytics", label: "Analytics", icon: BarChart2 },
       { href: "/admin/profile", label: "My Profile", icon: UserCircle },
