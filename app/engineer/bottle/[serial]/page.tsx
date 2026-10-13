@@ -358,48 +358,6 @@ export default function BottleActionHub() {
           </div>
         </div>
 
-      {bottle.category === "reclaim" && associatedHWCNs.length > 0 && (
-        <div className={`${styles.dynamicSection} glass-panel`} style={{borderColor: 'var(--primary)', marginBottom: '1.5rem'}}>
-          <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem'}}>
-            <Truck size={24} color="var(--primary)" />
-            <h3 style={{color: 'var(--primary)', margin: 0}}>Associated HWCNs</h3>
-          </div>
-          <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem'}}>
-              {associatedHWCNs.map(hwcn => (
-                <div key={hwcn.id} style={{
-                  padding: '1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid var(--border)',
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap'
-                }}>
-                  <div>
-                    <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem'}}>
-                      <span style={{fontWeight: 600, color: 'var(--text-main)'}}>{hwcn.id}</span>
-                      <span style={{
-                        fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 600,
-                        background: hwcn.hwcnStatus === 'complete' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 187, 0, 0.15)',
-                        color: hwcn.hwcnStatus === 'complete' ? 'var(--success)' : 'var(--warning)',
-                        border: `1px solid ${hwcn.hwcnStatus === 'complete' ? 'rgba(34, 197, 94, 0.3)' : 'rgba(255, 187, 0, 0.3)'}`
-                      }}>
-                        {hwcn.hwcnStatus === 'complete' ? 'Completed' : hwcn.hwcnStatus === 'awaiting_consignee' ? 'Awaiting Consignee' : 'In Transit / Draft'}
-                      </span>
-                    </div>
-                    <div style={{fontSize: '0.75rem', color: 'var(--text-muted)'}}>
-                      {new Date(hwcn.date).toLocaleDateString()} · Dest: {hwcn.destination} {hwcn.fillWeight ? `· ${Number(hwcn.fillWeight).toFixed(2)} kg` : ''}
-                    </div>
-                  </div>
-                  <Link 
-                    href={`/engineer/hwcn/${encodeURIComponent(hwcn.id)}`}
-                    style={{
-                      padding: '0.5rem 1rem', borderRadius: '4px', background: 'var(--primary)', color: '#000',
-                      fontSize: '0.8rem', fontWeight: 600, textDecoration: 'none'
-                    }}
-                  >
-                    View Note
-                  </Link>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
 
       {bottle.supplierHwcnPhotoPending && (
         <div className={`${styles.dynamicSection} glass-panel`} style={{borderColor: 'var(--error)', marginBottom: '1.5rem', background: 'rgba(255, 51, 102, 0.05)'}}>
@@ -1111,6 +1069,50 @@ export default function BottleActionHub() {
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* ASSOCIATED HWCNS - Placed below bottle action buttons */}
+              {bottle.category === "reclaim" && associatedHWCNs.length > 0 && (
+                <div className={`${styles.dynamicSection} glass-panel`} style={{borderColor: 'rgba(255,255,255,0.15)', marginTop: '2rem', marginBottom: '1rem'}}>
+                  <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.85rem'}}>
+                    <Truck size={20} color="var(--primary)" />
+                    <h3 style={{color: 'var(--primary)', margin: 0, fontSize: '1rem'}}>Associated Hazardous Waste Notes</h3>
+                  </div>
+                  <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem'}}>
+                    {associatedHWCNs.map(hwcn => (
+                      <div key={hwcn.id} style={{
+                        padding: '0.85rem 1rem', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid var(--border)',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap'
+                      }}>
+                        <div>
+                          <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem'}}>
+                            <span style={{fontWeight: 600, color: 'var(--text-main)', fontSize: '0.9rem'}}>{hwcn.id}</span>
+                            <span style={{
+                              fontSize: '0.68rem', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 600,
+                              background: hwcn.hwcnStatus === 'complete' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 187, 0, 0.15)',
+                              color: hwcn.hwcnStatus === 'complete' ? 'var(--success)' : 'var(--warning)',
+                              border: `1px solid ${hwcn.hwcnStatus === 'complete' ? 'rgba(34, 197, 94, 0.3)' : 'rgba(255, 187, 0, 0.3)'}`
+                            }}>
+                              {hwcn.hwcnStatus === 'complete' ? 'Completed' : hwcn.hwcnStatus === 'awaiting_consignee' ? 'Awaiting Consignee' : 'In Transit / Draft'}
+                            </span>
+                          </div>
+                          <div style={{fontSize: '0.75rem', color: 'var(--text-muted)'}}>
+                            {new Date(hwcn.date).toLocaleDateString()} · Dest: {hwcn.destination} {hwcn.fillWeight ? `· ${Number(hwcn.fillWeight).toFixed(2)} kg` : ''}
+                          </div>
+                        </div>
+                        <Link 
+                          href={`/engineer/hwcn/${encodeURIComponent(hwcn.id)}`}
+                          style={{
+                            padding: '0.4rem 0.85rem', borderRadius: '4px', background: 'var(--primary)', color: '#000',
+                            fontSize: '0.78rem', fontWeight: 600, textDecoration: 'none'
+                          }}
+                        >
+                          View Note
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
