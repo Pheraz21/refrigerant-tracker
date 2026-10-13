@@ -7,6 +7,7 @@ import Link from "next/link";
 import { db, Bottle } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { ActiveVehicleBanner } from "@/components/ActiveVehicleBanner";
+import { BottleLink } from "@/lib/offline/BottleLink";
 
 export default function EngineerInventoryPage() {
   const { user, activeVehicleReg, activeVehicleOwner, activePairingStatus, activePairing } = useAuth();
@@ -223,9 +224,9 @@ export default function EngineerInventoryPage() {
 
         <div className={styles.bottleList}>
           {displayedBottles.map(bottle => (
-            <Link 
+            <BottleLink 
               key={bottle.serial} 
-              href={`/engineer/bottle/${bottle.serial}`}
+              serial={bottle.serial}
               style={{ textDecoration: "none", color: "inherit" }}
             >
               <div 
@@ -339,7 +340,7 @@ export default function EngineerInventoryPage() {
                   </div>
                 )}
               </div>
-            </Link>
+            </BottleLink>
           ))}
         </div>
       </section>

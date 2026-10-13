@@ -1,0 +1,232 @@
+// Service worker source, compiled by @serwist/next into public/sw.js at build time.
+// This provides the offline app shell so the engineer PWA loads in low/no-signal
+// areas. Offline DATA caching and the action sync queue are handled separately in
+// the app (lib/offline/*), not here.
+import { defaultCache } from "@serwist/next/worker";
+import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
+import { Serwist } from "serwist";
+
+declare global {
+  interface WorkerGlobalScope extends SerwistGlobalConfig {
+    // Injected by Serwist at build time — the list of app-shell assets to precache.
+    __SW_MANIFEST: (PrecacheEntry | string)[] | undefined;
+  }
+}
+
+declare const self: ServiceWorkerGlobalScope;
+
+// Engineer pages that must work offline. Includes the ?serial= action pages (served
+// by pathname so any serial works) and the list/home pages engineers navigate
+// between offline. We serve all of these ourselves so offline navigation never
+// depends on Workbox's navigation strategy.
+export const OFFLINE_PAGES = [
+  "/engineer",
+  "/engineer/history",
+  "/engineer/inventory",
+  "/engineer/bottle-view",
+  "/engineer/log",
+  "/engineer/move",
+];
+const OFFLINE_PAGES_CACHE = "engineer-offline-pages";
+
+// Bump on every SW change — shown on the diagnostic screen and reported to the app,
+// so we can always tell WHICH build of the service worker is actually in control.
+const SW_VERSION = "sw-2026-10-13-v2";
+
+// Rolling log of navigations seen by the SW, readable by the app (banner diagnostics).
+const DIAG_LOG_CACHE = "sw-diag-log";
+async function swLog(entry: Record<string, unknown>): Promise<void> {
+  try {
+    const cache = await caches.open(DIAG_LOG_CACHE);
+    const prev = await cache.match("/__navlog");
+    let list: unknown[] = [];
+    if (prev) {
+      try {
+        list = await prev.json();
+      } catch {
+        /* corrupt log — start over */
+      }
+    }
+    list.push({ t: new Date().toISOString().slice(11, 19), ...entry });
+    if (list.length > 15) list = list.slice(-15);
+    await cache.put(
+      "/__navlog",
+      new Response(JSON.stringify(list), { headers: { "Content-Type": "application/json" } }),
+    );
+  } catch {
+    /* non-fatal */
+  }
+}
+
+// Rebuild a response as a plain 200 with a fresh body. CRITICAL: a response whose
+// `redirected` flag is set (e.g. one stored by install-time fetch warming) is
+// REJECTED by the browser when returned for a page navigation — surfacing as the
+// generic "page couldn't load" error even though the cache clearly holds the page.
+// Rebuilding strips that flag (and any other internal taint) so the cached copy is
+// always usable for navigations.
+async function sanitizeResponse(res: Response): Promise<Response> {
+  // Read as TEXT and rebuild as a string-bodied 200 — the most vanilla response a
+  // SW can produce (identical construction to synthetic pages that provably render).
+  const body = await res.text();
+  return new Response(body, {
+    status: 200,
+    statusText: "OK",
+    headers: {
+      "Content-Type": res.headers.get("Content-Type") || "text/html; charset=utf-8",
+      "X-Served-By": "fgas-sw",
+    },
+  });
+}
+
+function diagPage(info: Record<string, string>): Response {
+  const rows = Object.entries(info)
+    .map(([k, v]) => `<tr><td style="padding:4px 8px;color:#888">${k}</td><td style="padding:4px 8px">${v}</td></tr>`)
+    .join("");
+  const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Offline diagnostic</title></head>
+<body style="background:#0a0e14;color:#fff;font-family:sans-serif;padding:1.5rem">
+<h2 style="color:#ffaa00">Offline diagnostic (temporary)</h2>
+<p style="font-size:0.9rem">The offline page could not be served. Please screenshot this and share it.</p>
+<table style="font-size:0.85rem;border-collapse:collapse;background:rgba(255,255,255,0.04);border-radius:8px">${rows}</table>
+<p style="margin-top:1.5rem"><a href="/engineer/history" style="color:#00e5ff">← Back to My Bottles</a></p>
+</body></html>`;
+  return new Response(html, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } });
+}
+
+// Hand-rolled handler registered BEFORE Serwist so it wins event.respondWith for
+// these pages. Network-first, falling back to the pathname-normalised cached
+// document. This is deterministic — Workbox's navigation strategy + navigationPreload
+// was holding the cached response back offline even though it was present.
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
+  if (req.method !== "GET") return;
+  let url: URL;
+  try {
+    url = new URL(req.url);
+  } catch {
+    return;
+  }
+  if (url.origin !== self.location.origin) return;
+
+  const isNav = req.mode === "navigate";
+  if (isNav) event.waitUntil(swLog({ nav: url.pathname + url.search }));
+
+  if (!OFFLINE_PAGES.includes(url.pathname)) return;
+  if (url.searchParams.has("_rsc")) return; // let RSC data requests go to Serwist
+
+  event.respondWith(
+    (async () => {
+      const info: Record<string, string> = {
+        swVersion: SW_VERSION,
+        path: url.pathname + url.search,
+        mode: req.mode,
+      };
+      try {
+        let fresh: Response | null = null;
+        try {
+          fresh = await fetch(req);
+        } catch (e) {
+          info.networkError = String(e);
+        }
+        if (fresh) {
+          if (fresh.ok) {
+            const cache = await caches.open(OFFLINE_PAGES_CACHE);
+            cache.put(url.pathname, await sanitizeResponse(fresh.clone()));
+          }
+          return fresh;
+        }
+        // Offline: prefer our own cache (refreshed every deploy), fall back to any.
+        // ignoreVary is required because Next responses carry Vary: RSC headers.
+        const opts = { ignoreVary: true, ignoreSearch: true } as CacheQueryOptions;
+        const cache = await caches.open(OFFLINE_PAGES_CACHE);
+        const own = await cache.match(url.pathname, opts);
+        info.ownCacheHit = own ? "yes" : "no";
+        let cached = own;
+        if (!cached) {
+          cached = (await caches.match(url.pathname, opts)) || (await caches.match(req, opts));
+          info.anyCacheHit = cached ? "yes" : "no";
+        }
+        if (cached) {
+          info.cachedStatus = String(cached.status);
+          info.cachedRedirected = String(cached.redirected);
+          info.cachedType = cached.type;
+          const clean = await sanitizeResponse(cached);
+          const size = (await clean.clone().text()).length;
+          info.cachedBytes = String(size);
+          if (size > 0) {
+            if (isNav) event.waitUntil(swLog({ served: url.pathname, via: own ? "own" : "any", bytes: size }));
+            return clean;
+          }
+          info.result = "cached but EMPTY body";
+          if (isNav) event.waitUntil(swLog({ failed: url.pathname, why: "empty-body" }));
+          return isNav ? diagPage(info) : Response.error();
+        }
+        info.result = "no cache match anywhere";
+        if (isNav) event.waitUntil(swLog({ failed: url.pathname, why: "no-match" }));
+        return isNav ? diagPage(info) : Response.error();
+      } catch (e) {
+        info.handlerError = String(e && (e as Error).stack ? (e as Error).stack : e);
+        if (isNav) event.waitUntil(swLog({ failed: url.pathname, why: String(e).slice(0, 80) }));
+        return isNav ? diagPage(info) : Response.error();
+      }
+    })(),
+  );
+});
+
+// Lets the app ask which SW build is in control (shown in the offline banner diag).
+self.addEventListener("message", (event) => {
+  if (event.data === "GET_SW_VERSION" && event.ports?.[0]) {
+    event.ports[0].postMessage(SW_VERSION);
+  }
+});
+
+const serwist = new Serwist({
+  precacheEntries: self.__SW_MANIFEST,
+  skipWaiting: true,
+  clientsClaim: true,
+  // Off: our fetch handler manages the offline pages; navigation preload was
+  // interfering with serving them from cache offline.
+  navigationPreload: false,
+  runtimeCaching: defaultCache,
+});
+
+serwist.addEventListeners();
+
+// Navigation preload state is PER-REGISTRATION and sticky: disable it explicitly.
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        await self.registration.navigationPreload?.disable();
+        await swLog({ navPreload: "disabled" });
+      } catch (e) {
+        await swLog({ navPreload: `disable failed: ${String(e).slice(0, 60)}` });
+      }
+    })(),
+  );
+});
+
+// Warm the offline action pages into the cache during install (online, as the SW
+// updates) so they open offline regardless of client-side warming. Keyed by pathname
+// to match how the fetch handler above looks them up.
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        await caches.delete(OFFLINE_PAGES_CACHE);
+        const cache = await caches.open(OFFLINE_PAGES_CACHE);
+        await Promise.all(
+          OFFLINE_PAGES.map(async (path) => {
+            try {
+              const res = await fetch(path, { cache: "no-store", credentials: "same-origin" });
+              if (res.ok) await cache.put(path, await sanitizeResponse(res));
+            } catch {
+              /* offline or blocked — client warming will retry later */
+            }
+          }),
+        );
+      } catch {
+        /* cache unavailable — non-fatal */
+      }
+    })(),
+  );
+});
