@@ -23,8 +23,8 @@ export async function syncQueue(): Promise<{ synced: number; failed: number }> {
           // Positional args: serial, jobType, weightChange, isWaste, producerSite, gasType, engineerName, siteRef, equipmentDetails, supervisingEngineer, supervisingCertificate, occurredAt
           await (db.replayOfflineUsage as (...a: any[]) => Promise<void>)(...m.args, m.occurredAt);
         } else if (m.type === "move") {
-          // Positional args: serial, locationType, locationId, intendedDestination, intendedLocationType, activeHWCN, engineerName, occurredAt
-          await (db.updateBottleLocation as (...a: any[]) => Promise<void>)(...m.args, m.occurredAt);
+          // Positional args: serial, locationType, locationId, intendedDestination, intendedLocationType, activeHWCN, engineerName, vehicleReg, movedBy, occurredAt, isReplay
+          await (db.updateBottleLocation as (...a: any[]) => Promise<void>)(...m.args, m.occurredAt, true);
         } else if (m.type === "decommission") {
           await (db.logDecommission as (...a: any[]) => Promise<any>)(...m.args);
         }
