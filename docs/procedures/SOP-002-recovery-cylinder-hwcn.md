@@ -117,7 +117,9 @@ The system creates a permanent cylinder record and an entry in the audit log at 
 
 **Van to Site:** When the engineer takes the cylinder to a customer job site, this movement is recorded in F-Gas Tracker Pro. The job reference and site details are recorded and a movement log entry is created.
 
-**Site back to Van:** On completion of recovery work, the engineer records the movement of the cylinder back to their van in F-Gas Tracker Pro. A movement log entry is created and the cylinder returns to the engineer's Van Inventory.
+**Site back to Van:** On completion of recovery work or upon concluding the site visit, the engineer records the movement of the cylinder back to their van in F-Gas Tracker Pro. A movement log entry is created and the cylinder returns to the engineer's Van Inventory.
+
+> **Control & Compliance Note:** A Hazardous Waste Consignment Note (HWCN) is **strictly dependent on whether waste refrigerant was actually added/recovered into the cylinder during that site visit**. If a recovery cylinder was taken to a job site but no waste gas was added during the visit (e.g. no recovery performed, inspection only, or on-site recharge/leak check only), moving the cylinder back into the van is a simple physical location transfer. No HWCN is prompted or generated. An HWCN is only raised when hazardous waste has actually been recovered during that visit.
 
 ---
 
@@ -201,7 +203,9 @@ When an engineer has completed recovery work and the cylinder contains waste ref
 The engineer opens the cylinder record in the F-Gas Tracker Pro mobile application and selects **Move Cylinder**. The system automatically determines the required transfer route based on the cylinder's contents:
 
 - If the cylinder contains **no gas**, a simple location update is performed with no HWCN required.
-- If the cylinder contains **waste refrigerant**, the system routes the transfer through the appropriate HWCN process described below.
+- If the cylinder contains **waste refrigerant**, the system checks whether any waste refrigerant was actually recovered into the cylinder during the current site visit:
+  - **No waste added on current visit:** Transferring the cylinder from the job site back into the engineer's van is completed as a direct vehicle stock allocation without prompting for or generating an HWCN.
+  - **Waste recovered on current visit:** The system routes the movement through the required HWCN consignment workflow described below (Route A or Route B).
 
 ### 7.2 Transfer Routes
 

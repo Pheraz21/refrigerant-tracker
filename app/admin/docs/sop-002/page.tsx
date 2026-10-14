@@ -154,7 +154,8 @@ export default function Sop002Page() {
         <p><strong>Stores to Van:</strong> When a cylinder is issued to a field engineer, the Engineer records this allocation in F-Gas Tracker Pro. The engineer's name and vehicle registration plate are recorded against the cylinder and a movement log entry is created.</p>
         <blockquote><strong>Control:</strong> Only one engineer's van is associated with each cylinder at any time. If a cylinder is transferred between vans, both parties and the date/time of the handover are recorded in the movement log.</blockquote>
         <p><strong>Van to Site:</strong> When the engineer takes the cylinder to a customer job site, this movement is recorded in F-Gas Tracker Pro. The job reference and site details are recorded and a movement log entry is created.</p>
-        <p><strong>Site back to Van:</strong> On completion of recovery work, the engineer records the movement of the cylinder back to their van in F-Gas Tracker Pro. A movement log entry is created and the cylinder returns to the engineer's Van Inventory.</p>
+        <p><strong>Site back to Van:</strong> On completion of recovery work or upon concluding the site visit, the engineer records the movement of the cylinder back to their van in F-Gas Tracker Pro. A movement log entry is created and the cylinder returns to the engineer's Van Inventory.</p>
+        <blockquote><strong>Control &amp; Compliance Note:</strong> A Hazardous Waste Consignment Note (HWCN) is <strong>strictly dependent on whether waste refrigerant was actually added/recovered into the cylinder during that site visit</strong>. If a recovery cylinder was taken to a job site but no waste gas was added during the visit (e.g. no recovery performed, inspection only, or on-site recharge/leak check only), moving the cylinder back into the van is a simple physical location transfer. No HWCN is prompted or generated. An HWCN is only raised when hazardous waste has actually been recovered during that visit.</blockquote>
 
         <h3>5.3 On-Site Refrigerant Recovery</h3>
         <p>When recovering refrigerant from a customer's system on site, the engineer records the recovery in F-Gas Tracker Pro before leaving site. The following information is captured:</p>
@@ -195,7 +196,12 @@ export default function Sop002Page() {
         <p>The engineer opens the cylinder record in the F-Gas Tracker Pro mobile application and selects <strong>Move Cylinder</strong>. The system automatically determines the required transfer route based on the cylinder's contents:</p>
         <ul>
           <li>If the cylinder contains <strong>no gas</strong>, a simple location update is performed with no HWCN required.</li>
-          <li>If the cylinder contains <strong>waste refrigerant</strong>, the system routes the transfer through the appropriate HWCN process described below.</li>
+          <li>If the cylinder contains <strong>waste refrigerant</strong>, the system checks whether any waste refrigerant was actually recovered into the cylinder during the current site visit:
+            <ul>
+              <li><strong>No waste added on current visit:</strong> Transferring the cylinder from the job site back into the engineer's van is completed as a direct vehicle stock allocation without prompting for or generating an HWCN.</li>
+              <li><strong>Waste recovered on current visit:</strong> The system routes the movement through the required HWCN consignment workflow described below (Route A or Route B).</li>
+            </ul>
+          </li>
         </ul>
 
         <h3>6.2 Transfer Routes</h3>

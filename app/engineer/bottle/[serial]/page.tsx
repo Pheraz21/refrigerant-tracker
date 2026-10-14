@@ -53,6 +53,7 @@ export default function BottleActionHub() {
   const [showMismatchConfirm, setShowMismatchConfirm] = useState(false);
   const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
   const [returnConfirmed, setReturnConfirmed] = useState(false);
+  const [wasteAddedOnVisit, setWasteAddedOnVisit] = useState(false);
 
   const genealogy = useMemo(() => getCylinderGenealogy(bottle, moveLogs), [bottle, moveLogs]);
 
@@ -159,16 +160,48 @@ export default function BottleActionHub() {
 
       // Load associated HWCNs (both in-progress and completed) and usage logs for reclaim cylinders so engineer can view prior and active notes and verify reclaim origin
       if (b.category === "reclaim") {
-        const [hwcns, logs] = await Promise.all([
+        const [hwcns, logs, movements] = await Promise.all([
           db.getHWCNsForBottle(serial),
-          db.getUsageLogs(serial)
+          db.getUsageLogs(serial),
+          db.getMovementLogs(serial)
         ]);
         const sorted = (hwcns || []).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
         setAssociatedHWCNs(sorted);
         setUsageLogs(logs || []);
+
+        let hasWasteThisVisit = false;
+        if (b.locationType === "site") {
+          const siteId = (b.locationId || "").trim().toUpperCase();
+          const siteMoves = (movements || []).filter((m: any) => {
+            const to = (m.to || (m as any).to_location || "").trim().toUpperCase();
+            return to === siteId;
+          });
+          const latestSiteMove = siteMoves[0];
+          let arrivalTime = b.locationChangedAt ? new Date(b.locationChangedAt).getTime() : 0;
+          if (!arrivalTime && latestSiteMove?.date) {
+            arrivalTime = new Date(latestSiteMove.date).getTime();
+          }
+
+          const recoveryLogs = (logs || []).filter((log: any) => {
+            const isWaste = log.jobType === "recovery" || log.jobType === "retrofit" || log.jobType === "waste";
+            const hasWeight = Number(log.weightUsed || 0) > 0;
+            if (!isWaste || !hasWeight) return false;
+
+            const logTime = log.date ? new Date(log.date).getTime() : 0;
+            if (arrivalTime > 0) {
+              return logTime >= arrivalTime - 60000;
+            }
+            const logSite = (log.siteRef || (log as any).site_ref || "").trim().toUpperCase();
+            return logSite === siteId;
+          });
+
+          hasWasteThisVisit = recoveryLogs.length > 0;
+        }
+        setWasteAddedOnVisit(hasWasteThisVisit);
       } else {
         setAssociatedHWCNs([]);
         setUsageLogs([]);
+        setWasteAddedOnVisit(false);
       }
 
       setLoading(false);
@@ -184,7 +217,9 @@ export default function BottleActionHub() {
     // Check if HWCN is required: only when transferring waste to Office/Stores or Other facility (NOT when taking bottle to a Job Site or van handover)
     const isReclaimWithGas = bottle.category === "reclaim" && (bottle.currentWeight || 0) > 0;
     const isMultiSite = (bottle.producerSites?.length || 0) > 1;
-    const requiresHWCN = isReclaimWithGas && destination !== "supplier" && destination !== "site" && destination !== "engineer";
+    const isMovingSiteToVanWithoutWaste = bottle.locationType === "site" && destination === "van" && !wasteAddedOnVisit;
+    const isMovingOfficeToVan = bottle.locationType === "office" && destination === "van";
+    const requiresHWCN = isReclaimWithGas && destination !== "supplier" && destination !== "site" && destination !== "engineer" && !isMovingSiteToVanWithoutWaste && !isMovingOfficeToVan;
     
     if (requiresHWCN) {
       // Need to redirect to full move flow to handle HWCN generation

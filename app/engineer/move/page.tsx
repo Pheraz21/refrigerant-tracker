@@ -60,6 +60,7 @@ export default function MoveBottlePage() {
   const [carrierName, setCarrierName] = useState("");
   const [intendedDest, setIntendedDest] = useState("");
   const [hwcnSites, setHwcnSites] = useState<any[]>([]);
+  const [wasteAddedOnVisit, setWasteAddedOnVisit] = useState(false);
 
   const { user, activeVehicleReg, activeVehicleOwner } = useAuth();
   const { setIsDirty, setCustomMessage, requestNavigate } = useNavigationGuard();
@@ -133,13 +134,48 @@ export default function MoveBottlePage() {
   useEffect(() => {
     db.getCompanySettings().then(s => { if (s?.carrierReg) setCarrierRegNo(s.carrierReg); });
 
-    db.getBottle(serialParam).then(b => {
+    Promise.all([
+      db.getBottle(serialParam),
+      db.getMovementLogs(serialParam),
+      db.getUsageLogs(serialParam)
+    ]).then(([b, moveLogs, usageLogs]) => {
       setBottle(b);
       if (b?.producerSites && b.producerSites.length > 0) {
         setHwcnSites(b.producerSites);
       } else {
         setHwcnSites([{ name: "", address: "", postcode: "" }]);
       }
+
+      // Check if any waste refrigerant was recovered into this cylinder during its current visit to site
+      let hasWasteThisVisit = false;
+      if (b?.locationType === "site") {
+        const siteId = (b.locationId || "").trim().toUpperCase();
+        const siteMoves = (moveLogs || []).filter((m: any) => {
+          const to = (m.to || (m as any).to_location || "").trim().toUpperCase();
+          return to === siteId;
+        });
+        const latestSiteMove = siteMoves[0];
+        let arrivalTime = b.locationChangedAt ? new Date(b.locationChangedAt).getTime() : 0;
+        if (!arrivalTime && latestSiteMove?.date) {
+          arrivalTime = new Date(latestSiteMove.date).getTime();
+        }
+
+        const recoveryLogs = (usageLogs || []).filter((log: any) => {
+          const isWaste = log.jobType === "recovery" || log.jobType === "retrofit" || log.jobType === "waste";
+          const hasWeight = Number(log.weightUsed || 0) > 0;
+          if (!isWaste || !hasWeight) return false;
+
+          const logTime = log.date ? new Date(log.date).getTime() : 0;
+          if (arrivalTime > 0) {
+            return logTime >= arrivalTime - 60000;
+          }
+          const logSite = (log.siteRef || (log as any).site_ref || "").trim().toUpperCase();
+          return logSite === siteId;
+        });
+
+        hasWasteThisVisit = recoveryLogs.length > 0;
+      }
+      setWasteAddedOnVisit(hasWasteThisVisit);
       
       const action = searchParams.get("action");
       const destParam = searchParams.get("dest");
@@ -152,6 +188,17 @@ export default function MoveBottlePage() {
       } else if (destParam === "site" || destParam === "engineer") {
         // Engineer is moving cylinder to a job site or handing over to a colleague; does not require HWCN
         setDestination(destParam);
+        setReclaimFlowStep("standard");
+        setReclaimFlowPath("normal");
+      } else if (b?.locationType === "site" && !hasWasteThisVisit) {
+        // Cylinder was brought to site but NO waste was recovered on this visit.
+        // Return to van is a standard physical transfer without HWCN prompt.
+        setDestination("van");
+        setReclaimFlowStep("standard");
+        setReclaimFlowPath("normal");
+      } else if (b?.locationType === "office") {
+        // Cylinder is at HQ-Stores; loading into van is van stock allocation without HWCN prompt.
+        setDestination("van");
         setReclaimFlowStep("standard");
         setReclaimFlowPath("normal");
       } else {
@@ -189,14 +236,31 @@ export default function MoveBottlePage() {
     }
   }, [serialParam, user, activeVehicleReg]);
 
-  const requiresHWCN = bottle?.category === "reclaim" && (bottle?.currentWeight > 0) && destination !== "supplier" && destination !== "site" && destination !== "engineer";
+  const isMovingSiteToVanWithoutWaste = (bottle?.locationType === "site" && destination === "van" && !wasteAddedOnVisit);
+  const isMovingOfficeToVan = (bottle?.locationType === "office" && destination === "van");
+
+  const requiresHWCN = bottle?.category === "reclaim" && 
+    (bottle?.currentWeight > 0) && 
+    destination !== "supplier" && 
+    destination !== "site" && 
+    destination !== "engineer" &&
+    !isMovingSiteToVanWithoutWaste &&
+    !isMovingOfficeToVan;
 
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     
     const isReclaimWithGas = bottle?.category === "reclaim" && (bottle?.currentWeight > 0);
-    const requiresInternalHWCN = isReclaimWithGas && destination !== "supplier" && destination !== "site" && destination !== "engineer";
+    const isMovingSiteToVanWithoutWaste = (bottle?.locationType === "site" && destination === "van" && !wasteAddedOnVisit);
+    const isMovingOfficeToVan = (bottle?.locationType === "office" && destination === "van");
+
+    const requiresInternalHWCN = isReclaimWithGas && 
+      destination !== "supplier" && 
+      destination !== "site" && 
+      destination !== "engineer" &&
+      !isMovingSiteToVanWithoutWaste &&
+      !isMovingOfficeToVan;
     const requiresSupplierHWCN = isReclaimWithGas && (destination === "supplier");
     const needsTransit = requiresInternalHWCN || requiresSupplierHWCN;
 
@@ -1009,6 +1073,11 @@ export default function MoveBottlePage() {
                   fontSize: "0.9rem"
                 }}>
                   This cylinder will be transferred into your selected active van stock above.
+                  {bottle?.locationType === "site" && !wasteAddedOnVisit && (
+                    <div style={{marginTop: "0.5rem", fontSize: "0.8rem", color: "var(--text-muted)"}}>
+                      No waste refrigerant was recovered on this site visit. Moving directly into van stock without raising a Waste Transfer Note.
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
