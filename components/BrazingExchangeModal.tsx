@@ -25,7 +25,7 @@ export function BrazingExchangeModal({
   initialGasType = "Oxygen",
   initialMode = "exchange"
 }: BrazingExchangeModalProps) {
-  const actionMode = initialMode; // Strictly locked to the requested action
+  const actionMode = initialMode;
   const [gasType, setGasType] = useState<BrazingGasType>(initialGasType);
   const [supplier, setSupplier] = useState<string>(initialGasType === "Oxygen" ? "FSW" : "Calor Gas");
   const [branch, setBranch] = useState("");
@@ -38,11 +38,12 @@ export function BrazingExchangeModal({
   const [errorMessage, setErrorMessage] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
 
-  // Stores Transfer specific state
+  // Stores Transfer direction
   const [storesDirection, setStoresDirection] = useState<"pickup_from_stores" | "return_to_stores">("pickup_from_stores");
   const [vanInventory, setVanInventory] = useState<BrazingInventoryItem[]>([]);
   const [storesInventory, setStoresInventory] = useState<BrazingInventoryItem[]>([]);
 
+  // Always load live inventories when opened
   useEffect(() => {
     if (isOpen) {
       setGasType(initialGasType);
@@ -55,15 +56,13 @@ export function BrazingExchangeModal({
       setErrorMessage("");
       setIsSuccess(false);
 
-      if (initialMode === "stores") {
-        Promise.all([
-          db.getBrazingInventory("engineer", engineerId),
-          db.getBrazingInventory("stores", "stores")
-        ]).then(([vanData, storesData]) => {
-          setVanInventory(vanData || []);
-          setStoresInventory(storesData || []);
-        });
-      }
+      Promise.all([
+        db.getBrazingInventory("engineer", engineerId),
+        db.getBrazingInventory("stores", "stores")
+      ]).then(([vanData, storesData]) => {
+        setVanInventory(vanData || []);
+        setStoresInventory(storesData || []);
+      });
     }
   }, [isOpen, initialMode, initialGasType, engineerId]);
 
@@ -89,21 +88,65 @@ export function BrazingExchangeModal({
     }
   };
 
-  // Preview calculations for Stores Transfer
-  const currentVanCount = (vanInventory.find(i => i.gasType === gasType)?.quantity) ?? 1;
-  const currentStoresCount = (storesInventory.find(i => i.gasType === gasType)?.quantity) ?? 0;
+  // Live count lookups
+  const vanItem = vanInventory.find(i => i.gasType === gasType);
+  const currentVanCount = vanItem !== undefined ? vanItem.quantity : 1;
 
+  const storesItem = storesInventory.find(i => i.gasType === gasType);
+  const currentStoresCount = storesItem !== undefined ? storesItem.quantity : 0;
+
+  // Determine maximum allowable quantity based on mode and direction
+  let maxAllowedQty = 1;
+  let cannotPerformReason = "";
+
+  if (actionMode === "exchange") {
+    maxAllowedQty = currentVanCount;
+    if (currentVanCount === 0) {
+      cannotPerformReason = `You currently have 0 ${gasType} bottles on your van to exchange.`;
+    }
+  } else if (actionMode === "stores") {
+    if (storesDirection === "pickup_from_stores") {
+      maxAllowedQty = currentStoresCount;
+      if (currentStoresCount === 0) {
+        cannotPerformReason = `There are currently 0 ${gasType} bottles in HQ Stores to pick up.`;
+      }
+    } else {
+      // return_to_stores
+      maxAllowedQty = currentVanCount;
+      if (currentVanCount === 0) {
+        cannotPerformReason = `You currently have 0 ${gasType} bottles on your van to return.`;
+      }
+    }
+  } else {
+    // purchase
+    maxAllowedQty = 3;
+  }
+
+  // Auto-clamp selected quantity to maximum allowable
+  const effectiveQty = maxAllowedQty > 0 ? Math.min(Math.max(1, quantity), maxAllowedQty) : 0;
+
+  // Generate integer options strictly up to maxAllowedQty
+  const qtyOptions = maxAllowedQty > 0
+    ? Array.from({ length: Math.min(maxAllowedQty, 10) }, (_, i) => i + 1)
+    : [];
+
+  // Preview calculations for Stores Transfer
   const nextVanCount = storesDirection === "pickup_from_stores"
-    ? currentVanCount + quantity
-    : Math.max(0, currentVanCount - quantity);
+    ? currentVanCount + effectiveQty
+    : Math.max(0, currentVanCount - effectiveQty);
 
   const nextStoresCount = storesDirection === "pickup_from_stores"
-    ? Math.max(0, currentStoresCount - quantity)
-    : currentStoresCount + quantity;
+    ? Math.max(0, currentStoresCount - effectiveQty)
+    : currentStoresCount + effectiveQty;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
+
+    if (maxAllowedQty === 0) {
+      setErrorMessage(cannotPerformReason || "Action cannot be performed with 0 available bottles.");
+      return;
+    }
 
     if (actionMode === "purchase" && !reason.trim()) {
       setErrorMessage("Please enter a justification/reason for purchasing a new cylinder.");
@@ -119,7 +162,7 @@ export function BrazingExchangeModal({
           vehicleReg,
           gasType,
           direction: storesDirection,
-          quantity,
+          quantity: effectiveQty,
           notes: notes.trim() || undefined
         });
       } else {
@@ -131,7 +174,7 @@ export function BrazingExchangeModal({
           gasType,
           supplier,
           actionType,
-          quantity,
+          quantity: effectiveQty,
           reason: actionMode === "purchase" ? reason.trim() : undefined,
           poNumber: poNumber.trim() || undefined,
           branch: branch.trim() || undefined,
@@ -257,11 +300,11 @@ export function BrazingExchangeModal({
               {actionMode === "purchase" && "New Purchase Recorded!"}
             </h3>
             <p style={{ color: "#94a3b8", fontSize: "0.9rem" }}>
-              {actionMode === "exchange" && `1-for-1 swap of ${gasType} with ${supplier} confirmed.`}
+              {actionMode === "exchange" && `1-for-1 swap of ${effectiveQty}x ${gasType} confirmed.`}
               {actionMode === "stores" && (storesDirection === "pickup_from_stores"
-                ? `Picked up ${quantity}x ${gasType} from Stores onto your van.`
-                : `Returned ${quantity}x ${gasType} from your van to Stores.`)}
-              {actionMode === "purchase" && `New ${gasType} cylinder added to your van kit.`}
+                ? `Picked up ${effectiveQty}x ${gasType} from Stores onto your van.`
+                : `Returned ${effectiveQty}x ${gasType} from your van to Stores.`)}
+              {actionMode === "purchase" && `New ${effectiveQty}x ${gasType} cylinder added to your van kit.`}
             </p>
           </div>
         ) : (
@@ -312,8 +355,8 @@ export function BrazingExchangeModal({
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", fontWeight: 700, fontSize: "0.92rem" }}>
                       <ArrowDownRight size={18} color="#a78bfa" /> Pick Up
                     </div>
-                    <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: "3px" }}>
-                      Stores → Van (+1)
+                    <div style={{ fontSize: "0.75rem", color: currentStoresCount === 0 ? "#ef4444" : "#94a3b8", marginTop: "3px", fontWeight: currentStoresCount === 0 ? 700 : 400 }}>
+                      {currentStoresCount === 0 ? "Out of Stock (0)" : `Stores has ${currentStoresCount}`}
                     </div>
                   </button>
 
@@ -333,15 +376,15 @@ export function BrazingExchangeModal({
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", fontWeight: 700, fontSize: "0.92rem" }}>
                       <ArrowUpRight size={18} color="#a78bfa" /> Return
                     </div>
-                    <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: "3px" }}>
-                      Van → Stores (-1)
+                    <div style={{ fontSize: "0.75rem", color: currentVanCount === 0 ? "#ef4444" : "#94a3b8", marginTop: "3px", fontWeight: currentVanCount === 0 ? 700 : 400 }}>
+                      {currentVanCount === 0 ? "Van has 0" : `Van has ${currentVanCount}`}
                     </div>
                   </button>
                 </div>
               </div>
             )}
 
-            {/* Which Gas? Large, High-Contrast Buttons */}
+            {/* Which Gas? */}
             <div style={{ marginBottom: "1.25rem" }}>
               <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 700, marginBottom: "0.5rem" }}>
                 Select Gas
@@ -387,8 +430,28 @@ export function BrazingExchangeModal({
               </div>
             </div>
 
-            {/* Live Count Preview (Only for Stores Mode) */}
-            {actionMode === "stores" && (
+            {/* Warning if cannot perform (0 available) */}
+            {cannotPerformReason ? (
+              <div style={{
+                background: "rgba(239, 68, 68, 0.12)",
+                border: "1px solid #ef4444",
+                borderRadius: "10px",
+                padding: "0.75rem 1rem",
+                marginBottom: "1.25rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                color: "#fca5a5",
+                fontSize: "0.85rem",
+                fontWeight: 600
+              }}>
+                <AlertTriangle size={18} color="#ef4444" style={{ flexShrink: 0 }} />
+                <span>{cannotPerformReason}</span>
+              </div>
+            ) : null}
+
+            {/* Live Count Preview (Only for Stores Mode when valid) */}
+            {actionMode === "stores" && maxAllowedQty > 0 && (
               <div style={{
                 background: "rgba(139, 92, 246, 0.12)",
                 border: "1px solid rgba(139, 92, 246, 0.3)",
@@ -410,34 +473,39 @@ export function BrazingExchangeModal({
               </div>
             )}
 
-            {/* Quantity */}
-            <div style={{ marginBottom: "1.25rem" }}>
-              <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 700, marginBottom: "0.4rem" }}>
-                Quantity
-              </label>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
-                {[1, 2, 3].map((qty) => (
-                  <button
-                    key={qty}
-                    type="button"
-                    onClick={() => setQuantity(qty)}
-                    style={{
-                      flex: 1,
-                      padding: "0.65rem",
-                      borderRadius: "10px",
-                      border: quantity === qty ? "2px solid var(--primary, #3b82f6)" : "1px solid rgba(255,255,255,0.15)",
-                      background: quantity === qty ? "rgba(59, 130, 246, 0.25)" : "rgba(255,255,255,0.05)",
-                      color: "#fff",
-                      fontWeight: 800,
-                      fontSize: "1rem",
-                      cursor: "pointer"
-                    }}
-                  >
-                    {qty}
-                  </button>
-                ))}
+            {/* Quantity Selector - Integers up to maxAllowedQty */}
+            {maxAllowedQty > 0 && (
+              <div style={{ marginBottom: "1.25rem" }}>
+                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 700, marginBottom: "0.4rem" }}>
+                  Quantity to {actionMode === "exchange" ? "Swap" : storesDirection === "pickup_from_stores" ? "Pick Up" : "Return"}
+                  <span style={{ fontSize: "0.75rem", color: "#94a3b8", fontWeight: 400, marginLeft: "6px" }}>
+                    (Max: {maxAllowedQty})
+                  </span>
+                </label>
+                <div style={{ display: "flex", gap: "0.5rem" }}>
+                  {qtyOptions.map((qty) => (
+                    <button
+                      key={qty}
+                      type="button"
+                      onClick={() => setQuantity(qty)}
+                      style={{
+                        flex: 1,
+                        padding: "0.65rem",
+                        borderRadius: "10px",
+                        border: effectiveQty === qty ? "2px solid var(--primary, #3b82f6)" : "1px solid rgba(255,255,255,0.15)",
+                        background: effectiveQty === qty ? "rgba(59, 130, 246, 0.25)" : "rgba(255,255,255,0.05)",
+                        color: "#fff",
+                        fontWeight: 800,
+                        fontSize: "1rem",
+                        cursor: "pointer"
+                      }}
+                    >
+                      {qty}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Purchase Mode Specific Fields */}
             {actionMode === "purchase" && (
@@ -488,7 +556,7 @@ export function BrazingExchangeModal({
             )}
 
             {/* Optional Branch / Location for Exchange */}
-            {actionMode === "exchange" && (
+            {actionMode === "exchange" && maxAllowedQty > 0 && (
               <div style={{ marginBottom: "1rem" }}>
                 <label style={{ display: "block", fontSize: "0.8rem", color: "#94a3b8", marginBottom: "4px" }}>
                   Branch / Location (Optional)
@@ -512,7 +580,7 @@ export function BrazingExchangeModal({
             )}
 
             {/* Optional Photo (For Exchange and Purchase) */}
-            {actionMode !== "stores" && (
+            {actionMode !== "stores" && maxAllowedQty > 0 && (
               <div style={{ marginBottom: "1.25rem" }}>
                 <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
                   <label style={{
@@ -551,7 +619,7 @@ export function BrazingExchangeModal({
               </div>
             )}
 
-            {/* Big Submit Button */}
+            {/* Big Action Submit Button */}
             <div style={{ display: "flex", gap: "0.75rem" }}>
               <button
                 type="button"
@@ -573,31 +641,39 @@ export function BrazingExchangeModal({
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || maxAllowedQty === 0}
                 style={{
                   flex: 2,
                   padding: "0.85rem",
                   borderRadius: "12px",
                   border: "none",
-                  background: actionMode === "purchase"
-                    ? "#f59e0b"
-                    : actionMode === "stores"
-                      ? "#8b5cf6"
-                      : "linear-gradient(135deg, #f97316 0%, #ea580c 100%)",
-                  color: actionMode === "purchase" ? "#000" : "#fff",
+                  background: maxAllowedQty === 0
+                    ? "rgba(255,255,255,0.1)"
+                    : actionMode === "purchase"
+                      ? "#f59e0b"
+                      : actionMode === "stores"
+                        ? "#8b5cf6"
+                        : "linear-gradient(135deg, #f97316 0%, #ea580c 100%)",
+                  color: maxAllowedQty === 0
+                    ? "#64748b"
+                    : actionMode === "purchase"
+                      ? "#000"
+                      : "#fff",
                   fontWeight: 800,
                   fontSize: "1rem",
-                  cursor: "pointer",
-                  boxShadow: "0 4px 14px rgba(0,0,0,0.25)"
+                  cursor: maxAllowedQty === 0 ? "not-allowed" : "pointer",
+                  boxShadow: maxAllowedQty > 0 ? "0 4px 14px rgba(0,0,0,0.25)" : "none"
                 }}
               >
                 {isSubmitting
                   ? "Saving..."
-                  : actionMode === "purchase"
-                    ? "Record New Purchase"
-                    : actionMode === "stores"
-                      ? "Confirm Stores Move"
-                      : "Confirm 1-for-1 Swap"}
+                  : maxAllowedQty === 0
+                    ? "Cannot Confirm (0 Available)"
+                    : actionMode === "purchase"
+                      ? "Record New Purchase"
+                      : actionMode === "stores"
+                        ? "Confirm Stores Move"
+                        : "Confirm 1-for-1 Swap"}
               </button>
             </div>
           </form>
