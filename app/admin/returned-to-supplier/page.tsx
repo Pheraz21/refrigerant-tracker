@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { db, Bottle } from "@/lib/db";
-import { Truck, Search, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Filter, Download, Printer, Settings2, Archive, ShieldCheck } from "lucide-react";
+import { Truck, Search, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Filter, Download, Printer, Settings2, Archive, ShieldCheck, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTablePrefs } from "@/lib/useTablePrefs";
 import { ColumnCustomizer } from "@/app/components/ColumnCustomizer";
@@ -34,6 +34,12 @@ export default function ReturnedToSupplierPage() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [customizerOpen, setCustOpen] = useState(false);
 
+  // Column header filter state
+  const [colFilters, setColFilters] = useState<Record<string, string>>({});
+  const [colMultiFilters, setColMultiFilters] = useState<Record<string, string[]>>({});
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const dropdownRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
   const { visibleCols, hidden, order, toggleCol, moveCol, reset } =
     useTablePrefs("returned", COLUMN_DEFS.map(c => c.key));
 
@@ -58,15 +64,78 @@ export default function ReturnedToSupplierPage() {
     });
   }, []);
 
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!openDropdown) return;
+    const close = (e: MouseEvent) => {
+      const el = dropdownRefs.current[openDropdown];
+      if (el && el.contains(e.target as Node)) return;
+      setOpenDropdown(null);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [openDropdown]);
+
+  const distinctVals = useMemo(() => {
+    const sets: Record<string, Set<string>> = {
+      category: new Set(),
+      gasType: new Set(),
+      returnedBy: new Set(),
+      supplier: new Set()
+    };
+    for (const b of bottles) {
+      if (b.category) sets.category.add(b.category);
+      if (b.gasType) sets.gasType.add(b.gasType);
+      if (b.returnedBy) sets.returnedBy.add(b.returnedBy);
+      if (b.supplier) sets.supplier.add(b.supplier);
+    }
+    const result: Record<string, string[]> = {};
+    for (const k of Object.keys(sets)) result[k] = Array.from(sets[k]).sort();
+    return result;
+  }, [bottles]);
+
+  const activeColFilters =
+    Object.values(colFilters).filter(Boolean).length +
+    Object.values(colMultiFilters).filter(v => v.length > 0).length;
+
   const handleSort = (field: keyof Bottle) => {
     if (sortField === field) setSortOrder(o => o === "asc" ? "desc" : "asc");
     else { setSortField(field); setSortOrder("asc"); }
   };
 
   const SortIcon = ({ field }: { field: keyof Bottle }) => {
-    if (sortField !== field) return <ArrowUpDown size={14} style={{opacity: 0.3}} />;
-    return sortOrder === "asc" ? <ArrowUp size={14} /> : <ArrowDown size={14} />;
+    if (sortField !== field) return <ArrowUpDown size={12} style={{opacity: 0.3, marginLeft: "0.3rem", flexShrink: 0}} />;
+    return sortOrder === "asc"
+      ? <ArrowUp size={12} style={{opacity: 0.8, marginLeft: "0.3rem", flexShrink: 0}} />
+      : <ArrowDown size={12} style={{opacity: 0.8, marginLeft: "0.3rem", flexShrink: 0}} />;
   };
+
+  function matchTextFilter(key: string, b: Bottle, val: string): boolean {
+    if (!val) return true;
+    const v = val.toLowerCase().trim();
+    switch (key) {
+      case "serial":      return b.serial.toLowerCase().includes(v);
+      case "capacity":    return (b.initialWeight ?? 0).toFixed(2).includes(v);
+      case "gasInBottle": return (b.currentWeight ?? 0).toFixed(2).includes(v);
+      case "balance":     return ((b.initialWeight ?? 0) - (b.currentWeight ?? 0)).toFixed(2).includes(v);
+      case "returnDate":  return b.returnedAt ? new Date(b.returnedAt).toLocaleDateString("en-GB").toLowerCase().includes(v) : false;
+      case "poNumber":    return (b.poNumber || "").toLowerCase().includes(v);
+      case "registered":  return b.registeredAt ? new Date(b.registeredAt).toLocaleDateString("en-GB").toLowerCase().includes(v) : false;
+      case "expiry":      return b.rentalExpiryDate ? new Date(b.rentalExpiryDate).toLocaleDateString("en-GB").toLowerCase().includes(v) : false;
+      default:            return true;
+    }
+  }
+
+  function matchMultiFilter(key: string, b: Bottle, vals: string[]): boolean {
+    if (!vals || vals.length === 0) return true;
+    switch (key) {
+      case "category":   return vals.includes(b.category);
+      case "gasType":    return vals.includes(b.gasType);
+      case "returnedBy": return vals.includes(b.returnedBy || "");
+      case "supplier":   return vals.includes(b.supplier || "");
+      default:           return true;
+    }
+  }
 
   const filteredBottles = bottles
     .filter(b => {
@@ -97,6 +166,8 @@ export default function ReturnedToSupplierPage() {
       }
       return true;
     })
+    .filter(b => Object.entries(colFilters).every(([k, v]) => matchTextFilter(k, b, v)))
+    .filter(b => Object.entries(colMultiFilters).every(([k, v]) => matchMultiFilter(k, b, v)))
     .sort((a, b) => {
       if (!sortField) return 0;
       const valA = a[sortField] || "";
@@ -172,36 +243,240 @@ export default function ReturnedToSupplierPage() {
   };
 
   const thBase: React.CSSProperties = {
-    padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.75rem", color: "rgba(255,255,255,0.4)",
+    padding: "0.75rem 1rem", textAlign: "left", fontSize: "0.78rem", color: "rgba(255,255,255,0.5)",
     fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em",
-    borderBottom: "1px solid rgba(255,255,255,0.06)", userSelect: "none", whiteSpace: "nowrap"
+    borderBottom: "1px solid rgba(255,255,255,0.06)", userSelect: "none", whiteSpace: "nowrap",
+    verticalAlign: "top"
   };
 
-  function renderHeader(key: string) {
-    const s: React.CSSProperties = { ...thBase, cursor: "pointer" };
-    const ns: React.CSSProperties = { ...thBase, cursor: "default" };
-    const mkTh = (k: string, label: string, field?: keyof Bottle) => (
-      <th key={k} onClick={field ? () => handleSort(field) : undefined} style={field ? s : ns}>
-        <div style={{display: "flex", alignItems: "center", gap: "0.5rem"}}>
-          {label}
-          {field && <SortIcon field={field} />}
-        </div>
-      </th>
+  const filterInputStyle: React.CSSProperties = {
+    width: "100%", padding: "0.22rem 0.45rem", marginTop: "0.4rem",
+    background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: "4px", color: "#fff", fontSize: "0.7rem", outline: "none",
+    boxSizing: "border-box", fontWeight: 400, textTransform: "none", letterSpacing: "normal"
+  };
+
+  const optionLabel = (k: string, o: string) => {
+    if (k === "category") {
+      return o === "reclaim" ? "Reclaim / Haz" : o === "new" ? "New" : o === "recycled" ? "Recycled" : "N₂ (Nitrogen)";
+    }
+    return o || "(none)";
+  };
+
+  const setCol = (k: string, v: string) => setColFilters(f => ({ ...f, [k]: v }));
+
+  function textFilter(k: string, ph = "Filter…") {
+    return (
+      <input
+        type="text"
+        value={colFilters[k] || ""}
+        onChange={e => setCol(k, e.target.value)}
+        onClick={e => e.stopPropagation()}
+        placeholder={ph}
+        style={{
+          ...filterInputStyle,
+          borderColor: colFilters[k] ? "rgba(0,229,255,0.45)" : "rgba(255,255,255,0.1)"
+        }}
+      />
     );
+  }
+
+  function multiSelect(k: string, opts: string[]) {
+    const selected = colMultiFilters[k] || [];
+    const isOpen = openDropdown === k;
+    const hasFilter = selected.length > 0;
+
+    const toggleVal = (o: string) => {
+      setColMultiFilters(f => {
+        const cur = f[k] || [];
+        const next = cur.includes(o) ? cur.filter(v => v !== o) : [...cur, o];
+        return { ...f, [k]: next };
+      });
+    };
+
+    const toggleAll = () => {
+      setColMultiFilters(f => ({
+        ...f,
+        [k]: selected.length === opts.length ? [] : [...opts]
+      }));
+    };
+
+    return (
+      <div
+        ref={el => { dropdownRefs.current[k] = el; }}
+        style={{ position: "relative", marginTop: "0.4rem" }}
+      >
+        <div
+          onClick={e => { e.stopPropagation(); setOpenDropdown(isOpen ? null : k); }}
+          style={{
+            padding: "0.22rem 0.6rem 0.22rem 0.45rem",
+            background: hasFilter ? "rgba(0,229,255,0.1)" : "rgba(255,255,255,0.07)",
+            border: `1px solid ${hasFilter ? "rgba(0,229,255,0.45)" : "rgba(255,255,255,0.1)"}`,
+            borderRadius: "4px",
+            color: hasFilter ? "#00e5ff" : "rgba(255,255,255,0.35)",
+            fontSize: "0.7rem", cursor: "pointer", userSelect: "none",
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.3rem",
+            fontWeight: hasFilter ? 700 : 400, textTransform: "none", letterSpacing: "normal",
+            minWidth: "80px"
+          }}
+        >
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {selected.length === 0
+              ? "All"
+              : selected.length === 1
+                ? optionLabel(k, selected[0])
+                : `${selected.length} selected`}
+          </span>
+          <span style={{ opacity: 0.55, flexShrink: 0 }}>{isOpen ? "▴" : "▾"}</span>
+        </div>
+
+        {isOpen && (
+          <div
+            style={{
+              position: "absolute", top: "calc(100% + 3px)", left: 0, zIndex: 300,
+              background: "#0d1422", border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: "6px", minWidth: "170px", maxHeight: "220px", overflowY: "auto",
+              boxShadow: "0 8px 28px rgba(0,0,0,0.6)"
+            }}
+          >
+            <div
+              onClick={toggleAll}
+              style={{
+                padding: "0.4rem 0.75rem", fontSize: "0.7rem",
+                color: "rgba(255,255,255,0.45)", cursor: "pointer",
+                borderBottom: "1px solid rgba(255,255,255,0.07)", fontWeight: 600,
+                textTransform: "uppercase", letterSpacing: "0.04em"
+              }}
+            >
+              {selected.length === opts.length ? "Clear all" : "Select all"}
+            </div>
+            {opts.map(o => {
+              const checked = selected.includes(o);
+              return (
+                <label
+                  key={o}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "0.5rem",
+                    padding: "0.45rem 0.75rem", cursor: "pointer",
+                    fontSize: "0.78rem",
+                    color: checked ? "#fff" : "rgba(255,255,255,0.65)",
+                    background: checked ? "rgba(0,229,255,0.06)" : "transparent",
+                    transition: "background 0.1s"
+                  }}
+                  onMouseEnter={e => { if (!checked) e.currentTarget.style.background = "rgba(255,255,255,0.04)"; }}
+                  onMouseLeave={e => { if (!checked) e.currentTarget.style.background = "transparent"; }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleVal(o)}
+                    style={{ accentColor: "#00e5ff", flexShrink: 0 }}
+                  />
+                  {optionLabel(k, o)}
+                </label>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderHeader(key: string) {
+    const labelStyle: React.CSSProperties = {
+      display: "flex", alignItems: "center", cursor: "pointer", marginBottom: "0.1rem"
+    };
+    const labelStyleNoSort: React.CSSProperties = {
+      display: "flex", alignItems: "center", marginBottom: "0.1rem", cursor: "default"
+    };
+
     switch (key) {
-      case "serial":      return mkTh(key, "Serial", "serial");
-      case "category":    return mkTh(key, "Category", "category");
-      case "gasType":     return mkTh(key, "Gas Type", "gasType");
-      case "capacity":    return mkTh(key, "Capacity", "initialWeight");
-      case "gasInBottle": return mkTh(key, "Gas In Bottle");
-      case "balance":     return mkTh(key, "Balance");
-      case "returnedBy":  return mkTh(key, "Returned By", "returnedBy");
-      case "returnDate":  return mkTh(key, "Return Date", "returnedAt");
-      case "supplier":    return mkTh(key, "Supplier", "supplier");
-      case "poNumber":    return mkTh(key, "PO Number");
-      case "registered":  return mkTh(key, "Registered", "registeredAt");
-      case "expiry":      return mkTh(key, "Expiry Date", "rentalExpiryDate");
-      default:            return null;
+      case "serial":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("serial")}>Serial <SortIcon field="serial" /></div>
+            {textFilter("serial")}
+          </th>
+        );
+      case "category":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("category")}>Category <SortIcon field="category" /></div>
+            {multiSelect("category", distinctVals.category || [])}
+          </th>
+        );
+      case "gasType":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("gasType")}>Gas Type <SortIcon field="gasType" /></div>
+            {multiSelect("gasType", distinctVals.gasType || [])}
+          </th>
+        );
+      case "capacity":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("initialWeight")}>Capacity <SortIcon field="initialWeight" /></div>
+            {textFilter("capacity", "e.g. 10.00")}
+          </th>
+        );
+      case "gasInBottle":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyleNoSort}>Gas In Bottle</div>
+            {textFilter("gasInBottle", "e.g. 8.50")}
+          </th>
+        );
+      case "balance":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyleNoSort}>Balance</div>
+            {textFilter("balance", "e.g. 1.50")}
+          </th>
+        );
+      case "returnedBy":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("returnedBy")}>Returned By <SortIcon field="returnedBy" /></div>
+            {multiSelect("returnedBy", distinctVals.returnedBy || [])}
+          </th>
+        );
+      case "returnDate":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("returnedAt")}>Return Date <SortIcon field="returnedAt" /></div>
+            {textFilter("returnDate", "e.g. Jan 2026")}
+          </th>
+        );
+      case "supplier":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("supplier")}>Supplier <SortIcon field="supplier" /></div>
+            {multiSelect("supplier", distinctVals.supplier || [])}
+          </th>
+        );
+      case "poNumber":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyleNoSort}>PO Number</div>
+            {textFilter("poNumber")}
+          </th>
+        );
+      case "registered":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("registeredAt")}>Registered <SortIcon field="registeredAt" /></div>
+            {textFilter("registered", "e.g. Jan 2026")}
+          </th>
+        );
+      case "expiry":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("rentalExpiryDate")}>Expiry Date <SortIcon field="rentalExpiryDate" /></div>
+            {textFilter("expiry", "e.g. Dec 2026")}
+          </th>
+        );
+      default:
+        return null;
     }
   }
 
@@ -433,7 +708,21 @@ export default function ReturnedToSupplierPage() {
           </div>
         </div>
 
-        <div style={{display: "flex", gap: "0.5rem", marginLeft: "auto"}}>
+        {activeColFilters > 0 && (
+          <button
+            onClick={() => { setColFilters({}); setColMultiFilters({}); }}
+            style={{
+              display: "flex", alignItems: "center", gap: "0.35rem",
+              padding: "0.45rem 0.85rem", borderRadius: "6px",
+              border: "1px solid rgba(0,229,255,0.3)", background: "rgba(0,229,255,0.08)",
+              color: "#00e5ff", cursor: "pointer", fontSize: "0.8rem", fontWeight: 600
+            }}
+          >
+            <X size={14} /> Clear {activeColFilters} filter{activeColFilters !== 1 ? "s" : ""}
+          </button>
+        )}
+
+        <div style={{display: "flex", gap: "0.5rem", marginLeft: activeColFilters > 0 ? "0" : "auto"}}>
           <button
             onClick={handleExportCSV}
             style={{display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 1rem", background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.2)", borderRadius: "8px", color: "#22c55e", fontSize: "0.85rem", fontWeight: 600, cursor: "pointer"}}
