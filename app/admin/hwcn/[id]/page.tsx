@@ -26,25 +26,49 @@ export default function AdminHWCNDetailPage() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  const hwcnId = decodeURIComponent(id as string);
+  const rawId = Array.isArray(id) ? id[0] : id;
+  const hwcnId = rawId ? decodeURIComponent(rawId) : "";
 
   useEffect(() => {
-    db.getCompanySettings().then(setCompanySettings);
-    db.getHWCN(hwcnId).then(data => {
-      setHwcn(data);
-      setLoading(false);
-      if (data?.receivedBy) setReceivedBy(data.receivedBy);
-      if (data?.serial) {
-        db.getUsageLogs(data.serial).then(setUsageLogs).catch(() => setUsageLogs([]));
-      }
-    });
-  }, [id]);
+    if (!hwcnId) return;
+    db.getCompanySettings().then(setCompanySettings).catch(() => {});
+    db.getHWCN(hwcnId)
+      .then(data => {
+        setHwcn(data);
+        setLoading(false);
+        if (data?.receivedBy) setReceivedBy(data.receivedBy);
+        if (data?.serial) {
+          db.getUsageLogs(data.serial).then(setUsageLogs).catch(() => setUsageLogs([]));
+        }
+      })
+      .catch(err => {
+        console.error("Failed to fetch HWCN:", err);
+        setLoading(false);
+      });
+  }, [hwcnId]);
 
   useEffect(() => {
     if (user?.name && !receivedBy) {
       setReceivedBy(user.name);
     }
   }, [user]);
+
+  const rechargeLogs = useMemo(() => {
+    if (!hwcn || !hwcn.date || !usageLogs) return [];
+    const hwcnTime = new Date(hwcn.date).getTime();
+    if (isNaN(hwcnTime)) return [];
+    return usageLogs.filter(
+      l => (l.jobType === "recycled_charge" || l.jobType === "service") &&
+           new Date(l.date).getTime() >= hwcnTime
+    ).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [hwcn, usageLogs]);
+
+  const totalRecharged = useMemo(() => {
+    return rechargeLogs.reduce((sum, l) => sum + Number(l.weightUsed || 0), 0);
+  }, [rechargeLogs]);
+
+  const initialConsignedWeight = Number(hwcn?.fillWeight || hwcn?.incrementalWeight || hwcn?.totalWeight || 0);
+  const netRemainingWeight = Math.max(0, initialConsignedWeight - totalRecharged);
 
   const handleSubmitPartE = async () => {
     setSubmitting(true);
@@ -59,33 +83,23 @@ export default function AdminHWCNDetailPage() {
     setSuccess(true);
   };
 
-  if (loading) return <div style={{padding: "2rem", color: "var(--text-muted)"}}>Loading...</div>;
+  if (loading) return <div style={{padding: "2rem", color: "var(--text-muted)"}}>Loading consignment details...</div>;
   if (!hwcn) return <div style={{padding: "2rem", color: "var(--error)"}}>HWCN not found</div>;
 
-  const formattedDate = new Date(hwcn.date).toLocaleDateString("en-GB");
-  const formattedTime = new Date(hwcn.date).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-  const deliveredDate = hwcn.deliveredAt ? new Date(hwcn.deliveredAt).toLocaleDateString("en-GB") : "—";
-  const deliveredTime = hwcn.deliveredAt ? new Date(hwcn.deliveredAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
+  const validDate = hwcn.date && !isNaN(new Date(hwcn.date).getTime()) ? new Date(hwcn.date) : null;
+  const formattedDate = validDate ? validDate.toLocaleDateString("en-GB") : "—";
+  const formattedTime = validDate ? validDate.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
+  const validDelivered = hwcn.deliveredAt && !isNaN(new Date(hwcn.deliveredAt).getTime()) ? new Date(hwcn.deliveredAt) : null;
+  const deliveredDate = validDelivered ? validDelivered.toLocaleDateString("en-GB") : "—";
+  const deliveredTime = validDelivered ? validDelivered.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
   const isPending = hwcn.hwcnStatus === "awaiting_consignee";
 
   const carrierReg = companySettings?.carrierReg || "CBDU368286";
   const exemptionNo = companySettings?.exemptionNo || "31Z 3725 34";
 
-  const rechargeLogs = useMemo(() => {
-    if (!hwcn || !usageLogs) return [];
-    const hwcnTime = new Date(hwcn.date).getTime();
-    return usageLogs.filter(
-      l => (l.jobType === "recycled_charge" || l.jobType === "service") &&
-           new Date(l.date).getTime() >= hwcnTime
-    ).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [hwcn, usageLogs]);
-
-  const totalRecharged = useMemo(() => {
-    return rechargeLogs.reduce((sum, l) => sum + Number(l.weightUsed || 0), 0);
-  }, [rechargeLogs]);
-
-  const initialConsignedWeight = Number(hwcn.fillWeight || hwcn.incrementalWeight || hwcn.totalWeight || 0);
-  const netRemainingWeight = Math.max(0, initialConsignedWeight - totalRecharged);
+  const sitesList: any[] = Array.isArray(hwcn.sites)
+    ? hwcn.sites
+    : (typeof hwcn.sites === "string" ? (() => { try { return JSON.parse(hwcn.sites); } catch { return []; } })() : []);
 
   if (success) {
     return (
@@ -182,9 +196,10 @@ export default function AdminHWCNDetailPage() {
               </div>
             )}
             <div><span style={{color: "var(--text-muted)", fontSize: "0.78rem"}}>Removal Site(s)</span>
-              {hwcn.sites?.map((s: any, i: number) => (
-                <div key={i} style={{fontSize: "0.85rem"}}>{s.name}, {s.address} {s.postcode}</div>
+              {sitesList.map((s: any, i: number) => (
+                <div key={i} style={{fontSize: "0.85rem"}}>{s?.name || s?.siteName || "Site"}, {s?.address || s?.siteAddress || ""} {s?.postcode || s?.sitePostcode || ""}</div>
               ))}
+              {sitesList.length === 0 && <div style={{fontSize: "0.85rem", color: "var(--text-muted)"}}>—</div>}
             </div>
           </div>
         </div>

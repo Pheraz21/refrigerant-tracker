@@ -86,6 +86,19 @@ const mapUsage = (u: any): UsageLog => ({
   supervisingCertificate: u.supervising_certificate || u.supervisingCertificate,
 });
 
+const mapAuditTrail = (a: any): AuditTrailEntry => ({
+  id: a.id,
+  createdAt: a.created_at || a.createdAt,
+  tableName: a.table_name || a.tableName,
+  recordId: a.record_id || a.recordId,
+  serial: a.serial,
+  fieldName: a.field_name || a.fieldName,
+  oldValue: a.old_value ?? a.oldValue ?? null,
+  newValue: a.new_value ?? a.newValue ?? null,
+  changedBy: a.changed_by || a.changedBy,
+  reason: a.reason,
+});
+
 const mapHWCN = (h: any): any => ({
   ...h,
   hwcnStatus: h.hwcn_status || h.hwcnStatus,
@@ -142,6 +155,19 @@ export interface MovementLog {
   engineer: string;
   notes?: string;
   vehicleReg?: string;
+}
+
+export interface AuditTrailEntry {
+  id: string;
+  createdAt: string;
+  tableName: 'bottles' | 'movement_logs' | 'usage_logs';
+  recordId: string;
+  serial?: string;
+  fieldName: string;
+  oldValue: string | null;
+  newValue: string | null;
+  changedBy: string;
+  reason: string;
 }
 
 export interface Bottle {
@@ -659,7 +685,19 @@ export const db = {
     }
 
     if (bottle) {
+      // If moving to office/stores, enforce locationId is "HQ-Stores" and never a van
+      if (locationType === "office" && (!locationId || locationId.includes(" - Van") || locationId.toLowerCase() === "office")) {
+        locationId = "HQ-Stores";
+      }
+
       const from = bottle.location_id || bottle.locationId;
+
+      // Prevent redundant no-op movements if cylinder is already at this location without transit
+      if (from === locationId && (bottle.location_type || bottle.locationType) === locationType && !activeHWCN && !intendedDestination) {
+        console.warn(`Skipping redundant movement log for ${serial}: already at ${locationId} (${locationType})`);
+        return;
+      }
+
       const updates: any = {
         location_type: locationType,
         location_id: locationId,
@@ -710,7 +748,7 @@ export const db = {
         serial,
         action: action as any,
         from_location: from || "Unknown",
-        to_location: activeHWCN ? (intendedDestination || locationId) : locationId,
+        to_location: intendedDestination || locationId,
         engineer: movementLogEngineer,
         notes: movementNotes,
         ...(logVehicleReg ? { vehicle_reg: logVehicleReg } : {})
@@ -725,6 +763,292 @@ export const db = {
       intended_location_type: null,
       active_hwcn: null
     }).eq('serial', serial);
+  },
+
+  async logManualLocationOverride(
+    serial: string,
+    fromLocation: string,
+    toLocation: string,
+    adminName: string,
+    reason?: string
+  ): Promise<void> {
+    const { error } = await supabase.from('movement_logs').insert({
+      serial,
+      action: 'moved',
+      from_location: fromLocation || 'Unknown',
+      to_location: toLocation,
+      engineer: adminName || 'Administrator',
+      notes: reason || `Administrative location override from ${fromLocation || 'Unknown'} to ${toLocation}`
+    });
+    if (error) {
+      console.error(`Error logging manual location override for ${serial}:`, error);
+    }
+  },
+
+  async getAuditTrailForSerial(serial: string): Promise<AuditTrailEntry[]> {
+    try {
+      const { data, error } = await supabase
+        .from('audit_trail')
+        .select('*')
+        .eq('serial', serial)
+        .order('created_at', { ascending: false });
+      if (error) {
+        console.warn("Could not fetch audit trail (table might not exist yet):", error.message);
+        return [];
+      }
+      return (data || []).map(mapAuditTrail);
+    } catch (e) {
+      return [];
+    }
+  },
+
+  async logAudit(entry: Omit<AuditTrailEntry, 'id' | 'createdAt'>): Promise<void> {
+    try {
+      const { error } = await supabase.from('audit_trail').insert({
+        table_name: entry.tableName,
+        record_id: entry.recordId,
+        serial: entry.serial,
+        field_name: entry.fieldName,
+        old_value: entry.oldValue,
+        new_value: entry.newValue,
+        changed_by: entry.changedBy,
+        reason: entry.reason
+      });
+      if (error) {
+        console.warn("Could not insert audit trail entry:", error.message);
+      }
+    } catch (e) {
+      console.warn("Audit trail logging failed:", e);
+    }
+  },
+
+  async updateMovementLogWithAudit(
+    logId: string,
+    updates: {
+      to?: string;
+      from?: string;
+      engineer?: string;
+      date?: string;
+      notes?: string;
+      vehicleReg?: string;
+    },
+    changedBy: string,
+    reason: string
+  ): Promise<void> {
+    const { data: existing, error: fetchErr } = await supabase.from('movement_logs').select('*').eq('id', logId).single();
+    if (fetchErr || !existing) throw new Error("Movement log not found");
+
+    const dbUpdates: any = {};
+    const auditEntries: Array<{ field: string; oldVal: string | null; newVal: string | null }> = [];
+
+    if (updates.to !== undefined && updates.to !== (existing.to_location || existing.to)) {
+      dbUpdates.to_location = updates.to;
+      auditEntries.push({ field: 'to_location', oldVal: existing.to_location || existing.to, newVal: updates.to });
+    }
+    if (updates.from !== undefined && updates.from !== (existing.from_location || existing.from)) {
+      dbUpdates.from_location = updates.from;
+      auditEntries.push({ field: 'from_location', oldVal: existing.from_location || existing.from, newVal: updates.from });
+    }
+    if (updates.engineer !== undefined && updates.engineer !== existing.engineer) {
+      dbUpdates.engineer = updates.engineer;
+      auditEntries.push({ field: 'engineer', oldVal: existing.engineer, newVal: updates.engineer });
+    }
+    if (updates.date !== undefined && updates.date !== existing.date) {
+      dbUpdates.date = updates.date;
+      auditEntries.push({ field: 'date', oldVal: existing.date, newVal: updates.date });
+    }
+    if (updates.notes !== undefined && updates.notes !== existing.notes) {
+      dbUpdates.notes = updates.notes;
+      auditEntries.push({ field: 'notes', oldVal: existing.notes, newVal: updates.notes });
+    }
+    if (updates.vehicleReg !== undefined && updates.vehicleReg !== (existing.vehicle_reg || existing.vehicleReg)) {
+      dbUpdates.vehicle_reg = updates.vehicleReg;
+      auditEntries.push({ field: 'vehicle_reg', oldVal: existing.vehicle_reg || existing.vehicleReg, newVal: updates.vehicleReg });
+    }
+
+    if (Object.keys(dbUpdates).length === 0) return;
+
+    const { error: updateErr } = await supabase.from('movement_logs').update(dbUpdates).eq('id', logId);
+    if (updateErr) throw updateErr;
+
+    for (const a of auditEntries) {
+      await this.logAudit({
+        tableName: 'movement_logs',
+        recordId: logId,
+        serial: existing.serial,
+        fieldName: a.field,
+        oldValue: a.oldVal,
+        newValue: a.newVal,
+        changedBy,
+        reason
+      });
+    }
+  },
+
+  async updateUsageLogWithAudit(
+    logId: string,
+    updates: {
+      siteRef?: string;
+      siteName?: string;
+      weightUsed?: number;
+      gasType?: string;
+      jobType?: string;
+      engineer?: string;
+      date?: string;
+    },
+    changedBy: string,
+    reason: string
+  ): Promise<void> {
+    const { data: existing, error: fetchErr } = await supabase.from('usage_logs').select('*').eq('id', logId).single();
+    if (fetchErr || !existing) throw new Error("Usage log not found");
+
+    const dbUpdates: any = {};
+    const auditEntries: Array<{ field: string; oldVal: string | null; newVal: string | null }> = [];
+
+    if (updates.siteRef !== undefined && updates.siteRef !== (existing.site_ref || existing.siteRef)) {
+      dbUpdates.site_ref = updates.siteRef;
+      auditEntries.push({ field: 'site_ref', oldVal: existing.site_ref || existing.siteRef, newVal: updates.siteRef });
+    }
+    if (updates.siteName !== undefined && updates.siteName !== (existing.site_name || existing.siteName)) {
+      dbUpdates.site_name = updates.siteName;
+      auditEntries.push({ field: 'site_name', oldVal: existing.site_name || existing.siteName, newVal: updates.siteName });
+    }
+    if (updates.weightUsed !== undefined && updates.weightUsed !== Number(existing.weight_used || existing.weightUsed)) {
+      dbUpdates.weight_used = updates.weightUsed;
+      auditEntries.push({ field: 'weight_used', oldVal: String(existing.weight_used || existing.weightUsed), newVal: String(updates.weightUsed) });
+    }
+    if (updates.gasType !== undefined && updates.gasType !== (existing.gas_type || existing.gasType)) {
+      dbUpdates.gas_type = updates.gasType;
+      auditEntries.push({ field: 'gas_type', oldVal: existing.gas_type || existing.gasType, newVal: updates.gasType });
+    }
+    if (updates.jobType !== undefined && updates.jobType !== (existing.job_type || existing.jobType)) {
+      dbUpdates.job_type = updates.jobType;
+      auditEntries.push({ field: 'job_type', oldVal: existing.job_type || existing.jobType, newVal: updates.jobType });
+    }
+    if (updates.engineer !== undefined && updates.engineer !== existing.engineer) {
+      dbUpdates.engineer = updates.engineer;
+      auditEntries.push({ field: 'engineer', oldVal: existing.engineer, newVal: updates.engineer });
+    }
+    if (updates.date !== undefined && updates.date !== existing.date) {
+      dbUpdates.date = updates.date;
+      auditEntries.push({ field: 'date', oldVal: existing.date, newVal: updates.date });
+    }
+
+    if (Object.keys(dbUpdates).length === 0) return;
+
+    const { error: updateErr } = await supabase.from('usage_logs').update(dbUpdates).eq('id', logId);
+    if (updateErr) throw updateErr;
+
+    for (const a of auditEntries) {
+      await this.logAudit({
+        tableName: 'usage_logs',
+        recordId: logId,
+        serial: existing.serial,
+        fieldName: a.field,
+        oldValue: a.oldVal,
+        newValue: a.newVal,
+        changedBy,
+        reason
+      });
+    }
+  },
+
+  async fixAnomalousStoreMovement(serial: string): Promise<boolean> {
+    const { data: bottle } = await supabase.from('bottles').select('*').eq('serial', serial).single();
+    if (!bottle) return false;
+
+    // 1. Ensure bottle location is HQ-Stores if location_type is office
+    if (bottle.location_type === 'office' && bottle.location_id !== 'HQ-Stores') {
+      await supabase.from('bottles').update({ location_id: 'HQ-Stores' }).eq('serial', serial);
+    }
+
+    // 2. Find anomalous movement logs for this serial where to_location equals from_location and contains " - Van"
+    const { data: logs } = await supabase.from('movement_logs')
+      .select('*')
+      .eq('serial', serial)
+      .order('date', { ascending: false });
+
+    if (logs && logs.length > 0) {
+      const anomalousLog = logs.find(l => l.from_location && l.to_location && l.from_location === l.to_location && l.to_location.includes(' - Van'));
+      if (anomalousLog) {
+        await supabase.from('movement_logs').update({
+          to_location: 'HQ-Stores',
+          notes: anomalousLog.notes ? `${anomalousLog.notes} (Corrected to HQ-Stores)` : 'Transferred to HQ-Stores'
+        }).eq('id', anomalousLog.id);
+        return true;
+      }
+    }
+    return false;
+  },
+
+  async scanSystemForMovementAnomalies(): Promise<{
+    identicalMovements: Array<{ id: string; serial: string; date: string; from: string; to: string; engineer: string }>;
+    mismatchedOfficeBottles: Array<{ serial: string; locationType: string; locationId: string }>;
+  }> {
+    const { data: moveLogs } = await supabase.from('movement_logs').select('*').order('date', { ascending: false });
+    const identicalMovements: any[] = [];
+    if (moveLogs) {
+      for (const m of moveLogs) {
+        const from = (m.from_location || m.from || "").trim();
+        const to = (m.to_location || m.to || "").trim();
+        if (from && to && from === to && m.action === "moved") {
+          identicalMovements.push({
+            id: m.id,
+            serial: m.serial,
+            date: m.date,
+            from,
+            to,
+            engineer: m.engineer || "Unknown"
+          });
+        }
+      }
+    }
+
+    const { data: bottles } = await supabase.from('bottles').select('*');
+    const mismatchedOfficeBottles: any[] = [];
+    if (bottles) {
+      for (const b of bottles) {
+        if (b.location_type === "office" && b.location_id !== "HQ-Stores") {
+          mismatchedOfficeBottles.push({
+            serial: b.serial,
+            locationType: b.location_type,
+            locationId: b.location_id
+          });
+        }
+      }
+    }
+
+    return { identicalMovements, mismatchedOfficeBottles };
+  },
+
+  async fixAllAnomalousMovements(): Promise<{ fixedLogs: number; fixedBottles: number }> {
+    let fixedLogs = 0;
+    let fixedBottles = 0;
+
+    const { data: bottles } = await supabase.from('bottles').select('serial, location_id').eq('location_type', 'office').neq('location_id', 'HQ-Stores');
+    if (bottles && bottles.length > 0) {
+      for (const b of bottles) {
+        await supabase.from('bottles').update({ location_id: 'HQ-Stores' }).eq('serial', b.serial);
+        fixedBottles++;
+      }
+    }
+
+    const { data: moveLogs } = await supabase.from('movement_logs').select('*');
+    if (moveLogs) {
+      for (const m of moveLogs) {
+        const from = (m.from_location || '').trim();
+        const to = (m.to_location || '').trim();
+        if (from && to && from === to && to.includes(' - Van') && m.action === 'moved') {
+          await supabase.from('movement_logs').update({
+            to_location: 'HQ-Stores',
+            notes: m.notes ? `${m.notes} (Corrected to HQ-Stores)` : 'Transferred to HQ-Stores'
+          }).eq('id', m.id);
+          fixedLogs++;
+        }
+      }
+    }
+
+    return { fixedLogs, fixedBottles };
   },
 
   async logUsage(

@@ -250,6 +250,9 @@ export default function BottleActionHub() {
           effectiveEngineerName = targetUser?.name || user?.name;
         } else if (destination === "van") {
           finalLocationId = `${activeVehicleOwner || user?.name} - Van`;
+        } else if (destination === "office") {
+          finalLocationId = "HQ-Stores";
+          effectiveEngineerName = activeVehicleOwner || user?.name;
         } else if (destination === "site") {
           const cleanJob = (locationId || "").trim().replace(/\s+/g, "").toUpperCase();
           if (!/^[A-Za-z]\d+$/.test(cleanJob)) {
@@ -517,7 +520,7 @@ export default function BottleActionHub() {
               setPhotoUploadError(null);
               try {
                 const photoUrl = await uploadHwcnPhotoToStorage(supplierPhoto!, bottle.serial);
-                await db.completeTransit(bottle.serial, photoUrl);
+                await db.completeTransit(bottle.serial, photoUrl, user?.name);
               } catch (err) {
                 console.error("HWCN photo upload failed:", err);
                 setPhotoUploadError(err instanceof Error ? err.message : "Photo upload failed. The return was not completed — please try again.");

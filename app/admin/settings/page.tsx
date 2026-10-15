@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { db } from "@/lib/db";
-import { Settings, Save, CheckCircle2, Users, Truck, Building2, Trash2, Plus, Edit2, ShieldCheck, Clock, ChevronUp, ChevronDown } from "lucide-react";
+import { Settings, Save, CheckCircle2, Users, Truck, Building2, Trash2, Plus, Edit2, ShieldCheck, Clock, ChevronUp, ChevronDown, AlertTriangle, RefreshCw, Activity } from "lucide-react";
 
 export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
@@ -37,7 +37,45 @@ export default function SettingsPage() {
       if (s.carrierReg) setCarrierReg(s.carrierReg);
       if (s.exemptionNo) setExemptionNo(s.exemptionNo);
     });
+    runAuditScan();
   }, []);
+
+  const [auditScanning, setAuditScanning] = useState(false);
+  const [auditFixing, setAuditFixing] = useState(false);
+  const [auditResult, setAuditResult] = useState<{
+    identicalMovements: any[];
+    mismatchedOfficeBottles: any[];
+  } | null>(null);
+  const [auditMessage, setAuditMessage] = useState<string | null>(null);
+
+  const runAuditScan = async () => {
+    setAuditScanning(true);
+    setAuditMessage(null);
+    try {
+      const res = await db.scanSystemForMovementAnomalies();
+      setAuditResult(res);
+      if (res.identicalMovements.length === 0 && res.mismatchedOfficeBottles.length === 0) {
+        setAuditMessage("All cylinder locations and movement records across the system are 100% consistent.");
+      }
+    } catch (e: any) {
+      setAuditMessage("Scan error: " + (e.message || "Unknown error"));
+    } finally {
+      setAuditScanning(false);
+    }
+  };
+
+  const handleFixAllAudit = async () => {
+    setAuditFixing(true);
+    try {
+      const res = await db.fixAllAnomalousMovements();
+      setAuditMessage(`Successfully corrected ${res.fixedBottles} bottle location(s) and ${res.fixedLogs} movement record(s).`);
+      await runAuditScan();
+    } catch (e: any) {
+      setAuditMessage("Auto-repair failed: " + (e.message || "Unknown error"));
+    } finally {
+      setAuditFixing(false);
+    }
+  };
 
   const getDuration = (supplierId: string, category: string) =>
     durations.find(d => d.supplierId === supplierId && d.category === category);
@@ -420,6 +458,155 @@ export default function SettingsPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      </div>
+
+      {/* System Integrity & Movement Audit */}
+      <div style={{marginTop: "2rem"}} className="glass-panel">
+        <div style={{padding: "1.5rem", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem"}}>
+          <div>
+            <div style={{display: "flex", alignItems: "center", gap: "0.5rem"}}>
+              <Activity size={20} color="#00e5ff" />
+              <h2 style={{fontSize: "1.1rem", fontWeight: 700, margin: 0, color: "#fff"}}>Cylinder Movement & Stores Integrity Audit</h2>
+            </div>
+            <p style={{fontSize: "0.85rem", color: "var(--text-muted)", margin: "0.25rem 0 0"}}>
+              Scans all cylinders across the database to detect identical movements or store location mismatches.
+            </p>
+          </div>
+          <div style={{display: "flex", gap: "0.75rem"}}>
+            <button
+              type="button"
+              onClick={runAuditScan}
+              disabled={auditScanning}
+              style={{
+                background: "rgba(0,229,255,0.1)",
+                border: "1px solid rgba(0,229,255,0.3)",
+                color: "#00e5ff",
+                padding: "0.5rem 1rem",
+                borderRadius: "6px",
+                cursor: auditScanning ? "not-allowed" : "pointer",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+                display: "flex",
+                alignItems: "center",
+                gap: "0.4rem"
+              }}
+            >
+              <RefreshCw size={14} style={{animation: auditScanning ? "spin 1s linear infinite" : undefined}} />
+              {auditScanning ? "Scanning System..." : "Re-Scan System"}
+            </button>
+            {((auditResult?.identicalMovements?.length || 0) > 0 || (auditResult?.mismatchedOfficeBottles?.length || 0) > 0) && (
+              <button
+                type="button"
+                onClick={handleFixAllAudit}
+                disabled={auditFixing}
+                style={{
+                  background: "#f59e0b",
+                  border: "none",
+                  color: "#000",
+                  padding: "0.5rem 1rem",
+                  borderRadius: "6px",
+                  cursor: auditFixing ? "not-allowed" : "pointer",
+                  fontSize: "0.85rem",
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.4rem"
+                }}
+              >
+                <CheckCircle2 size={14} />
+                {auditFixing ? "Repairing..." : "Repair All Discrepancies"}
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div style={{padding: "1.5rem"}}>
+          {auditMessage && (
+            <div style={{
+              background: auditResult && (auditResult.identicalMovements.length > 0 || auditResult.mismatchedOfficeBottles.length > 0) ? "rgba(245,158,11,0.1)" : "rgba(34,197,94,0.1)",
+              border: auditResult && (auditResult.identicalMovements.length > 0 || auditResult.mismatchedOfficeBottles.length > 0) ? "1px solid rgba(245,158,11,0.3)" : "1px solid rgba(34,197,94,0.3)",
+              color: auditResult && (auditResult.identicalMovements.length > 0 || auditResult.mismatchedOfficeBottles.length > 0) ? "#f59e0b" : "#22c55e",
+              padding: "0.75rem 1rem",
+              borderRadius: "8px",
+              fontSize: "0.85rem",
+              marginBottom: "1rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem"
+            }}>
+              {auditResult && (auditResult.identicalMovements.length > 0 || auditResult.mismatchedOfficeBottles.length > 0) ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
+              {auditMessage}
+            </div>
+          )}
+
+          {auditResult && (auditResult.identicalMovements.length > 0 || auditResult.mismatchedOfficeBottles.length > 0) && (
+            <div style={{display: "flex", flexDirection: "column", gap: "1rem"}}>
+              {auditResult.mismatchedOfficeBottles.length > 0 && (
+                <div>
+                  <h4 style={{fontSize: "0.85rem", color: "#f59e0b", margin: "0 0 0.5rem"}}>
+                    Cylinders in Stores with Non-Stores Location ID ({auditResult.mismatchedOfficeBottles.length})
+                  </h4>
+                  <table style={{width: "100%", borderCollapse: "collapse", fontSize: "0.8rem"}}>
+                    <thead>
+                      <tr style={{textAlign: "left", color: "rgba(255,255,255,0.5)", borderBottom: "1px solid rgba(255,255,255,0.08)"}}>
+                        <th style={{padding: "0.4rem 0.6rem"}}>Serial</th>
+                        <th style={{padding: "0.4rem 0.6rem"}}>Location Type</th>
+                        <th style={{padding: "0.4rem 0.6rem"}}>Stored Location ID</th>
+                        <th style={{padding: "0.4rem 0.6rem"}}>Expected Location</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {auditResult.mismatchedOfficeBottles.map((b, idx) => (
+                        <tr key={idx} style={{borderBottom: "1px solid rgba(255,255,255,0.04)"}}>
+                          <td style={{padding: "0.4rem 0.6rem", fontWeight: 700, color: "#fff"}}>
+                            <a href={`/admin/bottles/${encodeURIComponent(b.serial)}`} style={{color: "#00e5ff", textDecoration: "none"}}>
+                              {b.serial}
+                            </a>
+                          </td>
+                          <td style={{padding: "0.4rem 0.6rem"}}>{b.locationType}</td>
+                          <td style={{padding: "0.4rem 0.6rem", color: "#ef4444"}}>{b.locationId}</td>
+                          <td style={{padding: "0.4rem 0.6rem", color: "#22c55e"}}>HQ-Stores</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {auditResult.identicalMovements.length > 0 && (
+                <div>
+                  <h4 style={{fontSize: "0.85rem", color: "#f59e0b", margin: "0 0 0.5rem"}}>
+                    Identical Van-to-Van Movements ({auditResult.identicalMovements.length})
+                  </h4>
+                  <table style={{width: "100%", borderCollapse: "collapse", fontSize: "0.8rem"}}>
+                    <thead>
+                      <tr style={{textAlign: "left", color: "rgba(255,255,255,0.5)", borderBottom: "1px solid rgba(255,255,255,0.08)"}}>
+                        <th style={{padding: "0.4rem 0.6rem"}}>Date</th>
+                        <th style={{padding: "0.4rem 0.6rem"}}>Serial</th>
+                        <th style={{padding: "0.4rem 0.6rem"}}>From &rarr; To</th>
+                        <th style={{padding: "0.4rem 0.6rem"}}>Engineer</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {auditResult.identicalMovements.map((m, idx) => (
+                        <tr key={idx} style={{borderBottom: "1px solid rgba(255,255,255,0.04)"}}>
+                          <td style={{padding: "0.4rem 0.6rem", color: "rgba(255,255,255,0.6)"}}>{new Date(m.date).toLocaleDateString()}</td>
+                          <td style={{padding: "0.4rem 0.6rem", fontWeight: 700}}>
+                            <a href={`/admin/bottles/${encodeURIComponent(m.serial)}`} style={{color: "#00e5ff", textDecoration: "none"}}>
+                              {m.serial}
+                            </a>
+                          </td>
+                          <td style={{padding: "0.4rem 0.6rem", color: "#f59e0b"}}>{m.from} &rarr; {m.to}</td>
+                          <td style={{padding: "0.4rem 0.6rem"}}>{m.engineer}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

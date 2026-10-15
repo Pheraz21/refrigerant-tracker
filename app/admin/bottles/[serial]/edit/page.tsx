@@ -13,6 +13,8 @@ export default function EditBottlePage() {
   const router = useRouter();
   const { user } = useAuth();
   const [bottle, setBottle] = useState<any | null>(null);
+  const [initialLocation, setInitialLocation] = useState<string>("");
+  const [initialLocationType, setInitialLocationType] = useState<string>("");
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -34,6 +36,8 @@ export default function EditBottlePage() {
         db.getMovementLogs(serialStr)
       ]).then(([bottleData, logData]) => {
         setBottle(bottleData);
+        setInitialLocation(bottleData?.locationId || "");
+        setInitialLocationType(bottleData?.locationType || "");
         setLogs(logData);
         setLoading(false);
       });
@@ -52,6 +56,21 @@ export default function EditBottlePage() {
         : bottle.lastEngineer,
     };
     await db.updateBottle(bottle.serial, sanitised);
+
+    // If location was altered manually by the admin, record an immutable audit log entry
+    if (
+      (sanitised.locationId && sanitised.locationId !== initialLocation) ||
+      (sanitised.locationType && sanitised.locationType !== initialLocationType)
+    ) {
+      await db.logManualLocationOverride(
+        bottle.serial,
+        initialLocation,
+        sanitised.locationId,
+        user?.name || "Administrator",
+        `Administrative override: changed location from ${initialLocation || 'Unknown'} (${initialLocationType || 'none'}) to ${sanitised.locationId} (${sanitised.locationType})`
+      );
+    }
+
     setIsSaving(false);
     alert("Bottle data updated successfully.");
     router.back();

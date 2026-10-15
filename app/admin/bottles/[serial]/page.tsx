@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { db, Bottle, MovementLog, UsageLog, CrmJob } from "@/lib/db";
-import { ArrowLeft, Edit3, History, ArrowRight, User, Package, Calendar, MapPin, Truck, Building2, FileText, FileSpreadsheet, ClipboardList, Wrench, Tag, CheckCircle, RotateCcw, RefreshCw, Camera, ZoomIn, ZoomOut, Printer, Maximize2, Trash2, Archive, Recycle } from "lucide-react";
+import { db, Bottle, MovementLog, UsageLog, CrmJob, AuditTrailEntry } from "@/lib/db";
+import { ArrowLeft, Edit3, History, ArrowRight, User, Package, Calendar, MapPin, Truck, Building2, FileText, FileSpreadsheet, ClipboardList, Wrench, Tag, CheckCircle, RotateCcw, RefreshCw, Camera, ZoomIn, ZoomOut, Printer, Maximize2, Trash2, Archive, Recycle, AlertTriangle, Pencil, ShieldCheck, X } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthContext";
 import { getCylinderGenealogy } from "@/lib/genealogy";
@@ -273,6 +273,22 @@ export default function ViewBottlePage() {
   const [usageLogs, setUsageLogs] = useState<UsageLog[]>([]);
   const [hwcns, setHwcns] = useState<any[]>([]);
   const [decommissions, setDecommissions] = useState<any[]>([]);
+  const [auditTrail, setAuditTrail] = useState<AuditTrailEntry[]>([]);
+  const [editingLog, setEditingLog] = useState<{
+    id: string;
+    logType: 'movement' | 'usage';
+    serial: string;
+    from?: string;
+    to?: string;
+    siteRef?: string;
+    weightUsed?: number;
+    engineer?: string;
+    date?: string;
+    notes?: string;
+    vehicleReg?: string;
+  } | null>(null);
+  const [editReason, setEditReason] = useState("");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("audit");
   const [resolvedRegisteredBy, setResolvedRegisteredBy] = useState<string | null>(null);
@@ -290,12 +306,14 @@ export default function ViewBottlePage() {
         db.getUsageLogs(serialStr),
         db.getHWCNsForBottle(serialStr),
         db.getDecommissionsByBottleSerial(serialStr),
-      ]).then(([bottleData, moveData, useData, hwcnData, decommData]) => {
+        db.getAuditTrailForSerial(serialStr),
+      ]).then(([bottleData, moveData, useData, hwcnData, decommData, auditData]) => {
         setBottle(bottleData);
         setMoveLogs(moveData);
         setUsageLogs(useData);
         setHwcns(hwcnData);
         setDecommissions(decommData);
+        setAuditTrail(auditData || []);
         setLoading(false);
 
         // Resolve registeredBy if it doesn't look like a human name (e.g. it's a UUID from old data)
@@ -336,6 +354,38 @@ export default function ViewBottlePage() {
     () => lifecycles.find(l => l.index === selectedLifecycleIndex) ?? null,
     [lifecycles, selectedLifecycleIndex]
   );
+
+  const [isRepairing, setIsRepairing] = useState(false);
+
+  const anomalousMovement = useMemo(() => {
+    if (!bottle) return null;
+    const isOffice = bottle.locationType === "office";
+    const lastMove = moveLogs[0];
+    if (
+      lastMove &&
+      lastMove.from &&
+      lastMove.to &&
+      lastMove.from === lastMove.to &&
+      lastMove.to.includes(" - Van") &&
+      (isOffice || bottle.locationId === "HQ-Stores" || bottle.locationId === lastMove.to)
+    ) {
+      return lastMove;
+    }
+    return null;
+  }, [bottle, moveLogs]);
+
+  const handleRepairMovement = async () => {
+    if (!bottle) return;
+    setIsRepairing(true);
+    try {
+      await db.fixAnomalousStoreMovement(serialStr);
+      window.location.reload();
+    } catch (e) {
+      console.error("Failed to repair movement:", e);
+      alert("Failed to repair movement record. Check console for details.");
+      setIsRepairing(false);
+    }
+  };
 
   const inLifecycle = (dateStr: string | undefined | null): boolean => {
     if (!selectedLifecycle) return true; // no lifecycles derived → show everything
@@ -820,6 +870,53 @@ export default function ViewBottlePage() {
         </div>
       )}
 
+      {anomalousMovement && (
+        <div style={{
+          background: "rgba(245, 158, 11, 0.12)",
+          border: "1px solid rgba(245, 158, 11, 0.4)",
+          borderRadius: "10px",
+          padding: "1rem 1.25rem",
+          marginBottom: "1.5rem",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: "1rem"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flex: 1, minWidth: "260px" }}>
+            <AlertTriangle size={24} color="#f59e0b" style={{ flexShrink: 0 }} />
+            <div>
+              <div style={{ fontWeight: 700, color: "#f59e0b", fontSize: "0.95rem" }}>
+                Movement Log Discrepancy Detected
+              </div>
+              <div style={{ fontSize: "0.82rem", color: "rgba(255,255,255,0.7)", marginTop: "0.25rem" }}>
+                This cylinder is registered in <strong>HQ-Stores</strong>, but its most recent movement was recorded as <code>{anomalousMovement.from} &rarr; {anomalousMovement.to}</code>.
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleRepairMovement}
+            disabled={isRepairing}
+            style={{
+              background: "#f59e0b",
+              color: "#000",
+              fontWeight: 700,
+              fontSize: "0.85rem",
+              padding: "0.5rem 1rem",
+              borderRadius: "8px",
+              border: "none",
+              cursor: isRepairing ? "not-allowed" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.4rem"
+            }}
+          >
+            {isRepairing ? "Repairing..." : "Correct Log to HQ-Stores"}
+          </button>
+        </div>
+      )}
+
       {genealogy && (
         <div
           style={{
@@ -1085,6 +1182,10 @@ export default function ViewBottlePage() {
               <Wrench size={14} style={{ display: "inline", marginRight: "0.35rem" }} />
               Decommission Records {filteredDecommissions.length > 0 ? `(${filteredDecommissions.length})` : ""}
             </button>
+            <button style={tabStyle("change_history")} onClick={() => setActiveTab("change_history")}>
+              <ShieldCheck size={14} style={{ display: "inline", marginRight: "0.35rem" }} />
+              Change History {auditTrail.length > 0 ? `(${auditTrail.length})` : ""}
+            </button>
           </div>
 
           {/* Audit Trail */}
@@ -1094,68 +1195,117 @@ export default function ViewBottlePage() {
                 emptyState(<History size={40} style={{ opacity: 0.2 }} />, "No history logs found for this cylinder.")
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                  {logs.map(log => (
-                    <div key={log.id} className="glass-panel" style={{ padding: "1rem 1.5rem", display: "flex", alignItems: "center", gap: "1.5rem" }}>
-                      <div style={{ width: "80px", fontSize: "0.8rem", color: "rgba(255,255,255,0.4)" }}>
-                        {new Date(log.date).toLocaleDateString()}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
-                          <span style={{ fontSize: "0.65rem", fontWeight: 700, padding: "0.15rem 0.4rem", borderRadius: "3px", background: "rgba(0,229,255,0.1)", color: "var(--primary)", textTransform: "uppercase" }}>
-                            {log.action.replace(/_/g, " ")}
-                          </span>
-                          <span style={{ fontSize: "0.75rem", color: "#fff", fontWeight: 600 }}>
-                            {log.from}
-                            {log.from && crmJobMap.get(log.from)?.siteTitle && (
-                              <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 400 }}> — {crmJobMap.get(log.from)!.siteTitle}</span>
-                            )}
-                            {" "}<ArrowRight size={12} style={{ opacity: 0.3 }} />{" "}
-                            {log.to}
-                            {log.to && crmJobMap.get(log.to)?.siteTitle && (
-                              <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 400 }}> — {crmJobMap.get(log.to)!.siteTitle}</span>
-                            )}
-                          </span>
+                  {logs.map(log => {
+                    const rawId = (log as any).id || "";
+                    const isEdited = auditTrail.some(a => a.recordId === rawId || a.recordId === rawId.replace('-usage', ''));
+                    const isUsage = (log as any).logType === "usage" || log.action === "Gas Used" || log.action === "Gas Recovered";
+                    const canEdit = user?.availableRoles?.includes("admin") || user?.availableRoles?.includes("office") || user?.role === "admin" || user?.role === "office";
+
+                    return (
+                      <div key={log.id} className="glass-panel" style={{ padding: "1rem 1.5rem", display: "flex", alignItems: "center", gap: "1.5rem" }}>
+                        <div style={{ width: "80px", fontSize: "0.8rem", color: "rgba(255,255,255,0.4)" }}>
+                          {new Date(log.date).toLocaleDateString()}
                         </div>
-                        {log.notes && (
-                          <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>
-                            {log.notes}
-                            {(log as any).siteRef && crmJobMap.get((log as any).siteRef)?.siteTitle && (
-                              <span style={{ color: "rgba(255,255,255,0.3)" }}> — {crmJobMap.get((log as any).siteRef)!.siteTitle}</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem", flexWrap: "wrap" }}>
+                            <span style={{ fontSize: "0.65rem", fontWeight: 700, padding: "0.15rem 0.4rem", borderRadius: "3px", background: "rgba(0,229,255,0.1)", color: "var(--primary)", textTransform: "uppercase" }}>
+                              {log.action.replace(/_/g, " ")}
+                            </span>
+                            {isEdited && (
+                              <span style={{ fontSize: "0.62rem", fontWeight: 700, padding: "0.15rem 0.4rem", borderRadius: "3px", background: "rgba(168,85,247,0.15)", color: "#c084fc", textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: "0.25rem" }}>
+                                <ShieldCheck size={11} /> Edited
+                              </span>
                             )}
+                            <span style={{ fontSize: "0.75rem", color: "#fff", fontWeight: 600 }}>
+                              {log.from}
+                              {log.from && crmJobMap.get(log.from)?.siteTitle && (
+                                <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 400 }}> — {crmJobMap.get(log.from)!.siteTitle}</span>
+                              )}
+                              {" "}<ArrowRight size={12} style={{ opacity: 0.3 }} />{" "}
+                              {log.to}
+                              {log.to && crmJobMap.get(log.to)?.siteTitle && (
+                                <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 400 }}> — {crmJobMap.get(log.to)!.siteTitle}</span>
+                              )}
+                            </span>
+                          </div>
+                          {log.notes && (
+                            <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>
+                              {log.notes}
+                              {(log as any).siteRef && crmJobMap.get((log as any).siteRef)?.siteTitle && (
+                                <span style={{ color: "rgba(255,255,255,0.3)" }}> — {crmJobMap.get((log as any).siteRef)!.siteTitle}</span>
+                              )}
+                            </div>
+                          )}
+                          {(log as any).equipmentDetails && (log as any).equipmentDetails.length > 0 && (
+                            <div style={{ marginTop: "0.3rem", display: "flex", flexDirection: "column", gap: "0.15rem" }}>
+                              {(log as any).equipmentDetails.map((eq: any, i: number) => (
+                                <div key={i} style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.35)", display: "flex", flexWrap: "wrap", gap: "0.4rem", alignItems: "center" }}>
+                                  <span style={{ color: "rgba(255,255,255,0.5)", fontWeight: 500 }}>
+                                    {[eq.manufacturer, eq.model].filter(Boolean).join(" ") || "Unknown unit"}
+                                  </span>
+                                  {eq.serial && <span>· SN: {eq.serial}</span>}
+                                  {eq.weight > 0 && <span>· {Number(eq.weight).toFixed(2)} kg</span>}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        {(log as any).qty && (
+                          <div style={{
+                            fontSize: "0.85rem",
+                            fontWeight: 700,
+                            color: log.action === "Gas Recovered" ? "#ffaa00" : "#00e5ff",
+                            whiteSpace: "nowrap",
+                          }}>
+                            {parseFloat((log as any).qty).toFixed(2)} kg
                           </div>
                         )}
-                        {(log as any).equipmentDetails && (log as any).equipmentDetails.length > 0 && (
-                          <div style={{ marginTop: "0.3rem", display: "flex", flexDirection: "column", gap: "0.15rem" }}>
-                            {(log as any).equipmentDetails.map((eq: any, i: number) => (
-                              <div key={i} style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.35)", display: "flex", flexWrap: "wrap", gap: "0.4rem", alignItems: "center" }}>
-                                <span style={{ color: "rgba(255,255,255,0.5)", fontWeight: 500 }}>
-                                  {[eq.manufacturer, eq.model].filter(Boolean).join(" ") || "Unknown unit"}
-                                </span>
-                                {eq.serial && <span>· SN: {eq.serial}</span>}
-                                {eq.weight > 0 && <span>· {Number(eq.weight).toFixed(2)} kg</span>}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      {(log as any).qty && (
-                        <div style={{
-                          fontSize: "0.85rem",
-                          fontWeight: 700,
-                          color: log.action === "Gas Recovered" ? "#ffaa00" : "#00e5ff",
-                          whiteSpace: "nowrap",
-                        }}>
-                          {parseFloat((log as any).qty).toFixed(2)} kg
+                        <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                          <User size={12} style={{ opacity: 0.5 }} /> {log.engineer}
+                          {log.vehicleReg && (
+                            <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.75rem" }}>· {log.vehicleReg}</span>
+                          )}
                         </div>
-                      )}
-                      <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-                        <User size={12} style={{ opacity: 0.5 }} /> {log.engineer}
-                        {log.vehicleReg && (
-                          <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.75rem" }}>· {log.vehicleReg}</span>
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingLog({
+                                id: rawId,
+                                logType: isUsage ? "usage" : "movement",
+                                serial: serialStr,
+                                from: log.from,
+                                to: log.to,
+                                siteRef: (log as any).siteRef || (isUsage ? (log.notes?.replace('Site Job: ', '').trim() || log.to) : ''),
+                                weightUsed: (log as any).qty ? parseFloat((log as any).qty) : undefined,
+                                engineer: log.engineer,
+                                date: log.date ? log.date.split('T')[0] : '',
+                                notes: log.notes,
+                                vehicleReg: log.vehicleReg,
+                              });
+                              setEditReason("");
+                            }}
+                            style={{
+                              background: "rgba(255,255,255,0.06)",
+                              border: "1px solid rgba(255,255,255,0.15)",
+                              borderRadius: "6px",
+                              color: "rgba(255,255,255,0.7)",
+                              padding: "0.35rem 0.6rem",
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.35rem",
+                              fontSize: "0.75rem",
+                              flexShrink: 0
+                            }}
+                            title="Correct this record (audited)"
+                          >
+                            <Pencil size={12} /> Edit
+                          </button>
                         )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1380,8 +1530,239 @@ export default function ViewBottlePage() {
               )}
             </div>
           )}
+
+          {/* Change History (Immutable F-Gas Audit Trail) */}
+          {activeTab === "change_history" && (
+            <div>
+              {auditTrail.length === 0 ? (
+                emptyState(<ShieldCheck size={40} style={{ opacity: 0.2 }} />, "No administrative corrections recorded for this cylinder.")
+              ) : (
+                <div style={{ borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ background: "rgba(255,255,255,0.04)" }}>
+                        <th style={tableTh}>Date & Time</th>
+                        <th style={tableTh}>Admin User</th>
+                        <th style={tableTh}>Record / Field</th>
+                        <th style={tableTh}>Previous Value</th>
+                        <th style={tableTh}>Corrected Value</th>
+                        <th style={tableTh}>Audit Justification / Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {auditTrail.map(a => (
+                        <tr key={a.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                          <td style={{ ...tableTd, fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", whiteSpace: "nowrap" }}>
+                            {new Date(a.createdAt).toLocaleString("en-GB")}
+                          </td>
+                          <td style={{ ...tableTd, fontWeight: 600 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                              <User size={13} style={{ opacity: 0.5 }} /> {a.changedBy}
+                            </div>
+                          </td>
+                          <td style={{ ...tableTd, fontSize: "0.8rem" }}>
+                            <span style={{ fontFamily: "var(--font-geist-mono)", color: "#00e5ff" }}>
+                              {a.tableName.replace('_logs', '')}.{a.fieldName}
+                            </span>
+                          </td>
+                          <td style={{ ...tableTd, fontSize: "0.8rem", color: "#ef4444" }}>
+                            <span style={{ textDecoration: "line-through", opacity: 0.8 }}>{a.oldValue || "—"}</span>
+                          </td>
+                          <td style={{ ...tableTd, fontSize: "0.8rem", color: "#22c55e", fontWeight: 600 }}>
+                            {a.newValue || "—"}
+                          </td>
+                          <td style={{ ...tableTd, fontSize: "0.82rem", color: "rgba(255,255,255,0.85)", fontStyle: "italic" }}>
+                            &ldquo;{a.reason}&rdquo;
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Edit Log Modal */}
+      {editingLog && (
+        <div style={{
+          position: "fixed",
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.75)",
+          backdropFilter: "blur(4px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 9999,
+          padding: "1rem"
+        }}>
+          <div className="glass-panel" style={{
+            maxWidth: "520px",
+            width: "100%",
+            background: "#12141a",
+            border: "1px solid rgba(255,255,255,0.15)",
+            borderRadius: "12px",
+            padding: "1.75rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "1.25rem"
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h3 style={{ margin: 0, fontSize: "1.1rem", color: "#fff", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <Edit3 size={18} color="var(--primary)" />
+                Correct {editingLog.logType === 'usage' ? 'Usage Record' : 'Movement Record'}
+              </h3>
+              <button
+                onClick={() => setEditingLog(null)}
+                style={{ background: "none", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer" }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ background: "rgba(0,229,255,0.06)", border: "1px solid rgba(0,229,255,0.2)", borderRadius: "8px", padding: "0.75rem", fontSize: "0.8rem", color: "var(--primary)" }}>
+              All edits are recorded in the immutable F-Gas Audit Trail with before/after values, your name, and your stated justification.
+            </div>
+
+            {editingLog.logType === 'movement' ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.75rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.25rem" }}>From Location</label>
+                  <input
+                    type="text"
+                    value={editingLog.from || ""}
+                    onChange={e => setEditingLog({ ...editingLog, from: e.target.value })}
+                    style={{ width: "100%", padding: "0.6rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "6px", color: "#fff" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.75rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.25rem" }}>To Location / Destination</label>
+                  <input
+                    type="text"
+                    value={editingLog.to || ""}
+                    onChange={e => setEditingLog({ ...editingLog, to: e.target.value })}
+                    style={{ width: "100%", padding: "0.6rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "6px", color: "#fff" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.75rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.25rem" }}>Engineer Name</label>
+                  <input
+                    type="text"
+                    value={editingLog.engineer || ""}
+                    onChange={e => setEditingLog({ ...editingLog, engineer: e.target.value })}
+                    style={{ width: "100%", padding: "0.6rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "6px", color: "#fff" }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.75rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.25rem" }}>Site Job Reference</label>
+                  <input
+                    type="text"
+                    value={editingLog.siteRef || ""}
+                    onChange={e => setEditingLog({ ...editingLog, siteRef: e.target.value })}
+                    style={{ width: "100%", padding: "0.6rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "6px", color: "#fff" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.75rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.25rem" }}>Weight Dispensed/Recovered (kg)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editingLog.weightUsed ?? ""}
+                    onChange={e => setEditingLog({ ...editingLog, weightUsed: parseFloat(e.target.value) || 0 })}
+                    style={{ width: "100%", padding: "0.6rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "6px", color: "#fff" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.75rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.25rem" }}>Engineer Name</label>
+                  <input
+                    type="text"
+                    value={editingLog.engineer || ""}
+                    onChange={e => setEditingLog({ ...editingLog, engineer: e.target.value })}
+                    style={{ width: "100%", padding: "0.6rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "6px", color: "#fff" }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#ffaa00", marginBottom: "0.4rem" }}>
+                * Reason for Correction (Mandatory Audit Justification)
+              </label>
+              <textarea
+                rows={3}
+                value={editReason}
+                onChange={e => setEditReason(e.target.value)}
+                placeholder="e.g. Engineer typo in site reference; job was C37231 (Santander Dundee)"
+                style={{ width: "100%", padding: "0.6rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,170,0,0.4)", borderRadius: "6px", color: "#fff", resize: "vertical" }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end", marginTop: "0.5rem" }}>
+              <button
+                type="button"
+                onClick={() => setEditingLog(null)}
+                style={{ padding: "0.6rem 1rem", background: "transparent", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "6px", color: "#fff", cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!editReason.trim() || isSavingEdit}
+                onClick={async () => {
+                  if (!editReason.trim()) return;
+                  setIsSavingEdit(true);
+                  try {
+                    if (editingLog.logType === 'movement') {
+                      await db.updateMovementLogWithAudit(
+                        editingLog.id,
+                        {
+                          to: editingLog.to,
+                          from: editingLog.from,
+                          engineer: editingLog.engineer,
+                        },
+                        user?.name || "Administrator",
+                        editReason.trim()
+                      );
+                    } else {
+                      await db.updateUsageLogWithAudit(
+                        editingLog.id.replace('-usage', ''),
+                        {
+                          siteRef: editingLog.siteRef,
+                          weightUsed: editingLog.weightUsed,
+                          engineer: editingLog.engineer,
+                        },
+                        user?.name || "Administrator",
+                        editReason.trim()
+                      );
+                    }
+                    window.location.reload();
+                  } catch (err) {
+                    console.error("Failed to save correction:", err);
+                    alert("Error saving correction: " + (err instanceof Error ? err.message : String(err)));
+                    setIsSavingEdit(false);
+                  }
+                }}
+                style={{
+                  padding: "0.6rem 1.25rem",
+                  background: editReason.trim() ? "var(--primary)" : "rgba(255,255,255,0.1)",
+                  color: editReason.trim() ? "#00e5ff" : "rgba(255,255,255,0.4)",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontWeight: 600,
+                  cursor: editReason.trim() ? "pointer" : "not-allowed"
+                }}
+              >
+                {isSavingEdit ? "Saving..." : "Save & Record Audit Trail"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
