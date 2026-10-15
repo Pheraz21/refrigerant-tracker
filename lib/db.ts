@@ -379,7 +379,31 @@ export const db = {
       .single();
     
     if (error || !data) return null;
-    return mapBottle(data);
+    const bottle = mapBottle(data);
+
+    if (bottle.locationType === 'office' && !bottle.returnedBy) {
+      try {
+        const { data: logs } = await supabase
+          .from('movement_logs')
+          .select('engineer, date, to_location, action')
+          .eq('serial', serial)
+          .order('date', { ascending: false });
+        if (logs && logs.length > 0) {
+          const storeLog = logs.find(l => 
+            (l.to_location === "HQ-Stores" || l.to_location === "office" || l.action === "received") && l.engineer
+          ) || logs.find(l => l.engineer);
+          const resolved = storeLog?.engineer || bottle.registeredBy || bottle.lastEngineer;
+          if (resolved) {
+            bottle.returnedBy = resolved;
+            Promise.resolve(supabase.from('bottles').update({ returned_by: resolved }).eq('serial', serial)).catch(() => {});
+          }
+        } else if (bottle.registeredBy || bottle.lastEngineer) {
+          bottle.returnedBy = bottle.registeredBy || bottle.lastEngineer;
+        }
+      } catch {}
+    }
+
+    return bottle;
   },
 
   async removeBottle(serial: string, archivedBy?: string, reason?: string): Promise<void> {
@@ -642,6 +666,8 @@ export const db = {
       rental_expiry_date: data.rentalExpiryDate,
       last_engineer: data.lastEngineer,
       registered_by: data.registeredBy,
+      returned_by: data.locationType === "office" ? (data.registeredBy || data.lastEngineer || "System") : null,
+      returned_at: data.locationType === "office" ? (data.registeredAt || new Date().toISOString()) : null,
       status: data.category === "reclaim" ? "empty" : "full",
       location_changed_at: new Date().toISOString()
     });
@@ -716,7 +742,17 @@ export const db = {
       
       if (locationType === "van") {
         if (logVehicleReg) updates.vehicle_reg = logVehicleReg;
-      } else if (locationType === "site" || locationType === "office" || locationType === "supplier") {
+        updates.returned_by = null;
+        updates.returned_at = null;
+      } else if (locationType === "site") {
+        updates.vehicle_reg = null;
+        updates.returned_by = null;
+        updates.returned_at = null;
+      } else if (locationType === "office") {
+        updates.vehicle_reg = null;
+        updates.returned_by = movedBy || engineerName || "System";
+        updates.returned_at = new Date().toISOString();
+      } else if (locationType === "supplier") {
         updates.vehicle_reg = null;
       }
 
@@ -975,6 +1011,12 @@ export const db = {
           to_location: 'HQ-Stores',
           notes: anomalousLog.notes ? `${anomalousLog.notes} (Corrected to HQ-Stores)` : 'Transferred to HQ-Stores'
         }).eq('id', anomalousLog.id);
+        if (bottle.location_type === 'office' && anomalousLog.engineer) {
+          await supabase.from('bottles').update({
+            returned_by: anomalousLog.engineer,
+            returned_at: anomalousLog.date || new Date().toISOString()
+          }).eq('serial', serial);
+        }
         return true;
       }
     }
@@ -1413,7 +1455,62 @@ export const db = {
     const { data } = await supabase.from('bottles').select('*')
       .eq('location_type', locationType)
       .neq('status', 'returned');
-    return data ? data.map(mapBottle) : [];
+    if (!data) return [];
+    const bottles = data.map(mapBottle);
+
+    if (locationType === "office") {
+      const missingReturnedBy = bottles.filter(b => !b.returnedBy);
+      if (missingReturnedBy.length > 0) {
+        try {
+          const serials = missingReturnedBy.map(b => b.serial);
+          const { data: logs } = await supabase
+            .from('movement_logs')
+            .select('serial, engineer, date, to_location, from_location, action')
+            .in('serial', serials)
+            .order('date', { ascending: false });
+
+          const logsBySerial: Record<string, any[]> = {};
+          if (logs) {
+            for (const l of logs) {
+              if (!logsBySerial[l.serial]) logsBySerial[l.serial] = [];
+              logsBySerial[l.serial].push(l);
+            }
+          }
+
+          const updatesToPersist: Array<{ serial: string; returned_by: string }> = [];
+
+          for (const b of missingReturnedBy) {
+            const bLogs = logsBySerial[b.serial] || [];
+            const storeLog = bLogs.find(l => 
+              (l.to_location === "HQ-Stores" || l.to_location === "office" || l.action === "received") && l.engineer
+            ) || bLogs.find(l => l.engineer);
+
+            const resolvedEngineer = storeLog?.engineer || b.registeredBy || b.lastEngineer;
+            if (resolvedEngineer) {
+              b.returnedBy = resolvedEngineer;
+              updatesToPersist.push({ serial: b.serial, returned_by: resolvedEngineer });
+            }
+          }
+
+          if (updatesToPersist.length > 0) {
+            Promise.all(
+              updatesToPersist.map(u => 
+                Promise.resolve(supabase.from('bottles').update({ returned_by: u.returned_by }).eq('serial', u.serial))
+              )
+            ).catch(e => console.warn("Background backfill of returned_by error:", e));
+          }
+        } catch (err) {
+          console.warn("Failed resolving returnedBy from movement_logs:", err);
+          for (const b of missingReturnedBy) {
+            if (b.registeredBy || b.lastEngineer) {
+              b.returnedBy = b.registeredBy || b.lastEngineer;
+            }
+          }
+        }
+      }
+    }
+
+    return bottles;
   },
 
   async getBottlesByVan(engineerId: string): Promise<Bottle[]> {
