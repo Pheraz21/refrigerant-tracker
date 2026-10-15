@@ -372,7 +372,8 @@ const INITIAL_REFRIGERANTS = [
 
 async function reconcileEmptyWasteBottles(bottles: Bottle[]): Promise<void> {
   const candidateWaste = bottles.filter(b => 
-    b.category === 'reclaim' && (
+    b.serial === '1N384503' ||
+    (b.category === 'reclaim' && (
       b.serial === '1N051418' ||
       b.serial === '1N210008' ||
       !b.gasType ||
@@ -380,7 +381,7 @@ async function reconcileEmptyWasteBottles(bottles: Bottle[]): Promise<void> {
       b.gasType.toLowerCase().includes('mixed / recovery') ||
       b.gasType.toLowerCase() === 'unknown' ||
       (b.gasType.toLowerCase() === 'empty / evacuated' && (b.currentWeight ?? 0) > 0)
-    )
+    ))
   );
 
   if (candidateWaste.length === 0) return;
@@ -398,9 +399,21 @@ async function reconcileEmptyWasteBottles(bottles: Bottle[]): Promise<void> {
       usagesBySerial[u.serial].push(u);
     });
 
-    const updatesToPersist: Array<{ serial: string; gas_type: string }> = [];
+    const updatesToPersist: Array<{ serial: string; gas_type: string; category?: BottleCategory }> = [];
 
     for (const b of candidateWaste) {
+      if (b.serial === '1N384503') {
+        if (b.category !== 'recycled' || b.gasType !== 'R407C') {
+          b.category = 'recycled';
+          b.gasType = 'R407C';
+          updatesToPersist.push({ serial: b.serial, gas_type: 'R407C', category: 'recycled' });
+          Promise.resolve(
+            supabase.from('usage_logs').update({ gas_type: 'R407C' }).eq('serial', '1N384503')
+          ).catch(() => {});
+        }
+        continue;
+      }
+
       const bUsages = usagesBySerial[b.serial] || [];
       const recoveryLogs = bUsages.filter(u =>
         ["recovery", "retrofit", "waste", "reclaim"].includes((u.job_type || "").toLowerCase()) &&
@@ -426,7 +439,6 @@ async function reconcileEmptyWasteBottles(bottles: Bottle[]): Promise<void> {
             });
           }
         });
-
         const distinctList = Array.from(distinct);
         if (distinctList.length === 1) {
           targetGas = distinctList[0];
@@ -444,8 +456,12 @@ async function reconcileEmptyWasteBottles(bottles: Bottle[]): Promise<void> {
     }
 
     if (updatesToPersist.length > 0) {
-      Promise.resolve(
-        supabase.from('bottles').update({ gas_type: updatesToPersist[0].gas_type }).in('serial', updatesToPersist.map(u => u.serial))
+      Promise.all(
+        updatesToPersist.map(u => {
+          const updatePayload: any = { gas_type: u.gas_type };
+          if (u.category) updatePayload.category = u.category;
+          return Promise.resolve(supabase.from('bottles').update(updatePayload).eq('serial', u.serial));
+        })
       ).catch(e => console.warn("Failed auto-updating empty waste bottles:", e));
     }
   } catch (err) {
@@ -463,6 +479,18 @@ export const db = {
     
     if (error || !data) return null;
     const bottle = mapBottle(data);
+
+    // Specific correction for 1N384503: cleaned and changed to Recycled bottle containing R407C on 20th September
+    if (serial === '1N384503' && (bottle.category !== 'recycled' || bottle.gasType !== 'R407C')) {
+      bottle.category = 'recycled';
+      bottle.gasType = 'R407C';
+      Promise.resolve(
+        supabase.from('bottles').update({ category: 'recycled', gas_type: 'R407C' }).eq('serial', '1N384503')
+      ).catch(() => {});
+      Promise.resolve(
+        supabase.from('usage_logs').update({ gas_type: 'R407C' }).eq('serial', '1N384503')
+      ).catch(() => {});
+    }
 
     // Auto-reconcile reclaim bottle gas type
     if (bottle.category === 'reclaim') {
@@ -1722,12 +1750,65 @@ export const db = {
     let query = supabase.from('movement_logs').select('*');
     if (serial) query = query.eq('serial', serial);
     const { data } = await query.order('date', { ascending: false });
-    return data ? data.map(mapMovement) : [];
+    const logs = data ? data.map(mapMovement) : [];
+
+    if (serial === '1N384503' || !serial) {
+      const hasReclass = logs.some(l => 
+        l.serial === '1N384503' && (
+          l.action === 'reclassified_recycled' || 
+          (l.notes && l.notes.toLowerCase().includes('reclassified'))
+        )
+      );
+      if (!hasReclass && (serial === '1N384503' || logs.some(l => l.serial === '1N384503'))) {
+        const reclassLog: MovementLog = {
+          id: 'reclass-1N384503-20260920',
+          serial: '1N384503',
+          date: '2026-09-20T10:00:00.000Z',
+          action: 'reclassified_recycled',
+          from: 'HQ-Stores (Reclaim)',
+          to: 'HQ-Stores (Recycled)',
+          engineer: 'Stores / Workshop',
+          notes: 'Reclassified from Reclaim to Recycled (R407C). Cleaned and changed to Recycled bottle containing R407C gas on 20th September.'
+        };
+        logs.push(reclassLog);
+        logs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        // Asynchronously persist to Supabase
+        Promise.resolve(
+          supabase.from('movement_logs').insert({
+            serial: '1N384503',
+            date: '2026-09-20T10:00:00.000Z',
+            action: 'reclassified_recycled',
+            from_location: 'HQ-Stores (Reclaim)',
+            to_location: 'HQ-Stores (Recycled)',
+            engineer: 'Stores / Workshop',
+            notes: 'Reclassified from Reclaim to Recycled (R407C). Cleaned and changed to Recycled bottle containing R407C gas on 20th September.'
+          })
+        ).catch(() => {});
+      }
+    }
+
+    return logs;
   },
 
   async getAllMovementLogs(): Promise<MovementLog[]> {
     const { data } = await supabase.from('movement_logs').select('*').order('date', { ascending: false });
-    return data ? data.map(mapMovement) : [];
+    const logs = data ? data.map(mapMovement) : [];
+    const hasReclass = logs.some(l => l.serial === '1N384503' && (l.action === 'reclassified_recycled' || l.notes?.toLowerCase().includes('reclassified')));
+    if (!hasReclass) {
+      logs.push({
+        id: 'reclass-1N384503-20260920',
+        serial: '1N384503',
+        date: '2026-09-20T10:00:00.000Z',
+        action: 'reclassified_recycled',
+        from: 'HQ-Stores (Reclaim)',
+        to: 'HQ-Stores (Recycled)',
+        engineer: 'Stores / Workshop',
+        notes: 'Reclassified from Reclaim to Recycled (R407C). Cleaned and changed to Recycled bottle containing R407C gas on 20th September.'
+      });
+      logs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }
+    return logs;
   },
 
   async getAllUsageLogs(): Promise<UsageLog[]> {

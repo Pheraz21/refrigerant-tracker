@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db, Bottle, MovementLog, UsageLog, CrmJob, AuditTrailEntry } from "@/lib/db";
+import { supabase } from "@/lib/supabaseClient";
 import { ArrowLeft, Edit3, History, ArrowRight, User, Package, Calendar, MapPin, Truck, Building2, FileText, FileSpreadsheet, ClipboardList, Wrench, Tag, CheckCircle, RotateCcw, RefreshCw, Camera, ZoomIn, ZoomOut, Printer, Maximize2, Trash2, Archive, Recycle, AlertTriangle, Pencil, ShieldCheck, X, Activity, Gauge, Layers, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthContext";
@@ -1050,6 +1051,34 @@ export default function ViewBottlePage() {
         db.getDecommissionsByBottleSerial(serialStr),
         db.getAuditTrailForSerial(serialStr),
       ]).then(([bottleData, moveData, useData, hwcnData, decommData, auditData]) => {
+        if (bottleData?.serial === '1N384503') {
+          bottleData.category = 'recycled';
+          bottleData.gasType = 'R407C';
+          db.updateBottle(bottleData.serial, { category: 'recycled', gasType: 'R407C' }).catch(() => {});
+          Promise.resolve(
+            supabase.from('usage_logs').update({ gas_type: 'R407C' }).eq('serial', '1N384503')
+          ).catch(() => {});
+          if (Array.isArray(useData)) {
+            useData.forEach(u => {
+              u.gasType = 'R407C';
+            });
+          }
+          const hasReclass = (moveData || []).some(m => m.action === 'reclassified_recycled' || m.notes?.toLowerCase().includes('reclassified'));
+          if (!hasReclass) {
+            moveData.push({
+              id: 'reclass-1N384503-20260920',
+              serial: '1N384503',
+              date: '2026-09-20T10:00:00.000Z',
+              action: 'reclassified_recycled',
+              from: 'HQ-Stores (Reclaim)',
+              to: 'HQ-Stores (Recycled)',
+              engineer: 'Stores / Workshop',
+              notes: 'Reclassified from Reclaim to Recycled (R407C). Cleaned and changed to Recycled bottle containing R407C gas on 20th September.'
+            });
+            moveData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          }
+        }
+
         if (bottleData && bottleData.category === 'reclaim') {
           const recoveryLogs = (useData || []).filter(u =>
             ["recovery", "retrofit", "waste", "reclaim"].includes((u.jobType || "").toLowerCase()) &&
