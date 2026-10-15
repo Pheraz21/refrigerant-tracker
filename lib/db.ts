@@ -2231,7 +2231,12 @@ export const db = {
     if (updates.status) dbUpdates.status = updates.status;
     if (updates.locationType) dbUpdates.location_type = updates.locationType;
     if (updates.locationId) dbUpdates.location_id = updates.locationId;
-    if (updates.gasType) dbUpdates.gas_type = updates.gasType;
+    if (updates.gasType) {
+      dbUpdates.gas_type = updates.gasType;
+      Promise.resolve(
+        supabase.from('usage_logs').update({ gas_type: updates.gasType }).eq('serial', serial).is('gas_type', null)
+      ).catch(() => {});
+    }
     if (updates.category) dbUpdates.category = updates.category;
     if (updates.initialWeight !== undefined) dbUpdates.initial_weight = updates.initialWeight;
     if ("rentalExpiryDate" in updates) dbUpdates.rental_expiry_date = updates.rentalExpiryDate || null;
