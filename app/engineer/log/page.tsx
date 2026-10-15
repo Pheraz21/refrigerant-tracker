@@ -181,19 +181,29 @@ export default function LogBottlePage() {
         } else if (b.category === "reclaim") {
           setJobType("recovery");
           const existingGas = (b.gasType || "").trim();
-          if (existingGas) {
+          const curWt = b.currentWeight || 0;
+          const isEvacuated =
+            curWt === 0 ||
+            !existingGas ||
+            existingGas.toLowerCase() === "empty / evacuated" ||
+            existingGas.toLowerCase() === "empty/evacuated" ||
+            existingGas.toLowerCase() === "mixed/recovery" ||
+            existingGas.toLowerCase() === "unknown";
+
+          if (isEvacuated) {
+            // Empty / Evacuated cylinder: let engineer select the gas being recovered
+            setRefrigerantType("");
+          } else {
             const standardGases = ["R410A", "R32", "R134a", "R404A", "R407C", "R22"];
             const matchedStandard = standardGases.find(g => g.toLowerCase() === existingGas.toLowerCase());
             if (matchedStandard) {
               setRefrigerantType(matchedStandard);
             } else if (existingGas.toLowerCase() === "mixed" || existingGas.toLowerCase() === "mixed/recovery") {
-              setRefrigerantType("Mixed/Recovery");
+              setRefrigerantType("Mixed");
             } else {
               setRefrigerantType("other");
               setCustomRefrigerant(existingGas);
             }
-          } else {
-            setRefrigerantType("Mixed/Recovery");
           }
         } else {
           setRefrigerantType(b.gasType || "R410A");
@@ -402,15 +412,24 @@ export default function LogBottlePage() {
 
       const curGas = (bottleData.gasType || "").trim();
       const curWt = bottleData.currentWeight || 0;
+      const isEvacuated =
+        curWt === 0 ||
+        !curGas ||
+        curGas.toLowerCase() === "empty / evacuated" ||
+        curGas.toLowerCase() === "empty/evacuated" ||
+        curGas.toLowerCase() === "mixed/recovery" ||
+        curGas === "Unknown";
+
       let resolvedHwcnGas: string;
-      if (curWt === 0 || !curGas || curGas === "Unknown") {
-        resolvedHwcnGas = finalRefrigerant || curGas || "Unknown";
+      if (isEvacuated) {
+        resolvedHwcnGas = finalRefrigerant || "Mixed";
       } else if (curGas.toLowerCase() === "mixed" || curGas.toLowerCase() === "mixed/recovery") {
-        resolvedHwcnGas = "Mixed/Recovery";
+        resolvedHwcnGas = "Mixed";
       } else if (curGas.toLowerCase() === (finalRefrigerant || "").trim().toLowerCase()) {
         resolvedHwcnGas = curGas;
       } else {
-        resolvedHwcnGas = "Mixed/Recovery";
+        // Different gas added to bottle that already has gas -> Mixed
+        resolvedHwcnGas = "Mixed";
       }
 
       const hwcnId = await db.createHWCN({
@@ -868,17 +887,17 @@ export default function LogBottlePage() {
                   marginBottom: '0.65rem',
                   padding: '0.65rem 0.85rem',
                   borderRadius: '8px',
-                  background: 'rgba(255, 170, 0, 0.08)',
-                  border: '1px solid rgba(255, 170, 0, 0.25)',
+                  background: (bottleData?.currentWeight || 0) > 0 ? 'rgba(255, 170, 0, 0.08)' : 'rgba(0, 229, 255, 0.08)',
+                  border: (bottleData?.currentWeight || 0) > 0 ? '1px solid rgba(255, 170, 0, 0.25)' : '1px solid rgba(0, 229, 255, 0.25)',
                   fontSize: '0.825rem'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ color: 'var(--text-muted)' }}>Cylinder Current Gas:</span>
-                    <span style={{ fontWeight: 700, color: '#ffaa00' }}>
+                    <span style={{ fontWeight: 700, color: (bottleData?.currentWeight || 0) > 0 ? '#ffaa00' : '#00e5ff' }}>
                       {(bottleData?.currentWeight || 0) > 0 ? (
-                        `${bottleData?.gasType || "Mixed / Recovery"} (${bottleData?.currentWeight} kg present)`
+                        `${bottleData?.gasType || "Mixed"} (${bottleData?.currentWeight} kg present)`
                       ) : (
-                        `Empty cylinder (${bottleData?.gasType || "Mixed/Recovery"})`
+                        `Empty / Evacuated (${bottleData?.gasType || "Empty / Evacuated"})`
                       )}
                     </span>
                   </div>
@@ -893,7 +912,7 @@ export default function LogBottlePage() {
                       if (isMixedBottle) {
                         return (
                           <p style={{ margin: '0.4rem 0 0', fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)' }}>
-                            This cylinder already contains mixed recovery gas. Adding waste gas will keep the cylinder classified as Mixed / Recovery.
+                            This cylinder already contains mixed recovery gas. Adding waste gas will keep the cylinder classified as Mixed.
                           </p>
                         );
                       } else if (!isSame && currentSelected) {
@@ -908,7 +927,7 @@ export default function LogBottlePage() {
                             fontSize: '0.75rem',
                             lineHeight: 1.35
                           }}>
-                            <strong>Notice:</strong> You selected a different gas ({currentSelected}) than what is currently in this cylinder ({bottleGas}). Adding this waste will mix gases in the cylinder, reclassifying it as <strong>Mixed / Recovery</strong>.
+                            <strong>Notice:</strong> You selected a different gas ({currentSelected}) than what is currently in this cylinder ({bottleGas}). Adding this waste will mix gases in the cylinder, reclassifying it as <strong>Mixed</strong>.
                           </div>
                         );
                       } else {
@@ -920,8 +939,8 @@ export default function LogBottlePage() {
                       }
                     })()
                   ) : (
-                    <p style={{ margin: '0.4rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      Empty reclaim cylinder. Select the gas being recovered into this cylinder.
+                    <p style={{ margin: '0.4rem 0 0', fontSize: '0.75rem', color: '#00e5ff' }}>
+                      Empty / evacuated reclaim cylinder. Select the gas being recovered into this cylinder (it will adopt this refrigerant type).
                     </p>
                   )}
                 </div>
@@ -946,16 +965,16 @@ export default function LogBottlePage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setRefrigerantType("Mixed/Recovery")}
+                  onClick={() => setRefrigerantType("Mixed")}
                   style={{
                     marginTop: '0.5rem', width: '100%', padding: '0.6rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600,
-                    cursor: 'pointer', border: refrigerantType === "Mixed/Recovery" ? 'none' : '1px solid rgba(255,255,255,0.12)',
-                    background: refrigerantType === "Mixed/Recovery" ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
-                    color: refrigerantType === "Mixed/Recovery" ? '#000' : 'rgba(255,255,255,0.7)',
+                    cursor: 'pointer', border: refrigerantType === "Mixed" ? 'none' : '1px solid rgba(255,255,255,0.12)',
+                    background: refrigerantType === "Mixed" ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
+                    color: refrigerantType === "Mixed" ? '#000' : 'rgba(255,255,255,0.7)',
                     transition: 'all 0.15s'
                   }}
                 >
-                  Mixed / Recovery
+                  Mixed (Multi-Gas Mixture)
                 </button>
                 {refrigerantType === "other" && (
                   <input

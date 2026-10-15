@@ -123,7 +123,7 @@ export default function RegisterBottlePage() {
       await db.registerBottle({
         serial: serialParam,
         category,
-        gasType: category === "reclaim" ? "Mixed/Recovery" : (category === "nitrogen" ? "Nitrogen" : finalGas),
+        gasType: category === "reclaim" ? "Empty / Evacuated" : (category === "nitrogen" ? "Nitrogen" : finalGas),
         initialWeight: Number(weight),
         currentWeight: category === "reclaim" ? 0 : Number(weight),
         locationType: locationType as any,
@@ -259,9 +259,12 @@ export default function RegisterBottlePage() {
         )}
 
         {category === "reclaim" && (
-          <div className={styles.readonlyField} style={{ background: 'rgba(255, 170, 0, 0.1)', borderColor: 'rgba(255, 170, 0, 0.3)', marginTop: '-0.5rem', marginBottom: '1.5rem' }}>
+          <div className={styles.readonlyField} style={{ background: 'rgba(0, 229, 255, 0.08)', borderColor: 'rgba(0, 229, 255, 0.25)', marginTop: '-0.5rem', marginBottom: '1.5rem' }}>
             <span className={styles.label}>Gas Type</span>
-            <span style={{ color: 'var(--warning)', fontWeight: 600 }}>Unknown (Mixed/Recovery)</span>
+            <span style={{ color: '#00e5ff', fontWeight: 600 }}>Empty / Evacuated (Ready for Recovery)</span>
+            <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginTop: '0.2rem' }}>
+              Cylinder will automatically adopt the refrigerant type upon first gas recovery on site.
+            </span>
           </div>
         )}
 

@@ -18,7 +18,8 @@ import {
   Layers,
   Sparkles,
   History,
-  Check
+  Check,
+  HelpCircle
 } from "lucide-react";
 import Link from "next/link";
 
@@ -62,6 +63,7 @@ export default function ReclassifyRecycledPage() {
   const [submittingTransfer, setSubmittingTransfer] = useState(false);
   const [transferError, setTransferError] = useState("");
   const [transferSuccess, setTransferSuccess] = useState<string | null>(null);
+  const [isFullyEvacuated, setIsFullyEvacuated] = useState<boolean | null>(null);
 
   const loadData = async () => {
     try {
@@ -116,10 +118,12 @@ export default function ReclassifyRecycledPage() {
     if (selectedReclaimBottle) {
       setReclassifyWeight(String(selectedReclaimBottle.currentWeight ?? 0));
       setReclassifyCapacity(String(selectedReclaimBottle.initialWeight ?? 12));
-      const cleanGas =
-        selectedReclaimBottle.gasType && selectedReclaimBottle.gasType !== "Mixed/Recovery"
-          ? selectedReclaimBottle.gasType
-          : "R410A";
+      const isGeneric =
+        !selectedReclaimBottle.gasType ||
+        selectedReclaimBottle.gasType === "Mixed/Recovery" ||
+        selectedReclaimBottle.gasType === "Empty / Evacuated" ||
+        selectedReclaimBottle.gasType === "Mixed";
+      const cleanGas = !isGeneric ? selectedReclaimBottle.gasType : "R410A";
       setTargetGasType(cleanGas);
       setReclassifyError("");
       setReclassifySuccess(null);
@@ -139,7 +143,8 @@ export default function ReclassifyRecycledPage() {
   useEffect(() => {
     setTransferError("");
     setTransferSuccess(null);
-  }, [donorSerial, recipientSerial]);
+    setIsFullyEvacuated(null);
+  }, [donorSerial, recipientSerial, transferWeightInput]);
 
   // Search filtered list for Tab 1
   const filteredReclaimList = useMemo(() => {
@@ -237,6 +242,15 @@ export default function ReclassifyRecycledPage() {
       return;
     }
 
+    const donorWeight = selectedDonorBottle.currentWeight || 0;
+    const donorRemaining = Math.max(0, Number((donorWeight - transferNum).toFixed(2)));
+    if (donorRemaining === 0 && isFullyEvacuated === null) {
+      setTransferError(
+        "Please answer the cylinder evacuation check below: has the donor cylinder been fully emptied or vacced?"
+      );
+      return;
+    }
+
     try {
       setSubmittingTransfer(true);
       setTransferError("");
@@ -245,14 +259,22 @@ export default function ReclassifyRecycledPage() {
         recipientSerial: selectedRecipientBottle.serial,
         transferWeight: Number(transferNum.toFixed(2)),
         performedBy: user?.name || "HQ-Stores",
-        notes: transferNotes.trim()
+        notes: transferNotes.trim(),
+        isFullyEvacuated: donorRemaining === 0 ? (isFullyEvacuated ?? false) : false
       });
 
+      const evacMsg = donorRemaining === 0
+        ? isFullyEvacuated
+          ? ` Donor cylinder ${selectedDonorBottle.serial} was vacced and reset to "Empty / Evacuated".`
+          : ` Donor cylinder ${selectedDonorBottle.serial} retained gas type "${selectedDonorBottle.gasType}".`
+        : "";
+
       setTransferSuccess(
-        `Successfully transferred ${transferNum.toFixed(2)}kg filtered gas from ${selectedDonorBottle.serial} to Recycled bottle ${selectedRecipientBottle.serial}!`
+        `Successfully transferred ${transferNum.toFixed(2)}kg filtered gas from ${selectedDonorBottle.serial} to Recycled bottle ${selectedRecipientBottle.serial}!${evacMsg}`
       );
       setTransferWeightInput("");
       setDonorSerial("");
+      setIsFullyEvacuated(null);
       await loadData();
     } catch (err: any) {
       console.error("Transfer error:", err);
@@ -505,7 +527,7 @@ export default function ReclassifyRecycledPage() {
                       <option key={g} value={g}>{g}</option>
                     ))}
                     {gasCatalogue
-                      .filter(g => !["R410A", "R32", "R134a", "R404A", "R407C", "R422D", "R507", "Mixed/Recovery"].includes(g.name))
+                      .filter(g => !["R410A", "R32", "R134a", "R404A", "R407C", "R422D", "R507", "Mixed/Recovery", "Mixed", "Empty / Evacuated"].includes(g.name))
                       .map(g => (
                         <option key={g.id || g.name} value={g.name}>{g.name}</option>
                       ))}
@@ -778,6 +800,83 @@ export default function ReclassifyRecycledPage() {
                           {((selectedRecipientBottle.currentWeight || 0) + parseFloat(transferWeightInput)).toFixed(2)} kg
                         </strong>
                       </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Evacuation Check when donor bottle becomes empty */}
+                {parseFloat(transferWeightInput) > 0 && Math.max(0, (selectedDonorBottle.currentWeight || 0) - parseFloat(transferWeightInput)) === 0 && (
+                  <div
+                    style={{
+                      padding: "1rem 1.25rem", borderRadius: "8px",
+                      background: "rgba(0,229,255,0.06)", border: "1.5px solid #00e5ff",
+                      marginBottom: "1.25rem"
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                      <HelpCircle size={18} color="#00e5ff" />
+                      <span style={{ fontWeight: 700, fontSize: "0.92rem", color: "#fff" }}>
+                        Cylinder Emptying & Evacuation Check
+                      </span>
+                    </div>
+                    <p style={{ margin: "0 0 0.85rem", fontSize: "0.83rem", color: "rgba(255,255,255,0.85)", lineHeight: 1.45 }}>
+                      This transfer will completely empty donor cylinder <strong>{selectedDonorBottle.serial}</strong> (0.00 kg remaining).
+                      <br />
+                      <strong>Has this cylinder been fully emptied or vacced so it can now be used for more waste but of any type?</strong>
+                    </p>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+                      <label
+                        style={{
+                          display: "flex", alignItems: "flex-start", gap: "0.65rem",
+                          padding: "0.7rem 0.9rem", borderRadius: "6px",
+                          background: isFullyEvacuated === true ? "rgba(16,185,129,0.15)" : "rgba(255,255,255,0.03)",
+                          border: `1.5px solid ${isFullyEvacuated === true ? "#10b981" : "rgba(255,255,255,0.12)"}`,
+                          cursor: "pointer", transition: "all 0.15s"
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="evacCheck"
+                          checked={isFullyEvacuated === true}
+                          onChange={() => setIsFullyEvacuated(true)}
+                          style={{ marginTop: "0.2rem", accentColor: "#10b981" }}
+                        />
+                        <div>
+                          <div style={{ fontSize: "0.85rem", fontWeight: 700, color: isFullyEvacuated === true ? "#10b981" : "#fff" }}>
+                            Yes — Fully emptied and vacced
+                          </div>
+                          <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.6)", marginTop: "0.15rem" }}>
+                            Gas type will be reset to <strong>Empty / Evacuated</strong>. Ready to receive any waste refrigerant.
+                          </div>
+                        </div>
+                      </label>
+
+                      <label
+                        style={{
+                          display: "flex", alignItems: "flex-start", gap: "0.65rem",
+                          padding: "0.7rem 0.9rem", borderRadius: "6px",
+                          background: isFullyEvacuated === false ? "rgba(255,187,0,0.15)" : "rgba(255,255,255,0.03)",
+                          border: `1.5px solid ${isFullyEvacuated === false ? "#ffbb00" : "rgba(255,255,255,0.12)"}`,
+                          cursor: "pointer", transition: "all 0.15s"
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="evacCheck"
+                          checked={isFullyEvacuated === false}
+                          onChange={() => setIsFullyEvacuated(false)}
+                          style={{ marginTop: "0.2rem", accentColor: "#ffbb00" }}
+                        />
+                        <div>
+                          <div style={{ fontSize: "0.85rem", fontWeight: 700, color: isFullyEvacuated === false ? "#ffbb00" : "#fff" }}>
+                            No — Residual gas remains (not vacced)
+                          </div>
+                          <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.6)", marginTop: "0.15rem" }}>
+                            Gas type stays as <strong>{selectedDonorBottle.gasType}</strong>. Only waste of this exact refrigerant may be added.
+                          </div>
+                        </div>
+                      </label>
                     </div>
                   </div>
                 )}

@@ -143,7 +143,7 @@ export default function Sop002Page() {
           <tbody>
             <tr><td>Serial Number</td><td>Unique cylinder identifier</td><td>REC-402</td></tr>
             <tr><td>Category</td><td>Reclaim</td><td>Reclaim</td></tr>
-            <tr><td>Gas Type</td><td>Mixed/Recovery — updated when gas type is confirmed on site</td><td>Mixed/Recovery</td></tr>
+            <tr><td>Gas Type</td><td>Empty / Evacuated — updated when gas type is confirmed on site</td><td>Empty / Evacuated</td></tr>
             <tr><td>Capacity (kg)</td><td>Maximum fill weight of the cylinder</td><td>10.00 kg</td></tr>
             <tr><td>Supplier</td><td>Supplier from whom the cylinder was obtained</td><td>A-Gas</td></tr>
           </tbody>

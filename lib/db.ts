@@ -1178,20 +1178,25 @@ export const db = {
           const currentWeight = parseFloat(bottle.current_weight || bottle.currentWeight || 0);
           let resolvedGasType: string;
 
-          if (currentWeight === 0) {
-            // Bottle was empty: takes on whatever gas is recovered into it
-            resolvedGasType = gasType;
-          } else if (!currentGasType || currentGasType === "Unknown") {
-            resolvedGasType = gasType;
+          const isVaccedOrUnassigned =
+            !currentGasType ||
+            currentGasType.toLowerCase() === "empty / evacuated" ||
+            currentGasType.toLowerCase() === "empty/evacuated" ||
+            currentGasType.toLowerCase() === "mixed/recovery" ||
+            currentGasType.toLowerCase() === "unknown";
+
+          if (currentWeight === 0 || isVaccedOrUnassigned) {
+            // Bottle was empty / evacuated: takes on whatever gas is recovered into it
+            resolvedGasType = gasType.trim();
           } else if (currentGasType.toLowerCase() === "mixed" || currentGasType.toLowerCase() === "mixed/recovery") {
             // Bottle already contains mixed gas
-            resolvedGasType = "Mixed/Recovery";
+            resolvedGasType = "Mixed";
           } else if (currentGasType.toLowerCase() === gasType.trim().toLowerCase()) {
             // Same gas added to bottle
             resolvedGasType = currentGasType;
           } else {
             // Different gas added to bottle that already contains gas -> mixed
-            resolvedGasType = "Mixed/Recovery";
+            resolvedGasType = "Mixed";
           }
 
           bottleUpdatePayload.gas_type = resolvedGasType;
@@ -2807,6 +2812,7 @@ export const db = {
     transferWeight: number;
     performedBy: string;
     notes?: string;
+    isFullyEvacuated?: boolean;
   }): Promise<void> {
     if (data.transferWeight <= 0) throw new Error("Transfer weight must be greater than 0 kg");
 
@@ -2854,6 +2860,9 @@ export const db = {
     };
     if (newDonorWeight === 0) {
       donorUpdate.producer_sites = [];
+      if (data.isFullyEvacuated) {
+        donorUpdate.gas_type = "Empty / Evacuated";
+      }
     }
     const { error: donorErr } = await supabase.from('bottles').update(donorUpdate).eq('serial', data.donorSerial);
     if (donorErr) throw donorErr;
@@ -2867,6 +2876,12 @@ export const db = {
 
     const baseNotes = data.notes ? ` Notes: ${data.notes}` : "";
 
+    const evacNote = newDonorWeight === 0
+      ? data.isFullyEvacuated
+        ? " Donor cylinder fully emptied & evacuated (vacced) — reset to Empty / Evacuated (ready for any waste refrigerant)."
+        : ` Donor cylinder emptied of weighed gas but residual gas remains (not vacced) — retained ${donor.gas_type || 'original'} gas classification.`
+      : ` Remaining: ${newDonorWeight}kg.`;
+
     // Insert movement logs on both bottles
     await Promise.all([
       supabase.from('movement_logs').insert({
@@ -2875,7 +2890,7 @@ export const db = {
         from_location: 'HQ-Stores',
         to_location: `Decanted to ${data.recipientSerial}`,
         engineer: data.performedBy,
-        notes: `Transferred ${data.transferWeight}kg filtered ${recipient.gas_type || 'gas'} to Recycled cylinder ${data.recipientSerial}. Remaining: ${newDonorWeight}kg.${baseNotes}`
+        notes: `Transferred ${data.transferWeight}kg filtered ${recipient.gas_type || 'gas'} to Recycled cylinder ${data.recipientSerial}.${evacNote}${baseNotes}`
       }),
       supabase.from('movement_logs').insert({
         serial: data.recipientSerial,
