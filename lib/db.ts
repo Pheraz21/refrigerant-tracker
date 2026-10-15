@@ -1294,7 +1294,8 @@ export const db = {
       archiveReason?: string;
     }>,
     supervisingEngineer?: string,
-    supervisingCertificate?: string
+    supervisingCertificate?: string,
+    isFullyEvacuated?: boolean
   ): Promise<void> {
     const { data: bottle } = await supabase.from('bottles').select('*').eq('serial', serial).single();
     if (!bottle) return;
@@ -1323,6 +1324,10 @@ export const db = {
           // If all recycled gas has been used up on site, reset producer sites to clean/empty reclaim
           bottleUpdatePayload.producer_sites = [];
           await supabase.from('bottles').update({ producer_sites: [] }).eq('serial', serial);
+
+          if (isFullyEvacuated) {
+            bottleUpdatePayload.gas_type = "Empty / Evacuated";
+          }
         }
       } else if (newWeight > 0) {
         newStatus = "active";
@@ -1403,6 +1408,24 @@ export const db = {
     if (updateErr) {
       console.error("Error updating bottle weight:", updateErr);
       throw updateErr;
+    }
+
+    if (newWeight === 0 && bottle.category === "reclaim") {
+      try {
+        const evacNote = isFullyEvacuated
+          ? "Cylinder fully charged back into equipment and evacuated to vacuum (reset to Empty / Evacuated)."
+          : `Cylinder emptied of bulk gas (residual ${bottle.gas_type || "gas"} remains, not vacced).`;
+        await supabase.from('movement_logs').insert({
+          serial,
+          action: isFullyEvacuated ? 'evacuated' : 'emptied',
+          from_location: bottle.location_id || 'Site',
+          to_location: bottle.location_id || 'Site',
+          engineer: engineerName || "Engineer",
+          notes: evacNote
+        });
+      } catch (mErr) {
+        console.warn("Movement log error for cylinder evacuation:", mErr);
+      }
     }
     
     const finalEngineerName = supervisingEngineer

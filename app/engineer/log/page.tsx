@@ -44,6 +44,9 @@ export default function LogBottlePage() {
   const [supervisingEngineer, setSupervisingEngineer] = useState("");
   const [supervisingCert, setSupervisingCert] = useState("");
 
+  // Reclaim Cylinder Evacuation Verification (when weight reaches 0)
+  const [isFullyEvacuated, setIsFullyEvacuated] = useState<boolean | null>(null);
+
   interface EquipmentFormItem {
     id: number;
     manufacturer: string;
@@ -60,6 +63,10 @@ export default function LogBottlePage() {
   ]);
 
   const totalWeight = equipmentList.reduce((sum, eq) => sum + (parseFloat(eq.weight) || 0), 0);
+
+  const isReclaimCharge = bottleCategory === "reclaim" && (isRecycleMode || jobType === "recycled_charge" || jobType === "service" || jobType === "install");
+  const currentBottleWeight = bottleData?.currentWeight || 0;
+  const willReachZero = isReclaimCharge && currentBottleWeight > 0 && totalWeight > 0 && Math.max(0, currentBottleWeight - totalWeight) <= 0.001;
 
   const addEquipment = () => {
     setEquipmentList([...equipmentList, { id: Date.now(), manufacturer: "", model: "", serial: "", weight: "", decommissioned: false }]);
@@ -373,6 +380,11 @@ export default function LogBottlePage() {
       setShowMultiSiteWarning(true);
       return;
     }
+
+    if (willReachZero && isFullyEvacuated === null) {
+      setValidationError("Please confirm whether the cylinder has been fully emptied / vacced.");
+      return;
+    }
     
     setIsSubmitting(true);
     const finalRefrigerant = refrigerantType === "other" ? customRefrigerant : refrigerantType;
@@ -398,7 +410,8 @@ export default function LogBottlePage() {
       jobNumber || undefined,
       equipmentToSave.length > 0 ? equipmentToSave : undefined,
       supervisingEngineer || undefined,
-      supervisingCert || undefined
+      supervisingCert || undefined,
+      willReachZero ? (isFullyEvacuated ?? false) : undefined
     );
 
     // §4.2: If multi-site was acknowledged, auto-generate Internal HWCN and set dest to Office
@@ -508,6 +521,27 @@ export default function LogBottlePage() {
         <CheckCircle2 size={64} color="var(--success)" />
         <h2>{isRecycleMode ? "Recycled Gas Charged!" : "Log Saved Successfully!"}</h2>
         <p>{isRecycleMode ? "Re-charge into on-site equipment recorded." : "REFCOM compliance data recorded."}</p>
+        {willReachZero && (
+          <div style={{
+            marginTop: "1.25rem",
+            marginBottom: "1.25rem",
+            padding: "0.85rem 1.25rem",
+            borderRadius: "10px",
+            background: isFullyEvacuated ? "rgba(16,185,129,0.15)" : "rgba(255,187,0,0.15)",
+            border: `1.5px solid ${isFullyEvacuated ? "#10b981" : "#ffbb00"}`,
+            fontSize: "0.88rem",
+            color: "#fff",
+            textAlign: "left",
+            lineHeight: 1.5
+          }}>
+            <div style={{ fontWeight: 700, color: isFullyEvacuated ? "#10b981" : "#ffbb00", marginBottom: "0.25rem" }}>
+              {isFullyEvacuated ? "✓ Cylinder Reset to Empty / Evacuated" : "ℹ️ Cylinder Emptied (Residual Gas Type Retained)"}
+            </div>
+            {isFullyEvacuated 
+              ? `Cylinder ${serialParam} reached 0.00 kg and was marked as fully evacuated. Gas type has been reset to Empty / Evacuated.` 
+              : `Cylinder ${serialParam} reached 0.00 kg. Residual ${bottleData?.gasType || "gas"} type retained.`}
+          </div>
+        )}
         <button onClick={() => { setIsDirty(false); router.push("/engineer"); }} className={styles.primaryBtn}>
           Return to Dashboard
         </button>
@@ -780,33 +814,38 @@ export default function LogBottlePage() {
                 style={{
                   padding: "0.6rem 0.75rem",
                   borderRadius: "8px",
-                  border: "1px solid #ffaa00",
-                  background: "rgba(255,170,0,0.15)",
-                  color: "#ffaa00",
+                  border: jobType === "recovery" ? "1px solid #ffaa00" : "1px solid rgba(255,255,255,0.12)",
+                  background: jobType === "recovery" ? "rgba(255,170,0,0.15)" : "rgba(255,255,255,0.05)",
+                  color: jobType === "recovery" ? "#ffaa00" : "rgba(255,255,255,0.7)",
                   fontWeight: 600,
                   fontSize: "0.85rem",
-                  cursor: "default"
+                  cursor: (bottleCategory === "reclaim" && (bottleData?.currentWeight || 0) > 0) ? "pointer" : "default"
                 }}
               >
                 Refrigerant Recovery
               </button>
             )}
-            {(isRecycleMode || bottleCategory === "recycled" || jobType === "recycled_charge") && (
+            {(isRecycleMode || bottleCategory === "recycled" || jobType === "recycled_charge" || (bottleCategory === "reclaim" && (bottleData?.currentWeight || 0) > 0)) && (
               <button
                 type="button"
-                onClick={() => setJobType("recycled_charge")}
+                onClick={() => {
+                  setJobType("recycled_charge");
+                  if (bottleData?.gasType && bottleData.gasType.toLowerCase() !== "unknown") {
+                    setRefrigerantType(bottleData.gasType);
+                  }
+                }}
                 style={{
                   padding: "0.6rem 0.75rem",
                   borderRadius: "8px",
-                  border: "1px solid #10b981",
-                  background: "rgba(16,185,129,0.15)",
-                  color: "#10b981",
+                  border: jobType === "recycled_charge" ? "1px solid #10b981" : "1px solid rgba(255,255,255,0.12)",
+                  background: jobType === "recycled_charge" ? "rgba(16,185,129,0.15)" : "rgba(255,255,255,0.05)",
+                  color: jobType === "recycled_charge" ? "#10b981" : "rgba(255,255,255,0.7)",
                   fontWeight: 600,
                   fontSize: "0.85rem",
-                  cursor: "default"
+                  cursor: "pointer"
                 }}
               >
-                Recycled Gas Charge
+                {bottleCategory === "reclaim" ? "Use / Re-charge Recovered Gas" : "Recycled Gas Charge"}
               </button>
             )}
           </div>
@@ -1152,6 +1191,84 @@ export default function LogBottlePage() {
               <label>Upload Supplier HWCN Paperwork (Optional)</label>
               <input type="file" accept="image/*,.pdf" style={{padding: '0.5rem', background: 'rgba(255,255,255,0.05)', border: '1px dashed var(--border)', color: 'var(--text-muted)'}} />
               <p style={{fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem'}}>Take a photo of the completed supplier note for your digital records.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Reclaim Cylinder Evacuation Verification (Only when cylinder reaches 0.00 kg) */}
+        {willReachZero && (
+          <div style={{
+            background: "rgba(0, 229, 255, 0.04)",
+            border: `1.5px solid ${isFullyEvacuated === null ? "rgba(0, 229, 255, 0.5)" : isFullyEvacuated ? "#10b981" : "#ffbb00"}`,
+            borderRadius: "12px",
+            padding: "1.25rem",
+            marginBottom: "1.25rem",
+            transition: "all 0.2s"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+              <span style={{ fontSize: "1.25rem" }}>🔄</span>
+              <span style={{ fontWeight: 800, fontSize: "0.95rem", color: "#fff" }}>
+                Cylinder Emptied Verification (0.00 kg Remaining)
+              </span>
+            </div>
+            <p style={{ margin: "0 0 0.85rem", fontSize: "0.85rem", color: "rgba(255,255,255,0.85)", lineHeight: 1.45 }}>
+              Dispensing <strong>{totalWeight.toFixed(2)} kg</strong> will completely empty waste cylinder <strong>{serialParam}</strong> (0.00 kg remaining).
+              <br />
+              <strong>Has the bottle been fully emptied or vacced so it can now be used for more waste but of any type?</strong>
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+              <label
+                style={{
+                  display: "flex", alignItems: "flex-start", gap: "0.65rem",
+                  padding: "0.75rem 0.9rem", borderRadius: "8px",
+                  background: isFullyEvacuated === true ? "rgba(16,185,129,0.15)" : "rgba(255,255,255,0.03)",
+                  border: `1.5px solid ${isFullyEvacuated === true ? "#10b981" : "rgba(255,255,255,0.12)"}`,
+                  cursor: "pointer", transition: "all 0.15s"
+                }}
+              >
+                <input
+                  type="radio"
+                  name="vaccedCheck"
+                  checked={isFullyEvacuated === true}
+                  onChange={() => setIsFullyEvacuated(true)}
+                  style={{ marginTop: "0.2rem", accentColor: "#10b981" }}
+                />
+                <div>
+                  <div style={{ fontSize: "0.88rem", fontWeight: 700, color: isFullyEvacuated === true ? "#10b981" : "#fff" }}>
+                    Yes — Fully emptied and vacced
+                  </div>
+                  <div style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.6)", marginTop: "0.15rem" }}>
+                    Gas type will change to <strong>Empty / Evacuated</strong>. Ready to receive any waste refrigerant.
+                  </div>
+                </div>
+              </label>
+
+              <label
+                style={{
+                  display: "flex", alignItems: "flex-start", gap: "0.65rem",
+                  padding: "0.75rem 0.9rem", borderRadius: "8px",
+                  background: isFullyEvacuated === false ? "rgba(255,187,0,0.15)" : "rgba(255,255,255,0.03)",
+                  border: `1.5px solid ${isFullyEvacuated === false ? "#ffbb00" : "rgba(255,255,255,0.12)"}`,
+                  cursor: "pointer", transition: "all 0.15s"
+                }}
+              >
+                <input
+                  type="radio"
+                  name="vaccedCheck"
+                  checked={isFullyEvacuated === false}
+                  onChange={() => setIsFullyEvacuated(false)}
+                  style={{ marginTop: "0.2rem", accentColor: "#ffbb00" }}
+                />
+                <div>
+                  <div style={{ fontSize: "0.88rem", fontWeight: 700, color: isFullyEvacuated === false ? "#ffbb00" : "#fff" }}>
+                    No — Residual gas remains (not vacced)
+                  </div>
+                  <div style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.6)", marginTop: "0.15rem" }}>
+                    Gas type stays as <strong>{bottleData?.gasType || "existing gas"}</strong>. Only waste of this exact refrigerant may be added.
+                  </div>
+                </div>
+              </label>
             </div>
           </div>
         )}
