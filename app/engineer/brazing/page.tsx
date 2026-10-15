@@ -4,19 +4,13 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Flame, RefreshCw, Warehouse, ChevronDown, ChevronUp, Camera, ShoppingCart } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
-import { db, BrazingInventoryItem, BrazingExchange, BrazingGasType } from "@/lib/db";
-import { BrazingExchangeModal } from "@/components/BrazingExchangeModal";
+import { db, BrazingInventoryItem, BrazingExchange } from "@/lib/db";
 
 export default function EngineerBrazingPage() {
   const { user, activeVehicleReg } = useAuth();
   const [items, setItems] = useState<BrazingInventoryItem[]>([]);
   const [exchanges, setExchanges] = useState<BrazingExchange[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Modal controls
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState<"exchange" | "stores" | "purchase">("exchange");
-  const [selectedGas, setSelectedGas] = useState<BrazingGasType>("Oxygen");
 
   // History collapse toggle
   const [showHistory, setShowHistory] = useState(false);
@@ -48,12 +42,6 @@ export default function EngineerBrazingPage() {
 
   const oxygenCount = oxygenItem !== undefined ? oxygenItem.quantity : 1;
   const propaneCount = propaneItem !== undefined ? propaneItem.quantity : 1;
-
-  const handleOpenAction = (mode: "exchange" | "stores" | "purchase", gas: BrazingGasType = "Oxygen") => {
-    setModalMode(mode);
-    setSelectedGas(gas);
-    setIsModalOpen(true);
-  };
 
   if (!user) {
     return (
@@ -116,14 +104,16 @@ export default function EngineerBrazingPage() {
         marginBottom: "1.75rem"
       }}>
         {/* Oxygen Card */}
-        <div
-          onClick={() => handleOpenAction("exchange", "Oxygen")}
+        <Link
+          href="/engineer/brazing/swap?gas=Oxygen"
           style={{
             background: "rgba(59, 130, 246, 0.12)",
             border: "2px solid rgba(59, 130, 246, 0.35)",
             borderRadius: "16px",
             padding: "1.25rem 1rem",
             textAlign: "center",
+            textDecoration: "none",
+            display: "block",
             cursor: "pointer",
             boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
           }}
@@ -137,17 +127,19 @@ export default function EngineerBrazingPage() {
           <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
             Bottle{oxygenCount !== 1 ? "s" : ""} on Van
           </div>
-        </div>
+        </Link>
 
         {/* Propane Card */}
-        <div
-          onClick={() => handleOpenAction("exchange", "Propane")}
+        <Link
+          href="/engineer/brazing/swap?gas=Propane"
           style={{
             background: "rgba(249, 115, 22, 0.12)",
             border: "2px solid rgba(249, 115, 22, 0.35)",
             borderRadius: "16px",
             padding: "1.25rem 1rem",
             textAlign: "center",
+            textDecoration: "none",
+            display: "block",
             cursor: "pointer",
             boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
           }}
@@ -161,20 +153,20 @@ export default function EngineerBrazingPage() {
           <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
             Bottle{propaneCount !== 1 ? "s" : ""} on Van
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* Big Action Buttons */}
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "2rem" }}>
         {/* Action 1: Supplier 1-for-1 Swap */}
-        <button
-          type="button"
-          onClick={() => handleOpenAction("exchange", "Oxygen")}
+        <Link
+          href="/engineer/brazing/swap"
           style={{
             width: "100%",
             background: "linear-gradient(135deg, #f97316 0%, #ea580c 100%)",
             color: "#fff",
-            border: "none",
+            textDecoration: "none",
+            boxSizing: "border-box",
             borderRadius: "16px",
             padding: "1.25rem 1.25rem",
             display: "flex",
@@ -206,17 +198,18 @@ export default function EngineerBrazingPage() {
               Exchanged empty for full at FSW or Calor Gas
             </div>
           </div>
-        </button>
+        </Link>
 
         {/* Action 2: Stores Move */}
-        <button
-          type="button"
-          onClick={() => handleOpenAction("stores", "Oxygen")}
+        <Link
+          href="/engineer/brazing/stores"
           style={{
             width: "100%",
             background: "var(--surface, #1e293b)",
             border: "2px solid rgba(139, 92, 246, 0.4)",
             color: "#fff",
+            textDecoration: "none",
+            boxSizing: "border-box",
             borderRadius: "16px",
             padding: "1.25rem 1.25rem",
             display: "flex",
@@ -248,14 +241,13 @@ export default function EngineerBrazingPage() {
               Pick up from or return bottle to HQ Stores
             </div>
           </div>
-        </button>
+        </Link>
       </div>
 
       {/* Rare purchase link */}
       <div style={{ textAlign: "center", marginBottom: "2rem" }}>
-        <button
-          type="button"
-          onClick={() => handleOpenAction("purchase", "Oxygen")}
+        <Link
+          href="/engineer/brazing/purchase"
           style={{
             background: "transparent",
             border: "none",
@@ -269,7 +261,7 @@ export default function EngineerBrazingPage() {
           }}
         >
           <ShoppingCart size={13} /> Bought a brand new bottle instead of swapping? Tap here
-        </button>
+        </Link>
       </div>
 
       {/* Collapsible Recent Activity */}
@@ -353,18 +345,6 @@ export default function EngineerBrazingPage() {
           </div>
         )}
       </div>
-
-      {/* Modal */}
-      <BrazingExchangeModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        engineerId={user.id}
-        engineerName={user.name || "Engineer"}
-        vehicleReg={activeVehicleReg || user.vehicleReg}
-        initialGasType={selectedGas}
-        initialMode={modalMode}
-        onSuccess={loadData}
-      />
 
       {/* Photo Lightbox */}
       {previewPhotoUrl && (
