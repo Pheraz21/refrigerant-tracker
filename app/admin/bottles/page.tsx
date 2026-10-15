@@ -378,41 +378,77 @@ export default function AllBottlesPage() {
   const exportPDF = () => {
     const reportDate = new Date().toLocaleDateString("en-GB");
     const dateRange = sinceDate ? `From: ${new Date(sinceDate).toLocaleDateString("en-GB")} To: Present` : "Full History";
+
+    const getCellText = (key: string, b: Bottle) => {
+      const isNitrogen = b.category === "nitrogen";
+      const iw = b.initialWeight ?? 0;
+      const cw = b.currentWeight ?? 0;
+      const bal = iw - cw;
+
+      switch (key) {
+        case "serial": return `<strong>${b.serial}</strong>`;
+        case "category": return b.category === "reclaim" ? "Reclaim / Haz" : b.category === "new" ? "New" : b.category === "recycled" ? "Recycled" : "Nitrogen";
+        case "gasType": return b.gasType;
+        case "capacity": return `${iw.toFixed(2)} kg`;
+        case "gasInBottle": return isNitrogen ? "N/A" : `${cw.toFixed(2)} kg`;
+        case "balance": return isNitrogen ? "N/A" : `${bal.toFixed(2)} kg`;
+        case "location": return getLocDisplay(b);
+        case "supplier": return b.supplier || "—";
+        case "poNumber": return b.poNumber || "—";
+        case "registered": return b.registeredAt ? new Date(b.registeredAt).toLocaleDateString("en-GB") : "—";
+        case "expiry": return b.rentalExpiryDate ? new Date(b.rentalExpiryDate).toLocaleDateString("en-GB") : "—";
+        case "status": return b.status ? b.status.charAt(0).toUpperCase() + b.status.slice(1) : "—";
+        case "lastChanged": return b.locationChangedAt ? new Date(b.locationChangedAt).toLocaleDateString("en-GB") : "—";
+        default: return "—";
+      }
+    };
+
+    const colsToPrint = visibleCols
+      .filter(k => k !== "actions")
+      .map(k => ({
+        key: k,
+        label: COLUMN_DEFS.find(c => c.key === k)?.label || k,
+      }));
+
+    const theadHtml = colsToPrint.map(c => `<th>${c.label}</th>`).join("");
     const rows = filtered.map(b => `
       <tr>
-        <td>${b.serial}</td><td>${b.category}</td><td>${b.gasType}</td>
-        <td>${(b.initialWeight || 0).toFixed(2)} kg</td><td>${(b.currentWeight || 0).toFixed(2)} kg</td>
-        <td>${getLocDisplay(b)}</td><td>${b.status}</td>
+        ${colsToPrint.map(c => `<td>${getCellText(c.key, b)}</td>`).join("")}
       </tr>
     `).join("");
+
     const html = `
-      <html><head><style>
-        @page{margin:0;size:A4;}
-        body{font-family:sans-serif;margin:0;padding:10mm;color:#333}
-        .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #333;padding-bottom:15px;margin-bottom:20px}
-        .logo-section{display:flex;gap:15px;align-items:flex-end}
-        .company-info{font-size:10px;line-height:1.4;color:#555}
-        .report-info{text-align:right}
-        .report-title{font-size:20px;font-weight:bold;margin-bottom:5px;text-transform:uppercase}
-        .report-meta{font-size:11px;color:#666}
-        table{width:100%;border-collapse:collapse;margin-top:10px}
-        th,td{border:1px solid #ddd;padding:6px 8px;text-align:left;font-size:10px}
-        th{background:#f8f9fa;font-weight:bold;text-transform:uppercase;color:#555}
-        .footer{margin-top:20px;font-size:9px;color:#999;text-align:center}
+      <!DOCTYPE html>
+      <html><head><title>All Bottles Inventory Report</title><style>
+        @page { size: A4 landscape; margin: 8mm 8mm 10mm 8mm; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; margin: 0; padding: 0; color: #1e293b; font-size: 8pt; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0f172a; padding-bottom: 8px; margin-bottom: 12px; }
+        .logo-section { display: flex; gap: 12px; align-items: center; }
+        .company-info { font-size: 8pt; line-height: 1.3; color: #475569; }
+        .report-info { text-align: right; }
+        .report-title { font-size: 15pt; font-weight: 800; text-transform: uppercase; color: #0f172a; margin-bottom: 2px; }
+        .report-meta { font-size: 8pt; color: #64748b; }
+        table { width: 100%; border-collapse: collapse; page-break-inside: auto; table-layout: auto; }
+        thead { display: table-header-group; }
+        tr { page-break-inside: avoid; break-inside: avoid; }
+        th, td { border: 1px solid #cbd5e1; padding: 5px 6px; text-align: left; font-size: 7.5pt; word-break: break-word; }
+        th { background: #f1f5f9; font-weight: 700; text-transform: uppercase; color: #1e293b; font-size: 7pt; letter-spacing: 0.03em; }
+        tr:nth-child(even) { background: #f8fafc; }
+        .footer { margin-top: 15px; font-size: 7.5pt; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 8px; }
       </style></head><body>
         <div class="header">
           <div class="logo-section">
-            <img src="/21-degrees-logo-reports.png" style="width:100px;height:auto"/>
-            <div class="company-info"><strong>21 Degrees Ltd</strong><br/>Unit 10, Apollo Court, Monkton Business Park<br/>Hebburn, Tyne & Wear, NE31 2ES<br/>Tel: 0191 495 7224</div>
+            <img src="/21-degrees-logo-reports.png" style="width:90px;height:auto"/>
+            <div class="company-info"><strong>21 Degrees Ltd</strong><br/>Unit 10, Apollo Court, Monkton Business Park<br/>Hebburn, Tyne &amp; Wear, NE31 2ES<br/>Tel: 0191 495 7224</div>
           </div>
           <div class="report-info">
-            <div class="report-title">Inventory Report</div>
+            <div class="report-title">Inventory Report (All Bottles)</div>
             <div class="report-meta"><div>Generated: ${reportDate}</div><div>Coverage: ${dateRange}</div><div>Results: ${filtered.length} Bottles</div></div>
           </div>
         </div>
-        <table><thead><tr><th>Serial</th><th>Type</th><th>Gas</th><th>Capacity</th><th>Current</th><th>Location</th><th>Status</th></tr></thead>
+        <table><thead><tr>${theadHtml}</tr></thead>
         <tbody>${rows}</tbody></table>
-        <div class="footer">21 Degrees F-Gas Tracker Pro | Official Audit Document | &copy; 2026 21 Degrees Ltd</div>
+        <div class="footer">21 Degrees F-Gas Tracker Pro | Official Audit Document | &copy; ${new Date().getFullYear()} 21 Degrees Ltd</div>
       </body></html>
     `;
     const win = window.open("", "_blank");

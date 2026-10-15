@@ -341,46 +341,180 @@ export default function BottlesOnSitePage() {
     a.click();
   };
 
+  const getCellText = (key: string, b: Bottle): string => {
+    const isNitrogen = b.category === "nitrogen";
+    const isReclaim = b.category === "reclaim";
+    switch (key) {
+      case "serial": return b.serial || "—";
+      case "category": return b.category === "reclaim" ? "Reclaim / Haz" : b.category === "recycled" ? "Recycled" : b.category === "new" ? "New" : b.category === "nitrogen" ? "Nitrogen" : (b.category || "—");
+      case "gasType": return b.gasType || "—";
+      case "capacity": return `${(b.initialWeight || 0).toFixed(2)} kg`;
+      case "gasInBottle": return isNitrogen ? "N/A" : `${(b.currentWeight || 0).toFixed(2)} kg`;
+      case "balance": {
+        if (isNitrogen) return "N/A";
+        const bal = Math.max(0, (b.initialWeight || 0) - (b.currentWeight || 0));
+        return `${bal.toFixed(2)} kg`;
+      }
+      case "jobNo": return b.locationId || "—";
+      case "site": return crmMap.get(b.locationId)?.siteTitle || "—";
+      case "customer": return crmMap.get(b.locationId)?.customer || "—";
+      case "supplier": return b.supplier || "—";
+      case "poNumber": return b.poNumber || "—";
+      case "registered": return b.registeredAt ? new Date(b.registeredAt).toLocaleDateString("en-GB") : "—";
+      case "expiry": return b.rentalExpiryDate ? new Date(b.rentalExpiryDate).toLocaleDateString("en-GB") : "—";
+      case "onSiteSince": return b.locationChangedAt ? new Date(b.locationChangedAt).toLocaleDateString("en-GB") : "—";
+      case "lastEngineer": return b.lastEngineer ? (b.vehicleReg ? `${b.lastEngineer} (${b.vehicleReg})` : b.lastEngineer) : "—";
+      default: return "—";
+    }
+  };
+
   const exportPDF = () => {
     const reportDate = new Date().toLocaleDateString("en-GB");
     const dateRange = sinceDate ? `From: ${new Date(sinceDate).toLocaleDateString("en-GB")} To: Present` : "Full History";
+
+    const colMap = new Map<string, string>(COLUMN_DEFS.map(c => [c.key, c.label]));
+    const thCols = visibleCols.map(c => `<th>${colMap.get(c) || c}</th>`).join("");
+
     const rows = filtered.map(b => `
       <tr>
-        <td>${b.serial}</td><td>${b.gasType}</td>
-        <td>${(b.initialWeight||0).toFixed(2)} kg</td><td>${(b.currentWeight||0).toFixed(2)} kg</td>
-        <td>${b.locationId}</td><td>${b.locationChangedAt?new Date(b.locationChangedAt).toLocaleDateString("en-GB"):'—'}</td>
-        <td>${b.lastEngineer||'—'}</td><td style="font-family:monospace">${b.vehicleReg||'—'}</td>
+        ${visibleCols.map(c => `<td>${getCellText(c, b)}</td>`).join("")}
       </tr>
     `).join("");
+
     const html = `
-      <html><head><style>
-        @page{margin:0;size:A4;}
-        body{font-family:sans-serif;margin:0;padding:10mm;color:#333}
-        .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #333;padding-bottom:15px;margin-bottom:20px}
-        .logo-section{display:flex;gap:15px;align-items:flex-end}
-        .company-info{font-size:10px;line-height:1.4;color:#555}
-        .report-info{text-align:right}
-        .report-title{font-size:20px;font-weight:bold;margin-bottom:5px;text-transform:uppercase}
-        .report-meta{font-size:11px;color:#666}
-        table{width:100%;border-collapse:collapse;margin-top:10px}
-        th,td{border:1px solid #ddd;padding:6px 8px;text-align:left;font-size:10px}
-        th{background:#f8f9fa;font-weight:bold;text-transform:uppercase;color:#555}
-        .footer{margin-top:20px;font-size:9px;color:#999;text-align:center}
-      </style></head><body>
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>On Site Inventory Report - 21 Degrees</title>
+        <style>
+          @page {
+            size: A4 landscape;
+            margin: 8mm 8mm 10mm 8mm;
+          }
+          * { box-sizing: border-box; }
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            color: #1a1a1a;
+            font-size: 8pt;
+          }
+          .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #000;
+            padding-bottom: 8px;
+            margin-bottom: 10px;
+          }
+          .logo-section {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+          }
+          .logo-section img {
+            width: 110px;
+            height: auto;
+          }
+          .company-info {
+            font-size: 7.5pt;
+            line-height: 1.35;
+            color: #444;
+          }
+          .report-info {
+            text-align: right;
+          }
+          .report-title {
+            font-size: 15pt;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            color: #000;
+            text-transform: uppercase;
+            margin-bottom: 3px;
+          }
+          .report-meta {
+            font-size: 8pt;
+            color: #555;
+            line-height: 1.4;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 6px;
+            page-break-inside: auto;
+          }
+          thead {
+            display: table-header-group;
+          }
+          tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+          }
+          th {
+            background-color: #f1f3f5;
+            color: #212529;
+            font-size: 7.5pt;
+            font-weight: 700;
+            text-transform: uppercase;
+            border: 1px solid #ced4da;
+            padding: 5px 6px;
+            text-align: left;
+            white-space: nowrap;
+          }
+          td {
+            border: 1px solid #dee2e6;
+            padding: 4px 6px;
+            font-size: 7.5pt;
+            line-height: 1.25;
+            color: #212529;
+          }
+          tbody tr:nth-child(even) {
+            background-color: #f8f9fa;
+          }
+          .footer {
+            margin-top: 10px;
+            font-size: 7pt;
+            color: #888;
+            text-align: center;
+            border-top: 1px solid #ddd;
+            padding-top: 6px;
+          }
+        </style>
+      </head>
+      <body>
         <div class="header">
           <div class="logo-section">
-            <img src="/21-degrees-logo-reports.png" style="width:100px;height:auto"/>
-            <div class="company-info"><strong>21 Degrees Ltd</strong><br/>Unit 10, Apollo Court, Monkton Business Park<br/>Hebburn, Tyne & Wear, NE31 2ES<br/>Tel: 0191 495 7224</div>
+            <img src="/21-degrees-logo-reports.png" alt="21 Degrees" />
+            <div class="company-info">
+              <strong>21 Degrees Ltd</strong><br/>
+              Unit 10, Apollo Court, Monkton Business Park<br/>
+              Hebburn, Tyne & Wear, NE31 2ES<br/>
+              Tel: 0191 495 7224
+            </div>
           </div>
           <div class="report-info">
             <div class="report-title">On Site Inventory Report</div>
-            <div class="report-meta"><div>Generated: ${reportDate}</div><div>Coverage: ${dateRange}</div><div>Results: ${filtered.length} Bottles</div></div>
+            <div class="report-meta">
+              <div><strong>Generated:</strong> ${reportDate}</div>
+              <div><strong>Coverage:</strong> ${dateRange}</div>
+              <div><strong>Total Bottles:</strong> ${filtered.length}</div>
+            </div>
           </div>
         </div>
-        <table><thead><tr><th>Serial</th><th>Gas</th><th>Capacity</th><th>Current</th><th>Site / Job Ref</th><th>On Site Since</th><th>Last Engineer</th><th>Vehicle Reg</th></tr></thead>
-        <tbody>${rows}</tbody></table>
-        <div class="footer">21 Degrees F-Gas Tracker Pro | Official Audit Document | &copy; 2026 21 Degrees Ltd</div>
-      </body></html>
+        <table>
+          <thead>
+            <tr>${thCols}</tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+        <div class="footer">
+          21 Degrees F-Gas Tracker Pro &bull; Official Audit Document &bull; &copy; ${new Date().getFullYear()} 21 Degrees Ltd
+        </div>
+      </body>
+      </html>
     `;
     const win = window.open("", "_blank");
     win?.document.write(html);
