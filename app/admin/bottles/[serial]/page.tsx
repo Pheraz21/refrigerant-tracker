@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db, Bottle, MovementLog, UsageLog, CrmJob, AuditTrailEntry } from "@/lib/db";
-import { ArrowLeft, Edit3, History, ArrowRight, User, Package, Calendar, MapPin, Truck, Building2, FileText, FileSpreadsheet, ClipboardList, Wrench, Tag, CheckCircle, RotateCcw, RefreshCw, Camera, ZoomIn, ZoomOut, Printer, Maximize2, Trash2, Archive, Recycle, AlertTriangle, Pencil, ShieldCheck, X } from "lucide-react";
+import { ArrowLeft, Edit3, History, ArrowRight, User, Package, Calendar, MapPin, Truck, Building2, FileText, FileSpreadsheet, ClipboardList, Wrench, Tag, CheckCircle, RotateCcw, RefreshCw, Camera, ZoomIn, ZoomOut, Printer, Maximize2, Trash2, Archive, Recycle, AlertTriangle, Pencil, ShieldCheck, X, Activity, Gauge, Layers, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthContext";
 import { getCylinderGenealogy } from "@/lib/genealogy";
@@ -58,207 +58,680 @@ function formatLifecycleLabel(l: Lifecycle, totalCount: number): string {
   return `${prefix} (${startDate} – ${endDate})`;
 }
 
+interface MilestonePoint {
+  id: string;
+  date: string;
+  weight: number;
+  type: 'registered' | 'usage' | 'recovery' | 'movement' | 'hwcn' | 'current';
+  title: string;
+  change?: number; // delta in kg
+  engineer?: string;
+  vehicleReg?: string;
+  from?: string;
+  to?: string;
+  siteRef?: string;
+  siteTitle?: string;
+  notes?: string;
+  equipmentSummary?: string;
+  equipmentDetails?: Array<{
+    manufacturer?: string;
+    model?: string;
+    serial?: string;
+    weight?: number;
+  }>;
+}
+
 function CylinderWeightChart({
   bottle,
   moveLogs,
   usageLogs,
+  crmJobMap,
 }: {
   bottle: Bottle;
   moveLogs: MovementLog[];
   usageLogs: UsageLog[];
+  crmJobMap?: Map<string, CrmJob>;
 }) {
   const isReclaim = bottle.category === "reclaim";
   const initialWeight = bottle.initialWeight ?? 0;
   const currentWeight = bottle.currentWeight ?? 0;
 
-  const points = useMemo(() => {
-    const list: Array<{
+  const [viewMode, setViewMode] = useState<"all" | "gas">("all");
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const [pinnedIdx, setPinnedIdx] = useState<number | null>(null);
+
+  // Compute all chronological points with physical running balance
+  const { allPoints, gasOnlyPoints, totalRecovered, totalUsed, siteCount, vanCount } = useMemo(() => {
+    const rawEvents: Array<{
+      id: string;
       date: string;
-      weight: number;
-      label: string;
+      type: 'registered' | 'usage' | 'recovery' | 'movement' | 'hwcn';
+      title: string;
       change?: number;
       engineer?: string;
+      vehicleReg?: string;
+      from?: string;
+      to?: string;
+      siteRef?: string;
+      siteTitle?: string;
+      notes?: string;
+      equipmentSummary?: string;
+      equipmentDetails?: any[];
+      weightAfter?: number;
     }> = [];
 
-    // 1. Initial point
-    list.push({
-      date: bottle.registeredAt || new Date().toISOString(),
-      weight: initialWeight,
-      label: isReclaim ? "Empty Reclaim Registration (Tare)" : "Initial Registration",
+    // 1. Initial registration event
+    const regDate = bottle.registeredAt || (moveLogs[0]?.date) || new Date().toISOString();
+    rawEvents.push({
+      id: `reg-${bottle.serial}`,
+      date: regDate,
+      type: 'registered',
+      title: isReclaim ? "Initial Registration (Empty Reclaim)" : "Initial Registration (Full Capacity)",
+      engineer: bottle.registeredBy || bottle.lastEngineer || "System",
+      to: bottle.locationId || "HQ-Stores",
+      notes: "Registered into system inventory"
     });
 
-    // 2. Intermediary usage/movement points
-    const events: Array<{ date: string; weight: number; label: string; change?: number; engineer?: string }> = [];
+    // 2. Usage / Recovery logs
+    let totRec = 0;
+    let totUsed = 0;
+    const sitesSeen = new Set<string>();
+    const vansSeen = new Set<string>();
 
     usageLogs.forEach(u => {
       const isRec = ["recovery", "retrofit", "waste", "reclaim"].includes((u.jobType || "").toLowerCase());
-      const change = isRec ? (u.weightUsed || 0) : -(u.weightUsed || 0);
-      const w = u.weightAfter !== undefined && u.weightAfter !== null ? u.weightAfter : (initialWeight + change);
-      events.push({
+      const w = Number(u.weightUsed || 0);
+      if (isRec) totRec += w;
+      else totUsed += w;
+
+      if (u.siteRef) sitesSeen.add(u.siteRef);
+
+      const eqList = u.equipmentDetails || [];
+      const eqSummary = eqList.length > 0
+        ? eqList.map((eq: any) => [eq.manufacturer, eq.model].filter(Boolean).join(" ") + (eq.serial ? ` (SN: ${eq.serial})` : "")).join("; ")
+        : undefined;
+
+      const siteTitle = (u.siteRef && crmJobMap?.get(u.siteRef)?.siteTitle) || u.siteName || undefined;
+
+      rawEvents.push({
+        id: `usage-${u.id}`,
         date: u.date,
-        weight: Math.max(0, w),
-        label: u.siteRef ? `Job ${u.siteRef}` : "Refrigerant Action",
-        change,
+        type: isRec ? 'recovery' : 'usage',
+        title: isRec ? "Gas Recovered" : "Gas Used",
+        change: isRec ? +w : -w,
         engineer: u.engineer,
+        siteRef: u.siteRef,
+        siteTitle,
+        equipmentSummary: eqSummary,
+        equipmentDetails: eqList,
+        weightAfter: u.weightAfter !== undefined && u.weightAfter !== null ? Number(u.weightAfter) : undefined,
+        notes: u.siteRef ? `Site Job: ${u.siteRef}${siteTitle ? ` — ${siteTitle}` : ""}` : undefined
       });
     });
 
+    // 3. Movement logs (excluding duplicate registration log)
     moveLogs.forEach(m => {
-      const logWeight = (m as any).currentWeight ?? (m as any).weight;
-      if (logWeight !== undefined && logWeight !== null && m.action !== "registered") {
-        events.push({
-          date: m.date,
-          weight: logWeight,
-          label: `Action: ${m.action.replace(/_/g, " ")}`,
-          engineer: m.engineer,
-        });
+      if (m.action === "registered") return;
+
+      if (m.from && m.from.includes(" - Van")) vansSeen.add(m.from);
+      if (m.to && m.to.includes(" - Van")) vansSeen.add(m.to);
+      if (m.from && !m.from.includes(" - Van") && m.from !== "HQ-Stores" && m.from !== "In Transit" && m.from !== "—") sitesSeen.add(m.from);
+      if (m.to && !m.to.includes(" - Van") && m.to !== "HQ-Stores" && m.to !== "In Transit" && m.to !== "—") sitesSeen.add(m.to);
+
+      const isHWCN = m.action === "received" || !!(m.notes && m.notes.toLowerCase().includes("consignment"));
+      let title = "Location Transfer";
+      if (m.action === "received") title = "Received at HQ-Stores";
+      else if (m.notes?.toLowerCase().includes("signed out")) title = "Signed Out from Stores";
+      else if (m.notes?.toLowerCase().includes("consignment")) title = "Consignment in Transit";
+      else if (m.to?.includes(" - Van")) title = "Loaded to Van";
+      else if (m.to === "HQ-Stores") title = "Transferred to HQ-Stores";
+      else if (m.to) title = `Moved to Site (${m.to})`;
+
+      const fromTitle = m.from && crmJobMap?.get(m.from)?.siteTitle ? `${m.from} (${crmJobMap.get(m.from)!.siteTitle})` : m.from;
+      const toTitle = m.to && crmJobMap?.get(m.to)?.siteTitle ? `${m.to} (${crmJobMap.get(m.to)!.siteTitle})` : m.to;
+
+      rawEvents.push({
+        id: `move-${m.id}`,
+        date: m.date,
+        type: isHWCN ? 'hwcn' : 'movement',
+        title,
+        engineer: m.engineer,
+        vehicleReg: m.vehicleReg,
+        from: fromTitle,
+        to: toTitle,
+        notes: m.notes
+      });
+    });
+
+    // Sort all events chronologically
+    rawEvents.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    // Calculate real physical running weight
+    let running = isReclaim ? 0 : initialWeight;
+    const allPts: MilestonePoint[] = [];
+
+    rawEvents.forEach(e => {
+      if (e.type === 'usage' || e.type === 'recovery') {
+        if (e.weightAfter !== undefined) {
+          running = e.weightAfter;
+        } else if (e.change !== undefined) {
+          running = e.type === 'recovery' ? (running + Math.abs(e.change)) : Math.max(0, running - Math.abs(e.change));
+        }
       }
+      allPts.push({
+        id: e.id,
+        date: e.date,
+        weight: Number(running.toFixed(2)),
+        type: e.type,
+        title: e.title,
+        change: e.change,
+        engineer: e.engineer,
+        vehicleReg: e.vehicleReg,
+        from: e.from,
+        to: e.to,
+        siteRef: e.siteRef,
+        siteTitle: e.siteTitle,
+        notes: e.notes,
+        equipmentSummary: e.equipmentSummary,
+        equipmentDetails: e.equipmentDetails
+      });
     });
 
-    events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    events.forEach(e => {
-      list.push(e);
-    });
-
-    const lastPoint = list[list.length - 1];
-    if (!lastPoint || lastPoint.weight !== currentWeight) {
-      list.push({
+    // Current balance end-point if latest state isn't already the final point
+    const last = allPts[allPts.length - 1];
+    if (!last || Math.abs(last.weight - currentWeight) > 0.05) {
+      allPts.push({
+        id: `curr-${bottle.serial}`,
         date: bottle.locationChangedAt || new Date().toISOString(),
         weight: currentWeight,
-        label: "Current Balance",
+        type: 'current',
+        title: "Current Inventory Balance",
+        to: bottle.locationId,
+        engineer: bottle.lastEngineer || bottle.returnedBy
       });
     }
 
-    return list;
-  }, [bottle, moveLogs, usageLogs, isReclaim]);
+    const gasPts = allPts.filter(p => p.type === 'registered' || p.type === 'usage' || p.type === 'recovery' || p.type === 'current');
 
+    return {
+      allPoints: allPts,
+      gasOnlyPoints: gasPts,
+      totalRecovered: totRec,
+      totalUsed: totUsed,
+      siteCount: sitesSeen.size,
+      vanCount: vansSeen.size
+    };
+  }, [bottle, moveLogs, usageLogs, isReclaim, initialWeight, currentWeight, crmJobMap]);
+
+  const activePoints = viewMode === "all" ? allPoints : gasOnlyPoints;
+
+  // Nothing to render if fewer than 2 points
+  if (activePoints.length < 2) return null;
+
+  // Selected or active point for inspection
+  const selectedIdx = pinnedIdx !== null ? pinnedIdx : (hoveredIdx !== null ? hoveredIdx : (activePoints.length - 1));
+  const activePt = activePoints[Math.min(Math.max(0, selectedIdx), activePoints.length - 1)];
+
+  // Colors & theme
   const themeColor = isReclaim ? "#ffaa00" : "#00e5ff";
   const themeBorder = isReclaim ? "rgba(255, 170, 0, 0.3)" : "rgba(0, 229, 255, 0.25)";
   const themeBg = isReclaim ? "rgba(255, 170, 0, 0.08)" : "rgba(0, 229, 255, 0.08)";
 
-  const gasChange = currentWeight - initialWeight;
-  const percentageRemaining = initialWeight > 0 ? Math.min(100, Math.max(0, (currentWeight / initialWeight) * 100)) : 0;
-  const reclaimFillPct = initialWeight > 0 ? Math.min(100, Math.max(0, (gasChange / Math.max(initialWeight, 1)) * 100)) : 0;
+  // SVG Geometry
+  const svgWidth = 800;
+  const svgHeight = 180;
+  const paddingLeft = 55;
+  const paddingRight = 45;
+  const paddingTop = 25;
+  const paddingBottom = 30;
 
-  const hasEvents = usageLogs.length > 0 || moveLogs.some(m => (m as any).currentWeight !== undefined && m.action !== "registered");
-  if (!hasEvents || (isReclaim && currentWeight <= initialWeight) || points.length < 2) {
-    return null;
-  }
-
-  const svgWidth = 650;
-  const svgHeight = 140;
-  const paddingX = 35;
-  const paddingY = 20;
-
-  const weightsArr = points.map(p => p.weight);
+  const weightsArr = activePoints.map(p => p.weight);
   const minW = Math.min(...weightsArr, 0);
-  const maxW = Math.max(...weightsArr, initialWeight * 1.05, 1);
+  const maxW = Math.max(...weightsArr, initialWeight > 0 ? initialWeight : 1, 1);
 
-  const getX = (index: number) => {
-    if (points.length === 1) return paddingX;
-    return paddingX + (index / (points.length - 1)) * (svgWidth - paddingX * 2);
+  const getX = (idx: number) => {
+    if (activePoints.length <= 1) return paddingLeft;
+    return paddingLeft + (idx / (activePoints.length - 1)) * (svgWidth - paddingLeft - paddingRight);
   };
 
   const getY = (w: number) => {
-    const ratio = (w - minW) / Math.max(maxW - minW, 0.001);
-    return svgHeight - paddingY - ratio * (svgHeight - paddingY * 2);
+    const range = Math.max(maxW - minW, 0.001);
+    const ratio = (w - minW) / range;
+    return (svgHeight - paddingBottom) - ratio * (svgHeight - paddingTop - paddingBottom);
   };
 
-  const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${getX(i).toFixed(1)} ${getY(p.weight).toFixed(1)}`).join(" ");
+  // Build Stepped Path: Horizontal segment to next X, then vertical step to next Y
+  let pathD = `M ${getX(0).toFixed(1)} ${getY(activePoints[0].weight).toFixed(1)}`;
+  for (let i = 1; i < activePoints.length; i++) {
+    const currX = getX(i);
+    const currY = getY(activePoints[i].weight);
+    // Step horizontal then vertical
+    pathD += ` H ${currX.toFixed(1)} V ${currY.toFixed(1)}`;
+  }
 
-  const areaD = `${pathD} L ${getX(points.length - 1).toFixed(1)} ${svgHeight - paddingY} L ${paddingX} ${svgHeight - paddingY} Z`;
+  const lastX = getX(activePoints.length - 1);
+  const bottomY = svgHeight - paddingBottom;
+  const areaD = `${pathD} V ${bottomY} H ${paddingLeft} Z`;
+
+  // Grid lines
+  const gridSteps = 4;
+  const gridLines = Array.from({ length: gridSteps + 1 }, (_, i) => {
+    const val = minW + (i / gridSteps) * (maxW - minW);
+    return { val, y: getY(val) };
+  });
+
+  const getPointColor = (p: MilestonePoint) => {
+    switch (p.type) {
+      case "recovery": return "#ffaa00";
+      case "usage": return "#22c55e";
+      case "movement": return "#818cf8";
+      case "hwcn": return "#c084fc";
+      case "registered": return "#38bdf8";
+      case "current": return isReclaim ? "#ffaa00" : "#22c55e";
+      default: return themeColor;
+    }
+  };
 
   return (
     <div style={{
-      background: "rgba(17, 24, 39, 0.7)",
+      background: "rgba(17, 24, 39, 0.75)",
       border: `1px solid ${themeBorder}`,
-      borderRadius: "12px",
+      borderRadius: "14px",
       padding: "1.25rem 1.5rem",
-      marginBottom: "1.5rem",
-      backdropFilter: "blur(12px)",
-      boxShadow: "0 4px 20px rgba(0,0,0,0.3)"
+      marginBottom: "1.75rem",
+      backdropFilter: "blur(14px)",
+      boxShadow: "0 8px 30px rgba(0,0,0,0.35)"
     }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.85rem", flexWrap: "wrap", gap: "1rem" }}>
+      {/* Top Header & View Mode Switch */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "1rem" }}>
         <div>
-          <div style={{ fontSize: "0.72rem", color: themeColor, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-            {isReclaim ? "Reclaim Cylinder Accumulation & Fill Trajectory" : "Cylinder Weight Loss & Usage Trajectory"}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <Activity size={16} color={themeColor} />
+            <span style={{ fontSize: "0.75rem", color: themeColor, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              {isReclaim ? "Reclaim Accumulation & Custody Trajectory" : "Cylinder Weight Loss & Usage Trajectory"}
+            </span>
           </div>
-          <div style={{ fontSize: "1.1rem", fontWeight: 800, color: "#fff", marginTop: "2px" }}>
+          <div style={{ fontSize: "1.25rem", fontWeight: 800, color: "#fff", marginTop: "3px" }}>
             {currentWeight.toFixed(2)} kg <span style={{ fontSize: "0.82rem", color: "#94a3b8", fontWeight: 500 }}>
-              {isReclaim ? `(Tare: ${initialWeight.toFixed(2)} kg)` : `of ${initialWeight.toFixed(2)} kg capacity`}
+              {isReclaim ? `(Rated Capacity: ${initialWeight.toFixed(2)} kg)` : `of ${initialWeight.toFixed(2)} kg capacity`}
             </span>
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
-          {isReclaim ? (
-            <>
-              <div style={{ background: themeBg, border: `1px solid ${themeBorder}`, padding: "0.3rem 0.75rem", borderRadius: "8px", textAlign: "right" }}>
-                <div style={{ fontSize: "0.65rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Gas Recovered In</div>
-                <div style={{ fontSize: "0.95rem", fontWeight: 800, color: "#ffaa00" }}>
-                  +{gasChange >= 0 ? gasChange.toFixed(2) : "0.00"} kg
-                </div>
-              </div>
-              <div style={{ background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.25)", padding: "0.3rem 0.75rem", borderRadius: "8px", textAlign: "right" }}>
-                <div style={{ fontSize: "0.65rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Fill Ratio</div>
-                <div style={{ fontSize: "0.95rem", fontWeight: 800, color: "#a855f7" }}>
-                  {reclaimFillPct.toFixed(1)}% Full
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <div style={{ background: "rgba(0, 229, 255, 0.08)", border: "1px solid rgba(0, 229, 255, 0.25)", padding: "0.3rem 0.75rem", borderRadius: "8px", textAlign: "right" }}>
-                <div style={{ fontSize: "0.65rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Gas Remaining</div>
-                <div style={{ fontSize: "0.95rem", fontWeight: 800, color: percentageRemaining > 20 ? "#22c55e" : "#ffaa00" }}>
-                  {percentageRemaining.toFixed(1)}%
-                </div>
-              </div>
-              <div style={{ background: "rgba(255, 170, 0, 0.08)", border: "1px solid rgba(255, 170, 0, 0.25)", padding: "0.3rem 0.75rem", borderRadius: "8px", textAlign: "right" }}>
-                <div style={{ fontSize: "0.65rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase" }}>Total Serviced</div>
-                <div style={{ fontSize: "0.95rem", fontWeight: 800, color: (initialWeight - currentWeight) >= 0 ? "#ffaa00" : "#22c55e" }}>
-                  {(initialWeight - currentWeight) >= 0 ? `-${(initialWeight - currentWeight).toFixed(2)} kg` : `+${Math.abs(initialWeight - currentWeight).toFixed(2)} kg`}
-                </div>
-              </div>
-            </>
-          )}
+        {/* View Mode Toggle */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", background: "rgba(255,255,255,0.06)", padding: "0.25rem", borderRadius: "8px" }}>
+          <button
+            type="button"
+            onClick={() => { setViewMode("all"); setHoveredIdx(null); setPinnedIdx(null); }}
+            style={{
+              padding: "0.3rem 0.75rem",
+              borderRadius: "6px",
+              border: "none",
+              fontSize: "0.75rem",
+              fontWeight: 600,
+              cursor: "pointer",
+              background: viewMode === "all" ? (isReclaim ? "#ffaa00" : "#00e5ff") : "transparent",
+              color: viewMode === "all" ? "#0f172a" : "#94a3b8",
+              transition: "all 0.2s"
+            }}
+          >
+            All Milestones ({allPoints.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => { setViewMode("gas"); setHoveredIdx(null); setPinnedIdx(null); }}
+            style={{
+              padding: "0.3rem 0.75rem",
+              borderRadius: "6px",
+              border: "none",
+              fontSize: "0.75rem",
+              fontWeight: 600,
+              cursor: "pointer",
+              background: viewMode === "gas" ? (isReclaim ? "#ffaa00" : "#00e5ff") : "transparent",
+              color: viewMode === "gas" ? "#0f172a" : "#94a3b8",
+              transition: "all 0.2s"
+            }}
+          >
+            Gas Actions Only ({gasOnlyPoints.length})
+          </button>
         </div>
       </div>
 
-      <div style={{ width: "100%", overflowX: "auto" }} className="scrollbar-none">
-        <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} style={{ width: "100%", height: "auto", minWidth: "450px" }}>
+      {/* Summary KPI Cards */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+        gap: "0.6rem",
+        marginBottom: "1.2rem"
+      }}>
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "8px", padding: "0.45rem 0.75rem" }}>
+          <div style={{ fontSize: "0.65rem", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Start State</div>
+          <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#fff", marginTop: "2px" }}>
+            {isReclaim ? "0.00 kg (Empty)" : `${initialWeight.toFixed(2)} kg (Full)`}
+          </div>
+        </div>
+
+        {totalRecovered > 0 && (
+          <div style={{ background: "rgba(255,170,0,0.08)", border: "1px solid rgba(255,170,0,0.25)", borderRadius: "8px", padding: "0.45rem 0.75rem" }}>
+            <div style={{ fontSize: "0.65rem", color: "#ffaa00", textTransform: "uppercase", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.25rem" }}>
+              <ArrowUpRight size={11} /> Gas Recovered
+            </div>
+            <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#ffaa00", marginTop: "2px" }}>
+              +{totalRecovered.toFixed(2)} kg
+            </div>
+          </div>
+        )}
+
+        {totalUsed > 0 && (
+          <div style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)", borderRadius: "8px", padding: "0.45rem 0.75rem" }}>
+            <div style={{ fontSize: "0.65rem", color: "#22c55e", textTransform: "uppercase", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.25rem" }}>
+              <ArrowDownRight size={11} /> Gas Dispensed
+            </div>
+            <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#22c55e", marginTop: "2px" }}>
+              -{totalUsed.toFixed(2)} kg
+            </div>
+          </div>
+        )}
+
+        <div style={{ background: themeBg, border: `1px solid ${themeBorder}`, borderRadius: "8px", padding: "0.45rem 0.75rem" }}>
+          <div style={{ fontSize: "0.65rem", color: themeColor, textTransform: "uppercase", fontWeight: 600 }}>Current Balance</div>
+          <div style={{ fontSize: "0.95rem", fontWeight: 700, color: themeColor, marginTop: "2px" }}>
+            {currentWeight.toFixed(2)} kg
+          </div>
+        </div>
+
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "8px", padding: "0.45rem 0.75rem" }}>
+          <div style={{ fontSize: "0.65rem", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Custody Journey</div>
+          <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#cbd5e1", marginTop: "2px" }}>
+            {siteCount} sites · {vanCount} vans
+          </div>
+        </div>
+      </div>
+
+      {/* SVG Stepped Trajectory Chart */}
+      <div style={{ width: "100%", overflowX: "auto", position: "relative" }} className="scrollbar-none">
+        <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} style={{ width: "100%", height: "auto", minWidth: "550px", display: "block" }}>
           <defs>
             <linearGradient id={`weightGradient_${isReclaim ? 'rec' : 'virgin'}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={themeColor} stopOpacity="0.35" />
-              <stop offset="100%" stopColor={themeColor} stopOpacity="0.0" />
+              <stop offset="0%" stopColor={themeColor} stopOpacity="0.3" />
+              <stop offset="100%" stopColor={themeColor} stopOpacity="0.02" />
             </linearGradient>
           </defs>
 
-          <line x1={paddingX} y1={getY(initialWeight)} x2={svgWidth - paddingX} y2={getY(initialWeight)} stroke="rgba(255,255,255,0.08)" strokeDasharray="3 3" />
-          <line x1={paddingX} y1={getY(maxW / 2)} x2={svgWidth - paddingX} y2={getY(maxW / 2)} stroke="rgba(255,255,255,0.05)" strokeDasharray="3 3" />
+          {/* Grid lines and Y-axis scale */}
+          {gridLines.map((g, i) => (
+            <g key={i}>
+              <line
+                x1={paddingLeft}
+                y1={g.y}
+                x2={svgWidth - paddingRight}
+                y2={g.y}
+                stroke="rgba(255,255,255,0.06)"
+                strokeDasharray="3 3"
+              />
+              <text
+                x={paddingLeft - 8}
+                y={g.y + 3}
+                fill="#64748b"
+                fontSize="10"
+                fontFamily="var(--font-geist-mono)"
+                textAnchor="end"
+              >
+                {g.val.toFixed(1)} kg
+              </text>
+            </g>
+          ))}
 
+          {/* Stepped Area and Line */}
           <path d={areaD} fill={`url(#weightGradient_${isReclaim ? 'rec' : 'virgin'})`} />
           <path d={pathD} fill="none" stroke={themeColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
 
-          {points.map((p, i) => {
+          {/* Active / Inspected vertical cursor line */}
+          {activePt && (
+            <line
+              x1={getX(selectedIdx)}
+              y1={paddingTop}
+              x2={getX(selectedIdx)}
+              y2={bottomY}
+              stroke="rgba(255,255,255,0.25)"
+              strokeDasharray="4 2"
+              strokeWidth="1.5"
+            />
+          )}
+
+          {/* Event Nodes */}
+          {activePoints.map((p, i) => {
             const cx = getX(i);
             const cy = getY(p.weight);
-            const isLast = i === points.length - 1;
+            const isGasAction = p.type === "usage" || p.type === "recovery";
+            const isSelected = i === selectedIdx;
+            const nodeColor = getPointColor(p);
+            const r = isGasAction ? 6 : (p.type === "registered" || p.type === "current" ? 5 : 3.5);
 
             return (
-              <g key={i} style={{ cursor: "pointer" }}>
-                <circle cx={cx} cy={cy} r={isLast ? 6 : 4} fill={isLast ? (isReclaim ? "#ffaa00" : "#22c55e") : themeColor} stroke="#0f172a" strokeWidth="2" />
-                <title>{`${new Date(p.date).toLocaleDateString("en-GB")}: ${p.weight.toFixed(2)} kg (${p.label})`}</title>
+              <g
+                key={p.id || i}
+                style={{ cursor: "pointer" }}
+                onMouseEnter={() => setHoveredIdx(i)}
+                onMouseLeave={() => setHoveredIdx(null)}
+                onClick={() => setPinnedIdx(i === pinnedIdx ? null : i)}
+              >
+                {/* Expanded invisible hit target for easier mouse hover on small screens */}
+                <circle cx={cx} cy={cy} r={16} fill="transparent" />
+
+                {/* Pulsing selection ring */}
+                {isSelected && (
+                  <circle
+                    cx={cx}
+                    cy={cy}
+                    r={r + 5}
+                    fill="none"
+                    stroke={nodeColor}
+                    strokeWidth="2"
+                    opacity="0.8"
+                  />
+                )}
+
+                {/* Node circle */}
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={r}
+                  fill={nodeColor}
+                  stroke="#0f172a"
+                  strokeWidth="2"
+                />
+
+                {/* Value tag badge above Gas Action points */}
+                {isGasAction && p.change !== undefined && (
+                  <g>
+                    <rect
+                      x={cx - 24}
+                      y={cy - 22}
+                      width={48}
+                      height={15}
+                      rx={3}
+                      fill="rgba(15, 23, 42, 0.9)"
+                      stroke={nodeColor}
+                      strokeWidth="1"
+                    />
+                    <text
+                      x={cx}
+                      y={cy - 11}
+                      fill={nodeColor}
+                      fontSize="9"
+                      fontWeight="700"
+                      textAnchor="middle"
+                      fontFamily="var(--font-geist-mono)"
+                    >
+                      {p.change > 0 ? `+${p.change.toFixed(1)}` : `${p.change.toFixed(1)}`}
+                    </text>
+                  </g>
+                )}
               </g>
             );
           })}
+
+          {/* X-axis date labels */}
+          <text
+            x={getX(0)}
+            y={svgHeight - 8}
+            fill="#64748b"
+            fontSize="10"
+            fontFamily="var(--font-geist-mono)"
+            textAnchor="start"
+          >
+            {new Date(activePoints[0].date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+          </text>
+          {activePoints.length > 2 && (
+            <text
+              x={getX(Math.floor(activePoints.length / 2))}
+              y={svgHeight - 8}
+              fill="#64748b"
+              fontSize="10"
+              fontFamily="var(--font-geist-mono)"
+              textAnchor="middle"
+            >
+              {new Date(activePoints[Math.floor(activePoints.length / 2)].date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+            </text>
+          )}
+          <text
+            x={getX(activePoints.length - 1)}
+            y={svgHeight - 8}
+            fill="#64748b"
+            fontSize="10"
+            fontFamily="var(--font-geist-mono)"
+            textAnchor="end"
+          >
+            {new Date(activePoints[activePoints.length - 1].date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+          </text>
         </svg>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", color: "#94a3b8", marginTop: "0.4rem" }}>
-        <div>Registered: {new Date(points[0].date).toLocaleDateString("en-GB")} ({points[0].weight.toFixed(2)} kg)</div>
-        <div>Current Balance: {new Date(points[points.length - 1].date).toLocaleDateString("en-GB")} ({points[points.length - 1].weight.toFixed(2)} kg)</div>
+      {/* Inspected Milestone Detail Card */}
+      {activePt && (
+        <div style={{
+          marginTop: "1rem",
+          background: "rgba(255,255,255,0.04)",
+          border: `1px solid ${getPointColor(activePt)}40`,
+          borderRadius: "10px",
+          padding: "0.85rem 1.1rem",
+          transition: "all 0.2s"
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem", flexWrap: "wrap", gap: "0.5rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+              <span style={{
+                background: `${getPointColor(activePt)}20`,
+                color: getPointColor(activePt),
+                border: `1px solid ${getPointColor(activePt)}50`,
+                padding: "0.2rem 0.55rem",
+                borderRadius: "20px",
+                fontSize: "0.72rem",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.04em"
+              }}>
+                {activePt.title}
+              </span>
+              <span style={{ fontSize: "0.82rem", color: "rgba(255,255,255,0.85)", fontWeight: 600 }}>
+                {new Date(activePt.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                <span style={{ fontSize: "0.75rem", color: "#94a3b8", marginLeft: "0.35rem" }}>
+                  {new Date(activePt.date).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                </span>
+              </span>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              {activePt.change !== undefined && (
+                <div style={{
+                  fontSize: "0.85rem",
+                  fontWeight: 800,
+                  color: activePt.change > 0 ? "#ffaa00" : "#22c55e"
+                }}>
+                  {activePt.change > 0 ? `+${activePt.change.toFixed(2)} kg` : `${activePt.change.toFixed(2)} kg`}
+                </div>
+              )}
+              <div style={{
+                fontSize: "0.85rem",
+                fontWeight: 700,
+                color: "#fff",
+                background: "rgba(255,255,255,0.08)",
+                padding: "0.2rem 0.55rem",
+                borderRadius: "6px"
+              }}>
+                Balance: {activePt.weight.toFixed(2)} kg
+              </div>
+            </div>
+          </div>
+
+          {/* Details Row */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            gap: "0.6rem",
+            fontSize: "0.78rem",
+            color: "#cbd5e1"
+          }}>
+            {/* Location / Site */}
+            <div>
+              <div style={{ fontSize: "0.68rem", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Location / Route</div>
+              <div style={{ fontWeight: 500, color: "#fff", marginTop: "1px" }}>
+                {activePt.from && activePt.to ? (
+                  <span>{activePt.from} <ArrowRight size={11} style={{ display: "inline", opacity: 0.5 }} /> {activePt.to}</span>
+                ) : (activePt.siteRef ? (
+                  <span>Job {activePt.siteRef}{activePt.siteTitle ? ` — ${activePt.siteTitle}` : ""}</span>
+                ) : (activePt.to || activePt.from || "HQ-Stores"))}
+              </div>
+            </div>
+
+            {/* Engineer & Vehicle */}
+            <div>
+              <div style={{ fontSize: "0.68rem", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Engineer & Vehicle</div>
+              <div style={{ fontWeight: 500, color: "#fff", marginTop: "1px", display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                <User size={12} style={{ opacity: 0.6 }} />
+                <span>{activePt.engineer || "System"}</span>
+                {activePt.vehicleReg && (
+                  <span style={{ color: "#94a3b8", fontSize: "0.72rem" }}>· {activePt.vehicleReg}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Equipment or Notes */}
+            {(activePt.equipmentSummary || activePt.notes) && (
+              <div>
+                <div style={{ fontSize: "0.68rem", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>
+                  {activePt.equipmentSummary ? "Equipment Serviced" : "Milestone Notes"}
+                </div>
+                <div style={{ fontWeight: 400, color: "rgba(255,255,255,0.75)", marginTop: "1px" }}>
+                  {activePt.equipmentSummary || activePt.notes}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Visual Legend */}
+      <div style={{ display: "flex", gap: "1.2rem", marginTop: "0.85rem", fontSize: "0.72rem", color: "#94a3b8", flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#ffaa00", display: "inline-block" }} />
+          Gas Recovered
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
+          Gas Dispensed
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#818cf8", display: "inline-block" }} />
+          Van / Site Transfer
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#c084fc", display: "inline-block" }} />
+          HWCN In Transit / Stores
+        </span>
+        <span style={{ marginLeft: "auto", fontStyle: "italic", opacity: 0.7 }}>
+          Hover or click any node to inspect milestone details
+        </span>
       </div>
     </div>
   );
@@ -445,6 +918,7 @@ export default function ViewBottlePage() {
         to: '',
         engineer: l.engineer,
         qty: l.weightUsed?.toString() || "",
+        weightAfter: l.weightAfter !== undefined && l.weightAfter !== null ? Number(l.weightAfter) : undefined,
         notes: `Site Job: ${l.siteRef}`,
         siteRef: l.siteRef,
         equipmentDetails: l.equipmentDetails || null,
@@ -453,11 +927,19 @@ export default function ViewBottlePage() {
     ];
 
     const chronLogs = combined.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    let currentBalance = bottle?.initialWeight || 0;
+    const isReclaim = bottle?.category === "reclaim";
+    let currentBalance = isReclaim ? 0 : (bottle?.initialWeight || 0);
 
     const logsWithBalance = chronLogs.map(log => {
-      if (log.qty) {
-        currentBalance = Math.max(0, currentBalance - parseFloat(log.qty));
+      if ((log as any).weightAfter !== undefined && (log as any).weightAfter !== null) {
+        currentBalance = Number((log as any).weightAfter);
+      } else if (log.qty) {
+        const qtyNum = parseFloat(log.qty) || 0;
+        if (log.action === "Gas Recovered") {
+          currentBalance = currentBalance + qtyNum;
+        } else {
+          currentBalance = Math.max(0, currentBalance - qtyNum);
+        }
       }
       return { ...log, balance: currentBalance };
     });
@@ -1162,7 +1644,7 @@ export default function ViewBottlePage() {
           )}
 
           {/* Weight Loss & Usage Trajectory Chart */}
-          <CylinderWeightChart bottle={bottle} moveLogs={moveLogs} usageLogs={usageLogs} />
+          <CylinderWeightChart bottle={bottle} moveLogs={filteredMoveLogs} usageLogs={filteredUsageLogs} crmJobMap={crmJobMap} />
 
           {/* Tab bar */}
           <div style={{ display: "flex", gap: "0.25rem", background: "rgba(255,255,255,0.04)", borderRadius: "8px", padding: "0.25rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
