@@ -170,6 +170,68 @@ export interface AuditTrailEntry {
   reason: string;
 }
 
+export type BrazingGasType = "Oxygen" | "Propane";
+export type BrazingHolderType = "engineer" | "stores";
+export type BrazingActionType = "swap_empty_for_full" | "purchase_new" | "transfer_stores" | "adjustment";
+
+export interface BrazingInventoryItem {
+  id: string;
+  holderType: BrazingHolderType;
+  holderId: string;
+  holderName: string;
+  vehicleReg?: string;
+  gasType: BrazingGasType;
+  quantity: number;
+  updatedAt: string;
+}
+
+export interface BrazingExchange {
+  id: string;
+  createdAt: string;
+  exchangeDate: string;
+  engineerId: string;
+  engineerName: string;
+  gasType: BrazingGasType;
+  supplier: string; // 'FSW', 'Calor Gas', 'Stores', etc.
+  actionType: BrazingActionType;
+  quantity: number;
+  reason?: string;
+  poNumber?: string;
+  branch?: string;
+  receiptPhotoUrl?: string;
+  notes?: string;
+  loggedBy?: string;
+}
+
+const mapBrazingInventory = (item: any): BrazingInventoryItem => ({
+  id: item.id,
+  holderType: item.holder_type || item.holderType || 'engineer',
+  holderId: item.holder_id || item.holderId,
+  holderName: item.holder_name || item.holderName,
+  vehicleReg: item.vehicle_reg || item.vehicleReg,
+  gasType: item.gas_type || item.gasType,
+  quantity: Number(item.quantity ?? 0),
+  updatedAt: item.updated_at || item.updatedAt || new Date().toISOString(),
+});
+
+const mapBrazingExchange = (e: any): BrazingExchange => ({
+  id: e.id,
+  createdAt: e.created_at || e.createdAt,
+  exchangeDate: e.exchange_date || e.exchangeDate,
+  engineerId: e.engineer_id || e.engineerId,
+  engineerName: e.engineer_name || e.engineerName,
+  gasType: e.gas_type || e.gasType,
+  supplier: e.supplier,
+  actionType: e.action_type || e.actionType,
+  quantity: Number(e.quantity ?? 1),
+  reason: e.reason,
+  poNumber: e.po_number || e.poNumber,
+  branch: e.branch,
+  receiptPhotoUrl: e.receipt_photo_url || e.receiptPhotoUrl,
+  notes: e.notes,
+  loggedBy: e.logged_by || e.loggedBy,
+});
+
 export interface Bottle {
   serial: string;
   category: BottleCategory;
@@ -3175,6 +3237,291 @@ export const db = {
         notes: `Received ${data.transferWeight}kg cleaned/filtered gas from Reclaim cylinder ${data.donorSerial}. New balance: ${newRecipientWeight}kg.${baseNotes}`
       })
     ]);
+  },
+
+  async getBrazingInventory(holderType?: BrazingHolderType, holderId?: string): Promise<BrazingInventoryItem[]> {
+    try {
+      let query = supabase.from('brazing_inventory').select('*');
+      if (holderType) query = query.eq('holder_type', holderType);
+      if (holderId) query = query.eq('holder_id', holderId);
+      const { data, error } = await query;
+      if (!error && data && data.length > 0) {
+        return data.map(mapBrazingInventory);
+      }
+    } catch (e) {
+      console.warn("Could not query brazing_inventory from supabase, using fallback", e);
+    }
+
+    const all = getStored<BrazingInventoryItem[]>('brazing_inventory', []);
+    return all.filter(item => {
+      if (holderType && item.holderType !== holderType) return false;
+      if (holderId && item.holderId !== holderId) return false;
+      return true;
+    });
+  },
+
+  async getBrazingSummary(): Promise<{
+    totalOxygen: number;
+    totalPropane: number;
+    vansOxygen: number;
+    vansPropane: number;
+    storesOxygen: number;
+    storesPropane: number;
+  }> {
+    const items = await this.getBrazingInventory();
+    let vansOxygen = 0;
+    let vansPropane = 0;
+    let storesOxygen = 0;
+    let storesPropane = 0;
+
+    for (const item of items) {
+      if (item.gasType === 'Oxygen') {
+        if (item.holderType === 'engineer') vansOxygen += item.quantity;
+        else storesOxygen += item.quantity;
+      } else if (item.gasType === 'Propane') {
+        if (item.holderType === 'engineer') vansPropane += item.quantity;
+        else storesPropane += item.quantity;
+      }
+    }
+
+    return {
+      totalOxygen: vansOxygen + storesOxygen,
+      totalPropane: vansPropane + storesPropane,
+      vansOxygen,
+      vansPropane,
+      storesOxygen,
+      storesPropane,
+    };
+  },
+
+  async getBrazingExchanges(filters?: { engineerId?: string; gasType?: string; limit?: number }): Promise<BrazingExchange[]> {
+    try {
+      let query = supabase.from('brazing_exchanges').select('*').order('exchange_date', { ascending: false });
+      if (filters?.engineerId) query = query.eq('engineer_id', filters.engineerId);
+      if (filters?.gasType) query = query.eq('gas_type', filters.gasType);
+      if (filters?.limit) query = query.limit(filters.limit);
+      const { data, error } = await query;
+      if (!error && data && data.length > 0) {
+        return data.map(mapBrazingExchange);
+      }
+    } catch (e) {
+      console.warn("Could not query brazing_exchanges from supabase, using fallback", e);
+    }
+
+    const all = getStored<BrazingExchange[]>('brazing_exchanges', []);
+    return all.filter(e => {
+      if (filters?.engineerId && e.engineerId !== filters.engineerId) return false;
+      if (filters?.gasType && e.gasType !== filters.gasType) return false;
+      return true;
+    }).slice(0, filters?.limit || 100);
+  },
+
+  async logBrazingExchange(exchange: Omit<BrazingExchange, 'id' | 'createdAt'>): Promise<BrazingExchange> {
+    const newId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `braze-${Date.now()}`;
+    const now = new Date().toISOString();
+    const entry: BrazingExchange = {
+      ...exchange,
+      id: newId,
+      createdAt: now,
+    };
+
+    // 1. Supabase insert
+    try {
+      await supabase.from('brazing_exchanges').insert({
+        id: entry.id,
+        created_at: entry.createdAt,
+        exchange_date: entry.exchangeDate,
+        engineer_id: entry.engineerId,
+        engineer_name: entry.engineerName,
+        gas_type: entry.gasType,
+        supplier: entry.supplier,
+        action_type: entry.actionType,
+        quantity: entry.quantity,
+        reason: entry.reason,
+        po_number: entry.poNumber,
+        branch: entry.branch,
+        receipt_photo_url: entry.receiptPhotoUrl,
+        notes: entry.notes,
+        logged_by: entry.loggedBy || entry.engineerName
+      });
+    } catch (e) {
+      console.warn("Failed inserting brazing exchange into supabase:", e);
+    }
+
+    // 2. Local fallback update for exchanges
+    const currentExchanges = getStored<BrazingExchange[]>('brazing_exchanges', []);
+    setStored('brazing_exchanges', [entry, ...currentExchanges]);
+
+    // 3. Update inventory balances
+    const items = await this.getBrazingInventory('engineer', entry.engineerId);
+    const existing = items.find(i => i.gasType === entry.gasType);
+
+    if (entry.actionType === 'purchase_new') {
+      const newQty = (existing ? existing.quantity : 0) + entry.quantity;
+      await this.setBrazingInventory({
+        holderType: 'engineer',
+        holderId: entry.engineerId,
+        holderName: entry.engineerName,
+        gasType: entry.gasType,
+        quantity: newQty
+      });
+    } else if (entry.actionType === 'swap_empty_for_full') {
+      // 1-for-1 swap: if no inventory item existed yet, initialize to at least the swapped quantity
+      if (!existing || existing.quantity === 0) {
+        await this.setBrazingInventory({
+          holderType: 'engineer',
+          holderId: entry.engineerId,
+          holderName: entry.engineerName,
+          gasType: entry.gasType,
+          quantity: Math.max(1, entry.quantity)
+        });
+      }
+    }
+
+    return entry;
+  },
+
+  async setBrazingInventory(params: {
+    holderType: BrazingHolderType;
+    holderId: string;
+    holderName: string;
+    vehicleReg?: string;
+    gasType: BrazingGasType;
+    quantity: number;
+  }): Promise<void> {
+    const now = new Date().toISOString();
+    try {
+      await supabase.from('brazing_inventory').upsert({
+        holder_type: params.holderType,
+        holder_id: params.holderId,
+        holder_name: params.holderName,
+        vehicle_reg: params.vehicleReg,
+        gas_type: params.gasType,
+        quantity: Math.max(0, params.quantity),
+        updated_at: now
+      }, { onConflict: 'holder_type,holder_id,gas_type' });
+    } catch (e) {
+      console.warn("Supabase upsert brazing_inventory failed:", e);
+    }
+
+    const all = getStored<BrazingInventoryItem[]>('brazing_inventory', []);
+    const idx = all.findIndex(i => i.holderType === params.holderType && i.holderId === params.holderId && i.gasType === params.gasType);
+    if (idx >= 0) {
+      all[idx] = {
+        ...all[idx],
+        holderName: params.holderName,
+        vehicleReg: params.vehicleReg || all[idx].vehicleReg,
+        quantity: Math.max(0, params.quantity),
+        updatedAt: now
+      };
+    } else {
+      all.push({
+        id: `braze-inv-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        holderType: params.holderType,
+        holderId: params.holderId,
+        holderName: params.holderName,
+        vehicleReg: params.vehicleReg,
+        gasType: params.gasType,
+        quantity: Math.max(0, params.quantity),
+        updatedAt: now
+      });
+    }
+    setStored('brazing_inventory', all);
+  },
+
+  async transferBrazingWithStores(params: {
+    engineerId: string;
+    engineerName: string;
+    vehicleReg?: string;
+    gasType: BrazingGasType;
+    direction: 'pickup_from_stores' | 'return_to_stores';
+    quantity: number;
+    notes?: string;
+  }): Promise<BrazingExchange> {
+    const qty = Math.max(1, params.quantity);
+    const engInventory = await this.getBrazingInventory('engineer', params.engineerId);
+    const storesInventory = await this.getBrazingInventory('stores', 'stores');
+
+    const engItem = engInventory.find(i => i.gasType === params.gasType);
+    const currentEngQty = engItem !== undefined ? engItem.quantity : 1;
+
+    const storesItem = storesInventory.find(i => i.gasType === params.gasType);
+    const currentStoresQty = storesItem !== undefined ? storesItem.quantity : 0;
+
+    let newEngQty = currentEngQty;
+    let newStoresQty = currentStoresQty;
+    let summaryText = "";
+
+    if (params.direction === 'pickup_from_stores') {
+      newEngQty = currentEngQty + qty;
+      newStoresQty = Math.max(0, currentStoresQty - qty);
+      summaryText = `Picked up ${qty}x ${params.gasType} cylinder${qty > 1 ? 's' : ''} from Stores onto van.`;
+    } else {
+      newEngQty = Math.max(0, currentEngQty - qty);
+      newStoresQty = currentStoresQty + qty;
+      summaryText = `Returned ${qty}x ${params.gasType} cylinder${qty > 1 ? 's' : ''} from van to Stores.`;
+    }
+
+    // 1. Update engineer van balance
+    await this.setBrazingInventory({
+      holderType: 'engineer',
+      holderId: params.engineerId,
+      holderName: params.engineerName,
+      vehicleReg: params.vehicleReg,
+      gasType: params.gasType,
+      quantity: newEngQty
+    });
+
+    // 2. Update stores balance
+    await this.setBrazingInventory({
+      holderType: 'stores',
+      holderId: 'stores',
+      holderName: 'HQ Stores / Main Base',
+      gasType: params.gasType,
+      quantity: newStoresQty
+    });
+
+    // 3. Log exchange / audit record
+    const newId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `braze-${Date.now()}`;
+    const now = new Date().toISOString();
+    const entry: BrazingExchange = {
+      id: newId,
+      createdAt: now,
+      exchangeDate: now,
+      engineerId: params.engineerId,
+      engineerName: params.engineerName,
+      gasType: params.gasType,
+      supplier: 'HQ Stores',
+      actionType: 'transfer_stores',
+      quantity: qty,
+      reason: summaryText,
+      notes: params.notes ? `${summaryText} Note: ${params.notes}` : summaryText,
+      loggedBy: params.engineerName
+    };
+
+    try {
+      await supabase.from('brazing_exchanges').insert({
+        id: entry.id,
+        created_at: entry.createdAt,
+        exchange_date: entry.exchangeDate,
+        engineer_id: entry.engineerId,
+        engineer_name: entry.engineerName,
+        gas_type: entry.gasType,
+        supplier: entry.supplier,
+        action_type: entry.actionType,
+        quantity: entry.quantity,
+        reason: entry.reason,
+        notes: entry.notes,
+        logged_by: entry.loggedBy
+      });
+    } catch (e) {
+      console.warn("Failed inserting brazing stores transfer into supabase:", e);
+    }
+
+    const currentExchanges = getStored<BrazingExchange[]>('brazing_exchanges', []);
+    setStored('brazing_exchanges', [entry, ...currentExchanges]);
+
+    return entry;
   }
 };
 

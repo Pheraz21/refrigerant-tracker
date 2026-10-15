@@ -33,7 +33,8 @@ import {
   BookOpen,
   PackageCheck,
   Recycle,
-  UserCheck
+  UserCheck,
+  Flame
 } from "lucide-react";
 
 const navGroups = [
@@ -50,6 +51,7 @@ const navGroups = [
       { href: "/admin/bottles", label: "All Bottles", icon: Package },
       { href: "/admin/stores", label: "Stores Inventory", icon: Warehouse },
       { href: "/admin/vans", label: "Van Inventory", icon: Truck },
+      { href: "/admin/brazing-gases", label: "Brazing Gases (O₂ & Propane)", icon: Flame },
       { href: "/admin/onsite", label: "Bottles on Site", icon: MapPin },
       { href: "/admin/suppliers", label: "Bottles By Supplier", icon: Building2 },
       { href: "/admin/returned-to-supplier", label: "Returned to Supplier", icon: RotateCcw },

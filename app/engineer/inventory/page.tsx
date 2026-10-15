@@ -7,6 +7,7 @@ import Link from "next/link";
 import { db, Bottle } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { ActiveVehicleBanner } from "@/components/ActiveVehicleBanner";
+import { BrazingKitCard } from "@/components/BrazingKitCard";
 
 export default function EngineerInventoryPage() {
   const { user, activeVehicleReg, activeVehicleOwner, activePairingStatus, activePairing } = useAuth();
@@ -192,6 +193,16 @@ export default function EngineerInventoryPage() {
           <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", lineHeight: 1.4 }}>
             Access request sent to <strong style={{ color: "#fff" }}>{activePairing?.leadEngineerName} ({activePairing?.vehicleReg})</strong>. Displaying your assigned vehicle inventory until approved.
           </div>
+        </div>
+      )}
+
+      {user?.id && !user.canViewStores && (
+        <div style={{ marginBottom: "1.5rem" }}>
+          <BrazingKitCard
+            engineerId={user.id}
+            engineerName={user.name || "Engineer"}
+            vehicleReg={activeVehicleReg || user.vehicleReg}
+          />
         </div>
       )}
 

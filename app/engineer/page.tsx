@@ -10,6 +10,7 @@ import { db } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { ActiveVehicleBanner } from "@/components/ActiveVehicleBanner";
 import { LeadEngineerCrewBanner } from "@/components/LeadEngineerCrewBanner";
+import { BrazingKitCard } from "@/components/BrazingKitCard";
 
 interface ScanData {
   barcode: string;
@@ -219,6 +220,16 @@ export default function DashboardScannerPage() {
           </div>
 
           <LeadEngineerCrewBanner />
+
+          {user?.id && (
+            <div style={{ marginTop: '1.25rem' }}>
+              <BrazingKitCard
+                engineerId={user.id}
+                engineerName={user.name || "Engineer"}
+                vehicleReg={user.vehicleReg}
+              />
+            </div>
+          )}
 
           {user?.availableRoles?.includes("office") && (
             <Link href="/engineer/bulk" style={{textDecoration: 'none', display: 'block', marginTop: '1.5rem'}}>
