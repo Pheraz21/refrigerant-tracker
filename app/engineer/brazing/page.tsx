@@ -2,47 +2,71 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Flame, RefreshCw, Warehouse, History, Camera, Check } from "lucide-react";
+import { ArrowLeft, Flame, RefreshCw, Warehouse, ChevronDown, ChevronUp, Camera, ShoppingCart } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
-import { db, BrazingExchange } from "@/lib/db";
-import { BrazingKitCard } from "@/components/BrazingKitCard";
-import { ActiveVehicleBanner } from "@/components/ActiveVehicleBanner";
+import { db, BrazingInventoryItem, BrazingExchange, BrazingGasType } from "@/lib/db";
+import { BrazingExchangeModal } from "@/components/BrazingExchangeModal";
 
 export default function EngineerBrazingPage() {
   const { user, activeVehicleReg } = useAuth();
+  const [items, setItems] = useState<BrazingInventoryItem[]>([]);
   const [exchanges, setExchanges] = useState<BrazingExchange[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Modal controls
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<"exchange" | "stores" | "purchase">("exchange");
+  const [selectedGas, setSelectedGas] = useState<BrazingGasType>("Oxygen");
+
+  // History collapse toggle
+  const [showHistory, setShowHistory] = useState(false);
   const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null);
 
-  const loadHistory = async () => {
+  const loadData = async () => {
     if (!user?.id) return;
     setLoading(true);
     try {
-      const logs = await db.getBrazingExchanges({ engineerId: user.id, limit: 20 });
-      setExchanges(logs);
+      const [inv, logs] = await Promise.all([
+        db.getBrazingInventory("engineer", user.id),
+        db.getBrazingExchanges({ engineerId: user.id, limit: 10 })
+      ]);
+      setItems(inv || []);
+      setExchanges(logs || []);
     } catch (e) {
-      console.error("Error loading brazing history:", e);
+      console.error("Error loading brazing data:", e);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadHistory();
+    loadData();
   }, [user?.id]);
+
+  const oxygenItem = items.find(i => i.gasType === "Oxygen");
+  const propaneItem = items.find(i => i.gasType === "Propane");
+
+  const oxygenCount = oxygenItem !== undefined ? oxygenItem.quantity : 1;
+  const propaneCount = propaneItem !== undefined ? propaneItem.quantity : 1;
+
+  const handleOpenAction = (mode: "exchange" | "stores" | "purchase", gas: BrazingGasType = "Oxygen") => {
+    setModalMode(mode);
+    setSelectedGas(gas);
+    setIsModalOpen(true);
+  };
 
   if (!user) {
     return (
-      <div style={{ padding: "2rem", textAlign: "center", color: "#94a3b8" }}>
+      <div style={{ padding: "3rem 1.5rem", textAlign: "center", color: "#94a3b8" }}>
         Loading profile...
       </div>
     );
   }
 
   return (
-    <div style={{ padding: "1.25rem", maxWidth: "600px", margin: "0 auto", paddingBottom: "5rem" }}>
-      {/* Top Navigation */}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1.25rem" }}>
+    <div style={{ padding: "1.25rem 1rem", maxWidth: "520px", margin: "0 auto", paddingBottom: "6rem" }}>
+      {/* Top Back Navigation */}
+      <div style={{ marginBottom: "1rem" }}>
         <Link
           href="/engineer"
           style={{
@@ -51,193 +75,298 @@ export default function EngineerBrazingPage() {
             gap: "6px",
             color: "#94a3b8",
             textDecoration: "none",
-            fontSize: "0.88rem",
-            fontWeight: 600
+            fontSize: "0.9rem",
+            fontWeight: 600,
+            padding: "4px 0"
           }}
         >
           <ArrowLeft size={18} /> Back to Dashboard
         </Link>
       </div>
 
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1.25rem" }}>
+      {/* Screen Title */}
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1.5rem" }}>
         <div style={{
-          width: "42px",
-          height: "42px",
-          borderRadius: "10px",
+          width: "44px",
+          height: "44px",
+          borderRadius: "12px",
           background: "rgba(249, 115, 22, 0.2)",
           color: "#f97316",
           display: "flex",
           alignItems: "center",
           justifyContent: "center"
         }}>
-          <Flame size={24} />
+          <Flame size={26} />
         </div>
         <div>
-          <h1 style={{ fontSize: "1.4rem", fontWeight: 800, margin: 0 }}>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 800, margin: 0, color: "#fff" }}>
             Brazing Gas Kit
           </h1>
-          <p style={{ fontSize: "0.82rem", color: "#94a3b8", margin: "2px 0 0 0" }}>
-            Oxygen (FSW) & Propane (Calor Gas) • Purchased Fleet
+          <p style={{ fontSize: "0.85rem", color: "#94a3b8", margin: "2px 0 0 0" }}>
+            {activeVehicleReg || user.vehicleReg || "Assigned Van Stock"}
           </p>
         </div>
       </div>
 
-      <div style={{ marginBottom: "1.25rem" }}>
-        <ActiveVehicleBanner />
-      </div>
-
-      {/* Brazing Kit Card (Live Balances + Swap & Move actions) */}
-      <div style={{ marginBottom: "1.75rem" }}>
-        <BrazingKitCard
-          engineerId={user.id}
-          engineerName={user.name || "Engineer"}
-          vehicleReg={activeVehicleReg || user.vehicleReg}
-        />
-      </div>
-
-      {/* Recent Activity Log */}
-      <div>
-        <div style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "0.85rem"
-        }}>
-          <h2 style={{ fontSize: "1.05rem", fontWeight: 700, margin: 0, display: "flex", alignItems: "center", gap: "6px" }}>
-            <History size={18} color="#94a3b8" /> Recent Activity
-          </h2>
-          <button
-            onClick={loadHistory}
-            type="button"
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "#38bdf8",
-              fontSize: "0.8rem",
-              fontWeight: 600,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "4px"
-            }}
-          >
-            <RefreshCw size={12} /> Refresh
-          </button>
-        </div>
-
-        {loading ? (
-          <p style={{ color: "#94a3b8", fontSize: "0.85rem", textAlign: "center", padding: "1.5rem" }}>
-            Loading activity...
-          </p>
-        ) : exchanges.length === 0 ? (
-          <div style={{
-            background: "rgba(255,255,255,0.03)",
-            border: "1px dashed rgba(255,255,255,0.15)",
-            borderRadius: "12px",
-            padding: "2rem 1rem",
+      {/* Current Balances - Large & Simple */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: "0.85rem",
+        marginBottom: "1.75rem"
+      }}>
+        {/* Oxygen Card */}
+        <div
+          onClick={() => handleOpenAction("exchange", "Oxygen")}
+          style={{
+            background: "rgba(59, 130, 246, 0.12)",
+            border: "2px solid rgba(59, 130, 246, 0.35)",
+            borderRadius: "16px",
+            padding: "1.25rem 1rem",
             textAlign: "center",
-            color: "#94a3b8",
-            fontSize: "0.85rem"
-          }}>
-            No swaps or moves recorded yet. Use the buttons above to log an exchange at FSW/Calor or a move with Stores.
+            cursor: "pointer",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
+          }}
+        >
+          <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#60a5fa", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            Oxygen (FSW)
           </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-            {exchanges.map((exc) => {
-              const isStores = exc.actionType === "transfer_stores";
-              const isPurchase = exc.actionType === "purchase_new";
+          <div style={{ fontSize: "2.75rem", fontWeight: 900, color: "#fff", lineHeight: 1.1, margin: "0.5rem 0" }}>
+            {loading ? "…" : oxygenCount}
+          </div>
+          <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
+            Bottle{oxygenCount !== 1 ? "s" : ""} on Van
+          </div>
+        </div>
 
-              return (
+        {/* Propane Card */}
+        <div
+          onClick={() => handleOpenAction("exchange", "Propane")}
+          style={{
+            background: "rgba(249, 115, 22, 0.12)",
+            border: "2px solid rgba(249, 115, 22, 0.35)",
+            borderRadius: "16px",
+            padding: "1.25rem 1rem",
+            textAlign: "center",
+            cursor: "pointer",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
+          }}
+        >
+          <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#fb923c", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            Propane (Calor)
+          </div>
+          <div style={{ fontSize: "2.75rem", fontWeight: 900, color: "#fff", lineHeight: 1.1, margin: "0.5rem 0" }}>
+            {loading ? "…" : propaneCount}
+          </div>
+          <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
+            Bottle{propaneCount !== 1 ? "s" : ""} on Van
+          </div>
+        </div>
+      </div>
+
+      {/* Big Action Buttons */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "2rem" }}>
+        {/* Action 1: Supplier 1-for-1 Swap */}
+        <button
+          type="button"
+          onClick={() => handleOpenAction("exchange", "Oxygen")}
+          style={{
+            width: "100%",
+            background: "linear-gradient(135deg, #f97316 0%, #ea580c 100%)",
+            color: "#fff",
+            border: "none",
+            borderRadius: "16px",
+            padding: "1.25rem 1.25rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "1rem",
+            cursor: "pointer",
+            textAlign: "left",
+            boxShadow: "0 6px 20px rgba(249, 115, 22, 0.35)",
+            transition: "transform 0.1s ease"
+          }}
+        >
+          <div style={{
+            width: "48px",
+            height: "48px",
+            borderRadius: "12px",
+            background: "rgba(255, 255, 255, 0.2)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0
+          }}>
+            <RefreshCw size={26} color="#fff" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: "1.15rem", fontWeight: 800 }}>
+              Log Bottle Swap
+            </div>
+            <div style={{ fontSize: "0.82rem", opacity: 0.9, marginTop: "2px" }}>
+              Exchanged empty for full at FSW or Calor Gas
+            </div>
+          </div>
+        </button>
+
+        {/* Action 2: Stores Move */}
+        <button
+          type="button"
+          onClick={() => handleOpenAction("stores", "Oxygen")}
+          style={{
+            width: "100%",
+            background: "var(--surface, #1e293b)",
+            border: "2px solid rgba(139, 92, 246, 0.4)",
+            color: "#fff",
+            borderRadius: "16px",
+            padding: "1.25rem 1.25rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "1rem",
+            cursor: "pointer",
+            textAlign: "left",
+            boxShadow: "0 4px 14px rgba(0,0,0,0.2)"
+          }}
+        >
+          <div style={{
+            width: "48px",
+            height: "48px",
+            borderRadius: "12px",
+            background: "rgba(139, 92, 246, 0.2)",
+            color: "#c4b5fd",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0
+          }}>
+            <Warehouse size={26} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: "1.15rem", fontWeight: 800 }}>
+              Move In / Out of Stores
+            </div>
+            <div style={{ fontSize: "0.82rem", color: "#94a3b8", marginTop: "2px" }}>
+              Pick up from or return bottle to HQ Stores
+            </div>
+          </div>
+        </button>
+      </div>
+
+      {/* Rare purchase link */}
+      <div style={{ textAlign: "center", marginBottom: "2rem" }}>
+        <button
+          type="button"
+          onClick={() => handleOpenAction("purchase", "Oxygen")}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: "#94a3b8",
+            fontSize: "0.82rem",
+            cursor: "pointer",
+            textDecoration: "underline",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "4px"
+          }}
+        >
+          <ShoppingCart size={13} /> Bought a brand new bottle instead of swapping? Tap here
+        </button>
+      </div>
+
+      {/* Collapsible Recent Activity */}
+      <div style={{ borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "1rem" }}>
+        <button
+          type="button"
+          onClick={() => setShowHistory(!showHistory)}
+          style={{
+            width: "100%",
+            background: "transparent",
+            border: "none",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            color: "#94a3b8",
+            fontSize: "0.88rem",
+            fontWeight: 600,
+            cursor: "pointer",
+            padding: "0.5rem 0"
+          }}
+        >
+          <span>Recent Activity ({exchanges.length})</span>
+          {showHistory ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        </button>
+
+        {showHistory && (
+          <div style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {exchanges.length === 0 ? (
+              <p style={{ fontSize: "0.8rem", color: "#64748b", textAlign: "center", padding: "1rem" }}>
+                No recent activity recorded.
+              </p>
+            ) : (
+              exchanges.map((exc) => (
                 <div
                   key={exc.id}
                   style={{
-                    background: "var(--surface, #1e293b)",
-                    border: "1px solid rgba(255,255,255,0.08)",
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(255,255,255,0.06)",
                     borderRadius: "10px",
-                    padding: "0.85rem 1rem",
+                    padding: "0.75rem 0.85rem",
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center"
                   }}
                 >
                   <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "3px" }}>
-                      <span style={{
-                        fontSize: "0.85rem",
-                        fontWeight: 700,
-                        color: exc.gasType === "Oxygen" ? "#60a5fa" : "#fb923c"
-                      }}>
-                        {exc.quantity}x {exc.gasType}
-                      </span>
-                      <span style={{
-                        fontSize: "0.7rem",
-                        padding: "2px 6px",
-                        borderRadius: "4px",
-                        background: isPurchase
-                          ? "rgba(245, 158, 11, 0.2)"
-                          : isStores
-                            ? "rgba(139, 92, 246, 0.2)"
-                            : "rgba(34, 197, 94, 0.15)",
-                        color: isPurchase
-                          ? "#f59e0b"
-                          : isStores
-                            ? "#c4b5fd"
-                            : "#22c55e",
-                        fontWeight: 600
-                      }}>
-                        {isPurchase
-                          ? "New Purchase"
-                          : isStores
-                            ? "Stores Move"
-                            : "1-for-1 Swap"}
-                      </span>
+                    <div style={{ fontSize: "0.82rem", fontWeight: 700, color: exc.gasType === "Oxygen" ? "#60a5fa" : "#fb923c" }}>
+                      {exc.quantity}x {exc.gasType} • {exc.actionType === "purchase_new" ? "New Buy" : exc.actionType === "transfer_stores" ? "Stores Move" : "1-for-1 Swap"}
                     </div>
-
-                    <div style={{ fontSize: "0.78rem", color: "#94a3b8" }}>
-                      {exc.supplier} {exc.branch ? `• ${exc.branch}` : ""}
+                    <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
+                      {exc.supplier} {exc.branch ? `(${exc.branch})` : ""}
                     </div>
-
-                    {exc.reason && (
-                      <div style={{ fontSize: "0.75rem", color: "#cbd5e1", marginTop: "2px" }}>
-                        {exc.reason}
-                      </div>
-                    )}
                   </div>
-
-                  <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
-                    <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>
                       {new Date(exc.exchangeDate).toLocaleDateString("en-GB")}
-                    </span>
+                    </div>
                     {exc.receiptPhotoUrl && (
                       <button
                         type="button"
                         onClick={() => setPreviewPhotoUrl(exc.receiptPhotoUrl!)}
                         style={{
-                          background: "rgba(59, 130, 246, 0.15)",
-                          border: "1px solid rgba(59, 130, 246, 0.3)",
-                          color: "#60a5fa",
-                          borderRadius: "4px",
-                          padding: "2px 6px",
+                          background: "transparent",
+                          border: "none",
+                          color: "#38bdf8",
                           fontSize: "0.7rem",
                           cursor: "pointer",
                           display: "inline-flex",
                           alignItems: "center",
-                          gap: "3px"
+                          gap: "2px",
+                          marginTop: "2px"
                         }}
                       >
-                        <Camera size={11} /> Receipt
+                        <Camera size={10} /> Photo
                       </button>
                     )}
                   </div>
                 </div>
-              );
-            })}
+              ))
+            )}
           </div>
         )}
       </div>
 
-      {/* Lightbox photo modal */}
+      {/* Modal */}
+      <BrazingExchangeModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        engineerId={user.id}
+        engineerName={user.name || "Engineer"}
+        vehicleReg={activeVehicleReg || user.vehicleReg}
+        initialGasType={selectedGas}
+        initialMode={modalMode}
+        onSuccess={loadData}
+      />
+
+      {/* Photo Lightbox */}
       {previewPhotoUrl && (
         <div
           onClick={() => setPreviewPhotoUrl(null)}
