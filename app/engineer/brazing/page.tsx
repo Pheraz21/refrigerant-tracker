@@ -238,7 +238,7 @@ export default function EngineerBrazingPage() {
               Move In / Out of Stores
             </div>
             <div style={{ fontSize: "0.82rem", color: "#94a3b8", marginTop: "2px" }}>
-              Pick up from or return bottle to HQ Stores
+              Pick up from or drop off bottle at HQ Stores
             </div>
           </div>
         </Link>

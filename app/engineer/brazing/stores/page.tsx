@@ -65,7 +65,7 @@ function BrazingStoresContent() {
       setErrorMessage(
         direction === "pickup_from_stores"
           ? `HQ Stores currently has 0 ${gasType} bottles in stock to pick up.`
-          : `You currently have 0 ${gasType} bottles on your van to return.`
+          : `You currently have 0 ${gasType} bottles on your van to drop off.`
       );
       return;
     }
@@ -172,7 +172,7 @@ function BrazingStoresContent() {
           <p style={{ color: "#94a3b8", fontSize: "0.9rem" }}>
             {direction === "pickup_from_stores"
               ? `Picked up ${effectiveQty}x ${gasType} onto your van.`
-              : `Returned ${effectiveQty}x ${gasType} to HQ Stores.`} Returning...
+              : `Dropped off ${effectiveQty}x ${gasType} at HQ Stores.`} Returning...
           </p>
         </div>
       ) : (
@@ -221,7 +221,7 @@ function BrazingStoresContent() {
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", fontWeight: 800, fontSize: "1.05rem" }}>
-                  <ArrowUpRight size={20} color="#c4b5fd" /> Return
+                  <ArrowUpRight size={20} color="#c4b5fd" /> Drop Off
                 </div>
                 <div style={{ fontSize: "0.8rem", color: "#c4b5fd", marginTop: "3px", fontWeight: 600 }}>
                   Van → Stores (-1)
@@ -298,7 +298,7 @@ function BrazingStoresContent() {
               <span>
                 {direction === "pickup_from_stores"
                   ? `There are currently 0 ${gasType} bottles in HQ Stores to pick up.`
-                  : `You currently have 0 ${gasType} bottles on your van to return.`}
+                  : `You currently have 0 ${gasType} bottles on your van to drop off.`}
               </span>
             </div>
           )}
@@ -390,7 +390,7 @@ function BrazingStoresContent() {
             {isSubmitting ? (
               "Updating Stores..."
             ) : maxAllowedQty === 0 ? (
-              direction === "pickup_from_stores" ? "Cannot Pick Up (0 in Stores)" : "Cannot Return (0 on Van)"
+              direction === "pickup_from_stores" ? "Cannot Pick Up (0 in Stores)" : "Cannot Drop Off (0 on Van)"
             ) : (
               <>
                 <Warehouse size={20} /> Confirm Move ({effectiveQty}x {gasType})
