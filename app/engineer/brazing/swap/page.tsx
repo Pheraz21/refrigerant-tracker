@@ -57,6 +57,19 @@ function BrazingSwapContent() {
   const effectiveQty = maxAllowedQty > 0 ? Math.min(quantity, maxAllowedQty) : 0;
   const qtyOptions = maxAllowedQty > 0 ? Array.from({ length: Math.min(maxAllowedQty, 10) }, (_, i) => i + 1) : [];
 
+  const isOxygen = gasType === "Oxygen";
+  const themeColor = isOxygen ? "#3b82f6" : "#f97316";
+  const themeColorLight = isOxygen ? "#60a5fa" : "#fb923c";
+  const themeBg = isOxygen ? "rgba(59, 130, 246, 0.2)" : "rgba(249, 115, 22, 0.2)";
+  const themeBgActive = isOxygen ? "rgba(59, 130, 246, 0.25)" : "rgba(249, 115, 22, 0.25)";
+  const themeBorder = isOxygen ? "2px solid #3b82f6" : "2px solid #f97316";
+  const themeGradient = isOxygen
+    ? "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)"
+    : "linear-gradient(135deg, #f97316 0%, #ea580c 100%)";
+  const themeShadow = isOxygen
+    ? "0 6px 20px rgba(59, 130, 246, 0.35)"
+    : "0 6px 20px rgba(249, 115, 22, 0.35)";
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -128,11 +141,12 @@ function BrazingSwapContent() {
           width: "48px",
           height: "48px",
           borderRadius: "14px",
-          background: "rgba(249, 115, 22, 0.2)",
-          color: "#f97316",
+          background: themeBg,
+          color: themeColorLight,
           display: "flex",
           alignItems: "center",
-          justifyContent: "center"
+          justifyContent: "center",
+          transition: "all 0.2s ease"
         }}>
           <RefreshCw size={26} />
         </div>
@@ -264,12 +278,13 @@ function BrazingSwapContent() {
                       flex: 1,
                       padding: "0.85rem",
                       borderRadius: "12px",
-                      border: effectiveQty === qty ? "2px solid #f97316" : "1px solid rgba(255,255,255,0.15)",
-                      background: effectiveQty === qty ? "rgba(249, 115, 22, 0.25)" : "var(--surface, #1e293b)",
+                      border: effectiveQty === qty ? themeBorder : "1px solid rgba(255,255,255,0.15)",
+                      background: effectiveQty === qty ? themeBgActive : "var(--surface, #1e293b)",
                       color: "#fff",
                       fontWeight: 800,
                       fontSize: "1.1rem",
-                      cursor: "pointer"
+                      cursor: "pointer",
+                      transition: "all 0.15s ease"
                     }}
                   >
                     {qty}
@@ -363,16 +378,17 @@ function BrazingSwapContent() {
               border: "none",
               background: maxAllowedQty === 0
                 ? "rgba(255,255,255,0.1)"
-                : "linear-gradient(135deg, #f97316 0%, #ea580c 100%)",
+                : themeGradient,
               color: maxAllowedQty === 0 ? "#64748b" : "#fff",
               fontWeight: 800,
               fontSize: "1.1rem",
               cursor: maxAllowedQty === 0 ? "not-allowed" : "pointer",
-              boxShadow: maxAllowedQty > 0 ? "0 6px 20px rgba(249, 115, 22, 0.35)" : "none",
+              boxShadow: maxAllowedQty > 0 ? themeShadow : "none",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: "8px"
+              gap: "8px",
+              transition: "all 0.2s ease"
             }}
           >
             {isSubmitting ? (

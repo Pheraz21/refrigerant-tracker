@@ -22,6 +22,13 @@ export default function BrazingPurchasePage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
 
+  const isOxygen = gasType === "Oxygen";
+  const themeColor = isOxygen ? "#3b82f6" : "#f97316";
+  const themeColorLight = isOxygen ? "#60a5fa" : "#fb923c";
+  const themeBg = isOxygen ? "rgba(59, 130, 246, 0.2)" : "rgba(249, 115, 22, 0.2)";
+  const themeBgActive = isOxygen ? "rgba(59, 130, 246, 0.25)" : "rgba(249, 115, 22, 0.25)";
+  const themeBorder = isOxygen ? "2px solid #3b82f6" : "2px solid #f97316";
+
   const handleGasChange = (type: BrazingGasType) => {
     setGasType(type);
     setSupplier(type === "Oxygen" ? "FSW" : "Calor Gas");
@@ -239,12 +246,13 @@ export default function BrazingPurchasePage() {
                     flex: 1,
                     padding: "0.85rem",
                     borderRadius: "12px",
-                    border: quantity === qty ? "2px solid #f59e0b" : "1px solid rgba(255,255,255,0.15)",
-                    background: quantity === qty ? "rgba(245, 158, 11, 0.25)" : "var(--surface, #1e293b)",
+                    border: quantity === qty ? themeBorder : "1px solid rgba(255,255,255,0.15)",
+                    background: quantity === qty ? themeBgActive : "var(--surface, #1e293b)",
                     color: "#fff",
                     fontWeight: 800,
                     fontSize: "1.1rem",
-                    cursor: "pointer"
+                    cursor: "pointer",
+                    transition: "all 0.15s ease"
                   }}
                 >
                   {qty}

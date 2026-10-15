@@ -56,6 +56,19 @@ function BrazingStoresContent() {
   const effectiveQty = maxAllowedQty > 0 ? Math.min(quantity, maxAllowedQty) : 0;
   const qtyOptions = maxAllowedQty > 0 ? Array.from({ length: Math.min(maxAllowedQty, 10) }, (_, i) => i + 1) : [];
 
+  const isOxygen = gasType === "Oxygen";
+  const themeColor = isOxygen ? "#3b82f6" : "#f97316";
+  const themeColorLight = isOxygen ? "#60a5fa" : "#fb923c";
+  const themeBg = isOxygen ? "rgba(59, 130, 246, 0.2)" : "rgba(249, 115, 22, 0.2)";
+  const themeBgActive = isOxygen ? "rgba(59, 130, 246, 0.25)" : "rgba(249, 115, 22, 0.25)";
+  const themeBorder = isOxygen ? "2px solid #3b82f6" : "2px solid #f97316";
+  const themeGradient = isOxygen
+    ? "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)"
+    : "linear-gradient(135deg, #f97316 0%, #ea580c 100%)";
+  const themeShadow = isOxygen
+    ? "0 6px 20px rgba(59, 130, 246, 0.35)"
+    : "0 6px 20px rgba(249, 115, 22, 0.35)";
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -127,11 +140,12 @@ function BrazingStoresContent() {
           width: "48px",
           height: "48px",
           borderRadius: "14px",
-          background: "rgba(139, 92, 246, 0.2)",
-          color: "#c4b5fd",
+          background: themeBg,
+          color: themeColorLight,
           display: "flex",
           alignItems: "center",
-          justifyContent: "center"
+          justifyContent: "center",
+          transition: "all 0.2s ease"
         }}>
           <Warehouse size={26} />
         </div>
@@ -177,66 +191,10 @@ function BrazingStoresContent() {
         </div>
       ) : (
         <form onSubmit={handleSubmit}>
-          {/* Step 1: Direction Toggle */}
+          {/* Step 1: Select Gas (Determines Page Theme) */}
           <div style={{ marginBottom: "1.5rem" }}>
             <label style={{ display: "block", fontSize: "0.9rem", fontWeight: 700, marginBottom: "0.6rem" }}>
-              1. What Are You Doing?
-            </label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.85rem" }}>
-              <button
-                type="button"
-                onClick={() => setDirection("pickup_from_stores")}
-                style={{
-                  padding: "1.1rem 0.75rem",
-                  borderRadius: "14px",
-                  border: direction === "pickup_from_stores" ? "2px solid #8b5cf6" : "1px solid rgba(255,255,255,0.15)",
-                  background: direction === "pickup_from_stores" ? "rgba(139, 92, 246, 0.25)" : "var(--surface, #1e293b)",
-                  color: "#fff",
-                  cursor: "pointer",
-                  textAlign: "center"
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", fontWeight: 800, fontSize: "1.05rem" }}>
-                  <ArrowDownRight size={20} color="#c4b5fd" /> Pick Up
-                </div>
-                <div style={{ fontSize: "0.8rem", color: "#c4b5fd", marginTop: "3px", fontWeight: 600 }}>
-                  Stores → Van (+1)
-                </div>
-                <div style={{ fontSize: "0.72rem", color: currentStoresCount === 0 ? "#ef4444" : "#94a3b8", marginTop: "4px", fontWeight: currentStoresCount === 0 ? 700 : 400 }}>
-                  {loading ? "…" : currentStoresCount === 0 ? "Stores: Out of stock (0)" : `Stores has ${currentStoresCount}`}
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setDirection("return_to_stores")}
-                style={{
-                  padding: "1.1rem 0.75rem",
-                  borderRadius: "14px",
-                  border: direction === "return_to_stores" ? "2px solid #8b5cf6" : "1px solid rgba(255,255,255,0.15)",
-                  background: direction === "return_to_stores" ? "rgba(139, 92, 246, 0.25)" : "var(--surface, #1e293b)",
-                  color: "#fff",
-                  cursor: "pointer",
-                  textAlign: "center"
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", fontWeight: 800, fontSize: "1.05rem" }}>
-                  <ArrowUpRight size={20} color="#c4b5fd" /> Drop Off
-                </div>
-                <div style={{ fontSize: "0.8rem", color: "#c4b5fd", marginTop: "3px", fontWeight: 600 }}>
-                  Van → Stores (-1)
-                </div>
-                <div style={{ fontSize: "0.72rem", color: currentVanCount === 0 ? "#ef4444" : "#94a3b8", marginTop: "4px", fontWeight: currentVanCount === 0 ? 700 : 400 }}>
-                  {loading ? "…" : currentVanCount === 0 ? "Van: None (0)" : `Van has ${currentVanCount}`}
-                </div>
-              </button>
-            </div>
-          </div>
-
-          {/* Step 2: Select Gas */}
-          <div style={{ marginBottom: "1.5rem" }}>
-            <label style={{ display: "block", fontSize: "0.9rem", fontWeight: 700, marginBottom: "0.6rem" }}>
-              2. Select Gas Type
+              1. Which Gas Are You Moving?
             </label>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.85rem" }}>
               <button
@@ -256,6 +214,9 @@ function BrazingStoresContent() {
                 <div style={{ fontSize: "0.8rem", color: "#60a5fa", marginTop: "3px", fontWeight: 600 }}>
                   FSW Cylinder
                 </div>
+                <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: "4px" }}>
+                  {loading ? "…" : `${vanInventory.find(i => i.gasType === "Oxygen")?.quantity ?? 1} on van`}
+                </div>
               </button>
 
               <button
@@ -274,6 +235,67 @@ function BrazingStoresContent() {
                 <div style={{ fontSize: "1.15rem", fontWeight: 800 }}>Propane</div>
                 <div style={{ fontSize: "0.8rem", color: "#fb923c", marginTop: "3px", fontWeight: 600 }}>
                   Calor Gas Cylinder
+                </div>
+                <div style={{ fontSize: "0.72rem", color: "#94a3b8", marginTop: "4px" }}>
+                  {loading ? "…" : `${vanInventory.find(i => i.gasType === "Propane")?.quantity ?? 1} on van`}
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Step 2: Direction Toggle */}
+          <div style={{ marginBottom: "1.5rem" }}>
+            <label style={{ display: "block", fontSize: "0.9rem", fontWeight: 700, marginBottom: "0.6rem" }}>
+              2. What Are You Doing?
+            </label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.85rem" }}>
+              <button
+                type="button"
+                onClick={() => setDirection("pickup_from_stores")}
+                style={{
+                  padding: "1.1rem 0.75rem",
+                  borderRadius: "14px",
+                  border: direction === "pickup_from_stores" ? themeBorder : "1px solid rgba(255,255,255,0.15)",
+                  background: direction === "pickup_from_stores" ? themeBgActive : "var(--surface, #1e293b)",
+                  color: "#fff",
+                  cursor: "pointer",
+                  textAlign: "center",
+                  transition: "all 0.15s ease"
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", fontWeight: 800, fontSize: "1.05rem" }}>
+                  <ArrowDownRight size={20} color={direction === "pickup_from_stores" ? themeColorLight : "#94a3b8"} /> Pick Up
+                </div>
+                <div style={{ fontSize: "0.8rem", color: direction === "pickup_from_stores" ? themeColorLight : "#94a3b8", marginTop: "3px", fontWeight: 600 }}>
+                  Stores → Van (+1)
+                </div>
+                <div style={{ fontSize: "0.72rem", color: currentStoresCount === 0 ? "#ef4444" : "#94a3b8", marginTop: "4px", fontWeight: currentStoresCount === 0 ? 700 : 400 }}>
+                  {loading ? "…" : currentStoresCount === 0 ? "Stores: Out of stock (0)" : `Stores has ${currentStoresCount}`}
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDirection("return_to_stores")}
+                style={{
+                  padding: "1.1rem 0.75rem",
+                  borderRadius: "14px",
+                  border: direction === "return_to_stores" ? themeBorder : "1px solid rgba(255,255,255,0.15)",
+                  background: direction === "return_to_stores" ? themeBgActive : "var(--surface, #1e293b)",
+                  color: "#fff",
+                  cursor: "pointer",
+                  textAlign: "center",
+                  transition: "all 0.15s ease"
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", fontWeight: 800, fontSize: "1.05rem" }}>
+                  <ArrowUpRight size={20} color={direction === "return_to_stores" ? themeColorLight : "#94a3b8"} /> Drop Off
+                </div>
+                <div style={{ fontSize: "0.8rem", color: direction === "return_to_stores" ? themeColorLight : "#94a3b8", marginTop: "3px", fontWeight: 600 }}>
+                  Van → Stores (-1)
+                </div>
+                <div style={{ fontSize: "0.72rem", color: currentVanCount === 0 ? "#ef4444" : "#94a3b8", marginTop: "4px", fontWeight: currentVanCount === 0 ? 700 : 400 }}>
+                  {loading ? "…" : currentVanCount === 0 ? "Van: None (0)" : `Van has ${currentVanCount}`}
                 </div>
               </button>
             </div>
@@ -319,12 +341,13 @@ function BrazingStoresContent() {
                       flex: 1,
                       padding: "0.85rem",
                       borderRadius: "12px",
-                      border: effectiveQty === qty ? "2px solid #8b5cf6" : "1px solid rgba(255,255,255,0.15)",
-                      background: effectiveQty === qty ? "rgba(139, 92, 246, 0.3)" : "var(--surface, #1e293b)",
+                      border: effectiveQty === qty ? themeBorder : "1px solid rgba(255,255,255,0.15)",
+                      background: effectiveQty === qty ? themeBgActive : "var(--surface, #1e293b)",
                       color: "#fff",
                       fontWeight: 800,
                       fontSize: "1.1rem",
-                      cursor: "pointer"
+                      cursor: "pointer",
+                      transition: "all 0.15s ease"
                     }}
                   >
                     {qty}
@@ -375,16 +398,17 @@ function BrazingStoresContent() {
               border: "none",
               background: maxAllowedQty === 0
                 ? "rgba(255,255,255,0.1)"
-                : "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
+                : themeGradient,
               color: maxAllowedQty === 0 ? "#64748b" : "#fff",
               fontWeight: 800,
               fontSize: "1.1rem",
               cursor: maxAllowedQty === 0 ? "not-allowed" : "pointer",
-              boxShadow: maxAllowedQty > 0 ? "0 6px 20px rgba(139, 92, 246, 0.35)" : "none",
+              boxShadow: maxAllowedQty > 0 ? themeShadow : "none",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: "8px"
+              gap: "8px",
+              transition: "all 0.2s ease"
             }}
           >
             {isSubmitting ? (
