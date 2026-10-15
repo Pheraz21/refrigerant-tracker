@@ -56,15 +56,6 @@ function BrazingStoresContent() {
   const effectiveQty = maxAllowedQty > 0 ? Math.min(quantity, maxAllowedQty) : 0;
   const qtyOptions = maxAllowedQty > 0 ? Array.from({ length: Math.min(maxAllowedQty, 10) }, (_, i) => i + 1) : [];
 
-  // Live preview
-  const nextVanCount = direction === "pickup_from_stores"
-    ? currentVanCount + effectiveQty
-    : Math.max(0, currentVanCount - effectiveQty);
-
-  const nextStoresCount = direction === "pickup_from_stores"
-    ? Math.max(0, currentStoresCount - effectiveQty)
-    : currentStoresCount + effectiveQty;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -309,29 +300,6 @@ function BrazingStoresContent() {
                   ? `There are currently 0 ${gasType} bottles in HQ Stores to pick up.`
                   : `You currently have 0 ${gasType} bottles on your van to return.`}
               </span>
-            </div>
-          )}
-
-          {/* Live Preview when valid */}
-          {maxAllowedQty > 0 && (
-            <div style={{
-              background: "rgba(139, 92, 246, 0.12)",
-              border: "1px solid rgba(139, 92, 246, 0.3)",
-              borderRadius: "14px",
-              padding: "1rem 1.25rem",
-              marginBottom: "1.5rem"
-            }}>
-              <div style={{ fontSize: "0.8rem", color: "#c4b5fd", fontWeight: 700, marginBottom: "6px" }}>
-                Balance Impact Preview ({gasType})
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.95rem" }}>
-                <div>
-                  Van Stock: <strong>{currentVanCount}</strong> → <span style={{ color: "#22c55e", fontWeight: 800 }}>{nextVanCount}</span>
-                </div>
-                <div>
-                  Stores Stock: <strong>{currentStoresCount}</strong> → <span style={{ color: "#c4b5fd", fontWeight: 800 }}>{nextStoresCount}</span>
-                </div>
-              </div>
             </div>
           )}
 
