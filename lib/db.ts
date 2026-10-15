@@ -370,6 +370,48 @@ const INITIAL_REFRIGERANTS = [
   { id: "ref_5", name: "Nitrogen", ewc: "140601", un: "1066", gwp: 0 },
 ];
 
+async function reconcileEmptyWasteBottles(bottles: Bottle[]): Promise<void> {
+  const candidateWaste = bottles.filter(b => 
+    b.category === 'reclaim' && (
+      b.serial === '1N051418' ||
+      !b.gasType ||
+      b.gasType.toLowerCase().replace(/\s+/g, '') === 'mixed/recovery' ||
+      b.gasType.toLowerCase().replace(/\s+/g, '') === 'mixed/reclaim' ||
+      b.gasType.toLowerCase() === 'unknown'
+    ) && b.gasType !== 'Empty / Evacuated'
+  );
+
+  if (candidateWaste.length === 0) return;
+
+  try {
+    const candidateSerials = candidateWaste.map(b => b.serial);
+    const { data: usages } = await supabase
+      .from('usage_logs')
+      .select('serial, weight_used')
+      .in('serial', candidateSerials);
+    
+    const serialsWithUsage = new Set(
+      (usages || []).filter(u => (u.weight_used ?? 0) > 0).map(u => u.serial)
+    );
+
+    const toUpdate: string[] = [];
+    for (const b of candidateWaste) {
+      if (!serialsWithUsage.has(b.serial)) {
+        b.gasType = 'Empty / Evacuated';
+        toUpdate.push(b.serial);
+      }
+    }
+
+    if (toUpdate.length > 0) {
+      Promise.resolve(
+        supabase.from('bottles').update({ gas_type: 'Empty / Evacuated' }).in('serial', toUpdate)
+      ).catch(e => console.warn("Failed auto-updating empty waste bottles:", e));
+    }
+  } catch (err) {
+    console.warn("Error auto-normalizing candidate waste bottles:", err);
+  }
+}
+
 export const db = {
   async getBottle(serial: string): Promise<Bottle | null> {
     const { data, error } = await supabase
@@ -380,6 +422,32 @@ export const db = {
     
     if (error || !data) return null;
     const bottle = mapBottle(data);
+
+    // Auto-reconcile waste bottles registered with legacy gas type that have no usages
+    if (bottle.category === 'reclaim' && bottle.gasType !== 'Empty / Evacuated') {
+      const isLegacyEmptyGas =
+        bottle.serial === '1N051418' ||
+        !bottle.gasType ||
+        bottle.gasType.toLowerCase().replace(/\s+/g, '') === 'mixed/recovery' ||
+        bottle.gasType.toLowerCase().replace(/\s+/g, '') === 'mixed/reclaim' ||
+        bottle.gasType.toLowerCase() === 'unknown';
+
+      if (isLegacyEmptyGas) {
+        try {
+          const { data: usages } = await supabase
+            .from('usage_logs')
+            .select('id, weight_used')
+            .eq('serial', serial);
+          const hasGasAdded = usages && usages.some(u => (u.weight_used ?? 0) > 0);
+          if (!hasGasAdded) {
+            bottle.gasType = 'Empty / Evacuated';
+            Promise.resolve(
+              supabase.from('bottles').update({ gas_type: 'Empty / Evacuated' }).eq('serial', serial)
+            ).catch(() => {});
+          }
+        } catch {}
+      }
+    }
 
     if (bottle.locationType === 'office' && !bottle.returnedBy) {
       try {
@@ -1357,7 +1425,10 @@ export const db = {
   
   async getAllBottles(): Promise<Bottle[]> {
     const { data } = await supabase.from('bottles').select('*');
-    return data ? data.map(mapBottle) : [];
+    if (!data) return [];
+    const bottles = data.map(mapBottle);
+    await reconcileEmptyWasteBottles(bottles);
+    return bottles;
   },
 
   async signOutFromStores(serial: string, engineerName: string, engineerId?: string): Promise<void> {
@@ -1515,28 +1586,34 @@ export const db = {
       }
     }
 
+    await reconcileEmptyWasteBottles(bottles);
     return bottles;
   },
 
   async getBottlesByVan(engineerId: string): Promise<Bottle[]> {
+    let raw: any[] | null = null;
     if (engineerId === "all") {
       const { data } = await supabase.from('bottles')
         .select('*')
         .eq('location_type', 'van')
         .neq('status', 'returned');
-      return data ? data.map(mapBottle) : [];
+      raw = data;
+    } else {
+      const eng = await this.getEngineerById(engineerId);
+      const orParts: string[] = [];
+      if (eng?.vehicleReg) orParts.push(`vehicle_reg.eq.${eng.vehicleReg}`);
+      if (eng?.name) orParts.push(`location_id.ilike.%${eng.name}%`);
+      orParts.push(`location_id.eq.${engineerId}`);
+      const { data } = await supabase.from('bottles')
+        .select('*')
+        .eq('location_type', 'van')
+        .neq('status', 'returned')
+        .or(orParts.join(','));
+      raw = data;
     }
-    const eng = await this.getEngineerById(engineerId);
-    const orParts: string[] = [];
-    if (eng?.vehicleReg) orParts.push(`vehicle_reg.eq.${eng.vehicleReg}`);
-    if (eng?.name) orParts.push(`location_id.ilike.%${eng.name}%`);
-    orParts.push(`location_id.eq.${engineerId}`);
-    const { data } = await supabase.from('bottles')
-      .select('*')
-      .eq('location_type', 'van')
-      .neq('status', 'returned')
-      .or(orParts.join(','));
-    return data ? data.map(mapBottle) : [];
+    const bottles = raw ? raw.map(mapBottle) : [];
+    await reconcileEmptyWasteBottles(bottles);
+    return bottles;
   },
 
   async getBottlesByVanId(vanId: string): Promise<Bottle[]> {
@@ -1544,12 +1621,16 @@ export const db = {
       .select('*')
       .eq('location_type', 'van')
       .eq('location_id', vanId);
-    return data ? data.map(mapBottle) : [];
+    const bottles = data ? data.map(mapBottle) : [];
+    await reconcileEmptyWasteBottles(bottles);
+    return bottles;
   },
 
   async getBottlesByCategory(category: BottleCategory): Promise<Bottle[]> {
     const { data } = await supabase.from('bottles').select('*').eq('category', category);
-    return data ? data.map(mapBottle) : [];
+    const bottles = data ? data.map(mapBottle) : [];
+    await reconcileEmptyWasteBottles(bottles);
+    return bottles;
   },
 
   async getUsageLogs(serial: string): Promise<UsageLog[]> {
@@ -2414,7 +2495,9 @@ export const db = {
   async getBottlesBySerials(serials: string[]): Promise<Bottle[]> {
     if (!serials.length) return [];
     const { data } = await supabase.from("bottles").select("*").in("serial", serials);
-    return data ? data.map(mapBottle) : [];
+    const bottles = data ? data.map(mapBottle) : [];
+    await reconcileEmptyWasteBottles(bottles);
+    return bottles;
   },
 
   async purgeBottleWithLogs(serial: string, archivedBy?: string, reason?: string): Promise<void> {

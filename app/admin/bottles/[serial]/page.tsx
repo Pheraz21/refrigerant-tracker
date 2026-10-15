@@ -1028,6 +1028,21 @@ export default function ViewBottlePage() {
         db.getDecommissionsByBottleSerial(serialStr),
         db.getAuditTrailForSerial(serialStr),
       ]).then(([bottleData, moveData, useData, hwcnData, decommData, auditData]) => {
+        if (bottleData && bottleData.category === 'reclaim' && bottleData.gasType !== 'Empty / Evacuated') {
+          const isLegacyEmptyGas =
+            bottleData.serial === '1N051418' ||
+            !bottleData.gasType ||
+            bottleData.gasType.toLowerCase().replace(/\s+/g, '') === 'mixed/recovery' ||
+            bottleData.gasType.toLowerCase().replace(/\s+/g, '') === 'mixed/reclaim' ||
+            bottleData.gasType.toLowerCase() === 'unknown';
+
+          const hasRecoveries = useData && useData.some(u => (u.weightUsed ?? 0) > 0);
+          if (isLegacyEmptyGas && !hasRecoveries) {
+            bottleData.gasType = 'Empty / Evacuated';
+            db.updateBottle(bottleData.serial, { gasType: 'Empty / Evacuated' }).catch(() => {});
+          }
+        }
+
         setBottle(bottleData);
         setMoveLogs(moveData);
         setUsageLogs(useData);
