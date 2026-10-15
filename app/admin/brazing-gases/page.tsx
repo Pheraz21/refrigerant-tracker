@@ -95,15 +95,18 @@ export default function BrazingGasesAdminPage() {
     });
 
     // 2. Engineer Rows
+    const handledHolderIds = new Set<string>();
+
     for (const eng of engineers) {
-      const o2Item = inventoryItems.find(i => i.holderType === "engineer" && i.holderId === eng.id && i.gasType === "Oxygen");
-      const propaneItem = inventoryItems.find(i => i.holderType === "engineer" && i.holderId === eng.id && i.gasType === "Propane");
+      handledHolderIds.add(eng.id);
+      const o2Item = inventoryItems.find(i => i.holderType === "engineer" && (i.holderId === eng.id || (i.holderName && eng.name && i.holderName.trim().toLowerCase() === eng.name.trim().toLowerCase())) && i.gasType === "Oxygen");
+      const propaneItem = inventoryItems.find(i => i.holderType === "engineer" && (i.holderId === eng.id || (i.holderName && eng.name && i.holderName.trim().toLowerCase() === eng.name.trim().toLowerCase())) && i.gasType === "Propane");
 
       // Default standard kit is 1 if not explicitly altered
       const o2Count = o2Item !== undefined ? o2Item.quantity : 1;
       const propaneCount = propaneItem !== undefined ? propaneItem.quantity : 1;
 
-      const lastExc = exchanges.find(e => e.engineerId === eng.id);
+      const lastExc = exchanges.find(e => e.engineerId === eng.id || (e.engineerName && eng.name && e.engineerName.trim().toLowerCase() === eng.name.trim().toLowerCase()));
 
       rows.push({
         id: eng.id,
@@ -114,6 +117,26 @@ export default function BrazingGasesAdminPage() {
         propane: propaneCount,
         lastExchange: lastExc?.exchangeDate || null
       });
+    }
+
+    // 3. Any additional holders with inventory not already listed in engineers
+    for (const item of inventoryItems) {
+      if (item.holderType === "engineer" && !handledHolderIds.has(item.holderId)) {
+        handledHolderIds.add(item.holderId);
+        const o2Item = inventoryItems.find(i => i.holderId === item.holderId && i.gasType === "Oxygen");
+        const propaneItem = inventoryItems.find(i => i.holderId === item.holderId && i.gasType === "Propane");
+        const lastExc = exchanges.find(e => e.engineerId === item.holderId);
+
+        rows.push({
+          id: item.holderId,
+          type: "engineer" as const,
+          name: item.holderName,
+          reg: item.vehicleReg || "Assigned Kit",
+          oxygen: o2Item ? o2Item.quantity : 0,
+          propane: propaneItem ? propaneItem.quantity : 0,
+          lastExchange: lastExc?.exchangeDate || null
+        });
+      }
     }
 
     return rows;

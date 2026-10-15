@@ -3243,7 +3243,9 @@ export const db = {
     try {
       let query = supabase.from('brazing_inventory').select('*');
       if (holderType) query = query.eq('holder_type', holderType);
-      if (holderId) query = query.eq('holder_id', holderId);
+      if (holderId) {
+        query = query.or(`holder_id.eq.${holderId},holder_name.ilike.%${holderId}%`);
+      }
       const { data, error } = await query;
       if (!error && data && data.length > 0) {
         return data.map(mapBrazingInventory);
@@ -3255,7 +3257,7 @@ export const db = {
     const all = getStored<BrazingInventoryItem[]>('brazing_inventory', []);
     return all.filter(item => {
       if (holderType && item.holderType !== holderType) return false;
-      if (holderId && item.holderId !== holderId) return false;
+      if (holderId && item.holderId !== holderId && item.holderName?.toLowerCase() !== holderId.toLowerCase()) return false;
       return true;
     });
   },
