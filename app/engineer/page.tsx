@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { Html5QrcodeScanner, Html5QrcodeScanType } from "html5-qrcode";
-import { CheckCircle2, ScanLine, ArrowRight, PackageSearch, Camera, User } from "lucide-react";
+import { CheckCircle2, ScanLine, ArrowRight, PackageSearch, Camera, User, Flame } from "lucide-react";
 import styles from "./page.module.css";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -10,7 +10,6 @@ import { db } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { ActiveVehicleBanner } from "@/components/ActiveVehicleBanner";
 import { LeadEngineerCrewBanner } from "@/components/LeadEngineerCrewBanner";
-import { BrazingKitCard } from "@/components/BrazingKitCard";
 
 interface ScanData {
   barcode: string;
@@ -222,13 +221,43 @@ export default function DashboardScannerPage() {
           <LeadEngineerCrewBanner />
 
           {user?.id && (
-            <div style={{ marginTop: '1.25rem' }}>
-              <BrazingKitCard
-                engineerId={user.id}
-                engineerName={user.name || "Engineer"}
-                vehicleReg={user.vehicleReg}
-              />
-            </div>
+            <Link href="/engineer/brazing" style={{ textDecoration: 'none', display: 'block', marginTop: '1.25rem' }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.9rem 1.25rem',
+                background: 'rgba(249, 115, 22, 0.12)',
+                border: '1px solid rgba(249, 115, 22, 0.35)',
+                borderRadius: '12px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <div style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '8px',
+                    background: 'rgba(249, 115, 22, 0.25)',
+                    color: '#f97316',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <Flame size={20} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, color: '#fff' }}>
+                      Brazing Gas Kit
+                    </h3>
+                    <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: '2px 0 0 0' }}>
+                      Oxygen (FSW) & Propane (Calor Gas)
+                    </p>
+                  </div>
+                </div>
+                <ArrowRight size={20} color="#f97316" />
+              </div>
+            </Link>
           )}
 
           {user?.availableRoles?.includes("office") && (
