@@ -64,6 +64,7 @@ interface MilestonePoint {
   weight: number;
   type: 'registered' | 'usage' | 'recovery' | 'movement' | 'hwcn' | 'current';
   title: string;
+  categoryAtTime?: 'new' | 'reclaim' | 'recycled' | 'nitrogen';
   change?: number; // delta in kg
   engineer?: string;
   vehicleReg?: string;
@@ -86,13 +87,14 @@ function CylinderWeightChart({
   moveLogs,
   usageLogs,
   crmJobMap,
+  auditTrail,
 }: {
   bottle: Bottle;
   moveLogs: MovementLog[];
   usageLogs: UsageLog[];
   crmJobMap?: Map<string, CrmJob>;
+  auditTrail?: AuditTrailEntry[];
 }) {
-  const isReclaim = bottle.category === "reclaim";
   const initialWeight = bottle.initialWeight ?? 0;
   const currentWeight = bottle.currentWeight ?? 0;
 
@@ -100,8 +102,93 @@ function CylinderWeightChart({
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const [pinnedIdx, setPinnedIdx] = useState<number | null>(null);
 
+  // Category color and label helpers
+  const getCategoryColor = (cat?: string | null) => {
+    switch (cat) {
+      case 'reclaim': return '#f59e0b'; // Amber / Waste
+      case 'recycled': return '#10b981'; // Emerald Green / Recycled
+      case 'new': return '#00e5ff'; // Cyan / Virgin New
+      default: return '#94a3b8'; // Slate / Nitrogen
+    }
+  };
+
+  const getCategoryLabel = (cat?: string | null) => {
+    switch (cat) {
+      case 'reclaim': return 'Waste / Reclaim';
+      case 'recycled': return 'Recycled Refrigerant';
+      case 'new': return 'New Refrigerant';
+      default: return 'Nitrogen';
+    }
+  };
+
+  // Helper to determine bottle category at any point in time
+  const getCategoryAtTime = (eventDate: string): 'new' | 'reclaim' | 'recycled' | 'nitrogen' => {
+    const t = new Date(eventDate).getTime();
+
+    // 1. Check movement logs for explicit reclassification
+    const reclassLog = moveLogs.find(m =>
+      m.action === 'reclassified_recycled' ||
+      (m.notes && m.notes.toLowerCase().includes('reclassified from reclaim')) ||
+      (m.notes && m.notes.toLowerCase().includes('reclassified to recycled'))
+    );
+    if (reclassLog) {
+      const reclassTime = new Date(reclassLog.date).getTime();
+      if (t < reclassTime) return 'reclaim';
+      return 'recycled';
+    }
+
+    // 2. Check audit trail for category changes
+    const categoryAudit = (auditTrail || [])
+      .filter(a => a.tableName === 'bottles' && a.fieldName === 'category')
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    if (categoryAudit.length > 0) {
+      for (let i = categoryAudit.length - 1; i >= 0; i--) {
+        const auditTime = new Date(categoryAudit[i].createdAt).getTime();
+        if (t >= auditTime) {
+          const val = categoryAudit[i].newValue?.toLowerCase();
+          if (val === 'recycled') return 'recycled';
+          if (val === 'new') return 'new';
+          if (val === 'reclaim' || val === 'waste') return 'reclaim';
+          if (val === 'nitrogen') return 'nitrogen';
+        }
+      }
+      const initialVal = categoryAudit[0].oldValue?.toLowerCase();
+      if (initialVal === 'reclaim' || initialVal === 'waste') return 'reclaim';
+      if (initialVal === 'recycled') return 'recycled';
+      if (initialVal === 'new') return 'new';
+    }
+
+    // 3. If currently recycled, check when it was acting as waste vs recycled
+    if (bottle.category === 'recycled') {
+      const recoveryLogs = usageLogs.filter(u => ['recovery', 'retrofit', 'waste', 'reclaim'].includes((u.jobType || '').toLowerCase()));
+      const reuseLogs = usageLogs.filter(u => u.jobType === 'recycled_charge' || !['recovery', 'retrofit', 'waste', 'reclaim'].includes((u.jobType || '').toLowerCase()));
+
+      if (recoveryLogs.length > 0) {
+        // Earliest reuse or consignment return marks when it transitioned from reclaim waste to recycled
+        const earliestReuse = reuseLogs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
+        const storeReturnMove = moveLogs.find(m => m.notes?.toLowerCase().includes('consignment') || m.action === 'received');
+        const transitionDate = earliestReuse?.date || storeReturnMove?.date;
+
+        if (transitionDate) {
+          const transTime = new Date(transitionDate).getTime();
+          if (t < transTime) return 'reclaim';
+          return 'recycled';
+        }
+        const latestRecovery = recoveryLogs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+        if (t <= new Date(latestRecovery.date).getTime()) return 'reclaim';
+      }
+    }
+
+    if (bottle.category === 'reclaim') return 'reclaim';
+    if (bottle.category === 'recycled') return 'recycled';
+    if (bottle.category === 'new') return 'new';
+    if (bottle.category === 'nitrogen') return 'nitrogen';
+    return 'new';
+  };
+
   // Compute all chronological points with physical running balance
-  const { allPoints, gasOnlyPoints, totalRecovered, totalUsed, siteCount, vanCount } = useMemo(() => {
+  const { allPoints, gasOnlyPoints, totalRecovered, totalUsed, siteCount, vanCount, initialCat, isWasteInitial } = useMemo(() => {
     const rawEvents: Array<{
       id: string;
       date: string;
@@ -122,11 +209,14 @@ function CylinderWeightChart({
 
     // 1. Initial registration event
     const regDate = bottle.registeredAt || (moveLogs[0]?.date) || new Date().toISOString();
+    const initCat = getCategoryAtTime(regDate);
+    const wasteInitial = initCat === 'reclaim' || bottle.category === 'reclaim' || bottle.category === 'recycled' || usageLogs.some(u => ['recovery', 'retrofit', 'waste', 'reclaim'].includes((u.jobType || '').toLowerCase()));
+
     rawEvents.push({
       id: `reg-${bottle.serial}`,
       date: regDate,
       type: 'registered',
-      title: isReclaim ? "Initial Registration (Empty Reclaim)" : "Initial Registration (Full Capacity)",
+      title: wasteInitial ? "Initial Registration (Empty Waste Cylinder)" : "Initial Registration (Full Capacity)",
       engineer: bottle.registeredBy || bottle.lastEngineer || "System",
       to: bottle.locationId || "HQ-Stores",
       notes: "Registered into system inventory"
@@ -207,7 +297,8 @@ function CylinderWeightChart({
     rawEvents.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     // Calculate real physical running weight
-    let running = isReclaim ? 0 : initialWeight;
+    // A waste/reclaim cylinder always starts at 0.00 kg. Virgin cylinders start at initialWeight.
+    let running = wasteInitial ? 0 : initialWeight;
     const allPts: MilestonePoint[] = [];
 
     rawEvents.forEach(e => {
@@ -223,6 +314,7 @@ function CylinderWeightChart({
         date: e.date,
         weight: Number(running.toFixed(2)),
         type: e.type,
+        categoryAtTime: getCategoryAtTime(e.date),
         title: e.title,
         change: e.change,
         engineer: e.engineer,
@@ -239,12 +331,14 @@ function CylinderWeightChart({
 
     // Current balance end-point if latest state isn't already the final point
     const last = allPts[allPts.length - 1];
+    const latestCat = getCategoryAtTime(bottle.locationChangedAt || new Date().toISOString());
     if (!last || Math.abs(last.weight - currentWeight) > 0.05) {
       allPts.push({
         id: `curr-${bottle.serial}`,
         date: bottle.locationChangedAt || new Date().toISOString(),
         weight: currentWeight,
         type: 'current',
+        categoryAtTime: latestCat,
         title: "Current Inventory Balance",
         to: bottle.locationId,
         engineer: bottle.lastEngineer || bottle.returnedBy
@@ -259,9 +353,11 @@ function CylinderWeightChart({
       totalRecovered: totRec,
       totalUsed: totUsed,
       siteCount: sitesSeen.size,
-      vanCount: vansSeen.size
+      vanCount: vansSeen.size,
+      initialCat: initCat,
+      isWasteInitial: wasteInitial
     };
-  }, [bottle, moveLogs, usageLogs, isReclaim, initialWeight, currentWeight, crmJobMap]);
+  }, [bottle, moveLogs, usageLogs, initialWeight, currentWeight, crmJobMap, auditTrail]);
 
   const activePoints = viewMode === "all" ? allPoints : gasOnlyPoints;
 
@@ -272,10 +368,11 @@ function CylinderWeightChart({
   const selectedIdx = pinnedIdx !== null ? pinnedIdx : (hoveredIdx !== null ? hoveredIdx : (activePoints.length - 1));
   const activePt = activePoints[Math.min(Math.max(0, selectedIdx), activePoints.length - 1)];
 
-  // Colors & theme
-  const themeColor = isReclaim ? "#ffaa00" : "#00e5ff";
-  const themeBorder = isReclaim ? "rgba(255, 170, 0, 0.3)" : "rgba(0, 229, 255, 0.25)";
-  const themeBg = isReclaim ? "rgba(255, 170, 0, 0.08)" : "rgba(0, 229, 255, 0.08)";
+  // Current theme color based on active classification
+  const currentCategory = activePt.categoryAtTime || bottle.category as any;
+  const themeColor = getCategoryColor(currentCategory);
+  const themeBorder = `${themeColor}40`;
+  const themeBg = `${themeColor}12`;
 
   // SVG Geometry
   const svgWidth = 800;
@@ -300,18 +397,7 @@ function CylinderWeightChart({
     return (svgHeight - paddingBottom) - ratio * (svgHeight - paddingTop - paddingBottom);
   };
 
-  // Build Stepped Path: Horizontal segment to next X, then vertical step to next Y
-  let pathD = `M ${getX(0).toFixed(1)} ${getY(activePoints[0].weight).toFixed(1)}`;
-  for (let i = 1; i < activePoints.length; i++) {
-    const currX = getX(i);
-    const currY = getY(activePoints[i].weight);
-    // Step horizontal then vertical
-    pathD += ` H ${currX.toFixed(1)} V ${currY.toFixed(1)}`;
-  }
-
-  const lastX = getX(activePoints.length - 1);
   const bottomY = svgHeight - paddingBottom;
-  const areaD = `${pathD} V ${bottomY} H ${paddingLeft} Z`;
 
   // Grid lines
   const gridSteps = 4;
@@ -320,15 +406,15 @@ function CylinderWeightChart({
     return { val, y: getY(val) };
   });
 
-  const getPointColor = (p: MilestonePoint) => {
+  const getNodeColor = (p: MilestonePoint) => {
     switch (p.type) {
       case "recovery": return "#ffaa00";
       case "usage": return "#22c55e";
       case "movement": return "#818cf8";
       case "hwcn": return "#c084fc";
-      case "registered": return "#38bdf8";
-      case "current": return isReclaim ? "#ffaa00" : "#22c55e";
-      default: return themeColor;
+      case "registered": return getCategoryColor(p.categoryAtTime);
+      case "current": return getCategoryColor(p.categoryAtTime);
+      default: return getCategoryColor(p.categoryAtTime);
     }
   };
 
@@ -340,7 +426,8 @@ function CylinderWeightChart({
       padding: "1.25rem 1.5rem",
       marginBottom: "1.75rem",
       backdropFilter: "blur(14px)",
-      boxShadow: "0 8px 30px rgba(0,0,0,0.35)"
+      boxShadow: "0 8px 30px rgba(0,0,0,0.35)",
+      transition: "border 0.3s ease"
     }}>
       {/* Top Header & View Mode Switch */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "1rem" }}>
@@ -348,12 +435,12 @@ function CylinderWeightChart({
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
             <Activity size={16} color={themeColor} />
             <span style={{ fontSize: "0.75rem", color: themeColor, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-              {isReclaim ? "Reclaim Accumulation & Custody Trajectory" : "Cylinder Weight Loss & Usage Trajectory"}
+              Cylinder Weight Loss &amp; Usage Trajectory
             </span>
           </div>
           <div style={{ fontSize: "1.25rem", fontWeight: 800, color: "#fff", marginTop: "3px" }}>
             {currentWeight.toFixed(2)} kg <span style={{ fontSize: "0.82rem", color: "#94a3b8", fontWeight: 500 }}>
-              {isReclaim ? `(Rated Capacity: ${initialWeight.toFixed(2)} kg)` : `of ${initialWeight.toFixed(2)} kg capacity`}
+              {isWasteInitial ? `(Rated Capacity: ${initialWeight.toFixed(2)} kg)` : `of ${initialWeight.toFixed(2)} kg capacity`}
             </span>
           </div>
         </div>
@@ -370,7 +457,7 @@ function CylinderWeightChart({
               fontSize: "0.75rem",
               fontWeight: 600,
               cursor: "pointer",
-              background: viewMode === "all" ? (isReclaim ? "#ffaa00" : "#00e5ff") : "transparent",
+              background: viewMode === "all" ? themeColor : "transparent",
               color: viewMode === "all" ? "#0f172a" : "#94a3b8",
               transition: "all 0.2s"
             }}
@@ -387,7 +474,7 @@ function CylinderWeightChart({
               fontSize: "0.75rem",
               fontWeight: 600,
               cursor: "pointer",
-              background: viewMode === "gas" ? (isReclaim ? "#ffaa00" : "#00e5ff") : "transparent",
+              background: viewMode === "gas" ? themeColor : "transparent",
               color: viewMode === "gas" ? "#0f172a" : "#94a3b8",
               transition: "all 0.2s"
             }}
@@ -407,16 +494,16 @@ function CylinderWeightChart({
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "8px", padding: "0.45rem 0.75rem" }}>
           <div style={{ fontSize: "0.65rem", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Start State</div>
           <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#fff", marginTop: "2px" }}>
-            {isReclaim ? "0.00 kg (Empty)" : `${initialWeight.toFixed(2)} kg (Full)`}
+            {isWasteInitial ? "0.00 kg (Empty Waste)" : `${initialWeight.toFixed(2)} kg (Full)`}
           </div>
         </div>
 
         {totalRecovered > 0 && (
-          <div style={{ background: "rgba(255,170,0,0.08)", border: "1px solid rgba(255,170,0,0.25)", borderRadius: "8px", padding: "0.45rem 0.75rem" }}>
-            <div style={{ fontSize: "0.65rem", color: "#ffaa00", textTransform: "uppercase", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.25rem" }}>
+          <div style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)", borderRadius: "8px", padding: "0.45rem 0.75rem" }}>
+            <div style={{ fontSize: "0.65rem", color: "#f59e0b", textTransform: "uppercase", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.25rem" }}>
               <ArrowUpRight size={11} /> Gas Recovered
             </div>
-            <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#ffaa00", marginTop: "2px" }}>
+            <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#f59e0b", marginTop: "2px" }}>
               +{totalRecovered.toFixed(2)} kg
             </div>
           </div>
@@ -452,9 +539,21 @@ function CylinderWeightChart({
       <div style={{ width: "100%", overflowX: "auto", position: "relative" }} className="scrollbar-none">
         <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} style={{ width: "100%", height: "auto", minWidth: "550px", display: "block" }}>
           <defs>
-            <linearGradient id={`weightGradient_${isReclaim ? 'rec' : 'virgin'}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={themeColor} stopOpacity="0.3" />
-              <stop offset="100%" stopColor={themeColor} stopOpacity="0.02" />
+            <linearGradient id="weightGradient_reclaim" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.32" />
+              <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.02" />
+            </linearGradient>
+            <linearGradient id="weightGradient_recycled" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#10b981" stopOpacity="0.32" />
+              <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
+            </linearGradient>
+            <linearGradient id="weightGradient_new" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#00e5ff" stopOpacity="0.32" />
+              <stop offset="100%" stopColor="#00e5ff" stopOpacity="0.02" />
+            </linearGradient>
+            <linearGradient id="weightGradient_nitrogen" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#94a3b8" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#94a3b8" stopOpacity="0.02" />
             </linearGradient>
           </defs>
 
@@ -482,9 +581,26 @@ function CylinderWeightChart({
             </g>
           ))}
 
-          {/* Stepped Area and Line */}
-          <path d={areaD} fill={`url(#weightGradient_${isReclaim ? 'rec' : 'virgin'})`} />
-          <path d={pathD} fill="none" stroke={themeColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          {/* Multi-colored line segments and area fills determined by bottle classification at each time */}
+          {activePoints.slice(1).map((p, idx) => {
+            const i = idx + 1;
+            const prevPt = activePoints[i - 1];
+            const prevX = getX(i - 1);
+            const prevY = getY(prevPt.weight);
+            const currX = getX(i);
+            const currY = getY(p.weight);
+            const cat = p.categoryAtTime;
+            const segColor = getCategoryColor(cat);
+            const segPath = `M ${prevX.toFixed(1)} ${prevY.toFixed(1)} H ${currX.toFixed(1)} V ${currY.toFixed(1)}`;
+            const segArea = `M ${prevX.toFixed(1)} ${prevY.toFixed(1)} H ${currX.toFixed(1)} V ${bottomY} H ${prevX.toFixed(1)} Z`;
+
+            return (
+              <g key={`seg-${i}`}>
+                <path d={segArea} fill={`url(#weightGradient_${cat})`} />
+                <path d={segPath} fill="none" stroke={segColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              </g>
+            );
+          })}
 
           {/* Active / Inspected vertical cursor line */}
           {activePt && (
@@ -505,7 +621,7 @@ function CylinderWeightChart({
             const cy = getY(p.weight);
             const isGasAction = p.type === "usage" || p.type === "recovery";
             const isSelected = i === selectedIdx;
-            const nodeColor = getPointColor(p);
+            const nodeColor = getNodeColor(p);
             const r = isGasAction ? 6 : (p.type === "registered" || p.type === "current" ? 5 : 3.5);
 
             return (
@@ -516,7 +632,7 @@ function CylinderWeightChart({
                 onMouseLeave={() => setHoveredIdx(null)}
                 onClick={() => setPinnedIdx(i === pinnedIdx ? null : i)}
               >
-                {/* Expanded invisible hit target for easier mouse hover on small screens */}
+                {/* Expanded hit target for comfortable mouse hover */}
                 <circle cx={cx} cy={cy} r={16} fill="transparent" />
 
                 {/* Pulsing selection ring */}
@@ -613,17 +729,18 @@ function CylinderWeightChart({
         <div style={{
           marginTop: "1rem",
           background: "rgba(255,255,255,0.04)",
-          border: `1px solid ${getPointColor(activePt)}40`,
+          border: `1px solid ${getCategoryColor(activePt.categoryAtTime)}50`,
           borderRadius: "10px",
           padding: "0.85rem 1.1rem",
           transition: "all 0.2s"
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem", flexWrap: "wrap", gap: "0.5rem" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+              {/* Classification at this time badge */}
               <span style={{
-                background: `${getPointColor(activePt)}20`,
-                color: getPointColor(activePt),
-                border: `1px solid ${getPointColor(activePt)}50`,
+                background: `${getCategoryColor(activePt.categoryAtTime)}20`,
+                color: getCategoryColor(activePt.categoryAtTime),
+                border: `1px solid ${getCategoryColor(activePt.categoryAtTime)}60`,
                 padding: "0.2rem 0.55rem",
                 borderRadius: "20px",
                 fontSize: "0.72rem",
@@ -631,8 +748,21 @@ function CylinderWeightChart({
                 textTransform: "uppercase",
                 letterSpacing: "0.04em"
               }}>
+                {getCategoryLabel(activePt.categoryAtTime)}
+              </span>
+
+              {/* Milestone action badge */}
+              <span style={{
+                background: "rgba(255,255,255,0.08)",
+                color: "#fff",
+                padding: "0.2rem 0.55rem",
+                borderRadius: "20px",
+                fontSize: "0.72rem",
+                fontWeight: 600
+              }}>
                 {activePt.title}
               </span>
+
               <span style={{ fontSize: "0.82rem", color: "rgba(255,255,255,0.85)", fontWeight: 600 }}>
                 {new Date(activePt.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                 <span style={{ fontSize: "0.75rem", color: "#94a3b8", marginLeft: "0.35rem" }}>
@@ -646,7 +776,7 @@ function CylinderWeightChart({
                 <div style={{
                   fontSize: "0.85rem",
                   fontWeight: 800,
-                  color: activePt.change > 0 ? "#ffaa00" : "#22c55e"
+                  color: activePt.change > 0 ? "#f59e0b" : "#22c55e"
                 }}>
                   {activePt.change > 0 ? `+${activePt.change.toFixed(2)} kg` : `${activePt.change.toFixed(2)} kg`}
                 </div>
@@ -672,7 +802,7 @@ function CylinderWeightChart({
             fontSize: "0.78rem",
             color: "#cbd5e1"
           }}>
-            {/* Location / Site */}
+            {/* Location / Route */}
             <div>
               <div style={{ fontSize: "0.68rem", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Location / Route</div>
               <div style={{ fontWeight: 500, color: "#fff", marginTop: "1px" }}>
@@ -686,7 +816,7 @@ function CylinderWeightChart({
 
             {/* Engineer & Vehicle */}
             <div>
-              <div style={{ fontSize: "0.68rem", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Engineer & Vehicle</div>
+              <div style={{ fontSize: "0.68rem", color: "#94a3b8", textTransform: "uppercase", fontWeight: 600 }}>Engineer &amp; Vehicle</div>
               <div style={{ fontWeight: 500, color: "#fff", marginTop: "1px", display: "flex", alignItems: "center", gap: "0.35rem" }}>
                 <User size={12} style={{ opacity: 0.6 }} />
                 <span>{activePt.engineer || "System"}</span>
@@ -713,6 +843,18 @@ function CylinderWeightChart({
 
       {/* Visual Legend */}
       <div style={{ display: "flex", gap: "1.2rem", marginTop: "0.85rem", fontSize: "0.72rem", color: "#94a3b8", flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+          <span style={{ width: "16px", height: "3px", borderRadius: "2px", background: "#f59e0b", display: "inline-block" }} />
+          Waste / Reclaim Line
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+          <span style={{ width: "16px", height: "3px", borderRadius: "2px", background: "#10b981", display: "inline-block" }} />
+          Recycled Line
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+          <span style={{ width: "16px", height: "3px", borderRadius: "2px", background: "#00e5ff", display: "inline-block" }} />
+          New / Virgin Line
+        </span>
         <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
           <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#ffaa00", display: "inline-block" }} />
           Gas Recovered
@@ -720,14 +862,6 @@ function CylinderWeightChart({
         <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
           <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
           Gas Dispensed
-        </span>
-        <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#818cf8", display: "inline-block" }} />
-          Van / Site Transfer
-        </span>
-        <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#c084fc", display: "inline-block" }} />
-          HWCN In Transit / Stores
         </span>
         <span style={{ marginLeft: "auto", fontStyle: "italic", opacity: 0.7 }}>
           Hover or click any node to inspect milestone details
@@ -1644,7 +1778,7 @@ export default function ViewBottlePage() {
           )}
 
           {/* Weight Loss & Usage Trajectory Chart */}
-          <CylinderWeightChart bottle={bottle} moveLogs={filteredMoveLogs} usageLogs={filteredUsageLogs} crmJobMap={crmJobMap} />
+          <CylinderWeightChart bottle={bottle} moveLogs={filteredMoveLogs} usageLogs={filteredUsageLogs} crmJobMap={crmJobMap} auditTrail={auditTrail} />
 
           {/* Tab bar */}
           <div style={{ display: "flex", gap: "0.25rem", background: "rgba(255,255,255,0.04)", borderRadius: "8px", padding: "0.25rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
