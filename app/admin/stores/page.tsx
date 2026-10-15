@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from "react";
 import { db, Bottle } from "@/lib/db";
-import { Warehouse, ArrowUpDown, ArrowUp, ArrowDown, Search, Calendar, Filter as FilterIcon, FileText, FileSpreadsheet, Settings2, X, Recycle, CheckCircle2 } from "lucide-react";
+import { Warehouse, ArrowUpDown, ArrowUp, ArrowDown, Search, Calendar, Filter as FilterIcon, FileText, FileSpreadsheet, Settings2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTablePrefs } from "@/lib/useTablePrefs";
 import { ColumnCustomizer } from "@/app/components/ColumnCustomizer";
@@ -48,40 +48,6 @@ export default function StoresInventoryPage() {
 
   const { visibleCols, hidden, order, toggleCol, moveCol, reset } =
     useTablePrefs("stores", COLUMN_DEFS.map(c => c.key));
-
-  const [updatingReclaim, setUpdatingReclaim] = useState(false);
-
-  const emptyReclaimCount = useMemo(() => {
-    return bottles.filter(
-      b => b.category === "reclaim" &&
-           (b.currentWeight ?? 0) === 0 &&
-           (b.gasType || "").toLowerCase() !== "empty / evacuated" &&
-           (b.gasType || "").toLowerCase() !== "empty/evacuated"
-    ).length;
-  }, [bottles]);
-
-  const handleUpdateStoresEmptyReclaim = async () => {
-    setUpdatingReclaim(true);
-    try {
-      const serials = bottles
-        .filter(
-          b => b.category === "reclaim" &&
-               (b.currentWeight ?? 0) === 0 &&
-               (b.gasType || "").toLowerCase() !== "empty / evacuated" &&
-               (b.gasType || "").toLowerCase() !== "empty/evacuated"
-        )
-        .map(b => b.serial);
-      if (serials.length > 0) {
-        await db.fixUnusedWasteBottles(serials);
-        const b = await db.getBottlesByLocation("office");
-        setBottles(b);
-      }
-    } catch (e) {
-      console.error("Failed to update empty reclaim cylinders:", e);
-    } finally {
-      setUpdatingReclaim(false);
-    }
-  };
 
   useEffect(() => {
     Promise.all([
@@ -635,40 +601,12 @@ export default function StoresInventoryPage() {
 
   return (
     <div>
-      <div style={{marginBottom: "1.5rem"}}>
+      <div style={{marginBottom: "2rem"}}>
         <h1 style={{fontSize: "1.8rem", fontWeight: 700, marginBottom: "0.25rem", display: "flex", alignItems: "center", gap: "0.5rem"}}>
           <Warehouse size={28} /> Stores Inventory
         </h1>
         <p style={{color: "var(--text-muted)", fontSize: "0.9rem"}}>All bottles currently held in office / stores — {bottles.length} total</p>
       </div>
-
-      {emptyReclaimCount > 0 && (
-        <div style={{
-          background: "rgba(0,229,255,0.06)", border: "1px solid rgba(0,229,255,0.25)",
-          borderRadius: "8px", padding: "0.75rem 1.25rem", marginBottom: "1.25rem",
-          display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem"
-        }}>
-          <div style={{display: "flex", alignItems: "center", gap: "0.6rem", fontSize: "0.85rem", color: "#fff"}}>
-            <Recycle size={18} color="#00e5ff" />
-            <span>
-              <strong>{emptyReclaimCount} empty waste cylinder{emptyReclaimCount !== 1 ? "s" : ""}</strong> currently in Stores have legacy or unassigned gas classifications.
-            </span>
-          </div>
-          <button
-            onClick={handleUpdateStoresEmptyReclaim}
-            disabled={updatingReclaim}
-            style={{
-              background: "linear-gradient(135deg, #00e5ff 0%, #0088ff 100%)",
-              border: "none", color: "#000", padding: "0.45rem 0.9rem", borderRadius: "6px",
-              fontSize: "0.8rem", fontWeight: 700, cursor: updatingReclaim ? "not-allowed" : "pointer",
-              display: "flex", alignItems: "center", gap: "0.4rem"
-            }}
-          >
-            <CheckCircle2 size={14} />
-            {updatingReclaim ? "Updating..." : "Update All to 'Empty / Evacuated'"}
-          </button>
-        </div>
-      )}
 
       <div style={{display: "flex", gap: "1.5rem", marginBottom: "1.5rem", alignItems: "center", flexWrap: "wrap"}}>
         <div style={{position: "relative", maxWidth: "350px", flex: 1}}>

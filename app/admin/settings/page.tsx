@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { db } from "@/lib/db";
-import { Settings, Save, CheckCircle2, Users, Truck, Building2, Trash2, Plus, Edit2, ShieldCheck, Clock, ChevronUp, ChevronDown, AlertTriangle, RefreshCw, Activity, Recycle } from "lucide-react";
+import { Settings, Save, CheckCircle2, Users, Truck, Building2, Trash2, Plus, Edit2, ShieldCheck, Clock, ChevronUp, ChevronDown, AlertTriangle, RefreshCw, Activity } from "lucide-react";
 
 export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
@@ -38,7 +38,6 @@ export default function SettingsPage() {
       if (s.exemptionNo) setExemptionNo(s.exemptionNo);
     });
     runAuditScan();
-    runWasteScan();
   }, []);
 
   const [auditScanning, setAuditScanning] = useState(false);
@@ -48,12 +47,6 @@ export default function SettingsPage() {
     mismatchedOfficeBottles: any[];
   } | null>(null);
   const [auditMessage, setAuditMessage] = useState<string | null>(null);
-
-  // Waste Cylinder Scan & Fix State
-  const [wasteScanLoading, setWasteScanLoading] = useState(false);
-  const [wasteFixLoading, setWasteFixLoading] = useState(false);
-  const [wasteBottlesToFix, setWasteBottlesToFix] = useState<any[]>([]);
-  const [wasteScanMessage, setWasteScanMessage] = useState<string | null>(null);
 
   const runAuditScan = async () => {
     setAuditScanning(true);
@@ -81,35 +74,6 @@ export default function SettingsPage() {
       setAuditMessage("Auto-repair failed: " + (e.message || "Unknown error"));
     } finally {
       setAuditFixing(false);
-    }
-  };
-
-  const runWasteScan = async () => {
-    setWasteScanLoading(true);
-    setWasteScanMessage(null);
-    try {
-      const items = await db.scanUnusedWasteBottles();
-      setWasteBottlesToFix(items);
-      if (items.length === 0) {
-        setWasteScanMessage("All empty and unused waste cylinders across the system are properly classified as 'Empty / Evacuated'.");
-      }
-    } catch (e: any) {
-      setWasteScanMessage("Scan error: " + (e.message || "Unknown error"));
-    } finally {
-      setWasteScanLoading(false);
-    }
-  };
-
-  const handleFixAllWasteBottles = async () => {
-    setWasteFixLoading(true);
-    try {
-      const res = await db.fixUnusedWasteBottles(wasteBottlesToFix.map(b => b.serial));
-      setWasteScanMessage(`Successfully updated ${res.fixedCount} waste cylinder(s) to 'Empty / Evacuated'.`);
-      await runWasteScan();
-    } catch (e: any) {
-      setWasteScanMessage("Update failed: " + (e.message || "Unknown error"));
-    } finally {
-      setWasteFixLoading(false);
     }
   };
 
@@ -641,126 +605,6 @@ export default function SettingsPage() {
                   </table>
                 </div>
               )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Waste Cylinder Gas Classification Audit & Migration */}
-      <div style={{background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px", overflow: "hidden", marginTop: "1.5rem"}}>
-        <div style={{padding: "1.25rem 1.5rem", borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem"}}>
-          <div>
-            <div style={{display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem"}}>
-              <Recycle size={20} color="#00e5ff" />
-              <h3 style={{fontSize: "1.1rem", fontWeight: 700, margin: 0, color: "#fff"}}>Waste Cylinder Gas Classification Scan</h3>
-            </div>
-            <p style={{margin: 0, fontSize: "0.85rem", color: "var(--text-muted)"}}>
-              Scans all waste/reclaim cylinders that have not had gas reclaimed into them (or are currently empty 0.00 kg) and updates their gas classification to <strong>Empty / Evacuated</strong>.
-            </p>
-          </div>
-          <div style={{display: "flex", gap: "0.6rem"}}>
-            <button
-              type="button"
-              onClick={runWasteScan}
-              disabled={wasteScanLoading}
-              style={{
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.15)",
-                color: "#fff",
-                padding: "0.5rem 1rem",
-                borderRadius: "6px",
-                cursor: wasteScanLoading ? "not-allowed" : "pointer",
-                fontSize: "0.85rem",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.4rem"
-              }}
-            >
-              <RefreshCw size={14} style={{animation: wasteScanLoading ? "spin 1s linear infinite" : undefined}} />
-              {wasteScanLoading ? "Scanning Cylinders..." : "Re-Scan Waste Cylinders"}
-            </button>
-            {wasteBottlesToFix.length > 0 && (
-              <button
-                type="button"
-                onClick={handleFixAllWasteBottles}
-                disabled={wasteFixLoading}
-                style={{
-                  background: "linear-gradient(135deg, #00e5ff 0%, #0088ff 100%)",
-                  border: "none",
-                  color: "#000",
-                  padding: "0.5rem 1rem",
-                  borderRadius: "6px",
-                  cursor: wasteFixLoading ? "not-allowed" : "pointer",
-                  fontSize: "0.85rem",
-                  fontWeight: 700,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.4rem"
-                }}
-              >
-                <CheckCircle2 size={14} />
-                {wasteFixLoading ? "Updating Cylinders..." : `Update ${wasteBottlesToFix.length} Cylinder(s) to 'Empty / Evacuated'`}
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div style={{padding: "1.5rem"}}>
-          {wasteScanMessage && (
-            <div style={{
-              background: wasteBottlesToFix.length > 0 ? "rgba(0,229,255,0.08)" : "rgba(34,197,94,0.1)",
-              border: wasteBottlesToFix.length > 0 ? "1px solid rgba(0,229,255,0.3)" : "1px solid rgba(34,197,94,0.3)",
-              color: wasteBottlesToFix.length > 0 ? "#00e5ff" : "#22c55e",
-              padding: "0.75rem 1rem",
-              borderRadius: "8px",
-              fontSize: "0.85rem",
-              marginBottom: "1rem",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem"
-            }}>
-              {wasteBottlesToFix.length > 0 ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
-              {wasteScanMessage}
-            </div>
-          )}
-
-          {wasteBottlesToFix.length > 0 && (
-            <div>
-              <h4 style={{fontSize: "0.85rem", color: "#00e5ff", margin: "0 0 0.5rem"}}>
-                Unused / Empty Waste Cylinders Detected ({wasteBottlesToFix.length})
-              </h4>
-              <table style={{width: "100%", borderCollapse: "collapse", fontSize: "0.8rem"}}>
-                <thead>
-                  <tr style={{textAlign: "left", color: "rgba(255,255,255,0.5)", borderBottom: "1px solid rgba(255,255,255,0.08)"}}>
-                    <th style={{padding: "0.4rem 0.6rem"}}>Serial</th>
-                    <th style={{padding: "0.4rem 0.6rem"}}>Current Location</th>
-                    <th style={{padding: "0.4rem 0.6rem"}}>Weight</th>
-                    <th style={{padding: "0.4rem 0.6rem"}}>Current Gas Type</th>
-                    <th style={{padding: "0.4rem 0.6rem"}}>Recovery Activity</th>
-                    <th style={{padding: "0.4rem 0.6rem"}}>Target Classification</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {wasteBottlesToFix.map((b, idx) => (
-                    <tr key={idx} style={{borderBottom: "1px solid rgba(255,255,200,0.04)"}}>
-                      <td style={{padding: "0.4rem 0.6rem", fontWeight: 700}}>
-                        <a href={`/admin/bottles/${encodeURIComponent(b.serial)}`} style={{color: "#00e5ff", textDecoration: "none"}}>
-                          {b.serial}
-                        </a>
-                      </td>
-                      <td style={{padding: "0.4rem 0.6rem"}}>{b.locationId} ({b.locationType})</td>
-                      <td style={{padding: "0.4rem 0.6rem"}}>{b.currentWeight.toFixed(2)} kg</td>
-                      <td style={{padding: "0.4rem 0.6rem", color: "#f59e0b"}}>{b.gasType}</td>
-                      <td style={{padding: "0.4rem 0.6rem", color: b.hasHadRecovery ? "#ffaa00" : "rgba(255,255,255,0.5)"}}>
-                        {b.hasHadRecovery ? "Past Recovery (Now 0kg)" : "None (Virgin Reclaim)"}
-                      </td>
-                      <td style={{padding: "0.4rem 0.6rem", color: "#22c55e", fontWeight: 700}}>
-                        &rarr; Empty / Evacuated
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
           )}
         </div>
