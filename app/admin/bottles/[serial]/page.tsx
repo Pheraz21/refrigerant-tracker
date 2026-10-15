@@ -62,7 +62,7 @@ interface MilestonePoint {
   id: string;
   date: string;
   weight: number;
-  type: 'registered' | 'usage' | 'recovery' | 'movement' | 'hwcn' | 'current';
+  type: 'registered' | 'usage' | 'recovery' | 'movement' | 'hwcn' | 'reclassified' | 'current';
   title: string;
   categoryAtTime?: 'new' | 'reclaim' | 'recycled' | 'nitrogen';
   change?: number; // delta in kg
@@ -168,7 +168,7 @@ function CylinderWeightChart({
         // Earliest reuse or consignment return marks when it transitioned from reclaim waste to recycled
         const earliestReuse = reuseLogs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
         const storeReturnMove = moveLogs.find(m => m.notes?.toLowerCase().includes('consignment') || m.action === 'received');
-        const transitionDate = earliestReuse?.date || storeReturnMove?.date;
+        const transitionDate = storeReturnMove ? new Date(new Date(storeReturnMove.date).getTime() + 1000).toISOString() : (earliestReuse?.date ? new Date(new Date(earliestReuse.date).getTime() - 1000).toISOString() : null);
 
         if (transitionDate) {
           const transTime = new Date(transitionDate).getTime();
@@ -192,7 +192,7 @@ function CylinderWeightChart({
     const rawEvents: Array<{
       id: string;
       date: string;
-      type: 'registered' | 'usage' | 'recovery' | 'movement' | 'hwcn';
+      type: 'registered' | 'usage' | 'recovery' | 'movement' | 'hwcn' | 'reclassified';
       title: string;
       change?: number;
       engineer?: string;
@@ -269,8 +269,11 @@ function CylinderWeightChart({
       if (m.to && !m.to.includes(" - Van") && m.to !== "HQ-Stores" && m.to !== "In Transit" && m.to !== "—") sitesSeen.add(m.to);
 
       const isHWCN = m.action === "received" || !!(m.notes && m.notes.toLowerCase().includes("consignment"));
+      const isReclass = m.action === "reclassified_recycled" || !!(m.notes && (m.notes.toLowerCase().includes("reclassified from reclaim") || m.notes.toLowerCase().includes("reclassified to recycled")));
+
       let title = "Location Transfer";
-      if (m.action === "received") title = "Received at HQ-Stores";
+      if (isReclass) title = "Reclassified: Waste → Recycled";
+      else if (m.action === "received") title = "Received at HQ-Stores";
       else if (m.notes?.toLowerCase().includes("signed out")) title = "Signed Out from Stores";
       else if (m.notes?.toLowerCase().includes("consignment")) title = "Consignment in Transit";
       else if (m.to?.includes(" - Van")) title = "Loaded to Van";
@@ -283,15 +286,72 @@ function CylinderWeightChart({
       rawEvents.push({
         id: `move-${m.id}`,
         date: m.date,
-        type: isHWCN ? 'hwcn' : 'movement',
+        type: isReclass ? 'reclassified' : (isHWCN ? 'hwcn' : 'movement'),
         title,
         engineer: m.engineer,
         vehicleReg: m.vehicleReg,
-        from: fromTitle,
-        to: toTitle,
-        notes: m.notes
+        from: isReclass ? (m.from || "HQ-Stores (Reclaim)") : fromTitle,
+        to: isReclass ? (m.to || "HQ-Stores (Recycled)") : toTitle,
+        notes: isReclass ? (m.notes || "Cylinder formally reclassified from Waste (Reclaim) to Recycled Refrigerant following workshop testing & filtration.") : m.notes
       });
     });
+
+    // 4. Audit trail category changes (e.g. manual admin reclassification)
+    (auditTrail || []).forEach(a => {
+      if (
+        a.tableName === 'bottles' &&
+        a.fieldName === 'category' &&
+        (a.oldValue?.toLowerCase() === 'reclaim' || a.oldValue?.toLowerCase() === 'waste') &&
+        a.newValue?.toLowerCase() === 'recycled'
+      ) {
+        const auditTime = new Date(a.createdAt).getTime();
+        const existing = rawEvents.some(e => e.type === 'reclassified' && Math.abs(new Date(e.date).getTime() - auditTime) < 60000);
+        if (!existing) {
+          rawEvents.push({
+            id: `reclass-audit-${a.id}`,
+            date: a.createdAt,
+            type: 'reclassified',
+            title: "Reclassified: Waste → Recycled",
+            engineer: a.changedBy || "Admin",
+            from: "HQ-Stores (Reclaim)",
+            to: "HQ-Stores (Recycled)",
+            notes: a.reason ? `Reclassified from Waste to Recycled: ${a.reason}` : "Formally reclassified from Waste (Reclaim) to Recycled Refrigerant in accordance with REFCOM procedure."
+          });
+        }
+      }
+    });
+
+    // 5. Inferred reclassification milestone for recycled cylinders with recovery origins
+    const hasReclassEvent = rawEvents.some(e => e.type === 'reclassified');
+    if (!hasReclassEvent && (bottle.category === 'recycled' || initCat === 'reclaim' || wasteInitial) && totRec > 0) {
+      const storeReturnMove = moveLogs.find(m => m.notes?.toLowerCase().includes('consignment') || m.action === 'received');
+      const reuseLogs = usageLogs.filter(u => u.jobType === 'recycled_charge' || !['recovery', 'retrofit', 'waste', 'reclaim'].includes((u.jobType || '').toLowerCase()));
+      const earliestReuse = reuseLogs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
+
+      let reclassDate: string | null = null;
+      let reclassEng = bottle.lastEngineer || "Workshop / Stores";
+
+      if (storeReturnMove) {
+        reclassDate = new Date(new Date(storeReturnMove.date).getTime() + 1000).toISOString();
+        if (storeReturnMove.engineer) reclassEng = storeReturnMove.engineer;
+      } else if (earliestReuse) {
+        reclassDate = new Date(new Date(earliestReuse.date).getTime() - 1000).toISOString();
+        if (earliestReuse.engineer) reclassEng = earliestReuse.engineer;
+      }
+
+      if (reclassDate) {
+        rawEvents.push({
+          id: `reclass-inferred-${bottle.serial}`,
+          date: reclassDate,
+          type: 'reclassified',
+          title: "Reclassified: Waste → Recycled",
+          engineer: reclassEng,
+          from: "HQ-Stores (Reclaim)",
+          to: "HQ-Stores (Recycled)",
+          notes: "Cylinder formally reclassified from Waste (Reclaim) to Certified Recycled Refrigerant following workshop recovery receipt, filtration & testing."
+        });
+      }
+    }
 
     // Sort all events chronologically
     rawEvents.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -345,7 +405,7 @@ function CylinderWeightChart({
       });
     }
 
-    const gasPts = allPts.filter(p => p.type === 'registered' || p.type === 'usage' || p.type === 'recovery' || p.type === 'current');
+    const gasPts = allPts.filter(p => p.type === 'registered' || p.type === 'usage' || p.type === 'recovery' || p.type === 'reclassified' || p.type === 'current');
 
     return {
       allPoints: allPts,
@@ -410,6 +470,7 @@ function CylinderWeightChart({
     switch (p.type) {
       case "recovery": return "#ffaa00";
       case "usage": return "#22c55e";
+      case "reclassified": return "#10b981";
       case "movement": return "#818cf8";
       case "hwcn": return "#c084fc";
       case "registered": return getCategoryColor(p.categoryAtTime);
@@ -589,7 +650,7 @@ function CylinderWeightChart({
             const prevY = getY(prevPt.weight);
             const currX = getX(i);
             const currY = getY(p.weight);
-            const cat = p.categoryAtTime;
+            const cat = prevPt.categoryAtTime || p.categoryAtTime;
             const segColor = getCategoryColor(cat);
             const segPath = `M ${prevX.toFixed(1)} ${prevY.toFixed(1)} H ${currX.toFixed(1)} V ${currY.toFixed(1)}`;
             const segArea = `M ${prevX.toFixed(1)} ${prevY.toFixed(1)} H ${currX.toFixed(1)} V ${bottomY} H ${prevX.toFixed(1)} Z`;
@@ -620,9 +681,10 @@ function CylinderWeightChart({
             const cx = getX(i);
             const cy = getY(p.weight);
             const isGasAction = p.type === "usage" || p.type === "recovery";
+            const isReclass = p.type === "reclassified";
             const isSelected = i === selectedIdx;
             const nodeColor = getNodeColor(p);
-            const r = isGasAction ? 6 : (p.type === "registered" || p.type === "current" ? 5 : 3.5);
+            const r = isReclass ? 7 : (isGasAction ? 6 : (p.type === "registered" || p.type === "current" ? 5 : 3.5));
 
             return (
               <g
@@ -645,6 +707,20 @@ function CylinderWeightChart({
                     stroke={nodeColor}
                     strokeWidth="2"
                     opacity="0.8"
+                  />
+                )}
+
+                {/* Special halo for Reclassification */}
+                {isReclass && (
+                  <circle
+                    cx={cx}
+                    cy={cy}
+                    r={r + 3.5}
+                    fill="none"
+                    stroke="#10b981"
+                    strokeWidth="1.5"
+                    strokeDasharray="3 2"
+                    opacity="0.9"
                   />
                 )}
 
@@ -681,6 +757,34 @@ function CylinderWeightChart({
                       fontFamily="var(--font-geist-mono)"
                     >
                       {p.change > 0 ? `+${p.change.toFixed(1)}` : `${p.change.toFixed(1)}`}
+                    </text>
+                  </g>
+                )}
+
+                {/* Badge above Reclassified milestone */}
+                {isReclass && (
+                  <g>
+                    <rect
+                      x={cx - 46}
+                      y={cy - 24}
+                      width={92}
+                      height={16}
+                      rx={4}
+                      fill="rgba(15, 23, 42, 0.95)"
+                      stroke="#10b981"
+                      strokeWidth="1.5"
+                    />
+                    <text
+                      x={cx}
+                      y={cy - 12.5}
+                      fill="#10b981"
+                      fontSize="8.5"
+                      fontWeight="800"
+                      textAnchor="middle"
+                      fontFamily="var(--font-geist-sans)"
+                      letterSpacing="0.04em"
+                    >
+                      ♻️ RECLASSIFIED
                     </text>
                   </g>
                 )}
@@ -753,13 +857,18 @@ function CylinderWeightChart({
 
               {/* Milestone action badge */}
               <span style={{
-                background: "rgba(255,255,255,0.08)",
-                color: "#fff",
+                background: activePt.type === 'reclassified' ? "rgba(16, 185, 129, 0.2)" : "rgba(255,255,255,0.08)",
+                color: activePt.type === 'reclassified' ? "#a7f3d0" : "#fff",
+                border: activePt.type === 'reclassified' ? "1px solid rgba(16, 185, 129, 0.5)" : "none",
                 padding: "0.2rem 0.55rem",
                 borderRadius: "20px",
                 fontSize: "0.72rem",
-                fontWeight: 600
+                fontWeight: 600,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.35rem"
               }}>
+                {activePt.type === 'reclassified' && <Recycle size={12} color="#10b981" />}
                 {activePt.title}
               </span>
 
@@ -854,6 +963,10 @@ function CylinderWeightChart({
         <span style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
           <span style={{ width: "16px", height: "3px", borderRadius: "2px", background: "#00e5ff", display: "inline-block" }} />
           New / Virgin Line
+        </span>
+        <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+          <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#10b981", border: "2px solid #0f172a", outline: "1.5px solid #10b981", display: "inline-block" }} />
+          Reclassified (Waste → Recycled)
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
           <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#ffaa00", display: "inline-block" }} />
