@@ -321,9 +321,9 @@ function CylinderWeightChart({
       }
     });
 
-    // 5. Inferred reclassification milestone for recycled cylinders with recovery origins
+    // 5. Inferred reclassification milestone ONLY for cylinders that are currently recycled
     const hasReclassEvent = rawEvents.some(e => e.type === 'reclassified');
-    if (!hasReclassEvent && (bottle.category === 'recycled' || initCat === 'reclaim' || wasteInitial) && totRec > 0) {
+    if (!hasReclassEvent && bottle.category === 'recycled' && totRec > 0) {
       const storeReturnMove = moveLogs.find(m => m.notes?.toLowerCase().includes('consignment') || m.action === 'received');
       const reuseLogs = usageLogs.filter(u => u.jobType === 'recycled_charge' || !['recovery', 'retrofit', 'waste', 'reclaim'].includes((u.jobType || '').toLowerCase()));
       const earliestReuse = reuseLogs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
@@ -1016,6 +1016,28 @@ export default function ViewBottlePage() {
   const [photoZoom, setPhotoZoom] = useState(1);
   const [crmJobMap, setCrmJobMap] = useState<Map<string, CrmJob>>(new Map());
 
+  const [showGasTypeModal, setShowGasTypeModal] = useState(false);
+  const [selectedGasType, setSelectedGasType] = useState("");
+  const [customGasType, setCustomGasType] = useState("");
+  const [isSavingGasType, setIsSavingGasType] = useState(false);
+
+  const handleSaveGasType = async () => {
+    if (!bottle) return;
+    const gas = selectedGasType === "other" ? customGasType.trim() : selectedGasType.trim();
+    if (!gas) return;
+    setIsSavingGasType(true);
+    try {
+      await db.updateBottle(bottle.serial, { gasType: gas });
+      setBottle({ ...bottle, gasType: gas });
+      setShowGasTypeModal(false);
+    } catch (e) {
+      console.error("Failed to update gas type:", e);
+      alert("Failed to update gas type.");
+    } finally {
+      setIsSavingGasType(false);
+    }
+  };
+
   const serialStr = decodeURIComponent(serial as string);
 
   useEffect(() => {
@@ -1028,18 +1050,45 @@ export default function ViewBottlePage() {
         db.getDecommissionsByBottleSerial(serialStr),
         db.getAuditTrailForSerial(serialStr),
       ]).then(([bottleData, moveData, useData, hwcnData, decommData, auditData]) => {
-        if (bottleData && bottleData.category === 'reclaim' && bottleData.gasType !== 'Empty / Evacuated') {
-          const isLegacyEmptyGas =
-            bottleData.serial === '1N051418' ||
-            !bottleData.gasType ||
-            bottleData.gasType.toLowerCase().replace(/\s+/g, '') === 'mixed/recovery' ||
-            bottleData.gasType.toLowerCase().replace(/\s+/g, '') === 'mixed/reclaim' ||
-            bottleData.gasType.toLowerCase() === 'unknown';
+        if (bottleData && bottleData.category === 'reclaim') {
+          const recoveryLogs = (useData || []).filter(u =>
+            ["recovery", "retrofit", "waste", "reclaim"].includes((u.jobType || "").toLowerCase()) &&
+            (Number(u.weightUsed || 0) > 0 || (u.weightAfter !== undefined && u.weightAfter > (u.weightBefore ?? 0)))
+          );
 
-          const hasRecoveries = useData && useData.some(u => (u.weightUsed ?? 0) > 0);
-          if (isLegacyEmptyGas && !hasRecoveries) {
-            bottleData.gasType = 'Empty / Evacuated';
-            db.updateBottle(bottleData.serial, { gasType: 'Empty / Evacuated' }).catch(() => {});
+          let targetGas: string | null = null;
+          if (recoveryLogs.length === 0) {
+            targetGas = "Empty / Evacuated";
+          } else {
+            const distinct = new Set<string>();
+            recoveryLogs.forEach(u => {
+              const g = (u.gasType || (u as any).gas_type || "").trim();
+              if (g && !["mixed/recovery", "mixed / recovery", "unknown", "empty / evacuated", "empty/evacuated"].includes(g.toLowerCase())) {
+                distinct.add(g);
+              }
+              if (Array.isArray(u.equipmentDetails)) {
+                u.equipmentDetails.forEach((eq: any) => {
+                  const eqG = (eq.gasType || eq.gas_type || eq.refrigerant || "").trim();
+                  if (eqG && !["mixed/recovery", "mixed / recovery", "unknown", "empty / evacuated"].includes(eqG.toLowerCase())) {
+                    distinct.add(eqG);
+                  }
+                });
+              }
+            });
+
+            const distinctList = Array.from(distinct);
+            if (distinctList.length === 1) {
+              targetGas = distinctList[0];
+            } else if (distinctList.length >= 2) {
+              targetGas = "Mixed";
+            } else if (bottleData.gasType && (bottleData.gasType.toLowerCase().includes("mixed/recovery") || bottleData.gasType.toLowerCase().includes("mixed / recovery"))) {
+              targetGas = "Mixed";
+            }
+          }
+
+          if (targetGas && bottleData.gasType !== targetGas) {
+            bottleData.gasType = targetGas;
+            db.updateBottle(bottleData.serial, { gasType: targetGas }).catch(() => {});
           }
         }
 
@@ -1805,7 +1854,38 @@ export default function ViewBottlePage() {
               </div>
 
               <div>
-                <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>Gas Type</div>
+                <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span>Gas Type</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cur = bottle.gasType || "";
+                      const standard = ["R410A", "R32", "R134a", "R404A", "R407C", "R22", "Empty / Evacuated", "Mixed"];
+                      if (standard.includes(cur)) {
+                        setSelectedGasType(cur);
+                        setCustomGasType("");
+                      } else {
+                        setSelectedGasType("other");
+                        setCustomGasType(cur);
+                      }
+                      setShowGasTypeModal(true);
+                    }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#00e5ff",
+                      cursor: "pointer",
+                      fontSize: "0.72rem",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.25rem",
+                      padding: 0
+                    }}
+                    title="Change Gas Type"
+                  >
+                    <Pencil size={11} /> Edit
+                  </button>
+                </div>
                 <div style={{ color: "#fff", fontWeight: 600 }}>{bottle.gasType}</div>
               </div>
 
@@ -2502,6 +2582,115 @@ export default function ViewBottlePage() {
                 }}
               >
                 {isSavingEdit ? "Saving..." : "Save & Record Audit Trail"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showGasTypeModal && (
+        <div style={{
+          position: "fixed",
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.75)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 9999,
+          backdropFilter: "blur(4px)"
+        }}>
+          <div className="glass-panel" style={{
+            background: "#111827",
+            border: "1px solid rgba(255,255,255,0.15)",
+            borderRadius: "12px",
+            padding: "1.75rem",
+            maxWidth: "420px",
+            width: "90%",
+            color: "#fff"
+          }}>
+            <h3 style={{ margin: "0 0 0.5rem 0", fontSize: "1.1rem", fontWeight: 700 }}>
+              Update Refrigerant Gas Type
+            </h3>
+            <p style={{ fontSize: "0.82rem", color: "rgba(255,255,255,0.6)", marginBottom: "1.25rem" }}>
+              Select the correct gas classification for cylinder <strong>{bottle.serial}</strong>:
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1.5rem" }}>
+              {["R410A", "R32", "R134a", "R404A", "R407C", "R22", "Empty / Evacuated", "Mixed", "other"].map(opt => (
+                <label key={opt} style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.6rem",
+                  fontSize: "0.85rem",
+                  cursor: "pointer",
+                  padding: "0.45rem 0.75rem",
+                  borderRadius: "6px",
+                  background: selectedGasType === opt ? "rgba(0,229,255,0.12)" : "rgba(255,255,255,0.03)",
+                  border: selectedGasType === opt ? "1px solid #00e5ff" : "1px solid rgba(255,255,255,0.08)"
+                }}>
+                  <input
+                    type="radio"
+                    name="gasTypeOption"
+                    value={opt}
+                    checked={selectedGasType === opt}
+                    onChange={() => setSelectedGasType(opt)}
+                  />
+                  <span>{opt === "other" ? "Other (Custom Refrigerant)..." : opt}</span>
+                </label>
+              ))}
+
+              {selectedGasType === "other" && (
+                <input
+                  type="text"
+                  placeholder="Enter refrigerant (e.g. R513A, R454B)..."
+                  value={customGasType}
+                  onChange={e => setCustomGasType(e.target.value)}
+                  style={{
+                    width: "100%",
+                    marginTop: "0.25rem",
+                    padding: "0.6rem",
+                    borderRadius: "6px",
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    color: "#fff",
+                    fontSize: "0.85rem"
+                  }}
+                />
+              )}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
+              <button
+                type="button"
+                onClick={() => setShowGasTypeModal(false)}
+                style={{
+                  background: "rgba(255,255,255,0.08)",
+                  border: "none",
+                  color: "rgba(255,255,255,0.7)",
+                  padding: "0.5rem 1rem",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "0.85rem"
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveGasType}
+                disabled={isSavingGasType}
+                style={{
+                  background: "#00e5ff",
+                  border: "none",
+                  color: "#000",
+                  fontWeight: 700,
+                  padding: "0.5rem 1.25rem",
+                  borderRadius: "6px",
+                  cursor: isSavingGasType ? "not-allowed" : "pointer",
+                  fontSize: "0.85rem"
+                }}
+              >
+                {isSavingGasType ? "Saving..." : "Save Gas Type"}
               </button>
             </div>
           </div>

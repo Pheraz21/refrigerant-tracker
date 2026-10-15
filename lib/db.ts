@@ -374,11 +374,13 @@ async function reconcileEmptyWasteBottles(bottles: Bottle[]): Promise<void> {
   const candidateWaste = bottles.filter(b => 
     b.category === 'reclaim' && (
       b.serial === '1N051418' ||
+      b.serial === '1N210008' ||
       !b.gasType ||
-      b.gasType.toLowerCase().replace(/\s+/g, '') === 'mixed/recovery' ||
-      b.gasType.toLowerCase().replace(/\s+/g, '') === 'mixed/reclaim' ||
-      b.gasType.toLowerCase() === 'unknown'
-    ) && b.gasType !== 'Empty / Evacuated'
+      b.gasType.toLowerCase().includes('mixed/recovery') ||
+      b.gasType.toLowerCase().includes('mixed / recovery') ||
+      b.gasType.toLowerCase() === 'unknown' ||
+      (b.gasType.toLowerCase() === 'empty / evacuated' && (b.currentWeight ?? 0) > 0)
+    )
   );
 
   if (candidateWaste.length === 0) return;
@@ -387,24 +389,63 @@ async function reconcileEmptyWasteBottles(bottles: Bottle[]): Promise<void> {
     const candidateSerials = candidateWaste.map(b => b.serial);
     const { data: usages } = await supabase
       .from('usage_logs')
-      .select('serial, weight_used')
+      .select('serial, weight_used, gas_type, job_type, equipment_details')
       .in('serial', candidateSerials);
     
-    const serialsWithUsage = new Set(
-      (usages || []).filter(u => (u.weight_used ?? 0) > 0).map(u => u.serial)
-    );
+    const usagesBySerial: Record<string, any[]> = {};
+    (usages || []).forEach(u => {
+      if (!usagesBySerial[u.serial]) usagesBySerial[u.serial] = [];
+      usagesBySerial[u.serial].push(u);
+    });
 
-    const toUpdate: string[] = [];
+    const updatesToPersist: Array<{ serial: string; gas_type: string }> = [];
+
     for (const b of candidateWaste) {
-      if (!serialsWithUsage.has(b.serial)) {
-        b.gasType = 'Empty / Evacuated';
-        toUpdate.push(b.serial);
+      const bUsages = usagesBySerial[b.serial] || [];
+      const recoveryLogs = bUsages.filter(u =>
+        ["recovery", "retrofit", "waste", "reclaim"].includes((u.job_type || "").toLowerCase()) &&
+        Number(u.weight_used || 0) > 0
+      );
+
+      let targetGas: string | null = null;
+      if (recoveryLogs.length === 0) {
+        targetGas = "Empty / Evacuated";
+      } else {
+        const distinct = new Set<string>();
+        recoveryLogs.forEach(u => {
+          const g = (u.gas_type || "").trim();
+          if (g && !["mixed/recovery", "mixed / recovery", "unknown", "empty / evacuated", "empty/evacuated"].includes(g.toLowerCase())) {
+            distinct.add(g);
+          }
+          if (Array.isArray(u.equipment_details)) {
+            u.equipment_details.forEach((eq: any) => {
+              const eqG = (eq.gasType || eq.gas_type || eq.refrigerant || "").trim();
+              if (eqG && !["mixed/recovery", "mixed / recovery", "unknown", "empty / evacuated"].includes(eqG.toLowerCase())) {
+                distinct.add(eqG);
+              }
+            });
+          }
+        });
+
+        const distinctList = Array.from(distinct);
+        if (distinctList.length === 1) {
+          targetGas = distinctList[0];
+        } else if (distinctList.length >= 2) {
+          targetGas = "Mixed";
+        } else if (b.gasType && (b.gasType.toLowerCase().includes("mixed/recovery") || b.gasType.toLowerCase().includes("mixed / recovery"))) {
+          targetGas = "Mixed";
+        }
+      }
+
+      if (targetGas && b.gasType !== targetGas) {
+        b.gasType = targetGas;
+        updatesToPersist.push({ serial: b.serial, gas_type: targetGas });
       }
     }
 
-    if (toUpdate.length > 0) {
+    if (updatesToPersist.length > 0) {
       Promise.resolve(
-        supabase.from('bottles').update({ gas_type: 'Empty / Evacuated' }).in('serial', toUpdate)
+        supabase.from('bottles').update({ gas_type: updatesToPersist[0].gas_type }).in('serial', updatesToPersist.map(u => u.serial))
       ).catch(e => console.warn("Failed auto-updating empty waste bottles:", e));
     }
   } catch (err) {
@@ -423,26 +464,62 @@ export const db = {
     if (error || !data) return null;
     const bottle = mapBottle(data);
 
-    // Auto-reconcile waste bottles registered with legacy gas type that have no usages
-    if (bottle.category === 'reclaim' && bottle.gasType !== 'Empty / Evacuated') {
-      const isLegacyEmptyGas =
+    // Auto-reconcile reclaim bottle gas type
+    if (bottle.category === 'reclaim') {
+      const isCandidate =
         bottle.serial === '1N051418' ||
+        bottle.serial === '1N210008' ||
         !bottle.gasType ||
-        bottle.gasType.toLowerCase().replace(/\s+/g, '') === 'mixed/recovery' ||
-        bottle.gasType.toLowerCase().replace(/\s+/g, '') === 'mixed/reclaim' ||
-        bottle.gasType.toLowerCase() === 'unknown';
+        bottle.gasType.toLowerCase().includes('mixed/recovery') ||
+        bottle.gasType.toLowerCase().includes('mixed / recovery') ||
+        bottle.gasType.toLowerCase() === 'unknown' ||
+        (bottle.gasType.toLowerCase() === 'empty / evacuated' && (bottle.currentWeight ?? 0) > 0);
 
-      if (isLegacyEmptyGas) {
+      if (isCandidate) {
         try {
           const { data: usages } = await supabase
             .from('usage_logs')
-            .select('id, weight_used')
+            .select('id, weight_used, gas_type, job_type, equipment_details')
             .eq('serial', serial);
-          const hasGasAdded = usages && usages.some(u => (u.weight_used ?? 0) > 0);
-          if (!hasGasAdded) {
-            bottle.gasType = 'Empty / Evacuated';
+
+          const recoveryLogs = (usages || []).filter(u =>
+            ["recovery", "retrofit", "waste", "reclaim"].includes((u.job_type || "").toLowerCase()) &&
+            Number(u.weight_used || 0) > 0
+          );
+
+          let targetGas: string | null = null;
+          if (recoveryLogs.length === 0) {
+            targetGas = "Empty / Evacuated";
+          } else {
+            const distinct = new Set<string>();
+            recoveryLogs.forEach(u => {
+              const g = (u.gas_type || "").trim();
+              if (g && !["mixed/recovery", "mixed / recovery", "unknown", "empty / evacuated", "empty/evacuated"].includes(g.toLowerCase())) {
+                distinct.add(g);
+              }
+              if (Array.isArray(u.equipment_details)) {
+                u.equipment_details.forEach((eq: any) => {
+                  const eqG = (eq.gasType || eq.gas_type || eq.refrigerant || "").trim();
+                  if (eqG && !["mixed/recovery", "mixed / recovery", "unknown", "empty / evacuated"].includes(eqG.toLowerCase())) {
+                    distinct.add(eqG);
+                  }
+                });
+              }
+            });
+            const distinctList = Array.from(distinct);
+            if (distinctList.length === 1) {
+              targetGas = distinctList[0];
+            } else if (distinctList.length >= 2) {
+              targetGas = "Mixed";
+            } else if (bottle.gasType && (bottle.gasType.toLowerCase().includes("mixed/recovery") || bottle.gasType.toLowerCase().includes("mixed / recovery"))) {
+              targetGas = "Mixed";
+            }
+          }
+
+          if (targetGas && bottle.gasType !== targetGas) {
+            bottle.gasType = targetGas;
             Promise.resolve(
-              supabase.from('bottles').update({ gas_type: 'Empty / Evacuated' }).eq('serial', serial)
+              supabase.from('bottles').update({ gas_type: targetGas }).eq('serial', serial)
             ).catch(() => {});
           }
         } catch {}
