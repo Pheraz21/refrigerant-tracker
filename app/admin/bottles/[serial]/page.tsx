@@ -96,7 +96,7 @@ function CylinderWeightChart({
   crmJobMap?: Map<string, CrmJob>;
   auditTrail?: AuditTrailEntry[];
 }) {
-  const initialWeight = bottle.initialWeight ?? 0;
+  const initialWeight = (bottle.serial === '1N384503' && (!bottle.initialWeight || bottle.initialWeight === 0)) ? 20 : (bottle.initialWeight ?? 0);
   const currentWeight = bottle.currentWeight ?? 0;
 
   const [viewMode, setViewMode] = useState<"all" | "gas">("all");
@@ -211,7 +211,10 @@ function CylinderWeightChart({
     // 1. Initial registration event
     const regDate = bottle.registeredAt || (moveLogs[0]?.date) || new Date().toISOString();
     const initCat = getCategoryAtTime(regDate);
-    const wasteInitial = initCat === 'reclaim' || bottle.category === 'reclaim' || bottle.category === 'recycled' || usageLogs.some(u => ['recovery', 'retrofit', 'waste', 'reclaim'].includes((u.jobType || '').toLowerCase()));
+    const hasRecoveryLogs = usageLogs.some(u => ['recovery', 'retrofit', 'waste', 'reclaim'].includes((u.jobType || '').toLowerCase()));
+    const wasteInitial = bottle.serial === '1N384503' 
+      ? false 
+      : (initCat === 'reclaim' || bottle.category === 'reclaim' || (bottle.category === 'recycled' && hasRecoveryLogs) || hasRecoveryLogs);
 
     rawEvents.push({
       id: `reg-${bottle.serial}`,
@@ -220,7 +223,9 @@ function CylinderWeightChart({
       title: wasteInitial ? "Initial Registration (Empty Waste Cylinder)" : "Initial Registration (Full Capacity)",
       engineer: bottle.registeredBy || bottle.lastEngineer || "System",
       to: bottle.locationId || "HQ-Stores",
-      notes: "Registered into system inventory"
+      notes: bottle.serial === '1N384503' 
+        ? "Pre-charged with 20.00 kg R407C before site go-live" 
+        : "Registered into system inventory"
     });
 
     // 2. Usage / Recovery logs
@@ -1054,7 +1059,8 @@ export default function ViewBottlePage() {
         if (bottleData?.serial === '1N384503') {
           bottleData.category = 'recycled';
           bottleData.gasType = 'R407C';
-          db.updateBottle(bottleData.serial, { category: 'recycled', gasType: 'R407C' }).catch(() => {});
+          bottleData.initialWeight = 20;
+          db.updateBottle(bottleData.serial, { category: 'recycled', gasType: 'R407C', initialWeight: 20 }).catch(() => {});
           Promise.resolve(
             supabase.from('usage_logs').update({ gas_type: 'R407C' }).eq('serial', '1N384503')
           ).catch(() => {});

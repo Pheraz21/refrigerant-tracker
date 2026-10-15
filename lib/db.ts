@@ -399,14 +399,15 @@ async function reconcileEmptyWasteBottles(bottles: Bottle[]): Promise<void> {
       usagesBySerial[u.serial].push(u);
     });
 
-    const updatesToPersist: Array<{ serial: string; gas_type: string; category?: BottleCategory }> = [];
+    const updatesToPersist: Array<{ serial: string; gas_type: string; category?: BottleCategory; initial_weight?: number }> = [];
 
     for (const b of candidateWaste) {
       if (b.serial === '1N384503') {
+        if (!b.initialWeight || b.initialWeight === 0) b.initialWeight = 20;
         if (b.category !== 'recycled' || b.gasType !== 'R407C') {
           b.category = 'recycled';
           b.gasType = 'R407C';
-          updatesToPersist.push({ serial: b.serial, gas_type: 'R407C', category: 'recycled' });
+          updatesToPersist.push({ serial: b.serial, gas_type: 'R407C', category: 'recycled', initial_weight: 20 });
           Promise.resolve(
             supabase.from('usage_logs').update({ gas_type: 'R407C' }).eq('serial', '1N384503')
           ).catch(() => {});
@@ -460,6 +461,7 @@ async function reconcileEmptyWasteBottles(bottles: Bottle[]): Promise<void> {
         updatesToPersist.map(u => {
           const updatePayload: any = { gas_type: u.gas_type };
           if (u.category) updatePayload.category = u.category;
+          if (u.initial_weight !== undefined) updatePayload.initial_weight = u.initial_weight;
           return Promise.resolve(supabase.from('bottles').update(updatePayload).eq('serial', u.serial));
         })
       ).catch(e => console.warn("Failed auto-updating empty waste bottles:", e));
@@ -480,16 +482,19 @@ export const db = {
     if (error || !data) return null;
     const bottle = mapBottle(data);
 
-    // Specific correction for 1N384503: cleaned and changed to Recycled bottle containing R407C on 20th September
-    if (serial === '1N384503' && (bottle.category !== 'recycled' || bottle.gasType !== 'R407C')) {
-      bottle.category = 'recycled';
-      bottle.gasType = 'R407C';
-      Promise.resolve(
-        supabase.from('bottles').update({ category: 'recycled', gas_type: 'R407C' }).eq('serial', '1N384503')
-      ).catch(() => {});
-      Promise.resolve(
-        supabase.from('usage_logs').update({ gas_type: 'R407C' }).eq('serial', '1N384503')
-      ).catch(() => {});
+    // Specific correction for 1N384503: pre-charged with 20kg R407C, cleaned and changed to Recycled bottle containing R407C on 20th September
+    if (serial === '1N384503') {
+      if (!bottle.initialWeight || bottle.initialWeight === 0) bottle.initialWeight = 20;
+      if (bottle.category !== 'recycled' || bottle.gasType !== 'R407C') {
+        bottle.category = 'recycled';
+        bottle.gasType = 'R407C';
+        Promise.resolve(
+          supabase.from('bottles').update({ category: 'recycled', gas_type: 'R407C', initial_weight: 20 }).eq('serial', '1N384503')
+        ).catch(() => {});
+        Promise.resolve(
+          supabase.from('usage_logs').update({ gas_type: 'R407C' }).eq('serial', '1N384503')
+        ).catch(() => {});
+      }
     }
 
     // Auto-reconcile reclaim bottle gas type

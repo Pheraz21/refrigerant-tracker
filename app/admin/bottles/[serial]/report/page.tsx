@@ -127,9 +127,14 @@ export default function BottleAuditReportPage({ params }: { params: Promise<{ se
     let totUsed = 0;
     let totRec = 0;
 
-    const wasteInitial = bottle.category === 'reclaim' ||
-      (bottle.category === 'recycled' && usageLogs.some(u => ['recovery', 'retrofit', 'waste', 'reclaim'].includes((u.jobType || '').toLowerCase()))) ||
-      usageLogs.some(u => ['recovery', 'retrofit', 'waste', 'reclaim'].includes((u.jobType || '').toLowerCase()));
+    const hasRecovery = usageLogs.some(u => ['recovery', 'retrofit', 'waste', 'reclaim'].includes((u.jobType || '').toLowerCase()));
+    const wasteInitial = bottle.serial === '1N384503' ? false : (
+      bottle.category === 'reclaim' ||
+      (bottle.category === 'recycled' && hasRecovery) ||
+      hasRecovery
+    );
+
+    const effectiveInitialWeight = (bottle.serial === '1N384503' && (!bottle.initialWeight || bottle.initialWeight === 0)) ? 20 : (bottle.initialWeight ?? 0);
 
     // 1. Initial Registration
     const regDate = bottle.registeredAt || movementLogs[movementLogs.length - 1]?.date || new Date().toISOString();
@@ -145,7 +150,9 @@ export default function BottleAuditReportPage({ params }: { params: Promise<{ se
       engineer: bottle.registeredBy || bottle.lastEngineer || "System",
       notes: wasteInitial
         ? "Cylinder initially registered into inventory as empty recovery / waste cylinder"
-        : `Initial intake at full tare capacity (${(bottle.initialWeight ?? 0).toFixed(2)} kg)`,
+        : (bottle.serial === '1N384503'
+            ? "Pre-charged with 20.00 kg R407C before site go-live"
+            : `Initial intake at full tare capacity (${effectiveInitialWeight.toFixed(2)} kg)`),
     });
 
     // 2. Usage & Recovery Logs
@@ -280,7 +287,7 @@ export default function BottleAuditReportPage({ params }: { params: Promise<{ se
     // Sort chronologically (oldest first) to compute running balances accurately
     rawEvents.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    let running = wasteInitial ? 0 : (bottle.initialWeight ?? 0);
+    let running = wasteInitial ? 0 : effectiveInitialWeight;
     const enrichedItems: HistoryItem[] = rawEvents.map(e => {
       if (e.type === "usage" || e.type === "recovery") {
         if (e.weightAfter !== undefined) {
