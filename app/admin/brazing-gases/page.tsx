@@ -65,13 +65,18 @@ export default function BrazingGasesAdminPage() {
     loadData();
   }, []);
 
-  // Engineers list (users with role engineer, mate, apprentice or has vehicleReg)
+  // Engineers list (users with role engineer, mate, apprentice or has vehicleReg, excluding disabled accounts)
   const engineers = useMemo(() => {
     return users.filter(u =>
-      u.role === "engineer" ||
-      u.role === "mate" ||
-      u.role === "apprentice" ||
-      (u.vehicleReg && u.vehicleReg.trim().length > 0)
+      u.status !== "disabled" &&
+      u.status !== "rejected" &&
+      (u.status === "approved" || !u.status) &&
+      (
+        u.role === "engineer" ||
+        u.role === "mate" ||
+        u.role === "apprentice" ||
+        (u.vehicleReg && u.vehicleReg.trim().length > 0)
+      )
     ).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   }, [users]);
 
@@ -94,11 +99,21 @@ export default function BrazingGasesAdminPage() {
       lastExchange: storesLastExc?.exchangeDate || null
     });
 
+    // Disabled or rejected user IDs and names to strictly prevent disabled accounts from appearing
+    const disabledUserIds = new Set(
+      users.filter(u => u.status === "disabled" || u.status === "rejected").map(u => u.id)
+    );
+    const disabledUserNames = new Set(
+      users.filter(u => u.status === "disabled" || u.status === "rejected").map(u => (u.name || "").trim().toLowerCase())
+    );
+
     // 2. Engineer Rows
     const handledHolderIds = new Set<string>();
 
     for (const eng of engineers) {
       handledHolderIds.add(eng.id);
+      if (eng.name) handledHolderIds.add(eng.name.trim().toLowerCase());
+
       const o2Item = inventoryItems.find(i => i.holderType === "engineer" && (i.holderId === eng.id || (i.holderName && eng.name && i.holderName.trim().toLowerCase() === eng.name.trim().toLowerCase())) && i.gasType === "Oxygen");
       const propaneItem = inventoryItems.find(i => i.holderType === "engineer" && (i.holderId === eng.id || (i.holderName && eng.name && i.holderName.trim().toLowerCase() === eng.name.trim().toLowerCase())) && i.gasType === "Propane");
 
@@ -119,10 +134,21 @@ export default function BrazingGasesAdminPage() {
       });
     }
 
-    // 3. Any additional holders with inventory not already listed in engineers
+    // 3. Any additional holders with inventory not already listed in engineers (and not disabled)
     for (const item of inventoryItems) {
-      if (item.holderType === "engineer" && !handledHolderIds.has(item.holderId)) {
+      const isHolderDisabled =
+        disabledUserIds.has(item.holderId) ||
+        (item.holderName && disabledUserNames.has(item.holderName.trim().toLowerCase()));
+
+      if (
+        item.holderType === "engineer" &&
+        !handledHolderIds.has(item.holderId) &&
+        !handledHolderIds.has((item.holderName || "").trim().toLowerCase()) &&
+        !isHolderDisabled
+      ) {
         handledHolderIds.add(item.holderId);
+        if (item.holderName) handledHolderIds.add(item.holderName.trim().toLowerCase());
+
         const o2Item = inventoryItems.find(i => i.holderId === item.holderId && i.gasType === "Oxygen");
         const propaneItem = inventoryItems.find(i => i.holderId === item.holderId && i.gasType === "Propane");
         const lastExc = exchanges.find(e => e.engineerId === item.holderId);
@@ -140,7 +166,7 @@ export default function BrazingGasesAdminPage() {
     }
 
     return rows;
-  }, [engineers, inventoryItems, exchanges]);
+  }, [engineers, inventoryItems, exchanges, users]);
 
   // Filtered rows for Inventory tab
   const filteredMatrix = useMemo(() => {
