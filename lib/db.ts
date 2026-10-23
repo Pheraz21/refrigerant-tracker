@@ -1651,6 +1651,8 @@ export const db = {
       const eng = await this.getEngineerById(engineerId);
       vehicleReg = eng?.vehicleReg || null;
     }
+    const { data: existingBottle } = await supabase.from('bottles').select('current_weight').eq('serial', serial).maybeSingle();
+    const hasRemainingGas = Number(existingBottle?.current_weight || 0) > 0;
     const updates: any = {
       location_type: "van",
       location_id: `${engineerName} - Van`,
@@ -1662,7 +1664,7 @@ export const db = {
       delivered_at: null,
       returned_by: null,
       returned_at: null,
-      producer_sites: []
+      ...(!hasRemainingGas ? { producer_sites: [] } : {})
     };
     if (vehicleReg) updates.vehicle_reg = vehicleReg;
     await supabase.from('bottles').update(updates).eq('serial', serial);

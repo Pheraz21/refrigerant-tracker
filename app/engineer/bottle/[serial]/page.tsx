@@ -236,7 +236,8 @@ export default function BottleActionHub() {
     }
 
     try {
-      const requiresSupplierHWCN = isReclaimWithGas && destination === "supplier";
+      const hasLiveHWCN = Boolean(bottle.activeHWCN || bottle.intendedDestination);
+      const requiresSupplierHWCN = isReclaimWithGas && destination === "supplier" && !hasLiveHWCN;
       const needsTransit = requiresSupplierHWCN; // Only supplier HWCNs are handled inline now
 
       if (!needsTransit) {
@@ -276,13 +277,20 @@ export default function BottleActionHub() {
           }
           await db.updateBottle(serial, updates);
         }
+        setTransferSuccess(true);
       } else {
-        // Needs transit (Reclaim with gas to Supplier)
-        const finalLocationId = locationId || "Supplier";
+        // Reclaim bottle with gas moving from Van to Supplier without a live HWCN in place:
+        // Put into supplier transit and immediately prompt the engineer to photograph the completed Supplier HWCN
+        const finalLocationId = locationId.trim() || bottle.supplier || "Supplier";
         const targetVanReg = activeVehicleReg || user?.vehicleReg;
-        await db.updateBottleLocation(serial, "van", `${activeVehicleOwner || user?.name} - Van`, finalLocationId, destination as any, undefined, activeVehicleOwner || user?.name, targetVanReg, user?.name);
+        await db.updateBottleLocation(serial, "van", `${activeVehicleOwner || user?.name} - Van`, finalLocationId, "supplier" as any, undefined, activeVehicleOwner || user?.name, targetVanReg, user?.name);
+        setBottle(prev => prev ? {
+          ...prev,
+          intendedDestination: finalLocationId,
+          intendedLocationType: "supplier"
+        } : prev);
+        setShowPhotoUpload(true);
       }
-      setTransferSuccess(true);
     } catch (err) {
       console.error("Transfer failed:", err);
     } finally {
