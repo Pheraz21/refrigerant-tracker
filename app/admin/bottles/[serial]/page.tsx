@@ -2133,7 +2133,18 @@ export default function ViewBottlePage() {
                                   <span style={{ color: "rgba(255,255,255,0.5)", fontWeight: 500 }}>
                                     {[eq.manufacturer, eq.model].filter(Boolean).join(" ") || "Unknown unit"}
                                   </span>
-                                  {eq.serial && <span>· SN: {eq.serial}</span>}
+                                  {eq.serial && (
+                                    <span>
+                                      · SN:{" "}
+                                      <Link
+                                        href={`/admin/jobs/equipment?sn=${encodeURIComponent(eq.serial)}`}
+                                        onClick={e => e.stopPropagation()}
+                                        style={{ color: "#00e5ff", textDecoration: "underline", textDecorationColor: "rgba(0,229,255,0.4)" }}
+                                      >
+                                        {eq.serial}
+                                      </Link>
+                                    </span>
+                                  )}
                                   {eq.weight > 0 && <span>· {Number(eq.weight).toFixed(2)} kg</span>}
                                 </div>
                               ))}

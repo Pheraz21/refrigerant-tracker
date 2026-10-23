@@ -102,6 +102,14 @@ export default function EquipmentRegisterPage() {
   };
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const snParam = (params.get("sn") || params.get("search") || "").trim();
+      if (snParam) {
+        setSearch(snParam);
+        setExpandedKeys(new Set([`sn:${snParam.toLowerCase()}`]));
+      }
+    }
     db.purgeTestEquipmentData().then(() => {
       fetchLogs();
     });

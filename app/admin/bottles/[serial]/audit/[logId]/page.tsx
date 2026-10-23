@@ -1121,8 +1121,44 @@ export default function BottleAuditEventDetailPage() {
                         <td style={{ padding: "0.75rem 1rem", color: "#fff" }}>
                           {[eq.manufacturer, eq.model].filter(Boolean).join(" ") || "—"}
                         </td>
-                        <td style={{ padding: "0.75rem 1rem", fontFamily: "var(--font-geist-mono)", color: "#00e5ff" }}>
-                          {eq.serial || "—"}
+                        <td style={{ padding: "0.75rem 1rem", fontFamily: "var(--font-geist-mono)" }}>
+                          {eq.serial ? (
+                            <div style={{ display: "inline-flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
+                              <Link
+                                href={`/admin/jobs/equipment?sn=${encodeURIComponent(eq.serial)}`}
+                                style={{
+                                  color: "#00e5ff",
+                                  fontWeight: 700,
+                                  textDecoration: "underline",
+                                  textDecorationColor: "rgba(0,229,255,0.4)",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "0.3rem"
+                                }}
+                                title={`Open Equipment Register for unit ${eq.serial}`}
+                              >
+                                {eq.serial} <ExternalLink size={12} />
+                              </Link>
+                              <Link
+                                href={`/admin/jobs/equipment/report?sn=${encodeURIComponent(eq.serial)}&mfr=${encodeURIComponent(eq.manufacturer || "")}&mdl=${encodeURIComponent(eq.model || "")}${event.siteRef ? `&job=${encodeURIComponent(event.siteRef)}` : ""}`}
+                                style={{
+                                  fontSize: "0.72rem",
+                                  fontFamily: "var(--font-geist-sans)",
+                                  color: "rgba(255,255,255,0.7)",
+                                  background: "rgba(255,255,255,0.06)",
+                                  border: "1px solid rgba(255,255,255,0.12)",
+                                  padding: "0.15rem 0.45rem",
+                                  borderRadius: "4px",
+                                  textDecoration: "none"
+                                }}
+                                title="View full F-Gas Unit Report"
+                              >
+                                Unit Report
+                              </Link>
+                            </div>
+                          ) : (
+                            <span style={{ color: "var(--text-muted)" }}>—</span>
+                          )}
                         </td>
                         <td style={{ padding: "0.75rem 1rem", textAlign: "right", fontWeight: 700, color: themeColor }}>
                           {eqWt.toFixed(2)} kg
