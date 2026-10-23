@@ -679,9 +679,9 @@ export default function AllBottlesPage() {
           <td key={key} style={{padding: "0.85rem 1rem"}}>
             <span style={{
               fontSize: "0.75rem", fontWeight: 600, padding: "0.2rem 0.6rem", borderRadius: "20px",
-              background: b.status === "active" ? "rgba(34,197,94,0.1)" : b.status === "returned" ? "rgba(168,85,247,0.1)" : b.status === "archived" ? "rgba(239,68,68,0.12)" : "rgba(255,255,255,0.06)",
-              color: b.status === "active" ? "#22c55e" : b.status === "returned" ? "#a855f7" : b.status === "archived" ? "#ef4444" : "rgba(255,255,255,0.5)"
-            }}>{b.status === "archived" ? "Archived" : b.status}</span>
+              background: isBottleTrace(b) ? "rgba(255,170,0,0.12)" : b.status === "unused" ? "rgba(0,229,255,0.12)" : b.status === "active" ? "rgba(34,197,94,0.1)" : b.status === "returned" ? "rgba(168,85,247,0.1)" : b.status === "archived" ? "rgba(239,68,68,0.12)" : "rgba(255,255,255,0.06)",
+              color: isBottleTrace(b) ? "#ffaa00" : b.status === "unused" ? "#00e5ff" : b.status === "active" ? "#22c55e" : b.status === "returned" ? "#a855f7" : b.status === "archived" ? "#ef4444" : "rgba(255,255,255,0.5)"
+            }}>{isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unused" : b.status === "archived" ? "Archived" : b.status}</span>
           </td>
         );
       case "lastChanged":

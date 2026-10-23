@@ -190,6 +190,7 @@ export default function LogBottlePage() {
           const existingGas = (b.gasType || "").trim();
           const isEvacuated =
             !existingGas ||
+            existingGas.toLowerCase() === "unused" ||
             existingGas.toLowerCase() === "empty / evacuated" ||
             existingGas.toLowerCase() === "empty/evacuated" ||
             existingGas.toLowerCase() === "mixed/recovery" ||
@@ -935,6 +936,8 @@ export default function LogBottlePage() {
                         `${bottleData?.gasType || "Mixed"} (${bottleData?.currentWeight} kg present)`
                       ) : isBottleTrace(bottleData) ? (
                         `${bottleData?.gasType} (Trace present — not vacced)`
+                      ) : (bottleData?.status === "unused" || (bottleData?.gasType || "").toLowerCase() === "unused") ? (
+                        `Unused (No gas type applied yet)`
                       ) : (
                         `Empty / Evacuated (${bottleData?.gasType || "Empty / Evacuated"})`
                       )}

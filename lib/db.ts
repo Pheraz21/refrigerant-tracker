@@ -5,14 +5,15 @@ export type BottleCategory = "new" | "reclaim" | "nitrogen" | "recycled";
 export type LocationType = "van" | "site" | "supplier" | "office";
 export type UserRole = "admin" | "office" | "engineer" | "mate" | "apprentice";
 export type UserStatus = "pending" | "approved" | "disabled" | "rejected";
-export type BottleStatus = "active" | "empty" | "returned" | "full" | "archived" | "recycled";
+export type BottleStatus = "unused" | "active" | "empty" | "returned" | "full" | "archived" | "recycled";
 
-export function isBottleTrace(bottle?: { category?: string; currentWeight?: number; gasType?: string } | null): boolean {
+export function isBottleTrace(bottle?: { category?: string; currentWeight?: number; gasType?: string; status?: string } | null): boolean {
   if (!bottle || bottle.category !== "reclaim") return false;
   const cw = Number(bottle.currentWeight ?? 0);
   if (cw > 0) return false;
+  if ((bottle.status || "").trim().toLowerCase() === "unused") return false;
   const gt = (bottle.gasType || "").trim().toLowerCase();
-  if (!gt || gt === "empty / evacuated" || gt === "empty/evacuated") return false;
+  if (!gt || gt === "unused" || gt === "empty / evacuated" || gt === "empty/evacuated" || gt === "—" || gt === "-") return false;
   return true;
 }
 
@@ -499,7 +500,7 @@ async function reconcileEmptyWasteBottles(bottles: Bottle[]): Promise<void> {
       const hasWeight = (b.currentWeight ?? 0) > 0;
       let targetGas: string | null = null;
       if (!hasWeight) {
-        targetGas = "Empty / Evacuated";
+        targetGas = b.status === "unused" || (b.gasType || "").toLowerCase() === "unused" ? "Unused" : "Empty / Evacuated";
       } else {
         const distinct = new Set<string>();
         recoveryLogs.forEach(u => {
@@ -600,7 +601,7 @@ export const db = {
           const hasWeight = (bottle.currentWeight ?? 0) > 0;
           let targetGas: string | null = null;
           if (!hasWeight) {
-            targetGas = "Empty / Evacuated";
+            targetGas = bottle.status === "unused" || (bottle.gasType || "").toLowerCase() === "unused" ? "Unused" : "Empty / Evacuated";
           } else {
             const distinct = new Set<string>();
             recoveryLogs.forEach(u => {
@@ -857,7 +858,7 @@ export const db = {
         // It's a returned bottle being recirculated — reset it in-place with fresh data
         const { error: updateErr } = await supabase.from('bottles').update({
           category: data.category,
-          gas_type: data.gasType,
+          gas_type: data.category === "reclaim" ? "Unused" : data.gasType,
           initial_weight: data.initialWeight,
           current_weight: data.currentWeight,
           location_type: data.locationType,
@@ -868,7 +869,7 @@ export const db = {
           rental_expiry_date: data.rentalExpiryDate || null,
           last_engineer: data.lastEngineer || null,
           registered_by: data.registeredBy || null,
-          status: data.category === "reclaim" ? "empty" : "full",
+          status: "unused",
           location_changed_at: new Date().toISOString(),
           // Clear old lifecycle fields
           returned_by: null,
@@ -927,7 +928,7 @@ export const db = {
     const { error: bottleError } = await supabase.from('bottles').insert({
       serial: data.serial,
       category: data.category,
-      gas_type: data.gasType,
+      gas_type: data.category === "reclaim" ? "Unused" : data.gasType,
       initial_weight: data.initialWeight,
       current_weight: data.currentWeight,
       location_type: data.locationType,
@@ -940,7 +941,7 @@ export const db = {
       registered_by: data.registeredBy,
       returned_by: data.locationType === "office" ? (data.registeredBy || data.lastEngineer || "System") : null,
       returned_at: data.locationType === "office" ? (data.registeredAt || new Date().toISOString()) : null,
-      status: data.category === "reclaim" ? "empty" : "full",
+      status: "unused",
       location_changed_at: new Date().toISOString()
     });
     if (bottleError) {
@@ -1456,6 +1457,7 @@ export const db = {
 
           const isVaccedOrUnassigned =
             !currentGasType ||
+            currentGasType.toLowerCase() === "unused" ||
             currentGasType.toLowerCase() === "empty / evacuated" ||
             currentGasType.toLowerCase() === "empty/evacuated" ||
             currentGasType.toLowerCase() === "mixed/recovery" ||

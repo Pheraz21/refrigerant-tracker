@@ -123,7 +123,7 @@ export default function RegisterBottlePage() {
       await db.registerBottle({
         serial: serialParam,
         category,
-        gasType: category === "reclaim" ? "Empty / Evacuated" : (category === "nitrogen" ? "Nitrogen" : finalGas),
+        gasType: category === "reclaim" ? "Unused" : (category === "nitrogen" ? "Nitrogen" : finalGas),
         initialWeight: Number(weight),
         currentWeight: category === "reclaim" ? 0 : Number(weight),
         locationType: locationType as any,

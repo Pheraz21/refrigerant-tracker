@@ -124,9 +124,9 @@ export default function BulkDeliveryPage() {
       return db.registerBottle({
         serial: b.serial,
         category: b.category,
-        gasType: b.category === "nitrogen" ? "Nitrogen" : (b.category === "reclaim" ? "Unknown" : b.gasType),
+        gasType: b.category === "nitrogen" ? "Nitrogen" : (b.category === "reclaim" ? "Unused" : b.gasType),
         initialWeight: b.weight,
-        currentWeight: b.weight,
+        currentWeight: b.category === "reclaim" ? 0 : b.weight,
         locationType: locationType as any,
         locationId: locationType === "van" ? `${user?.name} - Van` : locationType === "office" ? "HQ-Stores" : jobNumber,
         poNumber,

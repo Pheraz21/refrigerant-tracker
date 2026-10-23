@@ -1103,8 +1103,8 @@ export default function ViewBottlePage() {
 
             let targetGas: string | null = null;
             if (!hasWeight) {
-            targetGas = "Empty / Evacuated";
-          } else {
+              targetGas = bottleData.status === "unused" || gLower === "unused" ? "Unused" : "Empty / Evacuated";
+            } else {
             const distinct = new Set<string>();
             recoveryLogs.forEach(u => {
               const g = (u.gasType || (u as any).gas_type || "").trim();
@@ -1548,7 +1548,11 @@ export default function ViewBottlePage() {
   };
 
   const getStatusBadge = () => {
+    if (isBottleTrace(bottle)) {
+      return { bg: "rgba(255,170,0,0.12)", color: "#ffaa00", label: "Trace" };
+    }
     switch (bottle.status) {
+      case "unused":   return { bg: "rgba(0,229,255,0.12)",   color: "#00e5ff", label: "Unused" };
       case "active":   return { bg: "rgba(34,197,94,0.12)",  color: "#22c55e", label: "Active" };
       case "returned": return { bg: "rgba(168,85,247,0.12)", color: "#a855f7", label: "Returned" };
       case "archived": return { bg: "rgba(239,68,68,0.12)",  color: "#ef4444", label: "Archived (Audit Trail)" };

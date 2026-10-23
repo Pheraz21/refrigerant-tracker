@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useMemo, Suspense } from "react";
-import { db, Bottle } from "@/lib/db";
+import { db, Bottle, isBottleTrace } from "@/lib/db";
 import { Building2, Search, MapPin, Truck, Warehouse, ArrowUpDown, ArrowUp, ArrowDown, Filter as FilterIcon, Calendar, FileText, FileSpreadsheet, Settings2, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTablePrefs } from "@/lib/useTablePrefs";
@@ -670,7 +670,7 @@ function SupplierInventoryContent() {
               <span style={{color: "var(--text-muted)"}}>N/A</span>
             ) : (
               <>
-                <div style={{fontWeight: 700, color: isReclaim ? "#ffaa00" : "#22c55e"}}>{(b.currentWeight || 0).toFixed(2)} kg</div>
+                <div style={{fontWeight: 700, color: isReclaim ? "#ffaa00" : "#22c55e"}}>{isBottleTrace(b) ? "Trace" : `${(b.currentWeight || 0).toFixed(2)} kg`}</div>
                 <div style={{fontSize: "0.72rem", color: "var(--text-muted)"}}>{isReclaim ? "Recovered" : "Remaining"}</div>
                 <div style={{width: "60px", height: "4px", background: "rgba(255,255,255,0.1)", borderRadius: "2px", marginTop: "4px", overflow: "hidden"}}>
                   <div style={{width: `${percent}%`, height: "100%", background: isReclaim ? "#ffaa00" : "#22c55e", transition: "width 0.3s"}} />
@@ -737,9 +737,9 @@ function SupplierInventoryContent() {
           <td key={key} style={{padding: "0.85rem 1rem"}}>
             <span style={{
               fontSize: "0.75rem", fontWeight: 600, padding: "0.2rem 0.6rem", borderRadius: "20px",
-              background: b.status === "active" ? "rgba(34,197,94,0.1)" : b.status === "returned" ? "rgba(168,85,247,0.1)" : "rgba(255,255,255,0.06)",
-              color: b.status === "active" ? "#22c55e" : b.status === "returned" ? "#a855f7" : "rgba(255,255,255,0.5)"
-            }}>{b.status}</span>
+              background: isBottleTrace(b) ? "rgba(255,170,0,0.12)" : b.status === "unused" ? "rgba(0,229,255,0.12)" : b.status === "active" ? "rgba(34,197,94,0.1)" : b.status === "returned" ? "rgba(168,85,247,0.1)" : "rgba(255,255,255,0.06)",
+              color: isBottleTrace(b) ? "#ffaa00" : b.status === "unused" ? "#00e5ff" : b.status === "active" ? "#22c55e" : b.status === "returned" ? "#a855f7" : "rgba(255,255,255,0.5)"
+            }}>{isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unused" : b.status}</span>
           </td>
         );
       case "lastChanged":

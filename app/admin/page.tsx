@@ -35,7 +35,7 @@ export default function AdminDashboard() {
   const storesBottles = bottles.filter(b => b.locationType === "office");
   const onsiteBottles = bottles.filter(b => b.locationType === "site");
   const vanBottles = bottles.filter(b => b.locationType === "van");
-  const totalActive = bottles.filter(b => b.status === "active").length;
+  const totalActive = bottles.filter(b => b.status === "active" || b.status === "unused").length;
 
   // Expiry Calculations
   const getDaysDiff = (dateStr: string) => {
