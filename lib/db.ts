@@ -264,7 +264,7 @@ export interface Bottle {
   activeHWCN?: string;
   supplierHwcnPhotoPending?: boolean;
   supplierHwcnPhotoUrl?: string;
-  producerSites?: Array<{ name: string, address: string, postcode: string }>;
+  producerSites?: Array<{ jobNumber?: string; name: string; address: string; postcode: string }>;
   returnedBy?: string;
   returnedAt?: string;
   deliveredAt?: string;
@@ -1371,7 +1371,7 @@ export const db = {
     jobType: string,
     weightChange: number,
     isWaste: boolean = false,
-    producerSite?: { name: string, address: string, postcode: string },
+    producerSite?: { jobNumber?: string; name: string; address: string; postcode: string },
     gasType?: string,
     engineerName: string = "Unknown",
     siteRef?: string,
@@ -1443,8 +1443,22 @@ export const db = {
         // Handle producer sites (JSONB)
         const sites = bottle.producer_sites || bottle.producerSites || [];
         if (producerSite) {
-          const exists = sites.find((s: any) => s.name === producerSite.name);
-          if (!exists) sites.push(producerSite);
+          const existingIdx = sites.findIndex((s: any) =>
+            (producerSite.jobNumber && s.jobNumber && s.jobNumber.toUpperCase() === producerSite.jobNumber.toUpperCase()) ||
+            (s.name && producerSite.name && s.name.trim().toLowerCase() === producerSite.name.trim().toLowerCase())
+          );
+          if (existingIdx >= 0) {
+            sites[existingIdx] = {
+              ...sites[existingIdx],
+              ...producerSite,
+              name: producerSite.name || sites[existingIdx].name,
+              address: producerSite.address || sites[existingIdx].address,
+              postcode: producerSite.postcode || sites[existingIdx].postcode,
+              ...(producerSite.jobNumber ? { jobNumber: producerSite.jobNumber } : {})
+            };
+          } else {
+            sites.push(producerSite);
+          }
         }
         const { error: siteErr } = await supabase.from('bottles').update({ producer_sites: sites }).eq('serial', serial);
         if (siteErr) console.error("Error updating producer sites:", siteErr);
@@ -2758,8 +2772,31 @@ export const db = {
   },
 
   async getCrmJobByNumber(jobNumber: string): Promise<CrmJob | null> {
-    const { data } = await supabase
-      .from("crm_jobs").select("*").eq("job_number", jobNumber).limit(1).single();
+    const clean = (jobNumber || "").trim().replace(/\s+/g, "");
+    if (!clean) return null;
+
+    // 1. Exact case-insensitive match on job_number in crm_jobs
+    let { data } = await supabase
+      .from("crm_jobs")
+      .select("*")
+      .ilike("job_number", clean)
+      .limit(1)
+      .maybeSingle();
+
+    // 2. Fallback to unprefixed number match in crm_jobs only
+    if (!data) {
+      const unprefixed = clean.replace(/^[^0-9]+/, "");
+      if (unprefixed) {
+        const res = await supabase
+          .from("crm_jobs")
+          .select("*")
+          .or(`job_number_unprefixed.eq.${unprefixed},job_number.ilike.${unprefixed}`)
+          .limit(1)
+          .maybeSingle();
+        data = res.data;
+      }
+    }
+
     if (!data) return null;
     return {
       id: data.id, jobNumber: data.job_number, jobNumberUnprefixed: data.job_number_unprefixed ?? "",

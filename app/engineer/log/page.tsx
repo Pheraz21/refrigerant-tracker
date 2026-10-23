@@ -256,12 +256,12 @@ export default function LogBottlePage() {
     }
     db.getCrmJobByNumber(jobNumber).then(crmJob => {
       if (crmJob) {
-        setCrmMatch(crmJob.siteTitle || "");
+        setCrmMatch(crmJob.siteTitle || crmJob.customer || "");
         if (jobType === "recovery") {
           setProducerSite(prev => ({
-            name: prev.name || crmJob.siteTitle || "",
-            address: prev.address || crmJob.siteAddress || "",
-            postcode: prev.postcode || crmJob.sitePostcode || ""
+            name: crmJob.siteTitle || crmJob.customer || prev.name || "",
+            address: crmJob.siteAddress || prev.address || "",
+            postcode: crmJob.sitePostcode || prev.postcode || ""
           }));
         }
       } else {
@@ -403,7 +403,7 @@ export default function LogBottlePage() {
       derivedJobType,
       derivedJobType === "leak_test" ? 0 : totalWeight,
       derivedJobType === "waste",
-      derivedJobType === "recovery" ? producerSite : undefined,
+      derivedJobType === "recovery" ? { ...producerSite, jobNumber: cleanJobNumber } : undefined,
       finalRefrigerant,
       user?.name || "Unknown",
       jobNumber || undefined,
@@ -415,7 +415,7 @@ export default function LogBottlePage() {
 
     // §4.2: If multi-site was acknowledged, auto-generate Internal HWCN and set dest to Office
     if (isRecovery && multiSiteAcknowledged && bottleData) {
-      const sites = [...existingProducerSites, producerSite];
+      const sites = [...existingProducerSites, { ...producerSite, jobNumber: cleanJobNumber }];
       let vehicleReg = "";
       if (user?.id) {
         const profile = await db.getEngineerById(user.id);

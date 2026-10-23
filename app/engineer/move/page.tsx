@@ -138,13 +138,50 @@ export default function MoveBottlePage() {
       db.getBottle(serialParam),
       db.getMovementLogs(serialParam),
       db.getUsageLogs(serialParam)
-    ]).then(([b, moveLogs, usageLogs]) => {
+    ]).then(async ([b, moveLogs, usageLogs]) => {
       setBottle(b);
-      if (b?.producerSites && b.producerSites.length > 0) {
-        setHwcnSites(b.producerSites);
-      } else {
-        setHwcnSites([{ name: "", address: "", postcode: "" }]);
+
+      // Build initial HWCN sites and enrich from crm_jobs only when a job number is known
+      const recentRecoveryLogs = (usageLogs || []).filter(
+        (l: any) => l.jobType === "recovery" || l.jobType === "retrofit" || l.jobType === "waste"
+      );
+      const fallbackJobNo =
+        (b?.locationType === "site" && b?.locationId ? b.locationId.trim() : "") ||
+        (recentRecoveryLogs[0]?.siteRef ? String(recentRecoveryLogs[0].siteRef).trim() : "");
+
+      let rawSites: Array<{ jobNumber?: string; name: string; address: string; postcode: string; crmMatched?: string }> =
+        b?.producerSites && b.producerSites.length > 0
+          ? b.producerSites.map((s: any) => ({
+              jobNumber: s.jobNumber || (/^[A-Za-z]?\d+$/.test((s.name || "").trim()) ? (s.name || "").trim().toUpperCase() : ""),
+              name: s.name || "",
+              address: s.address || "",
+              postcode: s.postcode || ""
+            }))
+          : [{ jobNumber: fallbackJobNo, name: "", address: "", postcode: "" }];
+
+      if (rawSites.length === 1 && !rawSites[0].jobNumber && fallbackJobNo) {
+        rawSites[0].jobNumber = fallbackJobNo;
       }
+
+      const enrichedSites = await Promise.all(
+        rawSites.map(async (site) => {
+          const candidateJob = (site.jobNumber || "").trim();
+          if (!candidateJob) return site;
+          const crm = await db.getCrmJobByNumber(candidateJob);
+          if (!crm) return site;
+          const crmName = crm.siteTitle || crm.customer || "";
+          const isNameJustJobNo = !site.name || site.name.trim().toUpperCase() === candidateJob.toUpperCase();
+          return {
+            ...site,
+            jobNumber: crm.jobNumber || candidateJob.toUpperCase(),
+            name: (isNameJustJobNo ? crmName : site.name) || crmName || site.name || "",
+            address: site.address || crm.siteAddress || "",
+            postcode: site.postcode || crm.sitePostcode || "",
+            crmMatched: crmName || crm.jobNumber
+          };
+        })
+      );
+      setHwcnSites(enrichedSites);
 
       // Check if any waste refrigerant was recovered into this cylinder during its current visit to site
       let hasWasteThisVisit = false;
@@ -235,6 +272,32 @@ export default function MoveBottlePage() {
       });
     }
   }, [serialParam, user, activeVehicleReg]);
+
+  const handleHwcnSiteJobChange = async (idx: number, rawVal: string) => {
+    const cleanVal = rawVal.replace(/\s+/g, "").toUpperCase();
+    setHwcnSites((prev) => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], jobNumber: cleanVal, crmMatched: undefined };
+      return next;
+    });
+    if (cleanVal.length < 3) return;
+    const crmJob = await db.getCrmJobByNumber(cleanVal);
+    if (crmJob) {
+      const crmName = crmJob.siteTitle || crmJob.customer || "";
+      setHwcnSites((prev) => {
+        const next = [...prev];
+        if (!next[idx] || next[idx].jobNumber !== cleanVal) return prev;
+        next[idx] = {
+          ...next[idx],
+          name: crmName || next[idx].name || "",
+          address: crmJob.siteAddress || next[idx].address || "",
+          postcode: crmJob.sitePostcode || next[idx].postcode || "",
+          crmMatched: crmName || crmJob.jobNumber
+        };
+        return next;
+      });
+    }
+  };
 
   const isMovingSiteToVanWithoutWaste = (bottle?.locationType === "site" && destination === "van" && !wasteAddedOnVisit);
   const isMovingOfficeToVan = (bottle?.locationType === "office" && destination === "van");
@@ -335,10 +398,19 @@ export default function MoveBottlePage() {
         const currentTotal = bottle?.currentWeight || 0;
         const incremental = priorCompleted.length > 0 ? Math.max(0, currentTotal - netPriorRemaining) : currentTotal;
 
+        const cleanedSites = hwcnSites.map((s: any) => ({
+          ...(s.jobNumber ? { jobNumber: s.jobNumber } : {}),
+          name: (s.name || "").trim(),
+          address: (s.address || "").trim(),
+          postcode: (s.postcode || "").trim()
+        }));
+
+        await db.updateBottle(serialParam, { producer_sites: cleanedSites });
+
         hwcnId = await db.createHWCN({
           serial: serialParam,
           destination: intendedDest || fullDestinationString,
-          sites: hwcnSites,
+          sites: cleanedSites,
           vehicleReg: targetVanReg || vehicleReg,
           engineer: carrierName || user?.name,
           date: new Date().toISOString(),
@@ -760,7 +832,14 @@ export default function MoveBottlePage() {
               onClick={async () => {
                 setIsSubmitting(true);
                 // Clear old transit, generate internal HWCN, set new intended dest
-                const sites = bottle?.producerSites?.length > 0 
+                const sites = hwcnSites?.some((s: any) => s.name || s.address || s.postcode)
+                  ? hwcnSites.map((s: any) => ({
+                      ...(s.jobNumber ? { jobNumber: s.jobNumber } : {}),
+                      name: (s.name || "").trim(),
+                      address: (s.address || "").trim(),
+                      postcode: (s.postcode || "").trim()
+                    }))
+                  : bottle?.producerSites?.length > 0 
                   ? bottle.producerSites 
                   : [{name: "Unknown Site", address: "See recovery logs", postcode: ""}];
                 const targetVanReg = activeVehicleReg || vehicleReg || user?.vehicleReg;
@@ -1331,22 +1410,83 @@ export default function MoveBottlePage() {
               <div style={{borderLeft: '2px solid var(--warning)', paddingLeft: '1rem', marginBottom: '1.5rem'}}>
                 <h4 style={{fontSize: '0.9rem', marginBottom: '0.75rem'}}>Part A: Producer / Removal Sites</h4>
                 <p style={{fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem'}}>
-                  Sites are populated from your Gas Recovery logs. You can edit them if they are incomplete.
+                  Enter a Job Number to auto-populate from CRM, or manually type / edit the site name, address, and postcode below.
                 </p>
 
                 <div style={{background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.75rem'}}>
                   {hwcnSites.map((s: any, i: number) => (
-                    <div key={i} style={{marginBottom: '1rem'}}>
-                      <strong style={{color: 'var(--warning)', fontSize: '0.85rem'}}>Site {i + 1}</strong>
-                      <div className={styles.inputGroup} style={{marginTop: '0.5rem'}}>
-                        <input type="text" placeholder="Site Name" value={s.name} onChange={(e) => { const newSites = [...hwcnSites]; newSites[i].name = e.target.value; setHwcnSites(newSites); }} required={requiresHWCN} />
+                    <div key={i} style={{marginBottom: '1rem', paddingBottom: hwcnSites.length > 1 ? '0.85rem' : 0, borderBottom: hwcnSites.length > 1 && i < hwcnSites.length - 1 ? '1px solid rgba(255,255,255,0.08)' : 'none'}}>
+                      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                        <strong style={{color: 'var(--warning)', fontSize: '0.85rem'}}>Site {i + 1}</strong>
+                        {hwcnSites.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setHwcnSites(hwcnSites.filter((_, idx) => idx !== i))}
+                            style={{background: 'transparent', border: 'none', color: '#ff4444', fontSize: '0.78rem', cursor: 'pointer'}}
+                          >
+                            Remove
+                          </button>
+                        )}
                       </div>
                       <div className={styles.inputGroup} style={{marginTop: '0.5rem'}}>
-                        <input type="text" placeholder="Address & Postcode" value={s.address} onChange={(e) => { const newSites = [...hwcnSites]; newSites[i].address = e.target.value; setHwcnSites(newSites); }} required={requiresHWCN} />
+                        <label style={{fontSize: '0.78rem', color: 'var(--text-muted)'}}>Job Number (Auto-fills from CRM if available)</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. J12345, M98201"
+                          value={s.jobNumber || ""}
+                          onChange={(e) => handleHwcnSiteJobChange(i, e.target.value)}
+                        />
+                        {s.crmMatched && (
+                          <span style={{fontSize: '0.75rem', color: 'var(--success)', marginTop: '0.2rem', display: 'block'}}>
+                            ✓ CRM Match: {s.crmMatched} (you can still edit the fields below)
+                          </span>
+                        )}
+                      </div>
+                      <div className={styles.inputGroup} style={{marginTop: '0.5rem'}}>
+                        <label style={{fontSize: '0.78rem', color: 'var(--text-muted)'}}>Site / Client Name</label>
+                        <input
+                          type="text"
+                          placeholder="Site Name"
+                          value={s.name || ""}
+                          onChange={(e) => {
+                            const newSites = [...hwcnSites];
+                            newSites[i] = { ...newSites[i], name: e.target.value };
+                            setHwcnSites(newSites);
+                          }}
+                          required={requiresHWCN}
+                        />
+                      </div>
+                      <div className={styles.inputGroup} style={{marginTop: '0.5rem'}}>
+                        <label style={{fontSize: '0.78rem', color: 'var(--text-muted)'}}>Site Address</label>
+                        <input
+                          type="text"
+                          placeholder="Street Address"
+                          value={s.address || ""}
+                          onChange={(e) => {
+                            const newSites = [...hwcnSites];
+                            newSites[i] = { ...newSites[i], address: e.target.value };
+                            setHwcnSites(newSites);
+                          }}
+                          required={requiresHWCN}
+                        />
+                      </div>
+                      <div className={styles.inputGroup} style={{marginTop: '0.5rem'}}>
+                        <label style={{fontSize: '0.78rem', color: 'var(--text-muted)'}}>Postcode</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. NE1 4XP"
+                          value={s.postcode || ""}
+                          onChange={(e) => {
+                            const newSites = [...hwcnSites];
+                            newSites[i] = { ...newSites[i], postcode: e.target.value };
+                            setHwcnSites(newSites);
+                          }}
+                          required={requiresHWCN}
+                        />
                       </div>
                     </div>
                   ))}
-                  <button type="button" onClick={() => setHwcnSites([...hwcnSites, {name: "", address: "", postcode: ""}])} style={{background: 'transparent', border: '1px dashed var(--warning)', color: 'var(--warning)', padding: '0.5rem', width: '100%', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem'}}>
+                  <button type="button" onClick={() => setHwcnSites([...hwcnSites, {jobNumber: "", name: "", address: "", postcode: ""}])} style={{background: 'transparent', border: '1px dashed var(--warning)', color: 'var(--warning)', padding: '0.5rem', width: '100%', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem'}}>
                     + Add Another Site
                   </button>
                 </div>
