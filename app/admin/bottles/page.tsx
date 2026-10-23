@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useMemo } from "react";
-import { db, Bottle } from "@/lib/db";
+import { db, Bottle, isBottleTrace } from "@/lib/db";
 import { Package, Search, MapPin, Truck, Warehouse, Building2, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Filter as FilterIcon, FileText, FileSpreadsheet, Edit2, Trash2, Plus, Settings2, Archive, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
@@ -603,7 +603,7 @@ export default function AllBottlesPage() {
             ) : (
               <>
                 <div style={{fontWeight: 700, color: isReclaim ? "#ffaa00" : "#22c55e"}}>
-                  {(b.currentWeight || 0).toFixed(2)} kg
+                  {isBottleTrace(b) ? "Trace" : `${(b.currentWeight || 0).toFixed(2)} kg`}
                 </div>
                 <div style={{fontSize: "0.72rem", color: "var(--text-muted)"}}>{isReclaim ? "Recovered" : "Remaining"}</div>
                 <div style={{width: "60px", height: "4px", background: "rgba(255,255,255,0.1)", borderRadius: "2px", marginTop: "4px", overflow: "hidden"}}>

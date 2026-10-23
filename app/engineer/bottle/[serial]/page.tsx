@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Truck, Wrench, AlertTriangle, ArrowLeft, Loader2, PackageCheck, MapPin, Building2, Users, Building, CheckCircle2, Camera, Image as ImageIcon, RotateCcw, Recycle } from "lucide-react";
 import styles from "./page.module.css";
 import Link from "next/link";
-import { db, Bottle, MovementLog, UsageLog } from "@/lib/db";
+import { db, Bottle, MovementLog, UsageLog, isBottleTrace, hasReclaimWaste } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { compressImage } from "@/lib/utils";
 import { supabase } from "@/lib/supabaseClient";
@@ -215,7 +215,7 @@ export default function BottleActionHub() {
     setIsSubmittingTransfer(true);
     
     // Check if HWCN is required: only when transferring waste to Office/Stores or Other facility (NOT when taking bottle to a Job Site or van handover)
-    const isReclaimWithGas = bottle.category === "reclaim" && (bottle.currentWeight || 0) > 0;
+    const isReclaimWithGas = hasReclaimWaste(bottle);
     const isMultiSite = (bottle.producerSites?.length || 0) > 1;
     const isMovingSiteToVanWithoutWaste = bottle.locationType === "site" && destination === "van" && !wasteAddedOnVisit;
     const isMovingOfficeToVan = bottle.locationType === "office" && destination === "van";
@@ -445,7 +445,7 @@ export default function BottleActionHub() {
                 </div>
                 <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem'}}>
                   <span style={{color: 'var(--text-muted)'}}>Filled:</span>
-                  <strong style={{color: 'var(--warning)'}}>{(bottle.currentWeight || 0).toFixed(2)} kg</strong>
+                  <strong style={{color: 'var(--warning)'}}>{isBottleTrace(bottle) ? "Trace" : `${(bottle.currentWeight || 0).toFixed(2)} kg`}</strong>
                 </div>
                 <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem'}}>
                   <span style={{color: 'var(--text-muted)'}}>Available Space:</span>

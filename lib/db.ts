@@ -7,6 +7,20 @@ export type UserRole = "admin" | "office" | "engineer" | "mate" | "apprentice";
 export type UserStatus = "pending" | "approved" | "disabled" | "rejected";
 export type BottleStatus = "active" | "empty" | "returned" | "full" | "archived" | "recycled";
 
+export function isBottleTrace(bottle?: { category?: string; currentWeight?: number; gasType?: string } | null): boolean {
+  if (!bottle || bottle.category !== "reclaim") return false;
+  const cw = Number(bottle.currentWeight ?? 0);
+  if (cw > 0) return false;
+  const gt = (bottle.gasType || "").trim().toLowerCase();
+  if (!gt || gt === "empty / evacuated" || gt === "empty/evacuated") return false;
+  return true;
+}
+
+export function hasReclaimWaste(bottle?: { category?: string; currentWeight?: number; gasType?: string } | null): boolean {
+  if (!bottle || bottle.category !== "reclaim") return false;
+  return Number(bottle.currentWeight ?? 0) > 0 || isBottleTrace(bottle);
+}
+
 export interface AppUser {
   id: string;
   email: string;
@@ -1401,11 +1415,10 @@ export const db = {
           newStatus = "empty";
         } else if (bottle.category === "reclaim") {
           newStatus = "active";
-          // If all recycled gas has been used up on site, reset producer sites to clean/empty reclaim
-          bottleUpdatePayload.producer_sites = [];
-          await supabase.from('bottles').update({ producer_sites: [] }).eq('serial', serial);
-
           if (isFullyEvacuated) {
+            // Only reset producer sites and mark Empty / Evacuated when genuinely evacuated to vacuum
+            bottleUpdatePayload.producer_sites = [];
+            await supabase.from('bottles').update({ producer_sites: [] }).eq('serial', serial);
             bottleUpdatePayload.gas_type = "Empty / Evacuated";
           }
         }
@@ -1448,7 +1461,7 @@ export const db = {
             currentGasType.toLowerCase() === "mixed/recovery" ||
             currentGasType.toLowerCase() === "unknown";
 
-          if (currentWeight === 0 || isVaccedOrUnassigned) {
+          if (isVaccedOrUnassigned) {
             // Bottle was empty / evacuated: takes on whatever gas is recovered into it
             resolvedGasType = gasType.trim();
           } else if (currentGasType.toLowerCase() === "mixed" || currentGasType.toLowerCase() === "mixed/recovery") {
@@ -1494,7 +1507,7 @@ export const db = {
       try {
         const evacNote = isFullyEvacuated
           ? "Cylinder fully charged back into equipment and evacuated to vacuum (reset to Empty / Evacuated)."
-          : `Cylinder emptied of bulk gas (residual ${bottle.gas_type || "gas"} remains, not vacced).`;
+          : `Cylinder emptied of bulk gas (Trace ${bottle.gas_type || "gas"} remains — not vacced).`;
         await supabase.from('movement_logs').insert({
           serial,
           action: isFullyEvacuated ? 'evacuated' : 'emptied',
@@ -3222,18 +3235,16 @@ export const db = {
     }
 
     const newDonorWeight = Math.max(0, Number((donorWeight - data.transferWeight).toFixed(2)));
-    const donorStatus = newDonorWeight === 0 ? "empty" : "active";
+    const donorStatus = newDonorWeight === 0 && data.isFullyEvacuated ? "empty" : "active";
 
     // Update donor bottle
     const donorUpdate: any = {
       current_weight: newDonorWeight,
       status: donorStatus
     };
-    if (newDonorWeight === 0) {
+    if (newDonorWeight === 0 && data.isFullyEvacuated) {
       donorUpdate.producer_sites = [];
-      if (data.isFullyEvacuated) {
-        donorUpdate.gas_type = "Empty / Evacuated";
-      }
+      donorUpdate.gas_type = "Empty / Evacuated";
     }
     const { error: donorErr } = await supabase.from('bottles').update(donorUpdate).eq('serial', data.donorSerial);
     if (donorErr) throw donorErr;

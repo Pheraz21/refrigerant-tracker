@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useMemo } from "react";
-import { db, Bottle, CrmJob } from "@/lib/db";
+import { db, Bottle, CrmJob, isBottleTrace, hasReclaimWaste } from "@/lib/db";
 import { MapPin, AlertTriangle, Search, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Filter as FilterIcon, FileText, FileSpreadsheet, Settings2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -653,7 +653,7 @@ export default function BottlesOnSitePage() {
           <td key={key} style={{padding: "0.85rem 1rem", fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "#00e5ff", fontSize: "0.9rem"}}>
             <div style={{display: "flex", alignItems: "center", gap: "0.5rem"}}>
               {b.serial}
-              {isReclaim && b.currentWeight > 0 && <AlertTriangle size={14} color="#ffaa00" />}
+              {hasReclaimWaste(b) && <AlertTriangle size={14} color="#ffaa00" />}
             </div>
           </td>
         );
@@ -683,7 +683,7 @@ export default function BottlesOnSitePage() {
               <span style={{color: "var(--text-muted)"}}>N/A</span>
             ) : (
               <>
-                <div style={{fontWeight: 700, color: isReclaim ? "#ffaa00" : "#22c55e"}}>{b.currentWeight.toFixed(2)} kg</div>
+                <div style={{fontWeight: 700, color: isReclaim ? "#ffaa00" : "#22c55e"}}>{isBottleTrace(b) ? "Trace" : `${b.currentWeight.toFixed(2)} kg`}</div>
                 <div style={{fontSize: "0.72rem", color: "var(--text-muted)"}}>{isReclaim ? "Recovered" : "Remaining"}</div>
                 <div style={{width: "60px", height: "4px", background: "rgba(255,255,255,0.1)", borderRadius: "2px", marginTop: "4px", overflow: "hidden"}}>
                   <div style={{width: `${percent}%`, height: "100%", background: isReclaim ? "#ffaa00" : "#22c55e", transition: "width 0.3s"}} />

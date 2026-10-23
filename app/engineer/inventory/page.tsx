@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, PackageSearch } from "lucide-react";
 import styles from "./page.module.css";
 import Link from "next/link";
-import { db, Bottle } from "@/lib/db";
+import { db, Bottle, isBottleTrace } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { ActiveVehicleBanner } from "@/components/ActiveVehicleBanner";
 import { BrazingKitCard } from "@/components/BrazingKitCard";
@@ -55,7 +55,7 @@ export default function EngineerInventoryPage() {
         <td>${b.category === "new" ? "New" : b.category === "recycled" ? "Recycled" : b.category === "reclaim" ? "Reclaim" : "N2"}</td>
         <td>${b.gasType}</td>
         <td>${(b.initialWeight || 0).toFixed(2)} kg</td>
-        <td>${(b.currentWeight || 0).toFixed(2)} kg</td>
+        <td>${isBottleTrace(b) ? "Trace" : `${(b.currentWeight || 0).toFixed(2)} kg`}</td>
         <td>${((b.initialWeight || 0) - (b.currentWeight || 0)).toFixed(2)} kg</td>
       </tr>
     `).join("");
@@ -316,7 +316,7 @@ export default function EngineerInventoryPage() {
                         </div>
                         <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem'}}>
                           <span style={{color: 'var(--text-muted)'}}>Filled:</span>
-                          <strong style={{color: 'var(--warning)'}}>{(bottle.currentWeight || 0).toFixed(2)} kg</strong>
+                          <strong style={{color: 'var(--warning)'}}>{isBottleTrace(bottle) ? "Trace" : `${(bottle.currentWeight || 0).toFixed(2)} kg`}</strong>
                         </div>
                         <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem'}}>
                           <span style={{color: 'var(--text-muted)'}}>Available Space:</span>

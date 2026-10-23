@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { CheckCircle2, Save, ArrowLeft, AlertTriangle } from "lucide-react";
 import styles from "./page.module.css";
 import Link from "next/link";
-import { db } from "@/lib/db";
+import { db, isBottleTrace, hasReclaimWaste } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { useNavigationGuard } from "@/lib/NavigationGuardContext";
 
@@ -188,9 +188,7 @@ export default function LogBottlePage() {
         } else if (b.category === "reclaim") {
           setJobType("recovery");
           const existingGas = (b.gasType || "").trim();
-          const curWt = b.currentWeight || 0;
           const isEvacuated =
-            curWt === 0 ||
             !existingGas ||
             existingGas.toLowerCase() === "empty / evacuated" ||
             existingGas.toLowerCase() === "empty/evacuated" ||
@@ -535,11 +533,11 @@ export default function LogBottlePage() {
             lineHeight: 1.5
           }}>
             <div style={{ fontWeight: 700, color: isFullyEvacuated ? "#10b981" : "#ffbb00", marginBottom: "0.25rem" }}>
-              {isFullyEvacuated ? "✓ Cylinder Reset to Empty / Evacuated" : "ℹ️ Cylinder Emptied (Residual Gas Type Retained)"}
+              {isFullyEvacuated ? "✓ Cylinder Reset to Empty / Evacuated" : `ℹ️ Cylinder Classed as Trace (${bottleData?.gasType || "Gas"})`}
             </div>
             {isFullyEvacuated 
               ? `Cylinder ${serialParam} reached 0.00 kg and was marked as fully evacuated. Gas type has been reset to Empty / Evacuated.` 
-              : `Cylinder ${serialParam} reached 0.00 kg. Residual ${bottleData?.gasType || "gas"} type retained.`}
+              : `Cylinder ${serialParam} has no weighed bulk gas left, but was not evacuated to vacuum. It is classed as Trace (${bottleData?.gasType || "gas"}) and is not treated as an empty cylinder.`}
           </div>
         )}
         <button onClick={() => { setIsDirty(false); router.push("/engineer"); }} className={styles.primaryBtn}>
@@ -926,22 +924,24 @@ export default function LogBottlePage() {
                   marginBottom: '0.65rem',
                   padding: '0.65rem 0.85rem',
                   borderRadius: '8px',
-                  background: (bottleData?.currentWeight || 0) > 0 ? 'rgba(255, 170, 0, 0.08)' : 'rgba(0, 229, 255, 0.08)',
-                  border: (bottleData?.currentWeight || 0) > 0 ? '1px solid rgba(255, 170, 0, 0.25)' : '1px solid rgba(0, 229, 255, 0.25)',
+                  background: hasReclaimWaste(bottleData) ? 'rgba(255, 170, 0, 0.08)' : 'rgba(0, 229, 255, 0.08)',
+                  border: hasReclaimWaste(bottleData) ? '1px solid rgba(255, 170, 0, 0.25)' : '1px solid rgba(0, 229, 255, 0.25)',
                   fontSize: '0.825rem'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ color: 'var(--text-muted)' }}>Cylinder Current Gas:</span>
-                    <span style={{ fontWeight: 700, color: (bottleData?.currentWeight || 0) > 0 ? '#ffaa00' : '#00e5ff' }}>
+                    <span style={{ fontWeight: 700, color: hasReclaimWaste(bottleData) ? '#ffaa00' : '#00e5ff' }}>
                       {(bottleData?.currentWeight || 0) > 0 ? (
                         `${bottleData?.gasType || "Mixed"} (${bottleData?.currentWeight} kg present)`
+                      ) : isBottleTrace(bottleData) ? (
+                        `${bottleData?.gasType} (Trace present — not vacced)`
                       ) : (
                         `Empty / Evacuated (${bottleData?.gasType || "Empty / Evacuated"})`
                       )}
                     </span>
                   </div>
 
-                  {(bottleData?.currentWeight || 0) > 0 ? (
+                  {hasReclaimWaste(bottleData) ? (
                     (() => {
                       const currentSelected = refrigerantType === "other" ? customRefrigerant.trim() : refrigerantType;
                       const bottleGas = (bottleData?.gasType || "").trim();
@@ -1262,10 +1262,10 @@ export default function LogBottlePage() {
                 />
                 <div>
                   <div style={{ fontSize: "0.88rem", fontWeight: 700, color: isFullyEvacuated === false ? "#ffbb00" : "#fff" }}>
-                    No — Residual gas remains (not vacced)
+                    No — Trace gas remains (not vacced)
                   </div>
                   <div style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.6)", marginTop: "0.15rem" }}>
-                    Gas type stays as <strong>{bottleData?.gasType || "existing gas"}</strong>. Only waste of this exact refrigerant may be added.
+                    Classed as <strong>Trace ({bottleData?.gasType || "existing gas"})</strong> — NOT an empty bottle. Only waste of this refrigerant may be added, and HWCN rules still apply.
                   </div>
                 </div>
               </label>

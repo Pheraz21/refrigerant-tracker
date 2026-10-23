@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useMemo } from "react";
-import { db, Bottle, AppUser } from "@/lib/db";
+import { db, Bottle, AppUser, isBottleTrace, hasReclaimWaste } from "@/lib/db";
 import Link from "next/link";
 import { Truck, AlertTriangle, Search, ArrowUpDown, ArrowUp, ArrowDown, FileText, FileSpreadsheet, Calendar, Filter as FilterIcon, Settings2, Users, UserCheck, XCircle, Shield, Check, Package, ArrowRight, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -626,7 +626,7 @@ export default function VanInventoryPage() {
           <td key={key} style={{padding: "0.85rem 1rem", fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "#00e5ff", fontSize: "0.9rem"}}>
             <div style={{display: "flex", alignItems: "center", gap: "0.5rem"}}>
               {b.serial}
-              {isReclaim && b.currentWeight > 0 && <AlertTriangle size={14} color="#ffaa00" />}
+              {hasReclaimWaste(b) && <AlertTriangle size={14} color="#ffaa00" />}
             </div>
           </td>
         );
@@ -656,7 +656,7 @@ export default function VanInventoryPage() {
               <span style={{color: "var(--text-muted)"}}>N/A</span>
             ) : (
               <>
-                <div style={{fontWeight: 700, color: isReclaim ? "#ffaa00" : "#22c55e"}}>{b.currentWeight.toFixed(2)} kg</div>
+                <div style={{fontWeight: 700, color: isReclaim ? "#ffaa00" : "#22c55e"}}>{isBottleTrace(b) ? "Trace" : `${b.currentWeight.toFixed(2)} kg`}</div>
                 <div style={{fontSize: "0.72rem", color: "var(--text-muted)"}}>{isReclaim ? "Recovered" : "Remaining"}</div>
                 <div style={{width: "60px", height: "4px", background: "rgba(255,255,255,0.1)", borderRadius: "2px", marginTop: "4px", overflow: "hidden"}}>
                   <div style={{width: `${percent}%`, height: "100%", background: isReclaim ? "#ffaa00" : "#22c55e", transition: "width 0.3s"}} />

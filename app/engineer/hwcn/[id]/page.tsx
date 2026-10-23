@@ -355,7 +355,7 @@ export default function HWCNViewPage() {
                       {cell("Liquid")}
                       {cell("HP14")}
                       {cell(refrigerantType)}
-                      {cell(`${weight.toFixed(2)} kg`)}
+                      {cell(Number(hwcn.fillWeight || 0) === 0 ? "Trace" : `${weight.toFixed(2)} kg`)}
                       {cell(capacity)}
                       {cell(<strong style={{ fontFamily: "monospace", fontSize: "0.7rem" }}>{hwcn.serial}</strong>)}
                     </tr>
@@ -369,7 +369,7 @@ export default function HWCNViewPage() {
                   {cell("Liquid")}
                   {cell("HP14")}
                   {cell(refrigerantType)}
-                  {cell(hwcn.fillWeight ? `${Number(hwcn.fillWeight).toFixed(2)} kg` : "—")}
+                  {cell(hwcn.fillWeight ? `${Number(hwcn.fillWeight).toFixed(2)} kg` : "Trace")}
                   {cell(capacity)}
                   {cell(<strong style={{ fontFamily: "monospace", fontSize: "0.7rem" }}>{hwcn.serial}</strong>)}
                 </tr>
@@ -536,7 +536,7 @@ export default function HWCNViewPage() {
         <div style={{ padding: "0.4rem 0.6rem", fontSize: "0.78rem" }}>
           <div style={{ display: "flex", gap: "1rem", marginBottom: "0.4rem", alignItems: "center", flexWrap: "wrap" }}>
             <div><span style={{ fontSize: "0.68rem", color: "#555" }}>EWC Code: </span><strong>14 06 01</strong></div>
-            <div style={{ flex: 1 }}>{field("Quantity kg (as above)", hwcn.fillWeight ? `${Number(hwcn.fillWeight).toFixed(2)} kg` : "")}</div>
+            <div style={{ flex: 1 }}>{field("Quantity kg (as above)", hwcn.fillWeight ? `${Number(hwcn.fillWeight).toFixed(2)} kg` : "Trace")}</div>
             <div>{field("Accepted / Rejected", (hwcn.hwcnStatus === "complete" && hwcn.accepted !== undefined) ? (hwcn.accepted ? "Accepted" : "Rejected") : "")}</div>
             <div><span style={{ fontSize: "0.68rem", color: "#555" }}>Op: </span><strong>R13</strong></div>
           </div>

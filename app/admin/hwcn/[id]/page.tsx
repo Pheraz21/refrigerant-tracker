@@ -159,7 +159,7 @@ export default function AdminHWCNDetailPage() {
           <div style={{display: "flex", flexDirection: "column", gap: "0.6rem", fontSize: "0.9rem"}}>
             <div><span style={{color: "var(--text-muted)", fontSize: "0.78rem"}}>Bottle Serial</span><div style={{fontFamily: "var(--font-geist-mono)", fontWeight: 700}}>{hwcn.serial}</div></div>
             <div><span style={{color: "var(--text-muted)", fontSize: "0.78rem"}}>Gas Type</span><div>{hwcn.gasType || "Mixed / Unknown"}</div></div>
-            <div><span style={{color: "var(--text-muted)", fontSize: "0.78rem"}}>Fill Weight</span><div>{hwcn.fillWeight ? `${hwcn.fillWeight} kg` : "—"}</div></div>
+            <div><span style={{color: "var(--text-muted)", fontSize: "0.78rem"}}>Fill Weight</span><div>{hwcn.fillWeight ? `${hwcn.fillWeight} kg` : "Trace"}</div></div>
             {hwcn.priorHWCN && (
               <div style={{background: "rgba(0, 229, 255, 0.08)", padding: "0.5rem", borderRadius: "6px", border: "1px dashed rgba(0, 229, 255, 0.4)"}}>
                 <span style={{color: "#00e5ff", fontSize: "0.78rem", fontWeight: 700}}>Cross-Referenced Prior Consignment:</span>

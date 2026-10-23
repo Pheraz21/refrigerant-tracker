@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { CheckCircle2, Truck, ArrowLeft, MapPin, Building2, Users, AlertTriangle, Building, Recycle } from "lucide-react";
 import styles from "../log/page.module.css"; // Reuse existing form styles
-import { db } from "@/lib/db";
+import { db, isBottleTrace, hasReclaimWaste } from "@/lib/db";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthContext";
 import { compressImage } from "@/lib/utils";
@@ -204,7 +204,7 @@ export default function MoveBottlePage() {
       } else {
         if (b?.activeHWCN && b?.intendedDestination) {
           setReclaimFlowStep("in_transit");
-        } else if (b?.category === "reclaim" && b?.currentWeight > 0) {
+        } else if (hasReclaimWaste(b)) {
           setReclaimFlowStep("ask_supplier");
         } else {
           setReclaimFlowStep("standard");
@@ -239,8 +239,7 @@ export default function MoveBottlePage() {
   const isMovingSiteToVanWithoutWaste = (bottle?.locationType === "site" && destination === "van" && !wasteAddedOnVisit);
   const isMovingOfficeToVan = (bottle?.locationType === "office" && destination === "van");
 
-  const requiresHWCN = bottle?.category === "reclaim" && 
-    (bottle?.currentWeight > 0) && 
+  const requiresHWCN = hasReclaimWaste(bottle) && 
     destination !== "supplier" && 
     destination !== "site" && 
     destination !== "engineer" &&
@@ -251,7 +250,7 @@ export default function MoveBottlePage() {
     e.preventDefault();
     setIsSubmitting(true);
     
-    const isReclaimWithGas = bottle?.category === "reclaim" && (bottle?.currentWeight > 0);
+    const isReclaimWithGas = hasReclaimWaste(bottle);
     const isMovingSiteToVanWithoutWaste = (bottle?.locationType === "site" && destination === "van" && !wasteAddedOnVisit);
     const isMovingOfficeToVan = (bottle?.locationType === "office" && destination === "van");
 
@@ -527,7 +526,7 @@ export default function MoveBottlePage() {
             <div style={{display: 'flex', flexDirection: 'column', gap: '0.4rem', textAlign: 'right', minWidth: '120px'}}>
               <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem'}}>
                 <span style={{color: 'var(--text-muted)'}}>Filled:</span>
-                <strong style={{color: bottle.category === 'reclaim' ? 'var(--warning)' : 'var(--success)'}}>{(bottle.currentWeight || 0).toFixed(2)} kg</strong>
+                <strong style={{color: bottle.category === 'reclaim' ? 'var(--warning)' : 'var(--success)'}}>{isBottleTrace(bottle) ? "Trace" : `${(bottle.currentWeight || 0).toFixed(2)} kg`}</strong>
               </div>
               <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem'}}>
                 <span style={{color: 'var(--text-muted)'}}>{bottle.category === 'reclaim' ? 'Capacity:' : 'Initial:'}</span>

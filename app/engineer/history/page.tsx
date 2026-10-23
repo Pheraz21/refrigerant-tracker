@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, Truck, MapPin, RotateCcw, Building2, PackageSearch } from "lucide-react";
 import Link from "next/link";
-import { db, Bottle } from "@/lib/db";
+import { db, Bottle, isBottleTrace, hasReclaimWaste } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { ActiveVehicleBanner } from "@/components/ActiveVehicleBanner";
 import styles from "./page.module.css";
@@ -130,12 +130,12 @@ export default function HistoryPage() {
         <div className={styles.cardBody}>
           <div className={styles.stat}>
             <span>Weight</span>
-            <strong>{(b.currentWeight || 0).toFixed(2)} kg</strong>
+            <strong>{isBottleTrace(b) ? "Trace" : `${(b.currentWeight || 0).toFixed(2)} kg`}</strong>
           </div>
           <div className={styles.stat}>
             <span>Location</span>
             <strong>{b.locationId || b.locationType}</strong>
-            {b.category === "reclaim" && (b.currentWeight || 0) > 0 && b.intendedDestination && (
+            {hasReclaimWaste(b) && b.intendedDestination && (
               <div style={{fontSize: '0.85rem', wordBreak: 'break-word', marginTop: '0.2rem'}}>
                 <span style={{color: 'var(--text-muted)'}}>Intended Destination: </span>
                 <strong style={{color: 'var(--warning)'}}>

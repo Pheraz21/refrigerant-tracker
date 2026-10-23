@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import { db, Bottle } from "@/lib/db";
+import { db, Bottle, isBottleTrace } from "@/lib/db";
 import { Warehouse, ArrowUpDown, ArrowUp, ArrowDown, Search, Calendar, Filter as FilterIcon, FileText, FileSpreadsheet, Settings2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTablePrefs } from "@/lib/useTablePrefs";
@@ -548,7 +548,7 @@ export default function StoresInventoryPage() {
               <span style={{color: "var(--text-muted)"}}>N/A</span>
             ) : (
               <>
-                <div style={{fontWeight: 700, color: isReclaim ? "#ffaa00" : "#22c55e"}}>{cw.toFixed(2)} kg</div>
+                <div style={{fontWeight: 700, color: isReclaim ? "#ffaa00" : "#22c55e"}}>{isBottleTrace(b) ? "Trace" : `${cw.toFixed(2)} kg`}</div>
                 <div style={{fontSize: "0.72rem", color: "var(--text-muted)"}}>{isReclaim ? "Recovered" : "Remaining"}</div>
                 <div style={{width: "60px", height: "4px", background: "rgba(255,255,255,0.1)", borderRadius: "2px", marginTop: "4px", overflow: "hidden"}}>
                   <div style={{width: `${percent}%`, height: "100%", background: isReclaim ? "#ffaa00" : "#22c55e", transition: "width 0.3s"}} />

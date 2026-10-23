@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { db, Bottle, MovementLog, UsageLog, CrmJob, AuditTrailEntry } from "@/lib/db";
+import { db, Bottle, MovementLog, UsageLog, CrmJob, AuditTrailEntry, isBottleTrace } from "@/lib/db";
 import { supabase } from "@/lib/supabaseClient";
 import { ArrowLeft, Edit3, History, ArrowRight, User, Package, Calendar, MapPin, Truck, Building2, FileText, FileSpreadsheet, ClipboardList, Wrench, Tag, CheckCircle, RotateCcw, RefreshCw, Camera, ZoomIn, ZoomOut, Printer, Maximize2, Trash2, Archive, Recycle, AlertTriangle, Pencil, ShieldCheck, X, Activity, Gauge, Layers, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import Link from "next/link";
@@ -1940,7 +1940,7 @@ export default function ViewBottlePage() {
               <div>
                 <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>Inventory Level</div>
                 <div style={{ color: "var(--warning)", fontWeight: 700 }}>
-                  {(bottle.currentWeight ?? 0).toFixed(2)} / {(bottle.initialWeight ?? 0).toFixed(2)} kg
+                  {isBottleTrace(bottle) ? `Trace / ${(bottle.initialWeight ?? 0).toFixed(2)} kg` : `${(bottle.currentWeight ?? 0).toFixed(2)} / ${(bottle.initialWeight ?? 0).toFixed(2)} kg`}
                 </div>
               </div>
 
