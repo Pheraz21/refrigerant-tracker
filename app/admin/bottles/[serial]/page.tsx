@@ -2078,7 +2078,21 @@ export default function ViewBottlePage() {
                     const canEdit = user?.availableRoles?.includes("admin") || user?.availableRoles?.includes("office") || user?.role === "admin" || user?.role === "office";
 
                     return (
-                      <div key={log.id} className="glass-panel" style={{ padding: "1rem 1.5rem", display: "flex", alignItems: "center", gap: "1.5rem" }}>
+                      <div
+                        key={log.id}
+                        className="glass-panel"
+                        onClick={() => router.push(`/admin/bottles/${encodeURIComponent(serialStr)}/audit/${encodeURIComponent(rawId)}?type=${isUsage ? "usage" : "movement"}`)}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.borderColor = "rgba(0,229,255,0.4)";
+                          e.currentTarget.style.background = "rgba(0,229,255,0.035)";
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)";
+                          e.currentTarget.style.background = "";
+                        }}
+                        style={{ padding: "1rem 1.5rem", display: "flex", alignItems: "center", gap: "1.5rem", cursor: "pointer", transition: "all 0.15s ease" }}
+                        title="Click to view full usage / movement details"
+                      >
                         <div style={{ width: "80px", fontSize: "0.8rem", color: "rgba(255,255,255,0.4)" }}>
                           {new Date(log.date).toLocaleDateString()}
                         </div>
@@ -2145,7 +2159,8 @@ export default function ViewBottlePage() {
                         {canEdit && (
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={e => {
+                              e.stopPropagation();
                               setEditingLog({
                                 id: rawId,
                                 logType: isUsage ? "usage" : "movement",
@@ -2179,6 +2194,9 @@ export default function ViewBottlePage() {
                             <Pencil size={12} /> Edit
                           </button>
                         )}
+                        <div style={{ fontSize: "0.75rem", color: "#00e5ff", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.25rem", flexShrink: 0 }}>
+                          Details <ArrowRight size={13} />
+                        </div>
                       </div>
                     );
                   })}
@@ -2320,13 +2338,15 @@ export default function ViewBottlePage() {
                     <tbody>
                       {[...filteredUsageLogs].filter(l => l.jobType !== "recovery").sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(l => (
                         <tr key={l.id}
+                          style={{ cursor: "pointer" }}
+                          onClick={() => router.push(`/admin/bottles/${encodeURIComponent(serialStr)}/audit/${encodeURIComponent(l.id)}?type=usage`)}
                           onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
                           onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                         >
                           <td style={{ ...tableTd, color: "var(--text-muted)" }}>{new Date(l.date).toLocaleDateString("en-GB")}</td>
                           <td style={{ ...tableTd, fontFamily: "var(--font-geist-mono)", color: "#00e5ff", fontWeight: 700 }}>
                             {l.siteRef ? (
-                              <Link href={`/admin/jobs/${encodeURIComponent(l.siteRef)}`} style={{ color: "#00e5ff", textDecoration: "underline", textDecorationColor: "rgba(0,229,255,0.4)" }}>
+                              <Link href={`/admin/jobs/${encodeURIComponent(l.siteRef)}`} onClick={e => e.stopPropagation()} style={{ color: "#00e5ff", textDecoration: "underline", textDecorationColor: "rgba(0,229,255,0.4)" }}>
                                 {l.siteRef}
                               </Link>
                             ) : "—"}
