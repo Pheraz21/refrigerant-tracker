@@ -21,10 +21,19 @@ export function useTablePrefs(pageKey: string, allColKeys: string[]) {
       const raw = localStorage.getItem(storageKey);
       if (!raw) return;
       const saved = JSON.parse(raw) as { order: string[]; hidden: string[] };
-      const merged = [
-        ...saved.order.filter(k => allColKeys.includes(k)),
-        ...allColKeys.filter(k => !saved.order.includes(k)),
-      ];
+      const merged = [...saved.order.filter(k => allColKeys.includes(k))];
+      for (let i = 0; i < allColKeys.length; i++) {
+        const key = allColKeys[i];
+        if (!merged.includes(key)) {
+          const prevKey = i > 0 ? allColKeys[i - 1] : null;
+          const prevIdx = prevKey ? merged.indexOf(prevKey) : -1;
+          if (prevIdx >= 0) {
+            merged.splice(prevIdx + 1, 0, key);
+          } else {
+            merged.push(key);
+          }
+        }
+      }
       setOrder(merged);
       setHidden(new Set(saved.hidden.filter(k => allColKeys.includes(k))));
     } catch {

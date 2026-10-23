@@ -8,7 +8,7 @@ import { useTablePrefs } from "@/lib/useTablePrefs";
 import { ColumnCustomizer } from "@/app/components/ColumnCustomizer";
 import { DoubleScrollContainer } from "@/app/components/DoubleScrollContainer";
 
-type SortKey = "serial" | "category" | "gasType" | "currentWeight" | "initialWeight" | "returnedBy" | "locationChangedAt" | "supplier" | "registeredAt" | "rentalExpiryDate";
+type SortKey = "serial" | "category" | "gasType" | "currentWeight" | "initialWeight" | "returnedBy" | "returnedAt" | "locationChangedAt" | "supplier" | "registeredAt" | "rentalExpiryDate";
 
 const COLUMN_DEFS = [
   { key: "serial",       label: "Serial",      required: true },
@@ -18,6 +18,7 @@ const COLUMN_DEFS = [
   { key: "gasInBottle",  label: "Gas In Bottle"               },
   { key: "balance",      label: "Balance"                     },
   { key: "returnedBy",   label: "Returned By"                 },
+  { key: "returnedDate", label: "Returned Date"               },
   { key: "dateReceived", label: "Date Received"               },
   { key: "supplier",     label: "Supplier"                    },
   { key: "poNumber",     label: "PO Number"                   },
@@ -111,6 +112,10 @@ export default function StoresInventoryPage() {
       case "capacity":     return (b.initialWeight ?? 0).toFixed(2).includes(v);
       case "gasInBottle":  return (b.currentWeight ?? 0).toFixed(2).includes(v);
       case "balance":      return ((b.initialWeight ?? 0) - (b.currentWeight ?? 0)).toFixed(2).includes(v);
+      case "returnedDate": {
+        const retDate = b.returnedAt || b.deliveredAt || b.locationChangedAt;
+        return retDate ? new Date(retDate).toLocaleDateString("en-GB").toLowerCase().includes(v) : false;
+      }
       case "dateReceived": return b.locationChangedAt ? new Date(b.locationChangedAt).toLocaleDateString("en-GB").toLowerCase().includes(v) : false;
       case "poNumber":     return (b.poNumber || "").toLowerCase().includes(v);
       case "registered":   return b.registeredAt ? new Date(b.registeredAt).toLocaleDateString("en-GB").toLowerCase().includes(v) : false;
@@ -140,8 +145,8 @@ export default function StoresInventoryPage() {
     .filter(b => Object.entries(colFilters).every(([k, v]) => matchTextFilter(k, b, v)))
     .filter(b => Object.entries(colMultiFilters).every(([k, v]) => matchMultiFilter(k, b, v)))
     .sort((a, b) => {
-      let av: any = a[sortKey] ?? "";
-      let bv: any = b[sortKey] ?? "";
+      let av: any = sortKey === "returnedAt" ? (a.returnedAt || a.deliveredAt || a.locationChangedAt || "") : (a[sortKey] ?? "");
+      let bv: any = sortKey === "returnedAt" ? (b.returnedAt || b.deliveredAt || b.locationChangedAt || "") : (b[sortKey] ?? "");
       if (sortKey === "currentWeight") { av = Number(av); bv = Number(bv); }
       else { av = String(av).toLowerCase(); bv = String(bv).toLowerCase(); }
       if (av < bv) return sortDir === "asc" ? -1 : 1;
@@ -307,8 +312,11 @@ export default function StoresInventoryPage() {
   };
 
   const exportCSV = () => {
-    const header = "Serial,Category,Gas Type,Capacity,Current,Supplier,Registered,Returned By,Date Received\n";
-    const rows = filtered.map(b => `${b.serial},${b.category},${b.gasType},${b.initialWeight ?? 0},${b.currentWeight ?? 0},${b.supplier},${b.registeredAt},${b.returnedBy},${b.locationChangedAt}`).join("\n");
+    const header = "Serial,Category,Gas Type,Capacity,Current,Supplier,Registered,Returned By,Returned Date,Date Received\n";
+    const rows = filtered.map(b => {
+      const retDate = b.returnedAt || b.deliveredAt || b.locationChangedAt || "";
+      return `${b.serial},${b.category},${b.gasType},${b.initialWeight ?? 0},${b.currentWeight ?? 0},${b.supplier},${b.registeredAt},${b.returnedBy},${retDate},${b.locationChangedAt}`;
+    }).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -326,6 +334,7 @@ export default function StoresInventoryPage() {
       const iw = b.initialWeight ?? 0;
       const cw = b.currentWeight ?? 0;
       const bal = iw - cw;
+      const retDate = b.returnedAt || b.deliveredAt || b.locationChangedAt;
 
       switch (key) {
         case "serial": return `<strong>${b.serial}</strong>`;
@@ -335,6 +344,7 @@ export default function StoresInventoryPage() {
         case "gasInBottle": return isNitrogen ? "N/A" : `${cw.toFixed(2)} kg`;
         case "balance": return isNitrogen ? "N/A" : `${bal.toFixed(2)} kg`;
         case "returnedBy": return b.returnedBy || "—";
+        case "returnedDate": return retDate ? new Date(retDate).toLocaleDateString("en-GB") : "—";
         case "dateReceived": return b.locationChangedAt ? new Date(b.locationChangedAt).toLocaleDateString("en-GB") : "—";
         case "supplier": return b.supplier || "—";
         case "poNumber": return b.poNumber || "—";
@@ -451,6 +461,13 @@ export default function StoresInventoryPage() {
           <th key={key} style={thBase}>
             <div style={labelStyle} onClick={() => handleSort("returnedBy")}>Returned By <SortIcon col="returnedBy" /></div>
             {multiSelect("returnedBy", distinctVals.returnedBy || [])}
+          </th>
+        );
+      case "returnedDate":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("returnedAt")}>Returned Date <SortIcon col="returnedAt" /></div>
+            {textFilter("returnedDate", "e.g. 16/10/2026")}
           </th>
         );
       case "dateReceived":
@@ -572,6 +589,14 @@ export default function StoresInventoryPage() {
             ) : "—"}
           </td>
         );
+      case "returnedDate": {
+        const retDate = b.returnedAt || b.deliveredAt || b.locationChangedAt;
+        return (
+          <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", color: "rgba(255,255,255,0.8)"}}>
+            {retDate ? new Date(retDate).toLocaleDateString("en-GB") : "—"}
+          </td>
+        );
+      }
       case "dateReceived":
         return <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.82rem", color: "var(--text-muted)"}}>{b.locationChangedAt ? new Date(b.locationChangedAt).toLocaleDateString("en-GB") : "—"}</td>;
       case "supplier":

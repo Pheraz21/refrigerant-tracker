@@ -625,24 +625,38 @@ export const db = {
       }
     }
 
-    if (bottle.locationType === 'office' && !bottle.returnedBy) {
+    if (bottle.locationType === 'office' && (!bottle.returnedBy || !bottle.returnedAt)) {
       try {
         const { data: logs } = await supabase
           .from('movement_logs')
           .select('engineer, date, to_location, action')
           .eq('serial', serial)
           .order('date', { ascending: false });
+        const dbPatch: Record<string, any> = {};
         if (logs && logs.length > 0) {
           const storeLog = logs.find(l => 
             (l.to_location === "HQ-Stores" || l.to_location === "office" || l.action === "received") && l.engineer
           ) || logs.find(l => l.engineer);
-          const resolved = storeLog?.engineer || bottle.registeredBy || bottle.lastEngineer;
-          if (resolved) {
-            bottle.returnedBy = resolved;
-            Promise.resolve(supabase.from('bottles').update({ returned_by: resolved }).eq('serial', serial)).catch(() => {});
+          const resolvedEng = storeLog?.engineer || bottle.registeredBy || bottle.lastEngineer;
+          const resolvedDate = storeLog?.date || bottle.deliveredAt || bottle.locationChangedAt || bottle.registeredAt;
+          if (!bottle.returnedBy && resolvedEng) {
+            bottle.returnedBy = resolvedEng;
+            dbPatch.returned_by = resolvedEng;
           }
-        } else if (bottle.registeredBy || bottle.lastEngineer) {
-          bottle.returnedBy = bottle.registeredBy || bottle.lastEngineer;
+          if (!bottle.returnedAt && resolvedDate) {
+            bottle.returnedAt = resolvedDate;
+            dbPatch.returned_at = resolvedDate;
+          }
+        } else {
+          if (!bottle.returnedBy && (bottle.registeredBy || bottle.lastEngineer)) {
+            bottle.returnedBy = bottle.registeredBy || bottle.lastEngineer;
+          }
+          if (!bottle.returnedAt && (bottle.deliveredAt || bottle.locationChangedAt || bottle.registeredAt)) {
+            bottle.returnedAt = bottle.deliveredAt || bottle.locationChangedAt || bottle.registeredAt;
+          }
+        }
+        if (Object.keys(dbPatch).length > 0) {
+          Promise.resolve(supabase.from('bottles').update(dbPatch).eq('serial', serial)).catch(() => {});
         }
       } catch {}
     }
@@ -1599,6 +1613,7 @@ export const db = {
       } else if (finalLocType === "office") {
         updates.status = "active";
         updates.returned_by = engineerName || "System";
+        updates.returned_at = deliveredAt;
       } else {
         updates.status = "active";
       }
@@ -1646,6 +1661,7 @@ export const db = {
       active_hwcn: null,
       delivered_at: null,
       returned_by: null,
+      returned_at: null,
       producer_sites: []
     };
     if (vehicleReg) updates.vehicle_reg = vehicleReg;
@@ -1734,10 +1750,10 @@ export const db = {
     const bottles = data.map(mapBottle);
 
     if (locationType === "office") {
-      const missingReturnedBy = bottles.filter(b => !b.returnedBy);
-      if (missingReturnedBy.length > 0) {
+      const missingReturnMeta = bottles.filter(b => !b.returnedBy || !b.returnedAt);
+      if (missingReturnMeta.length > 0) {
         try {
-          const serials = missingReturnedBy.map(b => b.serial);
+          const serials = missingReturnMeta.map(b => b.serial);
           const { data: logs } = await supabase
             .from('movement_logs')
             .select('serial, engineer, date, to_location, from_location, action')
@@ -1752,33 +1768,46 @@ export const db = {
             }
           }
 
-          const updatesToPersist: Array<{ serial: string; returned_by: string }> = [];
+          const updatesToPersist: Array<{ serial: string; patch: Record<string, any> }> = [];
 
-          for (const b of missingReturnedBy) {
+          for (const b of missingReturnMeta) {
             const bLogs = logsBySerial[b.serial] || [];
             const storeLog = bLogs.find(l => 
               (l.to_location === "HQ-Stores" || l.to_location === "office" || l.action === "received") && l.engineer
             ) || bLogs.find(l => l.engineer);
 
             const resolvedEngineer = storeLog?.engineer || b.registeredBy || b.lastEngineer;
-            if (resolvedEngineer) {
+            const resolvedDate = storeLog?.date || b.deliveredAt || b.locationChangedAt || b.registeredAt;
+            const patch: Record<string, any> = {};
+
+            if (!b.returnedBy && resolvedEngineer) {
               b.returnedBy = resolvedEngineer;
-              updatesToPersist.push({ serial: b.serial, returned_by: resolvedEngineer });
+              patch.returned_by = resolvedEngineer;
+            }
+            if (!b.returnedAt && resolvedDate) {
+              b.returnedAt = resolvedDate;
+              patch.returned_at = resolvedDate;
+            }
+            if (Object.keys(patch).length > 0) {
+              updatesToPersist.push({ serial: b.serial, patch });
             }
           }
 
           if (updatesToPersist.length > 0) {
             Promise.all(
               updatesToPersist.map(u => 
-                Promise.resolve(supabase.from('bottles').update({ returned_by: u.returned_by }).eq('serial', u.serial))
+                Promise.resolve(supabase.from('bottles').update(u.patch).eq('serial', u.serial))
               )
-            ).catch(e => console.warn("Background backfill of returned_by error:", e));
+            ).catch(e => console.warn("Background backfill of return metadata error:", e));
           }
         } catch (err) {
-          console.warn("Failed resolving returnedBy from movement_logs:", err);
-          for (const b of missingReturnedBy) {
-            if (b.registeredBy || b.lastEngineer) {
+          console.warn("Failed resolving return metadata from movement_logs:", err);
+          for (const b of missingReturnMeta) {
+            if (!b.returnedBy && (b.registeredBy || b.lastEngineer)) {
               b.returnedBy = b.registeredBy || b.lastEngineer;
+            }
+            if (!b.returnedAt && (b.deliveredAt || b.locationChangedAt || b.registeredAt)) {
+              b.returnedAt = b.deliveredAt || b.locationChangedAt || b.registeredAt;
             }
           }
         }
