@@ -437,11 +437,10 @@ async function reconcileEmptyWasteBottles(bottles: Bottle[]): Promise<void> {
     b.serial === '1N384503' ||
     (b.category === 'reclaim' && (
       b.serial === '1N051418' ||
-      b.serial === '1N210008' ||
       !b.gasType ||
       b.gasType.toLowerCase().includes('mixed/recovery') ||
       b.gasType.toLowerCase().includes('mixed / recovery') ||
-      b.gasType.toLowerCase() === 'unknown' ||
+      (b.gasType.toLowerCase() === 'unknown' && (b.currentWeight ?? 0) === 0) ||
       (b.gasType.toLowerCase() === 'empty / evacuated' && (b.currentWeight ?? 0) > 0)
     ))
   );
@@ -452,7 +451,7 @@ async function reconcileEmptyWasteBottles(bottles: Bottle[]): Promise<void> {
     const candidateSerials = candidateWaste.map(b => b.serial);
     const { data: usages } = await supabase
       .from('usage_logs')
-      .select('serial, weight_used, gas_type, job_type, equipment_details')
+      .select('*')
       .in('serial', candidateSerials);
     
     const usagesBySerial: Record<string, any[]> = {};
@@ -483,8 +482,9 @@ async function reconcileEmptyWasteBottles(bottles: Bottle[]): Promise<void> {
         Number(u.weight_used || 0) > 0
       );
 
+      const hasWeight = (b.currentWeight ?? 0) > 0;
       let targetGas: string | null = null;
-      if (recoveryLogs.length === 0) {
+      if (!hasWeight) {
         targetGas = "Empty / Evacuated";
       } else {
         const distinct = new Set<string>();
@@ -509,6 +509,8 @@ async function reconcileEmptyWasteBottles(bottles: Bottle[]): Promise<void> {
           targetGas = "Mixed";
         } else if (b.gasType && (b.gasType.toLowerCase().includes("mixed/recovery") || b.gasType.toLowerCase().includes("mixed / recovery"))) {
           targetGas = "Mixed";
+        } else if (hasWeight && (!b.gasType || b.gasType.toLowerCase() === "empty / evacuated")) {
+          targetGas = (b.serial === "1N210008" || b.serial === "1N394444") ? "R410A" : "Unknown";
         }
       }
 
@@ -563,18 +565,17 @@ export const db = {
     if (bottle.category === 'reclaim') {
       const isCandidate =
         bottle.serial === '1N051418' ||
-        bottle.serial === '1N210008' ||
         !bottle.gasType ||
         bottle.gasType.toLowerCase().includes('mixed/recovery') ||
         bottle.gasType.toLowerCase().includes('mixed / recovery') ||
-        bottle.gasType.toLowerCase() === 'unknown' ||
+        (bottle.gasType.toLowerCase() === 'unknown' && (bottle.currentWeight ?? 0) === 0) ||
         (bottle.gasType.toLowerCase() === 'empty / evacuated' && (bottle.currentWeight ?? 0) > 0);
 
       if (isCandidate) {
         try {
           const { data: usages } = await supabase
             .from('usage_logs')
-            .select('id, weight_used, gas_type, job_type, equipment_details')
+            .select('*')
             .eq('serial', serial);
 
           const recoveryLogs = (usages || []).filter(u =>
@@ -582,8 +583,9 @@ export const db = {
             Number(u.weight_used || 0) > 0
           );
 
+          const hasWeight = (bottle.currentWeight ?? 0) > 0;
           let targetGas: string | null = null;
-          if (recoveryLogs.length === 0) {
+          if (!hasWeight) {
             targetGas = "Empty / Evacuated";
           } else {
             const distinct = new Set<string>();
@@ -608,6 +610,8 @@ export const db = {
               targetGas = "Mixed";
             } else if (bottle.gasType && (bottle.gasType.toLowerCase().includes("mixed/recovery") || bottle.gasType.toLowerCase().includes("mixed / recovery"))) {
               targetGas = "Mixed";
+            } else if (hasWeight && (!bottle.gasType || bottle.gasType.toLowerCase() === "empty / evacuated")) {
+              targetGas = (bottle.serial === "1N210008" || bottle.serial === "1N394444") ? "R410A" : "Unknown";
             }
           }
 

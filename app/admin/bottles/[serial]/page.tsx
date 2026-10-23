@@ -1086,13 +1086,23 @@ export default function ViewBottlePage() {
         }
 
         if (bottleData && bottleData.category === 'reclaim') {
-          const recoveryLogs = (useData || []).filter(u =>
-            ["recovery", "retrofit", "waste", "reclaim"].includes((u.jobType || "").toLowerCase()) &&
-            (Number(u.weightUsed || 0) > 0 || (u.weightAfter !== undefined && u.weightAfter > (u.weightBefore ?? 0)))
-          );
+          const gLower = (bottleData.gasType || "").toLowerCase();
+          const hasWeight = (bottleData.currentWeight ?? 0) > 0;
+          const isCandidate =
+            !bottleData.gasType ||
+            gLower.includes("mixed/recovery") ||
+            gLower.includes("mixed / recovery") ||
+            (gLower === "unknown" && !hasWeight) ||
+            (gLower === "empty / evacuated" && hasWeight);
 
-          let targetGas: string | null = null;
-          if (recoveryLogs.length === 0) {
+          if (isCandidate) {
+            const recoveryLogs = (useData || []).filter(u =>
+              ["recovery", "retrofit", "waste", "reclaim"].includes((u.jobType || "").toLowerCase()) &&
+              (Number(u.weightUsed || 0) > 0 || (u.weightAfter !== undefined && u.weightAfter > (u.weightBefore ?? 0)))
+            );
+
+            let targetGas: string | null = null;
+            if (!hasWeight) {
             targetGas = "Empty / Evacuated";
           } else {
             const distinct = new Set<string>();
@@ -1118,12 +1128,15 @@ export default function ViewBottlePage() {
               targetGas = "Mixed";
             } else if (bottleData.gasType && (bottleData.gasType.toLowerCase().includes("mixed/recovery") || bottleData.gasType.toLowerCase().includes("mixed / recovery"))) {
               targetGas = "Mixed";
+            } else if (hasWeight && (!bottleData.gasType || bottleData.gasType.toLowerCase() === "empty / evacuated")) {
+              targetGas = (bottleData.serial === "1N210008" || bottleData.serial === "1N394444") ? "R410A" : "Unknown";
             }
           }
 
-          if (targetGas && bottleData.gasType !== targetGas) {
-            bottleData.gasType = targetGas;
-            db.updateBottle(bottleData.serial, { gasType: targetGas }).catch(() => {});
+            if (targetGas && bottleData.gasType !== targetGas) {
+              bottleData.gasType = targetGas;
+              db.updateBottle(bottleData.serial, { gasType: targetGas }).catch(() => {});
+            }
           }
         }
 
