@@ -54,6 +54,8 @@ export default function MoveBottlePage() {
   const [intendedBranch, setIntendedBranch] = useState("");
   const [divertedBranch, setDivertedBranch] = useState("");
   const [divertSiteJobNo, setDivertSiteJobNo] = useState("");
+  const [siteCrmMatch, setSiteCrmMatch] = useState<string | null>(null);
+  const [divertCrmMatch, setDivertCrmMatch] = useState<string | null>(null);
   
   // HWCN Form State
   const [vehicleReg, setVehicleReg] = useState("");
@@ -272,6 +274,42 @@ export default function MoveBottlePage() {
       });
     }
   }, [serialParam, user, activeVehicleReg]);
+
+  useEffect(() => {
+    if (destination !== "site" || !locationId || locationId.length < 3) {
+      setSiteCrmMatch(null);
+      return;
+    }
+    let active = true;
+    db.getCrmJobByNumber(locationId).then(crm => {
+      if (!active) return;
+      if (crm) {
+        const label = [crm.siteTitle || crm.customer, crm.siteAddress, crm.sitePostcode].filter(Boolean).join(" — ");
+        setSiteCrmMatch(label || crm.jobNumber);
+      } else {
+        setSiteCrmMatch(null);
+      }
+    });
+    return () => { active = false; };
+  }, [destination, locationId]);
+
+  useEffect(() => {
+    if (!divertSiteJobNo || divertSiteJobNo.length < 3) {
+      setDivertCrmMatch(null);
+      return;
+    }
+    let active = true;
+    db.getCrmJobByNumber(divertSiteJobNo).then(crm => {
+      if (!active) return;
+      if (crm) {
+        const label = [crm.siteTitle || crm.customer, crm.siteAddress, crm.sitePostcode].filter(Boolean).join(" — ");
+        setDivertCrmMatch(label || crm.jobNumber);
+      } else {
+        setDivertCrmMatch(null);
+      }
+    });
+    return () => { active = false; };
+  }, [divertSiteJobNo]);
 
   const handleHwcnSiteJobChange = async (idx: number, rawVal: string) => {
     const cleanVal = rawVal.replace(/\s+/g, "").toUpperCase();
@@ -758,6 +796,11 @@ export default function MoveBottlePage() {
               onChange={(e) => setDivertSiteJobNo(e.target.value.replace(/\s+/g, "").toUpperCase())}
               required
             />
+            {divertCrmMatch && (
+              <p style={{fontSize: "0.78rem", color: "var(--primary)", marginTop: "0.35rem", marginBottom: 0}}>
+                ✓ CRM Match: {divertCrmMatch}
+              </p>
+            )}
           </div>
           <div style={{display: 'flex', gap: '1rem'}}>
             <button 
@@ -1312,6 +1355,11 @@ export default function MoveBottlePage() {
                   placeholder="e.g. J12345" 
                   required 
                 />
+                {siteCrmMatch && (
+                  <p style={{fontSize: "0.78rem", color: "var(--primary)", marginTop: "0.35rem", marginBottom: 0}}>
+                    ✓ CRM Match: {siteCrmMatch}
+                  </p>
+                )}
               </div>
               <p style={{fontSize: '0.8rem', color: 'var(--text-muted)'}}>
                 This allocates the physical bottle to the client's site for audit purposes.

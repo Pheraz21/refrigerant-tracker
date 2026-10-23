@@ -423,10 +423,10 @@ export default function LogBottlePage() {
       }
 
       const curGas = (bottleData.gasType || "").trim();
-      const curWt = bottleData.currentWeight || 0;
       const isEvacuated =
-        curWt === 0 ||
+        !hasReclaimWaste(bottleData) ||
         !curGas ||
+        curGas.toLowerCase() === "unused" ||
         curGas.toLowerCase() === "empty / evacuated" ||
         curGas.toLowerCase() === "empty/evacuated" ||
         curGas.toLowerCase() === "mixed/recovery" ||

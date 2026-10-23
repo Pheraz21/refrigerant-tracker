@@ -197,7 +197,14 @@ export default function AdminHWCNDetailPage() {
             )}
             <div><span style={{color: "var(--text-muted)", fontSize: "0.78rem"}}>Removal Site(s)</span>
               {sitesList.map((s: any, i: number) => (
-                <div key={i} style={{fontSize: "0.85rem"}}>{s?.name || s?.siteName || "Site"}, {s?.address || s?.siteAddress || ""} {s?.postcode || s?.sitePostcode || ""}</div>
+                <div key={i} style={{fontSize: "0.85rem", marginTop: "0.15rem"}}>
+                  {s?.jobNumber && (
+                    <span style={{fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "#00e5ff", marginRight: "0.4rem"}}>
+                      [{s.jobNumber}]
+                    </span>
+                  )}
+                  {[s?.name || s?.siteName || "Site", s?.address || s?.siteAddress, s?.postcode || s?.sitePostcode].filter(Boolean).join(", ")}
+                </div>
               ))}
               {sitesList.length === 0 && <div style={{fontSize: "0.85rem", color: "var(--text-muted)"}}>—</div>}
             </div>

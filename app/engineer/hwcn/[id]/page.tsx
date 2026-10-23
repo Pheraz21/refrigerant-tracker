@@ -278,7 +278,9 @@ export default function HWCNViewPage() {
             {hwcn.sites?.map((site: any, i: number) => (
               <div key={i} style={{ fontSize: "0.78rem", borderBottom: "1px solid #eee", padding: "0.1rem 0", display: "flex", gap: "0.4rem" }}>
                 <span style={{ fontWeight: "bold", minWidth: "40px" }}>Site {i + 1}:</span>
-                <span style={{ flex: 1 }}>{site.name}, {site.address}, {site.postcode}</span>
+                <span style={{ flex: 1 }}>
+                  {site.jobNumber ? `[${site.jobNumber}] ` : ""}{[site.name, site.address, site.postcode].filter(Boolean).join(", ")}
+                </span>
               </div>
             )) || <div style={{ height: "1.1rem", borderBottom: "1px solid #eee" }} />}
           </div>
@@ -334,6 +336,7 @@ export default function HWCNViewPage() {
 
                 return hwcn.sites.map((site: any, i: number) => {
                   const siteLogs = recoveryLogs.filter(l => 
+                    (site.jobNumber && (l.siteRef || '').trim().toLowerCase() === (site.jobNumber || '').trim().toLowerCase()) ||
                     (l.siteName || '').trim().toLowerCase() === (site.name || '').trim().toLowerCase() ||
                     (l.siteRef || '').trim().toLowerCase() === (site.name || '').trim().toLowerCase()
                   );
