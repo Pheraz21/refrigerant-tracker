@@ -501,7 +501,7 @@ export default function MoveBottlePage() {
     setCustomMessage(undefined);
 
     // Redirect immediately if no HWCN was generated, otherwise show success screen with HWCN link
-    if (needsTransit && isReclaimWithGas && (destination === "office" || destination === "other")) {
+    if (requiresInternalHWCN || (needsTransit && isReclaimWithGas && (destination === "office" || destination === "other"))) {
       setIsSubmitting(false);
       setIsSuccess(true);
     } else {
@@ -1044,14 +1044,14 @@ export default function MoveBottlePage() {
           <h3 style={{color: 'var(--warning)', marginBottom: '1rem'}}>Hazardous Waste Transfer</h3>
           {(bottle?.producerSites?.length || 0) <= 1 ? (
             <>
-              <p style={{marginBottom: '1.5rem', fontSize: '0.9rem'}}>This bottle contains reclaimed gas. Is it being returned Direct to Supplier or to HQ-Stores?</p>
+              <p style={{marginBottom: '1.5rem', fontSize: '0.9rem'}}>This bottle contains reclaimed gas. Is it being returned Direct to Supplier, or moving to HQ-Stores / staying on your van for the next job?</p>
               <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
                 <button 
                   type="button"
                   className={styles.primaryBtn} 
                   onClick={() => setReclaimFlowStep("confirm_supplier_hwcn")}
                 >
-                  Direct to Supplier
+                  Direct to Supplier (Supplier Paperwork)
                 </button>
                 <button 
                   type="button"
@@ -1064,7 +1064,7 @@ export default function MoveBottlePage() {
                     setReclaimFlowStep("standard");
                   }}
                 >
-                  To HQ-Stores
+                  To HQ-Stores / Keep on Van for Next Job (Internal HWCN)
                 </button>
               </div>
             </>
@@ -1480,7 +1480,7 @@ export default function MoveBottlePage() {
                   >
                     HQ-Stores
                   </button>
-                  {reclaimFlowPath !== "alternative" && (
+                  {(bottle?.producerSites?.length || 0) <= 1 && (
                     <button 
                       type="button"
                       onClick={() => setIntendedDest("Another Job Site")}
