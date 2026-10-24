@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, CheckCircle2, XCircle, Loader2, PenTool, X } from "lucide-react";
 import Link from "next/link";
 import { db } from "@/lib/db";
@@ -23,6 +23,7 @@ const field = (label: string, value?: string, wide = false) => (
 
 export default function HWCNViewPage() {
   const { id } = useParams();
+  const router = useRouter();
   const hwcnId = decodeURIComponent(id as string);
   const { user } = useAuth();
   const [hwcn, setHwcn] = useState<any>(null);
@@ -154,10 +155,27 @@ export default function HWCNViewPage() {
       `}} />
 
       {/* ── Nav bar (no-print) ── */}
-      <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", padding: "0.75rem 1rem", background: "#111", borderRadius: "8px" }}>
-        <Link href="/engineer" style={{ color: "#00e5ff", display: "flex", alignItems: "center", gap: "0.5rem", textDecoration: "none", fontSize: "0.9rem" }}>
-          <ArrowLeft size={18} /> Back to Dashboard
-        </Link>
+      <div className="no-print" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", padding: "0.75rem 1rem", background: "#111", borderRadius: "8px", flexWrap: "wrap", gap: "0.5rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) {
+                router.back();
+              } else if (hwcn?.serial) {
+                router.push(`/engineer/bottle/${encodeURIComponent(hwcn.serial)}`);
+              } else {
+                router.push("/engineer");
+              }
+            }}
+            style={{ background: "transparent", border: "none", color: "#00e5ff", display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer", fontSize: "0.9rem", padding: 0, fontWeight: 600 }}
+          >
+            <ArrowLeft size={18} /> Back
+          </button>
+          <Link href="/engineer" style={{ color: "rgba(255,255,255,0.65)", textDecoration: "none", fontSize: "0.85rem" }}>
+            Dashboard
+          </Link>
+        </div>
         <div style={{ display: "flex", gap: "0.6rem" }}>
           <button
             onClick={() => setShowPartCDModal(true)}

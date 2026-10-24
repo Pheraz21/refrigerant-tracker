@@ -546,7 +546,23 @@ export default function MoveBottlePage() {
       <header className={styles.header}>
         <button
           type="button"
-          onClick={() => router.back()}
+          onClick={() => {
+            if (reclaimFlowStep === "confirm_supplier_hwcn") {
+              setReclaimFlowStep("ask_supplier");
+            } else if (reclaimFlowStep === "supplier_start_transit") {
+              setReclaimFlowStep("confirm_supplier_hwcn");
+            } else if (reclaimFlowStep === "standard" && (reclaimFlowPath === "alternative" || reclaimFlowPath === "supplier_direct")) {
+              setReclaimFlowPath("normal");
+              setIntendedDest("");
+              setReclaimFlowStep("ask_supplier");
+            } else if (reclaimFlowStep === "divert_to_site" || reclaimFlowStep === "divert_to_office") {
+              setReclaimFlowStep("divert_destination");
+            } else if (reclaimFlowStep === "divert_destination" || reclaimFlowStep === "divert_supplier_branch") {
+              setReclaimFlowStep("in_transit");
+            } else {
+              requestNavigate(() => router.push(`/engineer/bottle/${encodeURIComponent(serialParam)}`));
+            }
+          }}
           className={styles.backBtn}
         >
           <ArrowLeft size={20} />
@@ -1016,7 +1032,20 @@ export default function MoveBottlePage() {
             />
           </div>
           <div style={{display: 'flex', gap: '1rem'}}>
-
+            <button 
+              type="button"
+              className={styles.primaryBtn} 
+              style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', border: '1px solid var(--border)', flex: '0 0 auto', padding: '0 1.5rem' }}
+              onClick={() => {
+                if (divertedBranch) {
+                  setReclaimFlowStep("divert_supplier_branch");
+                } else {
+                  setReclaimFlowStep("in_transit");
+                }
+              }}
+            >
+              Back
+            </button>
             <button 
               type="button"
               className={styles.primaryBtn} 
@@ -1066,6 +1095,14 @@ export default function MoveBottlePage() {
                 >
                   To HQ-Stores / Keep on Van for Next Job (Internal HWCN)
                 </button>
+                <button
+                  type="button"
+                  className={styles.primaryBtn}
+                  style={{ background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', marginTop: '0.25rem' }}
+                  onClick={() => requestNavigate(() => router.push(`/engineer/bottle/${encodeURIComponent(serialParam)}`))}
+                >
+                  <ArrowLeft size={18} /> Back
+                </button>
               </div>
             </>
           ) : (
@@ -1076,18 +1113,28 @@ export default function MoveBottlePage() {
                   This bottle contains waste from multiple locations. Suppliers only accept waste from a single producer per HWCN. This bottle must be returned to the <strong>HQ-Stores</strong> for internal consolidation.
                 </p>
               </div>
-              <button 
-                type="button"
-                className={styles.primaryBtn} 
-                onClick={() => {
-                  setIntendedDest("HQ-Stores");
-                  setReclaimFlowPath("alternative");
-                  setDestination("van");
-                  setReclaimFlowStep("standard");
-                }}
-              >
-                Transfer to HQ-Stores
-              </button>
+              <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem'}}>
+                <button 
+                  type="button"
+                  className={styles.primaryBtn} 
+                  onClick={() => {
+                    setIntendedDest("HQ-Stores");
+                    setReclaimFlowPath("alternative");
+                    setDestination("van");
+                    setReclaimFlowStep("standard");
+                  }}
+                >
+                  Transfer to HQ-Stores
+                </button>
+                <button
+                  type="button"
+                  className={styles.primaryBtn}
+                  style={{ background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+                  onClick={() => requestNavigate(() => router.push(`/engineer/bottle/${encodeURIComponent(serialParam)}`))}
+                >
+                  <ArrowLeft size={18} /> Back
+                </button>
+              </div>
             </>
           )}
         </div>
@@ -1605,14 +1652,32 @@ export default function MoveBottlePage() {
             </div>
           )}
 
-          <button 
-            type="submit" 
-            className={styles.submitBtn} 
-            disabled={isSubmitting || (destination === "site" && !locationId) || (destination === "engineer" && !selectedEngineer)}
-            style={{marginTop: "1rem"}}
-          >
-            {isSubmitting ? <span className={styles.spinner}></span> : <><Truck size={20} /> {isDiscrepancy ? "Process Correction" : "Confirm Transfer"}</>}
-          </button>
+          <div style={{ display: "flex", gap: "1rem", marginTop: "1rem" }}>
+            <button
+              type="button"
+              className={styles.primaryBtn}
+              style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-main)", border: "1px solid var(--border)", flex: "0 0 auto", padding: "0 1.5rem" }}
+              onClick={() => {
+                if (reclaimFlowPath === "alternative" || reclaimFlowPath === "supplier_direct") {
+                  setReclaimFlowStep("ask_supplier");
+                  setReclaimFlowPath("normal");
+                  setIntendedDest("");
+                } else {
+                  requestNavigate(() => router.push(`/engineer/bottle/${encodeURIComponent(serialParam)}`));
+                }
+              }}
+            >
+              <ArrowLeft size={18} /> Back
+            </button>
+            <button 
+              type="submit" 
+              className={styles.submitBtn} 
+              disabled={isSubmitting || (destination === "site" && !locationId) || (destination === "engineer" && !selectedEngineer)}
+              style={{ flex: 1, marginTop: 0 }}
+            >
+              {isSubmitting ? <span className={styles.spinner}></span> : <><Truck size={20} /> {isDiscrepancy ? "Process Correction" : "Confirm Transfer"}</>}
+            </button>
+          </div>
         </form>
       )}
     </div>
