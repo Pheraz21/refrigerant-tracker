@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { CheckCircle2, Save, ArrowLeft, AlertTriangle } from "lucide-react";
+import { CheckCircle2, Save, ArrowLeft, AlertTriangle, Edit3 } from "lucide-react";
 import styles from "./page.module.css";
 import Link from "next/link";
 import { db, isBottleTrace, hasReclaimWaste } from "@/lib/db";
@@ -22,6 +22,8 @@ export default function LogBottlePage() {
   const [refrigerantType, setRefrigerantType] = useState("R410A");
   const [customRefrigerant, setCustomRefrigerant] = useState("");
   const [jobNumber, setJobNumber] = useState("");
+  const [hasAutoFilledJob, setHasAutoFilledJob] = useState(false);
+  const [isEditingJobNumber, setIsEditingJobNumber] = useState(false);
   const [producerSite, setProducerSite] = useState({ name: "", address: "", postcode: "" });
   const [initialProducerSite, setInitialProducerSite] = useState({ name: "", address: "", postcode: "" });
 
@@ -234,6 +236,8 @@ export default function LogBottlePage() {
         // Auto-fill Job Number if bottle is on a site
         if (b.locationType === "site" && b.locationId) {
           setJobNumber(b.locationId);
+          setHasAutoFilledJob(true);
+          setIsEditingJobNumber(false);
           if (b.producerSites && b.producerSites.length > 0) {
             const matchingSite = b.producerSites.find(
               (s: any) => s.name === b.locationId || s.jobNumber === b.locationId
@@ -248,6 +252,8 @@ export default function LogBottlePage() {
               setInitialProducerSite(siteVal);
             }
           }
+        } else {
+          setIsEditingJobNumber(true);
         }
       }
     });
@@ -885,19 +891,71 @@ export default function LogBottlePage() {
               {isRecycleMode ? "Recipient Job Details" : jobType === "leak_test" ? "Statutory Leak Inspection Job" : "Job & Site Details"}
             </h3>
             <div className={styles.inputGroup}>
-              <label>Job Number (e.g. J12345, M98201)</label>
-              <input
-                type="text"
-                placeholder="e.g. J12345"
-                value={jobNumber}
-                pattern="^[A-Za-z][0-9]+$"
-                title="Job number must start with 1 letter followed by numbers without spaces (e.g. J12345)"
-                onChange={(e) => setJobNumber(e.target.value.replace(/\s+/g, "").toUpperCase())}
-                required
-              />
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem" }}>
+                <label style={{ margin: 0 }}>Job Number (e.g. J12345, M98201)</label>
+                {hasAutoFilledJob && (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingJobNumber((prev) => !prev)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.3rem",
+                      background: "rgba(255,255,255,0.08)",
+                      border: "1px solid rgba(255,255,255,0.18)",
+                      color: isRecycleMode ? "var(--success)" : jobType === "leak_test" ? "#c084fc" : "var(--primary)",
+                      borderRadius: "6px",
+                      padding: "0.25rem 0.6rem",
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      cursor: "pointer"
+                    }}
+                  >
+                    <Edit3 size={13} /> {isEditingJobNumber ? "Lock" : "Edit"}
+                  </button>
+                )}
+              </div>
+
+              {hasAutoFilledJob && !isEditingJobNumber ? (
+                <div
+                  style={{
+                    marginTop: "0.35rem",
+                    padding: "0.75rem 1rem",
+                    borderRadius: "8px",
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    color: "#fff",
+                    fontSize: "1.05rem",
+                    fontWeight: 700,
+                    fontFamily: "var(--font-geist-mono)",
+                    letterSpacing: "0.04em",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center"
+                  }}
+                >
+                  <span>{jobNumber}</span>
+                  <span style={{ fontSize: "0.72rem", fontWeight: 500, color: "var(--text-muted)", fontFamily: "var(--font-geist-sans)" }}>
+                    Auto-filled from site
+                  </span>
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  placeholder="e.g. J12345"
+                  value={jobNumber}
+                  pattern="^[A-Za-z][0-9]+$"
+                  title="Job number must start with 1 letter followed by numbers without spaces (e.g. J12345)"
+                  onChange={(e) => setJobNumber(e.target.value.replace(/\s+/g, "").toUpperCase())}
+                  style={{ marginTop: "0.35rem" }}
+                  autoFocus={hasAutoFilledJob && isEditingJobNumber}
+                  required
+                />
+              )}
+
               {crmMatch && (
                 <p style={{fontSize: "0.75rem", color: isRecycleMode ? "var(--success)" : "var(--primary)", marginTop: "0.3rem"}}>
-                  ✓ {crmMatch}
+                  ✓ {crmMatch.replace(/,(?!\s)/g, ", ")}
                 </p>
               )}
             </div>
