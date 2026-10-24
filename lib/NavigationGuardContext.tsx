@@ -44,6 +44,7 @@ export function NavigationGuardProvider({ children }: { children: React.ReactNod
   const [lastHubRoute, setLastHubRoute] = useState<string>("/engineer");
   const currentHrefRef = useRef<string>("");
   const isDirtyRef = useRef<boolean>(false);
+  const prevPageBeforeInventoryRef = useRef<string>("/engineer");
 
   useEffect(() => {
     isDirtyRef.current = isDirty;
@@ -52,6 +53,16 @@ export function NavigationGuardProvider({ children }: { children: React.ReactNod
   useEffect(() => {
     if (pathname && ENGINEER_HUB_ROUTES.has(pathname)) {
       setLastHubRoute(pathname);
+    }
+    if (
+      pathname &&
+      pathname.startsWith("/engineer") &&
+      pathname !== "/engineer/inventory" &&
+      !pathname.startsWith("/engineer/move") &&
+      !pathname.startsWith("/engineer/log") &&
+      pathname !== "/engineer/bottle/register"
+    ) {
+      prevPageBeforeInventoryRef.current = pathname;
     }
     if (typeof window !== "undefined") {
       currentHrefRef.current = window.location.href;
@@ -88,10 +99,12 @@ export function NavigationGuardProvider({ children }: { children: React.ReactNod
   // Handle mobile horizontal edge-swipe in the engineer app:
   // - Block native browser back/forward snapshot restoration on all /engineer routes
   // - On the Bottle Actions page (/engineer/bottle/[serial]), a left-to-right back swipe redirects cleanly to My Bottles (/engineer/history)
+  // - On the Stores Inventory page (/engineer/inventory), a left-to-right back swipe redirects cleanly to the previous page
   useEffect(() => {
     if (!pathname?.startsWith("/engineer")) return;
     const isBottleActionsPage =
       pathname.startsWith("/engineer/bottle/") && pathname !== "/engineer/bottle/register";
+    const isInventoryPage = pathname === "/engineer/inventory";
 
     let startX: number | null = null;
     let startY: number | null = null;
@@ -121,7 +134,7 @@ export function NavigationGuardProvider({ children }: { children: React.ReactNod
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
-      if (!isBottleActionsPage || startX === null || startY === null) return;
+      if ((!isBottleActionsPage && !isInventoryPage) || startX === null || startY === null) return;
       const touch = e.changedTouches?.[0];
       if (!touch) return;
       const deltaX = touch.pageX - startX;
@@ -130,7 +143,11 @@ export function NavigationGuardProvider({ children }: { children: React.ReactNod
       startY = null;
 
       if (deltaX >= 55 && deltaY < 65) {
-        router.replace("/engineer/history");
+        if (isBottleActionsPage) {
+          router.replace("/engineer/history");
+        } else if (isInventoryPage) {
+          router.replace(prevPageBeforeInventoryRef.current || "/engineer");
+        }
       }
     };
 
@@ -146,11 +163,13 @@ export function NavigationGuardProvider({ children }: { children: React.ReactNod
   // Always keep a history guard state active on /engineer routes (and whenever dirty on admin routes)
   // so phone swipe-back never navigates to a stale or already-completed screen.
   // On the Bottle Actions page (/engineer/bottle/[serial]), swiping back redirects cleanly to My Bottles (/engineer/history).
+  // On the Stores Inventory page (/engineer/inventory), swiping back redirects cleanly to the previous page.
   useEffect(() => {
     const isEngineerRoute = Boolean(pathname?.startsWith("/engineer"));
     const isBottleActionsPage = Boolean(
       pathname?.startsWith("/engineer/bottle/") && pathname !== "/engineer/bottle/register"
     );
+    const isInventoryPage = pathname === "/engineer/inventory";
     if (!isEngineerRoute && !isDirty) return;
 
     try {
@@ -161,6 +180,10 @@ export function NavigationGuardProvider({ children }: { children: React.ReactNod
     const handlePopState = () => {
       if (isBottleActionsPage) {
         router.replace("/engineer/history");
+        return;
+      }
+      if (isInventoryPage) {
+        router.replace(prevPageBeforeInventoryRef.current || "/engineer");
         return;
       }
 
