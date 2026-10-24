@@ -379,7 +379,7 @@ export default function BottleActionHub() {
   return (
     <div className={styles.container}>
       <header className={styles.header}>
-        <button type="button" onClick={() => router.replace(lastHubRoute || "/engineer")} className={styles.backBtn}>
+        <button type="button" onClick={() => router.replace("/engineer/history")} className={styles.backBtn}>
           <ArrowLeft size={20} />
         </button>
         <h1>Bottle Actions</h1>

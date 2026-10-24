@@ -17,10 +17,25 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    db.getAllBottles().then(bottles => {
-      setAllBottles(bottles);
-      setLoading(false);
-    });
+    let active = true;
+    const loadBottles = () => {
+      db.getAllBottles().then(bottles => {
+        if (!active) return;
+        setAllBottles(bottles);
+        setLoading(false);
+      });
+    };
+    loadBottles();
+
+    window.addEventListener("pageshow", loadBottles);
+    window.addEventListener("focus", loadBottles);
+    window.addEventListener("bottle-data-refresh", loadBottles);
+    return () => {
+      active = false;
+      window.removeEventListener("pageshow", loadBottles);
+      window.removeEventListener("focus", loadBottles);
+      window.removeEventListener("bottle-data-refresh", loadBottles);
+    };
   }, []);
 
   const formatDate = (iso?: string) => {

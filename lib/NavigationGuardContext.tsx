@@ -85,32 +85,72 @@ export function NavigationGuardProvider({ children }: { children: React.ReactNod
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isDirty]);
 
-  // Disable iOS Safari horizontal edge-swipe back/forward gesture in the engineer app
+  // Handle mobile horizontal edge-swipe in the engineer app:
+  // - Block native browser back/forward snapshot restoration on all /engineer routes
+  // - On the Bottle Actions page (/engineer/bottle/[serial]), a left-to-right back swipe redirects cleanly to My Bottles (/engineer/history)
   useEffect(() => {
     if (!pathname?.startsWith("/engineer")) return;
+    const isBottleActionsPage =
+      pathname.startsWith("/engineer/bottle/") && pathname !== "/engineer/bottle/register";
+
+    let startX: number | null = null;
+    let startY: number | null = null;
 
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches.length !== 1) return;
       const touchX = e.touches[0].pageX;
-      const isEdgeSwipeZone = touchX <= 26 || touchX >= window.innerWidth - 26;
-      if (!isEdgeSwipeZone) return;
+      const touchY = e.touches[0].pageY;
+      const isLeftEdge = touchX <= 36;
+      const isRightEdge = touchX >= window.innerWidth - 26;
 
-      const targetEl = e.target as HTMLElement | null;
-      const isInteractive = targetEl?.closest("button, a, input, select, textarea, label, [role='button']");
-      if (!isInteractive) {
-        e.preventDefault();
+      if (isLeftEdge) {
+        startX = touchX;
+        startY = touchY;
+      } else {
+        startX = null;
+        startY = null;
+      }
+
+      if (isLeftEdge || isRightEdge) {
+        const targetEl = e.target as HTMLElement | null;
+        const isInteractive = targetEl?.closest("button, a, input, select, textarea, label, [role='button']");
+        if (!isInteractive) {
+          e.preventDefault();
+        }
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (!isBottleActionsPage || startX === null || startY === null) return;
+      const touch = e.changedTouches?.[0];
+      if (!touch) return;
+      const deltaX = touch.pageX - startX;
+      const deltaY = Math.abs(touch.pageY - startY);
+      startX = null;
+      startY = null;
+
+      if (deltaX >= 55 && deltaY < 65) {
+        router.replace("/engineer/history");
       }
     };
 
     window.addEventListener("touchstart", handleTouchStart, { passive: false });
-    return () => window.removeEventListener("touchstart", handleTouchStart);
-  }, [pathname]);
+    window.addEventListener("touchend", handleTouchEnd, { passive: true });
+    return () => {
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [pathname, router]);
 
   // Mobile / browser back-swipe (popstate) lock:
   // Always keep a history guard state active on /engineer routes (and whenever dirty on admin routes)
   // so phone swipe-back never navigates to a stale or already-completed screen.
+  // On the Bottle Actions page (/engineer/bottle/[serial]), swiping back redirects cleanly to My Bottles (/engineer/history).
   useEffect(() => {
     const isEngineerRoute = Boolean(pathname?.startsWith("/engineer"));
+    const isBottleActionsPage = Boolean(
+      pathname?.startsWith("/engineer/bottle/") && pathname !== "/engineer/bottle/register"
+    );
     if (!isEngineerRoute && !isDirty) return;
 
     try {
@@ -119,6 +159,11 @@ export function NavigationGuardProvider({ children }: { children: React.ReactNod
     } catch (e) {}
 
     const handlePopState = () => {
+      if (isBottleActionsPage) {
+        router.replace("/engineer/history");
+        return;
+      }
+
       const targetHref = currentHrefRef.current || window.location.href;
       try {
         window.history.pushState({ swipeGuard: true }, "", targetHref);
@@ -141,7 +186,7 @@ export function NavigationGuardProvider({ children }: { children: React.ReactNod
     return () => {
       window.removeEventListener("popstate", handlePopState);
     };
-  }, [pathname, isDirty]);
+  }, [pathname, isDirty, router]);
 
   const handleStayAndSave = () => {
     setShowModal(false);
