@@ -56,6 +56,7 @@ export default function MoveBottlePage() {
   const [divertSiteJobNo, setDivertSiteJobNo] = useState("");
   const [siteCrmMatch, setSiteCrmMatch] = useState<any | null>(null);
   const [divertCrmMatch, setDivertCrmMatch] = useState<any | null>(null);
+  const [currentSiteCrmMatch, setCurrentSiteCrmMatch] = useState<any | null>(null);
   
   // HWCN Form State
   const [vehicleReg, setVehicleReg] = useState("");
@@ -299,6 +300,20 @@ export default function MoveBottlePage() {
       });
     }
   }, [user, activeVehicleReg]);
+
+  useEffect(() => {
+    if (bottle?.locationType === "site" && bottle?.locationId) {
+      let active = true;
+      db.getCrmJobByNumber(bottle.locationId).then(crm => {
+        if (active) setCurrentSiteCrmMatch(crm || null);
+      }).catch(() => {
+        if (active) setCurrentSiteCrmMatch(null);
+      });
+      return () => { active = false; };
+    } else {
+      setCurrentSiteCrmMatch(null);
+    }
+  }, [bottle?.locationType, bottle?.locationId]);
 
   useEffect(() => {
     if (destination !== "site" || !locationId || locationId.length < 3) {
@@ -644,6 +659,22 @@ export default function MoveBottlePage() {
                 <span style={{color: 'var(--text-muted)'}}>Current Location: </span>
                 <strong style={{color: '#fff', textTransform: 'capitalize'}}>{bottle.locationId || bottle.locationType}</strong>
               </div>
+              {bottle.locationType === "site" && currentSiteCrmMatch && (
+                <>
+                  {(currentSiteCrmMatch.siteTitle || currentSiteCrmMatch.customer) && (
+                    <div style={{fontSize: '0.82rem', wordBreak: 'break-word'}}>
+                      <span style={{color: 'var(--text-muted)'}}>Site: </span>
+                      <strong style={{color: 'var(--primary)'}}>{currentSiteCrmMatch.siteTitle || currentSiteCrmMatch.customer}</strong>
+                    </div>
+                  )}
+                  {currentSiteCrmMatch.jobTitle && (
+                    <div style={{fontSize: '0.82rem', wordBreak: 'break-word'}}>
+                      <span style={{color: 'var(--text-muted)'}}>Job Name: </span>
+                      <strong style={{color: '#fff'}}>{currentSiteCrmMatch.jobTitle}</strong>
+                    </div>
+                  )}
+                </>
+              )}
               {((destination === "supplier" && locationId) || (intendedDest) || bottle.intendedDestination) && (
                 <div style={{fontSize: '0.85rem', wordBreak: 'break-word', marginTop: '0.2rem'}}>
                   <span style={{color: 'var(--text-muted)'}}>Intended Destination: </span>
@@ -1272,7 +1303,7 @@ export default function MoveBottlePage() {
                   fontSize: "0.9rem"
                 }}>
                   This cylinder will be transferred into your selected active van stock above.
-                  {bottle?.locationType === "site" && !wasteAddedOnVisit && (
+                  {bottle?.category === "reclaim" && bottle?.locationType === "site" && !wasteAddedOnVisit && (
                     <div style={{marginTop: "0.5rem", fontSize: "0.8rem", color: "var(--text-muted)"}}>
                       No waste refrigerant was recovered on this site visit. Moving directly into van stock without raising a Waste Transfer Note.
                     </div>
