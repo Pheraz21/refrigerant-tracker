@@ -648,27 +648,54 @@ export default function MoveBottlePage() {
             <span className={styles.serial}>{bottle.serial}</span>
           </div>
 
-          <div className={styles.bottleStats} style={{display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'start', gap: '1rem'}}>
-            {/* Left Column: Info */}
-            <div style={{display: 'flex', flexDirection: 'column', gap: '0.4rem', overflow: 'hidden'}}>
-              <div style={{fontSize: '0.85rem', wordBreak: 'break-word'}}>
+          <div className={styles.bottleStats} style={{display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'start', gap: '0.85rem'}}>
+            {/* Left Column: Core Info */}
+            <div style={{display: 'flex', flexDirection: 'column', gap: '0.45rem', minWidth: 0}}>
+              <div style={{fontSize: '0.85rem'}}>
                 <span style={{color: 'var(--text-muted)'}}>Gas Type: </span>
                 <strong style={{color: '#fff'}}>{bottle.gasType}</strong>
               </div>
-              <div style={{fontSize: '0.85rem', wordBreak: 'break-word'}}>
-                <span style={{color: 'var(--text-muted)'}}>Current Location: </span>
+              <div style={{fontSize: '0.85rem'}}>
+                <span style={{color: 'var(--text-muted)'}}>Location: </span>
                 <strong style={{color: '#fff', textTransform: 'capitalize'}}>{bottle.locationId || bottle.locationType}</strong>
               </div>
+            </div>
+
+            {/* Right Column: Weights */}
+            <div style={{display: 'flex', flexDirection: 'column', gap: '0.45rem', textAlign: 'right', minWidth: '125px'}}>
+              <div style={{display: 'flex', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.85rem'}}>
+                <span style={{color: 'var(--text-muted)'}}>Filled:</span>
+                <strong style={{color: bottle.category === 'reclaim' ? 'var(--warning)' : 'var(--success)'}}>{isBottleTrace(bottle) ? "Trace" : `${(bottle.currentWeight || 0).toFixed(2)} kg`}</strong>
+              </div>
+              <div style={{display: 'flex', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.85rem'}}>
+                <span style={{color: 'var(--text-muted)'}}>{bottle.category === 'reclaim' ? 'Capacity:' : 'Initial:'}</span>
+                <strong style={{color: '#fff'}}>{(bottle.initialWeight || 0).toFixed(2)} kg</strong>
+              </div>
+            </div>
+          </div>
+
+          {((bottle.locationType === "site" && currentSiteCrmMatch && (currentSiteCrmMatch.siteTitle || currentSiteCrmMatch.customer || currentSiteCrmMatch.jobTitle)) ||
+            ((destination === "supplier" && locationId) || (intendedDest) || bottle.intendedDestination)) && (
+            <div style={{
+              marginTop: '0.75rem',
+              paddingTop: '0.75rem',
+              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.35rem'
+            }}>
               {bottle.locationType === "site" && currentSiteCrmMatch && (
                 <>
                   {(currentSiteCrmMatch.siteTitle || currentSiteCrmMatch.customer) && (
-                    <div style={{fontSize: '0.82rem', wordBreak: 'break-word'}}>
+                    <div style={{fontSize: '0.85rem', lineHeight: 1.4}}>
                       <span style={{color: 'var(--text-muted)'}}>Site: </span>
-                      <strong style={{color: 'var(--primary)'}}>{currentSiteCrmMatch.siteTitle || currentSiteCrmMatch.customer}</strong>
+                      <strong style={{color: 'var(--primary)'}}>
+                        {String(currentSiteCrmMatch.siteTitle || currentSiteCrmMatch.customer).replace(/,(?!\s)/g, ", ")}
+                      </strong>
                     </div>
                   )}
                   {currentSiteCrmMatch.jobTitle && (
-                    <div style={{fontSize: '0.82rem', wordBreak: 'break-word'}}>
+                    <div style={{fontSize: '0.85rem', lineHeight: 1.4}}>
                       <span style={{color: 'var(--text-muted)'}}>Job Name: </span>
                       <strong style={{color: '#fff'}}>{currentSiteCrmMatch.jobTitle}</strong>
                     </div>
@@ -676,7 +703,7 @@ export default function MoveBottlePage() {
                 </>
               )}
               {((destination === "supplier" && locationId) || (intendedDest) || bottle.intendedDestination) && (
-                <div style={{fontSize: '0.85rem', wordBreak: 'break-word', marginTop: '0.2rem'}}>
+                <div style={{fontSize: '0.85rem', lineHeight: 1.4}}>
                   <span style={{color: 'var(--text-muted)'}}>Intended Destination: </span>
                   <strong style={{color: 'var(--warning)'}}>
                     {destination === "supplier" && locationId && bottle.supplier
@@ -688,19 +715,7 @@ export default function MoveBottlePage() {
                 </div>
               )}
             </div>
-
-            {/* Right Column: Weights */}
-            <div style={{display: 'flex', flexDirection: 'column', gap: '0.4rem', textAlign: 'right', minWidth: '120px'}}>
-              <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem'}}>
-                <span style={{color: 'var(--text-muted)'}}>Filled:</span>
-                <strong style={{color: bottle.category === 'reclaim' ? 'var(--warning)' : 'var(--success)'}}>{isBottleTrace(bottle) ? "Trace" : `${(bottle.currentWeight || 0).toFixed(2)} kg`}</strong>
-              </div>
-              <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem'}}>
-                <span style={{color: 'var(--text-muted)'}}>{bottle.category === 'reclaim' ? 'Capacity:' : 'Initial:'}</span>
-                <strong style={{color: '#fff'}}>{(bottle.initialWeight || 0).toFixed(2)} kg</strong>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       )}
 

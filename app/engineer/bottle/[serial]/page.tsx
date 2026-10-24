@@ -450,33 +450,82 @@ export default function BottleActionHub() {
             </div>
           )}
 
-          <div className={styles.bottleStats} style={{display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'start', gap: '1rem'}}>
-            {/* Left Column: Info */}
-            <div style={{display: 'flex', flexDirection: 'column', gap: '0.4rem', overflow: 'hidden'}}>
+          <div className={styles.bottleStats} style={{display: 'grid', gridTemplateColumns: '1fr auto', alignItems: 'start', gap: '0.85rem'}}>
+            {/* Left Column: Core Info */}
+            <div style={{display: 'flex', flexDirection: 'column', gap: '0.45rem', minWidth: 0}}>
               {bottle.supplier && (
-                <div style={{fontSize: '0.85rem', wordBreak: 'break-word'}}>
+                <div style={{fontSize: '0.85rem'}}>
                   <span style={{color: 'var(--text-muted)'}}>Supplier: </span>
                   <strong style={{color: '#fff'}}>{bottle.supplier}</strong>
                 </div>
               )}
-              <div style={{fontSize: '0.85rem', wordBreak: 'break-word'}}>
+              <div style={{fontSize: '0.85rem'}}>
                 <span style={{color: 'var(--text-muted)'}}>Gas Type: </span>
                 <strong style={{color: '#fff'}}>{bottle.gasType}</strong>
               </div>
-              <div style={{fontSize: '0.85rem', wordBreak: 'break-word'}}>
-                <span style={{color: 'var(--text-muted)'}}>Current Location: </span>
+              <div style={{fontSize: '0.85rem'}}>
+                <span style={{color: 'var(--text-muted)'}}>Location: </span>
                 <strong style={{color: '#fff', textTransform: 'capitalize'}}>{bottle.locationId || bottle.locationType}</strong>
               </div>
+            </div>
+
+            {/* Right Column: Weights */}
+            {bottle.category === "reclaim" ? (
+              <div style={{display: 'flex', flexDirection: 'column', gap: '0.45rem', textAlign: 'right', minWidth: '155px'}}>
+                <div style={{display: 'flex', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.85rem'}}>
+                  <span style={{color: 'var(--text-muted)'}}>Max Fill Weight:</span>
+                  <strong style={{color: '#fff'}}>{(bottle.initialWeight || 0).toFixed(2)} kg</strong>
+                </div>
+                <div style={{display: 'flex', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.85rem'}}>
+                  <span style={{color: 'var(--text-muted)'}}>Filled:</span>
+                  <strong style={{color: 'var(--warning)'}}>{isBottleTrace(bottle) ? "Trace" : `${(bottle.currentWeight || 0).toFixed(2)} kg`}</strong>
+                </div>
+                <div style={{display: 'flex', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.85rem'}}>
+                  <span style={{color: 'var(--text-muted)'}}>Available Space:</span>
+                  <strong style={{color: 'var(--success)'}}>{((bottle.initialWeight || 0) - (bottle.currentWeight || 0)).toFixed(2)} kg</strong>
+                </div>
+              </div>
+            ) : (
+              <div style={{display: 'flex', flexDirection: 'column', gap: '0.45rem', textAlign: 'right', minWidth: '155px'}}>
+                <div style={{display: 'flex', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.85rem'}}>
+                  <span style={{color: 'var(--text-muted)'}}>Full Weight:</span>
+                  <strong style={{color: '#fff'}}>{(bottle.initialWeight || 0).toFixed(2)} kg</strong>
+                </div>
+                <div style={{display: 'flex', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.85rem'}}>
+                  <span style={{color: 'var(--text-muted)'}}>Current Weight:</span>
+                  <strong style={{color: 'var(--success)'}}>{(bottle.currentWeight || 0).toFixed(2)} kg</strong>
+                </div>
+                <div style={{display: 'flex', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.85rem'}}>
+                  <span style={{color: 'var(--text-muted)'}}>Weight Used:</span>
+                  <strong style={{color: 'var(--warning)'}}>{((bottle.initialWeight || 0) - (bottle.currentWeight || 0)).toFixed(2)} kg</strong>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Full-width Site / CRM Job & Intended Destination footer */}
+          {((bottle.locationType === "site" && currentCrmJob && (currentCrmJob.siteTitle || currentCrmJob.customer || currentCrmJob.jobTitle)) ||
+            (locationId || bottle.intendedDestination || (destination === 'engineer' && selectedEngineer))) && (
+            <div style={{
+              marginTop: '0.75rem',
+              paddingTop: '0.75rem',
+              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.35rem'
+            }}>
               {bottle.locationType === "site" && currentCrmJob && (
                 <>
                   {(currentCrmJob.siteTitle || currentCrmJob.customer) && (
-                    <div style={{fontSize: '0.85rem', wordBreak: 'break-word'}}>
+                    <div style={{fontSize: '0.85rem', lineHeight: 1.4}}>
                       <span style={{color: 'var(--text-muted)'}}>Site: </span>
-                      <strong style={{color: 'var(--primary)'}}>{currentCrmJob.siteTitle || currentCrmJob.customer}</strong>
+                      <strong style={{color: 'var(--primary)'}}>
+                        {String(currentCrmJob.siteTitle || currentCrmJob.customer).replace(/,(?!\s)/g, ", ")}
+                      </strong>
                     </div>
                   )}
                   {currentCrmJob.jobTitle && (
-                    <div style={{fontSize: '0.85rem', wordBreak: 'break-word'}}>
+                    <div style={{fontSize: '0.85rem', lineHeight: 1.4}}>
                       <span style={{color: 'var(--text-muted)'}}>Job Name: </span>
                       <strong style={{color: '#fff'}}>{currentCrmJob.jobTitle}</strong>
                     </div>
@@ -484,7 +533,7 @@ export default function BottleActionHub() {
                 </>
               )}
               {(locationId || bottle.intendedDestination || (destination === 'engineer' && selectedEngineer)) && (
-                <div style={{fontSize: '0.85rem', wordBreak: 'break-word', marginTop: '0.2rem'}}>
+                <div style={{fontSize: '0.85rem', lineHeight: 1.4}}>
                   <span style={{color: 'var(--text-muted)'}}>Intended Destination: </span>
                   <strong style={{color: 'var(--warning)'}}>
                     {destination === 'engineer' 
@@ -495,7 +544,7 @@ export default function BottleActionHub() {
                   </strong>
                   {bottle.activeHWCN && (
                     <div style={{marginTop: '0.25rem'}}>
-                      <Link href={`/engineer/hwcn/${encodeURIComponent(bottle.activeHWCN)}`} style={{color: 'var(--primary)', textDecoration: 'underline', fontSize: '0.75rem'}}>
+                      <Link href={`/engineer/hwcn/${encodeURIComponent(bottle.activeHWCN)}`} replace style={{color: 'var(--primary)', textDecoration: 'underline', fontSize: '0.75rem'}}>
                         View Digital HWCN ({bottle.activeHWCN})
                       </Link>
                     </div>
@@ -503,40 +552,7 @@ export default function BottleActionHub() {
                 </div>
               )}
             </div>
-
-            {/* Right Column: Weights */}
-            {bottle.category === "reclaim" ? (
-              <div style={{display: 'flex', flexDirection: 'column', gap: '0.4rem', textAlign: 'right', minWidth: '160px'}}>
-                <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem'}}>
-                  <span style={{color: 'var(--text-muted)'}}>Max Fill Weight:</span>
-                  <strong style={{color: '#fff'}}>{(bottle.initialWeight || 0).toFixed(2)} kg</strong>
-                </div>
-                <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem'}}>
-                  <span style={{color: 'var(--text-muted)'}}>Filled:</span>
-                  <strong style={{color: 'var(--warning)'}}>{isBottleTrace(bottle) ? "Trace" : `${(bottle.currentWeight || 0).toFixed(2)} kg`}</strong>
-                </div>
-                <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem'}}>
-                  <span style={{color: 'var(--text-muted)'}}>Available Space:</span>
-                  <strong style={{color: 'var(--success)'}}>{((bottle.initialWeight || 0) - (bottle.currentWeight || 0)).toFixed(2)} kg</strong>
-                </div>
-              </div>
-            ) : (
-              <div style={{display: 'flex', flexDirection: 'column', gap: '0.4rem', textAlign: 'right', minWidth: '160px'}}>
-                <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem'}}>
-                  <span style={{color: 'var(--text-muted)'}}>Full Weight:</span>
-                  <strong style={{color: '#fff'}}>{(bottle.initialWeight || 0).toFixed(2)} kg</strong>
-                </div>
-                <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem'}}>
-                  <span style={{color: 'var(--text-muted)'}}>Current Weight:</span>
-                  <strong style={{color: 'var(--success)'}}>{(bottle.currentWeight || 0).toFixed(2)} kg</strong>
-                </div>
-                <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem'}}>
-                  <span style={{color: 'var(--text-muted)'}}>Weight Used:</span>
-                  <strong style={{color: 'var(--warning)'}}>{((bottle.initialWeight || 0) - (bottle.currentWeight || 0)).toFixed(2)} kg</strong>
-                </div>
-              </div>
-            )}
-          </div>
+          )}
         </div>
 
 
