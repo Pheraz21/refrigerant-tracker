@@ -37,6 +37,7 @@ export default function LogBottlePage() {
   const [showMultiSiteWarning, setShowMultiSiteWarning] = useState(false);
   const [multiSiteAcknowledged, setMultiSiteAcknowledged] = useState(false);
   const [bottleData, setBottleData] = useState<any>(null);
+  const [bottleUsageLogs, setBottleUsageLogs] = useState<any[]>([]);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [hasExistingHWCN, setHasExistingHWCN] = useState(false);
   const { user, activeVehicleOwner, activePairing, activePairingStatus } = useAuth();
@@ -182,7 +183,11 @@ export default function LogBottlePage() {
   }, [user, activeVehicleOwner, activePairing]);
 
   useEffect(() => {
-    db.getBottle(serialParam).then(b => {
+    Promise.all([
+      db.getBottle(serialParam),
+      db.getUsageLogs(serialParam)
+    ]).then(([b, logs]) => {
+      setBottleUsageLogs(logs || []);
       if (b) {
         setBottleCategory(b.category);
         setBottleData(b);
@@ -258,6 +263,65 @@ export default function LogBottlePage() {
       }
     });
   }, [serialParam, isRecycleMode]);
+
+  // Determine if a reclaim bottle can re-charge gas on the current job (must strictly match the job where the waste was recovered from)
+  const canRechargeReclaimOnCurrentJob = useMemo(() => {
+    if (!bottleData || bottleData.category !== "reclaim" || (bottleData.currentWeight || 0) <= 0) {
+      return false;
+    }
+
+    const normalizeJob = (val?: string | null) => (val || "").trim().replace(/\s+/g, "").toUpperCase();
+    const curJobNorm = normalizeJob(jobNumber || bottleData.locationId);
+    if (!curJobNorm) return false;
+
+    const regTime = bottleData.registeredAt ? new Date(bottleData.registeredAt).getTime() : 0;
+    const currentRecoveryLogs: any[] = [];
+    for (const log of bottleUsageLogs) {
+      const logTime = log.date ? new Date(log.date).getTime() : 0;
+      if (regTime > 0 && logTime > 0 && logTime < regTime - 60000) {
+        break;
+      }
+      if ((log.jobType === "recovery" || log.jobType === "waste" || log.jobType === "retrofit") && Number(log.weightUsed || 0) > 0) {
+        currentRecoveryLogs.push(log);
+      }
+      if (log.weightAfter === 0 && log.jobType !== "recovery") {
+        break;
+      }
+    }
+
+    const producerSites = Array.isArray(bottleData.producerSites) ? bottleData.producerSites : [];
+    if (producerSites.length > 1) {
+      return false;
+    }
+
+    if (producerSites.length === 1) {
+      const site = producerSites[0] as any;
+      const siteJobNo = normalizeJob(site.jobNumber) || (/^[A-Za-z]\d+$/.test(normalizeJob(site.name)) ? normalizeJob(site.name) : "");
+      if (siteJobNo) {
+        return siteJobNo === curJobNorm;
+      }
+      const latestLogJob = normalizeJob(currentRecoveryLogs[0]?.siteRef);
+      if (latestLogJob) {
+        return latestLogJob === curJobNorm;
+      }
+      return normalizeJob(site.name) === curJobNorm;
+    }
+
+    const distinctRecoveryRefs = Array.from(new Set(
+      currentRecoveryLogs.map(l => normalizeJob(l.siteRef)).filter(Boolean)
+    ));
+    if (distinctRecoveryRefs.length !== 1) {
+      return false;
+    }
+
+    return distinctRecoveryRefs[0] === curJobNorm;
+  }, [bottleData, bottleUsageLogs, jobNumber]);
+
+  useEffect(() => {
+    if (bottleCategory === "reclaim" && jobType === "recycled_charge" && !canRechargeReclaimOnCurrentJob && bottleData) {
+      setJobType("recovery");
+    }
+  }, [bottleCategory, jobType, canRechargeReclaimOnCurrentJob, bottleData]);
 
   useEffect(() => {
     if (!jobNumber || jobNumber.length < 3) {
@@ -853,13 +917,13 @@ export default function LogBottlePage() {
                   color: jobType === "recovery" ? "#ffaa00" : "rgba(255,255,255,0.7)",
                   fontWeight: 600,
                   fontSize: "0.85rem",
-                  cursor: (bottleCategory === "reclaim" && (bottleData?.currentWeight || 0) > 0) ? "pointer" : "default"
+                  cursor: canRechargeReclaimOnCurrentJob ? "pointer" : "default"
                 }}
               >
                 Refrigerant Recovery
               </button>
             )}
-            {(isRecycleMode || bottleCategory === "recycled" || jobType === "recycled_charge" || (bottleCategory === "reclaim" && (bottleData?.currentWeight || 0) > 0)) && (
+            {(bottleCategory === "recycled" || (bottleCategory === "reclaim" && canRechargeReclaimOnCurrentJob) || (bottleCategory !== "reclaim" && (isRecycleMode || jobType === "recycled_charge"))) && (
               <button
                 type="button"
                 onClick={() => {

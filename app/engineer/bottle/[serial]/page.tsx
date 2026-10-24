@@ -87,16 +87,23 @@ export default function BottleActionHub() {
 
   // Determine if bottle is currently on the exact job number where the waste was reclaimed from
   const isCurrentJobMatch = useMemo(() => {
-    if (!bottle || bottle.category !== "reclaim" || (bottle.locationType as string) !== "site" || !bottle.locationId) {
+    if (!bottle || bottle.category !== "reclaim" || (bottle.locationType as string) !== "site" || !bottle.locationId || (bottle.currentWeight || 0) <= 0) {
       return false;
     }
 
     const normalizeJob = (val?: string | null) => (val || "").trim().replace(/\s+/g, "").toUpperCase();
+    const curJobNorm = normalizeJob(bottle.locationId);
+    if (!curJobNorm) return false;
 
     // 1. Gather recovery logs for the CURRENT batch of gas in the cylinder
+    const regTime = bottle.registeredAt ? new Date(bottle.registeredAt).getTime() : 0;
     const currentRecoveryLogs: UsageLog[] = [];
     for (const log of usageLogs) {
-      if (log.jobType === "recovery" || log.jobType === "waste") {
+      const logTime = log.date ? new Date(log.date).getTime() : 0;
+      if (regTime > 0 && logTime > 0 && logTime < regTime - 60000) {
+        break;
+      }
+      if ((log.jobType === "recovery" || log.jobType === "waste" || log.jobType === "retrofit") && Number(log.weightUsed || 0) > 0) {
         currentRecoveryLogs.push(log);
       }
       // If the cylinder was emptied prior to this log, older logs belong to a previous lifecycle
@@ -105,37 +112,37 @@ export default function BottleActionHub() {
       }
     }
 
-    // Check distinct recovery job references
-    const distinctRecoveryRefs = Array.from(new Set(
-      currentRecoveryLogs.map(l => normalizeJob(l.siteRef)).filter(Boolean)
-    ));
-
     // Multi-site gas cannot be re-charged on site
-    const isMultiSite = distinctRecoveryRefs.length > 1 || ((bottle.producerSites?.length || 0) > 1);
-    if (isMultiSite) {
+    const producerSites = Array.isArray(bottle.producerSites) ? bottle.producerSites : [];
+    if (producerSites.length > 1) {
       return false;
     }
 
-    // Collect all valid job identifiers/site titles from where the gas was reclaimed
-    const reclaimedIdentifiers = new Set<string>();
-
-    for (const log of currentRecoveryLogs) {
-      if (log.siteRef) reclaimedIdentifiers.add(normalizeJob(log.siteRef));
-      if (log.siteName) reclaimedIdentifiers.add(normalizeJob(log.siteName));
-    }
-
-    if (bottle.producerSites && Array.isArray(bottle.producerSites)) {
-      for (const site of bottle.producerSites) {
-        if ((site as any).jobNumber) reclaimedIdentifiers.add(normalizeJob((site as any).jobNumber));
-        if (site.name) reclaimedIdentifiers.add(normalizeJob(site.name));
+    // Determine the single job number where the current waste gas in the bottle was recovered from
+    if (producerSites.length === 1) {
+      const site = producerSites[0] as any;
+      const siteJobNo = normalizeJob(site.jobNumber) || (/^[A-Za-z]\d+$/.test(normalizeJob(site.name)) ? normalizeJob(site.name) : "");
+      if (siteJobNo) {
+        return siteJobNo === curJobNorm;
       }
+      // Fallback if producerSite entry predates jobNumber field: check latest recovery log
+      const latestLogJob = normalizeJob(currentRecoveryLogs[0]?.siteRef);
+      if (latestLogJob) {
+        return latestLogJob === curJobNorm;
+      }
+      return normalizeJob(site.name) === curJobNorm;
     }
 
-    const curJobNorm = normalizeJob(bottle.locationId);
-    const curCrmTitleNorm = currentCrmJob?.siteTitle ? normalizeJob(currentCrmJob.siteTitle) : "";
+    // If producerSites is empty, check currentRecoveryLogs
+    const distinctRecoveryRefs = Array.from(new Set(
+      currentRecoveryLogs.map(l => normalizeJob(l.siteRef)).filter(Boolean)
+    ));
+    if (distinctRecoveryRefs.length !== 1) {
+      return false;
+    }
 
-    return reclaimedIdentifiers.has(curJobNorm) || (curCrmTitleNorm ? reclaimedIdentifiers.has(curCrmTitleNorm) : false);
-  }, [bottle, usageLogs, currentCrmJob]);
+    return distinctRecoveryRefs[0] === curJobNorm;
+  }, [bottle, usageLogs]);
 
   const handleNitrogenUsage = async (isEmpty: boolean) => {
     if (!bottle) return;
