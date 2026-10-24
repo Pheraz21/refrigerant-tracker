@@ -1,18 +1,135 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { CheckCircle2, Database, ArrowLeft, Truck, Building2, MapPin, RotateCcw, Wind } from "lucide-react";
+import { CheckCircle2, Database, ArrowLeft, Truck, Building2, MapPin, RotateCcw, Wind, AlertTriangle, Edit3, ShieldCheck } from "lucide-react";
 import styles from "../../log/page.module.css"; // Reuse existing form styles
 import { db, BottleCategory } from "@/lib/db";
 import Link from "next/link";
 import { useAuth } from "@/lib/AuthContext";
+
+function checkSupplierSerialFormat(rawSerial: string, supplierName: string): { isValid: boolean; reason?: string; expectedHint?: string } {
+  const s = (rawSerial || "").trim().toUpperCase();
+  const sup = (supplierName || "").trim();
+
+  // Do not apply format restrictions to 21 Degrees (outright purchased cylinders can have any format) or Other
+  if (!sup || sup.toLowerCase().includes("21 degrees") || sup.toLowerCase() === "other") {
+    return { isValid: true };
+  }
+
+  if (!s || s === "UNKNOWN") {
+    return {
+      isValid: false,
+      reason: "No valid serial number entered.",
+      expectedHint: "Please enter or re-scan the cylinder serial number."
+    };
+  }
+
+  // Universal mis-scan red flag: purely alphabetical string (e.g. YGJAHJI from 1D barcode misread)
+  if (/^[A-Z]+$/.test(s)) {
+    return {
+      isValid: false,
+      reason: `"${s}" contains only letters and no numbers, which typically happens when the camera misreads a barcode.`,
+      expectedHint: `Check the physical label on the ${sup} cylinder and correct the serial number.`
+    };
+  }
+
+  const supLower = sup.toLowerCase();
+
+  if (supLower.includes("kooltech")) {
+    const isStandardKooltech =
+      /^1N\d{6}$/.test(s) ||
+      /^RR27\d{6}$/.test(s) ||
+      /^[34]0\d{4}[A-Z]?$/.test(s);
+
+    if (isStandardKooltech) return { isValid: true };
+
+    if (/^N\d{6}$/.test(s)) {
+      return {
+        isValid: false,
+        reason: `"${s}" looks like a Kooltech "1N" serial that is missing the leading "1" (e.g. 1${s}).`,
+        expectedHint: "Kooltech cylinders normally use 1N + 6 digits (e.g. 1N210008), RR27 + 6 digits (e.g. RR27001891), or 6-digit Nitrogen serials (e.g. 306393)."
+      };
+    }
+    if (/^1N\d+$/.test(s) && s.length !== 8) {
+      return {
+        isValid: false,
+        reason: `"${s}" has ${s.length - 2} digits after "1N", whereas Kooltech "1N" serials normally have 6 digits (8 characters total).`,
+        expectedHint: "Expected format: 1N followed by 6 digits (e.g. 1N210008)."
+      };
+    }
+    return {
+      isValid: false,
+      reason: `"${s}" does not match the normal Kooltech serial format.`,
+      expectedHint: "Kooltech cylinders normally use 1N + 6 digits (e.g. 1N210008), RR27 + 6 digits (e.g. RR27001891), or 6-digit Nitrogen serials (e.g. 306393)."
+    };
+  }
+
+  if (supLower.includes("beijer")) {
+    const isStandardBeijer =
+      /^1N\d{6}$/.test(s) ||
+      /^B27\d{5}$/.test(s) ||
+      /^BR99\d{6}$/.test(s) ||
+      /^RR27\d{6}$/.test(s) ||
+      /^\d{6}[A-Z]{0,2}$/.test(s);
+
+    if (isStandardBeijer) return { isValid: true };
+
+    if (/^N\d{6}$/.test(s)) {
+      return {
+        isValid: false,
+        reason: `"${s}" looks like a "1N" serial missing the leading "1" (e.g. 1${s}).`,
+        expectedHint: "Beijer Ref cylinders normally use 1N + 6 digits, B27 + 5 digits, BR99 + 6 digits, RR27 + 6 digits, or 6-digit Nitrogen serials."
+      };
+    }
+    return {
+      isValid: false,
+      reason: `"${s}" does not match the normal Beijer Ref serial format.`,
+      expectedHint: "Beijer Ref cylinders normally use 1N + 6 digits (e.g. 1N154368), B27 + 5 digits (e.g. B2700130), BR99 + 6 digits (e.g. BR99003224), RR27 + 6 digits (e.g. RR27003131), or 6-digit Nitrogen serials (e.g. 307051)."
+    };
+  }
+
+  if (supLower.includes("tf solutions")) {
+    const isStandardTfs =
+      /^AG\d{6}$/.test(s) ||
+      /^AM\d{6}$/.test(s) ||
+      /^1TFS\d{6}$/.test(s) ||
+      /^1N\d{6}$/.test(s) ||
+      /^RR27\d{6}$/.test(s);
+
+    if (isStandardTfs) return { isValid: true };
+
+    return {
+      isValid: false,
+      reason: `"${s}" does not match the normal TF Solutions serial format.`,
+      expectedHint: "TF Solutions cylinders normally use AG + 6 digits (e.g. AG059561), AM + 6 digits (e.g. AM119748), or 1TFS + 6 digits (e.g. 1TFS002301)."
+    };
+  }
+
+  if (supLower.includes("boc")) {
+    const isStandardBoc = /^\d{10,16}$/.test(s);
+    if (isStandardBoc) return { isValid: true };
+
+    return {
+      isValid: false,
+      reason: `"${s}" does not match the normal BOC Gas & Gear serial format.`,
+      expectedHint: "BOC cylinders normally use a 10–16 digit numeric barcode (e.g. 21034010786462)."
+    };
+  }
+
+  return { isValid: true };
+}
 
 export default function RegisterBottlePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const serialParam = searchParams.get("serial") || "UNKNOWN";
   const { user } = useAuth();
+
+  const [serialInput, setSerialInput] = useState(serialParam.trim().toUpperCase());
+  const [isEditingSerial, setIsEditingSerial] = useState(false);
+  const [serialWarningConfirmed, setSerialWarningConfirmed] = useState(false);
+  const [existingBottleMatch, setExistingBottleMatch] = useState<any | null>(null);
 
   const [category, setCategory] = useState<BottleCategory>("new");
   const [gasType, setGasType] = useState("R410A");
@@ -27,6 +144,27 @@ export default function RegisterBottlePage() {
   const [rentalExpiryDate, setRentalExpiryDate] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+
+  const effectiveSerial = (serialInput || serialParam).trim().replace(/\s+/g, "").toUpperCase();
+  const serialCheck = useMemo(() => checkSupplierSerialFormat(effectiveSerial, supplier), [effectiveSerial, supplier]);
+
+  useEffect(() => {
+    setSerialWarningConfirmed(false);
+  }, [effectiveSerial, supplier]);
+
+  useEffect(() => {
+    if (!effectiveSerial || effectiveSerial === serialParam.trim().toUpperCase()) {
+      setExistingBottleMatch(null);
+      return;
+    }
+    let active = true;
+    db.getBottle(effectiveSerial).then(b => {
+      if (active) setExistingBottleMatch(b && b.status !== "returned" ? b : null);
+    }).catch(() => {
+      if (active) setExistingBottleMatch(null);
+    });
+    return () => { active = false; };
+  }, [effectiveSerial, serialParam]);
 
   useEffect(() => {
     if (user && locationType === "van") {
@@ -87,6 +225,15 @@ export default function RegisterBottlePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!effectiveSerial || effectiveSerial === "UNKNOWN") {
+      alert("Please enter a valid bottle serial number.");
+      return;
+    }
+    if (!serialCheck.isValid && !serialWarningConfirmed) {
+      alert("Please check the bottle serial number against the physical label and either correct it or tap the confirmation button before registering.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     const finalGas = gasType === "Other" ? customGas : gasType;
@@ -104,7 +251,7 @@ export default function RegisterBottlePage() {
         metadata: {
           gasName: customGas,
           registeredBy: user?.name,
-          serial: serialParam
+          serial: effectiveSerial
         }
       });
     }
@@ -121,7 +268,7 @@ export default function RegisterBottlePage() {
     try {
       const cleanLocationId = locationType === "site" ? (locationId || "").trim().replace(/\s+/g, "").toUpperCase() : locationId;
       await db.registerBottle({
-        serial: serialParam,
+        serial: effectiveSerial,
         category,
         gasType: category === "reclaim" ? "Unused" : (category === "nitrogen" ? "Nitrogen" : finalGas),
         initialWeight: Number(weight),
@@ -172,9 +319,78 @@ export default function RegisterBottlePage() {
       </header>
 
       <form onSubmit={handleSubmit} className={styles.form}>
-        <div className={styles.readonlyField}>
-          <span className={styles.label}>Scanned Serial Number</span>
-          <span className={styles.value}>{serialParam}</span>
+        <div
+          className={styles.readonlyField}
+          style={{
+            borderColor: !serialCheck.isValid
+              ? (serialWarningConfirmed ? "rgba(16, 185, 129, 0.45)" : "rgba(245, 158, 11, 0.55)")
+              : undefined,
+            background: !serialCheck.isValid
+              ? (serialWarningConfirmed ? "rgba(16, 185, 129, 0.06)" : "rgba(245, 158, 11, 0.08)")
+              : undefined,
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", gap: "0.5rem" }}>
+            <span className={styles.label}>Scanned Serial Number</span>
+            <button
+              type="button"
+              onClick={() => setIsEditingSerial((prev) => !prev)}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: "0.3rem",
+                background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.18)",
+                color: "var(--primary)", borderRadius: "6px", padding: "0.25rem 0.6rem",
+                fontSize: "0.75rem", fontWeight: 600, cursor: "pointer"
+              }}
+            >
+              <Edit3 size={13} /> {isEditingSerial ? "Done Editing" : "Edit / Fix Scan"}
+            </button>
+          </div>
+
+          {isEditingSerial ? (
+            <div style={{ marginTop: "0.5rem", width: "100%" }}>
+              <input
+                type="text"
+                value={serialInput}
+                onChange={(e) => setSerialInput(e.target.value.toUpperCase().replace(/\s+/g, ""))}
+                placeholder="Enter exact bottle serial number"
+                autoFocus
+                style={{
+                  width: "100%", padding: "0.65rem 0.75rem", borderRadius: "8px",
+                  border: "2px solid var(--primary)", background: "rgba(0, 229, 255, 0.08)",
+                  color: "#fff", fontSize: "1.15rem", fontWeight: 700,
+                  fontFamily: "var(--font-geist-mono)", letterSpacing: "0.05em"
+                }}
+              />
+              <span style={{ display: "block", fontSize: "0.73rem", color: "var(--text-muted)", marginTop: "0.3rem" }}>
+                Compare carefully against the barcode label on the cylinder collar/body.
+              </span>
+            </div>
+          ) : (
+            <span className={styles.value} style={{ letterSpacing: "0.04em" }}>{effectiveSerial || "—"}</span>
+          )}
+
+          {existingBottleMatch && (
+            <div style={{
+              marginTop: "0.65rem", padding: "0.65rem 0.75rem", borderRadius: "8px",
+              background: "rgba(0, 229, 255, 0.12)", border: "1px solid rgba(0, 229, 255, 0.35)",
+              display: "flex", flexDirection: "column", gap: "0.4rem"
+            }}>
+              <span style={{ fontSize: "0.8rem", color: "#fff", fontWeight: 600 }}>
+                Bottle <strong>{existingBottleMatch.serial}</strong> ({existingBottleMatch.gasType} • {existingBottleMatch.supplier || "Unknown Supplier"}) is already registered in the system!
+              </span>
+              <button
+                type="button"
+                onClick={() => router.push(`/engineer/bottle/${encodeURIComponent(existingBottleMatch.serial)}`)}
+                style={{
+                  alignSelf: "flex-start", background: "var(--primary)", color: "#000",
+                  border: "none", borderRadius: "6px", padding: "0.4rem 0.75rem",
+                  fontSize: "0.8rem", fontWeight: 700, cursor: "pointer"
+                }}
+              >
+                Open Existing Bottle {existingBottleMatch.serial} →
+              </button>
+            </div>
+          )}
         </div>
 
         <div className={styles.inputGroup}>
@@ -357,6 +573,104 @@ export default function RegisterBottlePage() {
           </select>
         </div>
 
+        {!serialCheck.isValid && (
+          <div
+            style={{
+              padding: "1rem",
+              borderRadius: "12px",
+              border: serialWarningConfirmed
+                ? "2px solid rgba(16, 185, 129, 0.55)"
+                : "2px solid rgba(245, 158, 11, 0.75)",
+              background: serialWarningConfirmed
+                ? "rgba(16, 185, 129, 0.08)"
+                : "rgba(245, 158, 11, 0.1)",
+              marginBottom: "0.75rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.75rem",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "0.65rem" }}>
+              {serialWarningConfirmed ? (
+                <ShieldCheck size={22} color="#10b981" style={{ flexShrink: 0, marginTop: "2px" }} />
+              ) : (
+                <AlertTriangle size={22} color="#f59e0b" style={{ flexShrink: 0, marginTop: "2px" }} />
+              )}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: "0.92rem", color: serialWarningConfirmed ? "#10b981" : "#fbbf24" }}>
+                  {serialWarningConfirmed
+                    ? `Serial Verified for ${supplier}`
+                    : `Unusual Serial Format for ${supplier}`}
+                </div>
+                <p style={{ margin: "0.3rem 0 0 0", fontSize: "0.82rem", color: "rgba(255,255,255,0.88)", lineHeight: 1.45 }}>
+                  {serialCheck.reason}
+                </p>
+                {serialCheck.expectedHint && (
+                  <p style={{ margin: "0.35rem 0 0 0", fontSize: "0.76rem", color: "var(--text-muted)", lineHeight: 1.4 }}>
+                    {serialCheck.expectedHint}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.6rem" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditingSerial(true);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                style={{
+                  flex: "1 1 140px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.4rem",
+                  padding: "0.65rem 0.85rem",
+                  borderRadius: "8px",
+                  border: "1px solid rgba(255,255,255,0.22)",
+                  background: "rgba(255,255,255,0.06)",
+                  color: "#fff",
+                  fontSize: "0.82rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                <Edit3 size={15} /> Fix / Edit Serial
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSerialWarningConfirmed((prev) => !prev)}
+                style={{
+                  flex: "2 1 200px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.45rem",
+                  padding: "0.65rem 0.9rem",
+                  borderRadius: "8px",
+                  border: serialWarningConfirmed
+                    ? "2px solid #10b981"
+                    : "2px solid #f59e0b",
+                  background: serialWarningConfirmed
+                    ? "rgba(16, 185, 129, 0.22)"
+                    : "rgba(245, 158, 11, 0.22)",
+                  color: serialWarningConfirmed ? "#6ee7b7" : "#fde68a",
+                  fontSize: "0.82rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                <CheckCircle2 size={16} />
+                {serialWarningConfirmed
+                  ? "Confirmed: Serial Matches Bottle Label"
+                  : "I Have Checked the Bottle — Serial is Correct"}
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className={styles.inputGroup}>
           <label>{category === "reclaim" ? "Max Fill Weight (kg)" : "Net Weight Of Refrigerant (Full Cylinder kg)"}</label>
           <input
@@ -399,6 +713,9 @@ export default function RegisterBottlePage() {
           className={styles.submitBtn}
           disabled={
             isSubmitting ||
+            !effectiveSerial ||
+            effectiveSerial === "UNKNOWN" ||
+            (!serialCheck.isValid && !serialWarningConfirmed) ||
             !weight ||
             !poNumber ||
             !supplier ||
