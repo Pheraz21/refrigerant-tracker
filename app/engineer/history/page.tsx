@@ -14,15 +14,43 @@ export default function HistoryPage() {
   const { user, activeVehicleReg, activeVehicleOwner } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>("live");
   const [allBottles, setAllBottles] = useState<Bottle[]>([]);
+  const [crmJobsByNumber, setCrmJobsByNumber] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
     const loadBottles = () => {
-      db.getAllBottles().then(bottles => {
+      db.getAllBottles().then(async bottles => {
         if (!active) return;
         setAllBottles(bottles);
         setLoading(false);
+
+        const siteJobNumbers = Array.from(
+          new Set(
+            bottles
+              .filter(b => b.locationType === "site" && b.locationId)
+              .map(b => b.locationId.trim().toUpperCase())
+              .filter(Boolean)
+          )
+        );
+        if (siteJobNumbers.length > 0) {
+          const entries = await Promise.all(
+            siteJobNumbers.map(async jobNo => {
+              try {
+                const crm = await db.getCrmJobByNumber(jobNo);
+                return [jobNo, crm] as const;
+              } catch {
+                return [jobNo, null] as const;
+              }
+            })
+          );
+          if (!active) return;
+          const map: Record<string, any> = {};
+          for (const [jobNo, crm] of entries) {
+            if (crm) map[jobNo] = crm;
+          }
+          setCrmJobsByNumber(map);
+        }
       });
     };
     loadBottles();
@@ -125,64 +153,102 @@ export default function HistoryPage() {
     return null;
   };
 
-  const renderBottle = (b: Bottle) => (
-    <Link key={b.serial} href={`/engineer/bottle/${b.serial}`} style={{ textDecoration: "none" }}>
-      <div className={`${styles.card} glass-panel`}>
-        <div className={styles.cardHeader}>
-          <div className={styles.cardType}>
-            {b.category === "reclaim" ? (
-              <AlertTriangle size={16} color="var(--warning)" />
-            ) : b.locationType === "office" || b.locationType === "supplier" ? (
-              <Building2 size={16} color="var(--text-muted)" />
-            ) : (
-              <div className={`${styles.dot} ${b.category === "nitrogen" ? styles.dotNitrogen : styles.dotR410A}`} />
-            )}
-            <span className={b.category === "reclaim" ? styles.hazLabel : ""}>{getCategoryLabel(b)}</span>
-          </div>
-          <span className={styles.serial}>{b.serial}</span>
-        </div>
+  const renderBottle = (b: Bottle) => {
+    const siteCrm = b.locationType === "site" && b.locationId
+      ? crmJobsByNumber[b.locationId.trim().toUpperCase()]
+      : null;
+    const hasSiteDetails = Boolean(siteCrm && (siteCrm.siteTitle || siteCrm.customer || siteCrm.jobTitle));
+    const hasIntendedDest = Boolean(hasReclaimWaste(b) && b.intendedDestination);
 
-        <div className={styles.cardBody}>
-          <div className={styles.stat}>
-            <span>Weight</span>
-            <strong>{isBottleTrace(b) ? "Trace" : `${(b.currentWeight || 0).toFixed(2)} kg`}</strong>
+    return (
+      <Link key={b.serial} href={`/engineer/bottle/${b.serial}`} style={{ textDecoration: "none" }}>
+        <div className={`${styles.card} glass-panel`}>
+          <div className={styles.cardHeader}>
+            <div className={styles.cardType}>
+              {b.category === "reclaim" ? (
+                <AlertTriangle size={16} color="var(--warning)" />
+              ) : b.locationType === "office" || b.locationType === "supplier" ? (
+                <Building2 size={16} color="var(--text-muted)" />
+              ) : (
+                <div className={`${styles.dot} ${b.category === "nitrogen" ? styles.dotNitrogen : styles.dotR410A}`} />
+              )}
+              <span className={b.category === "reclaim" ? styles.hazLabel : ""}>{getCategoryLabel(b)}</span>
+            </div>
+            <span className={styles.serial}>{b.serial}</span>
           </div>
-          <div className={styles.stat}>
-            <span>Location</span>
-            <strong>{b.locationId || b.locationType}</strong>
-            {hasReclaimWaste(b) && b.intendedDestination && (
-              <div style={{fontSize: '0.85rem', wordBreak: 'break-word', marginTop: '0.2rem'}}>
-                <span style={{color: 'var(--text-muted)'}}>Intended Destination: </span>
-                <strong style={{color: 'var(--warning)'}}>
-                  {b.intendedLocationType === 'supplier' && b.supplier && b.intendedDestination
-                    ? `${b.supplier} - ${b.intendedDestination}`
-                    : b.intendedDestination}
-                </strong>
-                {b.activeHWCN && (
-                  <div style={{marginTop: '0.2rem', fontSize: '0.75rem', color: 'var(--primary)', textDecoration: 'underline'}}>
-                    Digital HWCN Active
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
 
-        <div className={styles.cardFooter}>
-          {getStatusPill(b)}
-          <span className={styles.viewLink}>View →</span>
-        </div>
-        {(b.returnedAt || b.locationChangedAt) && (
-          <div style={{fontSize: '0.72rem', color: 'var(--text-muted)', paddingTop: '0.4rem', marginTop: '0.2rem', borderTop: '1px solid rgba(255,255,255,0.05)'}}>
-            {b.returnedAt
-              ? `Returned: ${new Date(b.returnedAt).toLocaleDateString("en-GB")}`
-              : `Last moved: ${new Date(b.locationChangedAt!).toLocaleDateString("en-GB")}`
-            }
+          <div className={styles.cardBody}>
+            <div className={styles.stat}>
+              <span>Weight</span>
+              <strong>{isBottleTrace(b) ? "Trace" : `${(b.currentWeight || 0).toFixed(2)} kg`}</strong>
+            </div>
+            <div className={styles.stat}>
+              <span>Location</span>
+              <strong>{b.locationId || b.locationType}</strong>
+            </div>
           </div>
-        )}
-      </div>
-    </Link>
-  );
+
+          {(hasSiteDetails || hasIntendedDest) && (
+            <div style={{
+              marginBottom: '0.85rem',
+              paddingTop: '0.65rem',
+              borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.3rem'
+            }}>
+              {hasSiteDetails && siteCrm && (
+                <>
+                  {(siteCrm.siteTitle || siteCrm.customer) && (
+                    <div style={{fontSize: '0.82rem', lineHeight: 1.4}}>
+                      <span style={{color: 'var(--text-muted)'}}>Site: </span>
+                      <strong style={{color: 'var(--primary)'}}>
+                        {String(siteCrm.siteTitle || siteCrm.customer).replace(/,(?!\s)/g, ", ")}
+                      </strong>
+                    </div>
+                  )}
+                  {siteCrm.jobTitle && (
+                    <div style={{fontSize: '0.82rem', lineHeight: 1.4}}>
+                      <span style={{color: 'var(--text-muted)'}}>Job Name: </span>
+                      <strong style={{color: '#fff'}}>{siteCrm.jobTitle}</strong>
+                    </div>
+                  )}
+                </>
+              )}
+              {hasIntendedDest && (
+                <div style={{fontSize: '0.82rem', lineHeight: 1.4, wordBreak: 'break-word'}}>
+                  <span style={{color: 'var(--text-muted)'}}>Intended Destination: </span>
+                  <strong style={{color: 'var(--warning)'}}>
+                    {b.intendedLocationType === 'supplier' && b.supplier && b.intendedDestination
+                      ? `${b.supplier} - ${b.intendedDestination}`
+                      : b.intendedDestination}
+                  </strong>
+                  {b.activeHWCN && (
+                    <div style={{marginTop: '0.15rem', fontSize: '0.75rem', color: 'var(--primary)', textDecoration: 'underline'}}>
+                      Digital HWCN Active
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className={styles.cardFooter}>
+            {getStatusPill(b)}
+            <span className={styles.viewLink}>View →</span>
+          </div>
+          {(b.returnedAt || b.locationChangedAt) && (
+            <div style={{fontSize: '0.72rem', color: 'var(--text-muted)', paddingTop: '0.4rem', marginTop: '0.2rem', borderTop: '1px solid rgba(255,255,255,0.05)'}}>
+              {b.returnedAt
+                ? `Returned: ${new Date(b.returnedAt).toLocaleDateString("en-GB")}`
+                : `Last moved: ${new Date(b.locationChangedAt!).toLocaleDateString("en-GB")}`
+              }
+            </div>
+          )}
+        </div>
+      </Link>
+    );
+  };
 
   const renderEmpty = (message: string) => (
     <div className={styles.empty}>
