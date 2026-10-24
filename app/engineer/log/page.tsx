@@ -924,9 +924,22 @@ export default function LogBottlePage() {
           </div>
         )}
 
-        <div className={styles.row}>
-          <div className={styles.inputGroup} style={{flex: 1}}>
-            <label>
+        <div
+          className={bottleCategory === "reclaim" ? `${styles.dynamicSection} glass-panel` : styles.row}
+          style={
+            bottleCategory === "reclaim"
+              ? {
+                  borderColor: "rgba(255, 170, 0, 0.35)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "1rem",
+                  marginBottom: "1rem",
+                }
+              : undefined
+          }
+        >
+          <div className={styles.inputGroup} style={{ flex: 1, width: "100%" }}>
+            <label style={{ fontSize: "0.9rem", fontWeight: 700, color: bottleCategory === "reclaim" ? "var(--warning)" : undefined }}>
               {isRecycleMode || bottleCategory === "recycled" || jobType === "recycled_charge"
                 ? "Recycled Refrigerant Type"
                 : jobType === "recovery"
@@ -951,14 +964,15 @@ export default function LogBottlePage() {
               <>
                 {/* Cylinder Current Status Info Box */}
                 <div style={{
-                  marginBottom: '0.65rem',
-                  padding: '0.65rem 0.85rem',
-                  borderRadius: '8px',
+                  marginTop: '0.35rem',
+                  marginBottom: '0.75rem',
+                  padding: '0.75rem 0.9rem',
+                  borderRadius: '10px',
                   background: hasReclaimWaste(bottleData) ? 'rgba(255, 170, 0, 0.08)' : 'rgba(0, 229, 255, 0.08)',
-                  border: hasReclaimWaste(bottleData) ? '1px solid rgba(255, 170, 0, 0.25)' : '1px solid rgba(0, 229, 255, 0.25)',
-                  fontSize: '0.825rem'
+                  border: hasReclaimWaste(bottleData) ? '1px solid rgba(255, 170, 0, 0.28)' : '1px solid rgba(0, 229, 255, 0.28)',
+                  fontSize: '0.84rem'
                 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem' }}>
                     <span style={{ color: 'var(--text-muted)' }}>Cylinder Current Gas:</span>
                     <span style={{ fontWeight: 700, color: hasReclaimWaste(bottleData) ? '#ffaa00' : '#00e5ff' }}>
                       {(bottleData?.currentWeight || 0) > 0 ? (
@@ -982,71 +996,71 @@ export default function LogBottlePage() {
 
                       if (isMixedBottle) {
                         return (
-                          <p style={{ margin: '0.4rem 0 0', fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)' }}>
+                          <p style={{ margin: '0.4rem 0 0', fontSize: '0.78rem', color: 'rgba(255,255,255,0.75)', lineHeight: 1.4 }}>
                             This cylinder already contains mixed recovery gas. Adding waste gas will keep the cylinder classified as Mixed.
                           </p>
                         );
                       } else if (!isSame && currentSelected) {
                         return (
                           <div style={{
-                            marginTop: '0.45rem',
-                            padding: '0.45rem 0.65rem',
+                            marginTop: '0.5rem',
+                            padding: '0.5rem 0.7rem',
                             borderRadius: '6px',
                             background: 'rgba(245, 158, 11, 0.15)',
                             border: '1px solid rgba(245, 158, 11, 0.4)',
                             color: '#fcd34d',
-                            fontSize: '0.75rem',
-                            lineHeight: 1.35
+                            fontSize: '0.78rem',
+                            lineHeight: 1.4
                           }}>
                             <strong>Notice:</strong> You selected a different gas ({currentSelected}) than what is currently in this cylinder ({bottleGas}). Adding this waste will mix gases in the cylinder, reclassifying it as <strong>Mixed</strong>.
                           </div>
                         );
                       } else {
                         return (
-                          <p style={{ margin: '0.4rem 0 0', fontSize: '0.75rem', color: '#86efac' }}>
+                          <p style={{ margin: '0.4rem 0 0', fontSize: '0.78rem', color: '#86efac', lineHeight: 1.4 }}>
                             Defaulted to cylinder&apos;s existing gas ({bottleGas}). You can select a different waste gas below if required.
                           </p>
                         );
                       }
                     })()
                   ) : (
-                    <p style={{ margin: '0.4rem 0 0', fontSize: '0.75rem', color: '#00e5ff' }}>
+                    <p style={{ margin: '0.4rem 0 0', fontSize: '0.78rem', color: '#00e5ff', lineHeight: 1.4 }}>
                       Empty / evacuated reclaim cylinder. Select the gas being recovered into this cylinder (it will adopt this refrigerant type).
                     </p>
                   )}
                 </div>
 
-                <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginTop: '0.25rem'}}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
                   {["R410A", "R32", "R134a", "R404A", "R407C", "R22", "other"].map(gas => (
                     <button
                       key={gas}
                       type="button"
                       onClick={() => setRefrigerantType(gas)}
                       style={{
-                        padding: '0.6rem 0.5rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600,
-                        cursor: 'pointer', border: refrigerantType === gas ? 'none' : '1px solid rgba(255,255,255,0.12)',
+                        padding: '0.65rem 0.4rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600,
+                        cursor: 'pointer', border: refrigerantType === gas ? '1px solid var(--primary)' : '1px solid rgba(255,255,255,0.12)',
                         background: refrigerantType === gas ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
-                        color: refrigerantType === gas ? '#000' : 'rgba(255,255,255,0.7)',
+                        color: refrigerantType === gas ? '#000' : 'rgba(255,255,255,0.8)',
                         transition: 'all 0.15s'
                       }}
                     >
                       {gas === "other" ? "Other" : gas}
                     </button>
                   ))}
+                  <button
+                    type="button"
+                    onClick={() => setRefrigerantType("Mixed")}
+                    style={{
+                      padding: '0.65rem 0.4rem', borderRadius: '8px', fontSize: '0.82rem', fontWeight: 600,
+                      cursor: 'pointer', border: refrigerantType === "Mixed" ? '1px solid var(--primary)' : '1px solid rgba(255,255,255,0.12)',
+                      background: refrigerantType === "Mixed" ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
+                      color: refrigerantType === "Mixed" ? '#000' : 'rgba(255,255,255,0.8)',
+                      transition: 'all 0.15s'
+                    }}
+                  >
+                    Mixed
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setRefrigerantType("Mixed")}
-                  style={{
-                    marginTop: '0.5rem', width: '100%', padding: '0.6rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600,
-                    cursor: 'pointer', border: refrigerantType === "Mixed" ? 'none' : '1px solid rgba(255,255,255,0.12)',
-                    background: refrigerantType === "Mixed" ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
-                    color: refrigerantType === "Mixed" ? '#000' : 'rgba(255,255,255,0.7)',
-                    transition: 'all 0.15s'
-                  }}
-                >
-                  Mixed (Multi-Gas Mixture)
-                </button>
                 {refrigerantType === "other" && (
                   <input
                     type="text"
@@ -1058,7 +1072,7 @@ export default function LogBottlePage() {
                   />
                 )}
                 {jobType === "recovery" && (
-                  <p style={{fontSize: '0.75rem', color: 'var(--warning)', marginTop: '0.3rem'}}>
+                  <p style={{fontSize: '0.75rem', color: 'var(--warning)', marginTop: '0.45rem', marginBottom: 0}}>
                     This updates the bottle label only. The bottle remains classified as Hazardous Waste.
                   </p>
                 )}
@@ -1080,17 +1094,34 @@ export default function LogBottlePage() {
           </div>
           
           {(jobType === "service" || jobType === "install" || jobType === "retrofit" || jobType === "recovery" || jobType === "recycled_charge" || jobType === "leak_test") && (
-            <div className={styles.inputGroup}>
-              <label>Total Logged Weight (kg)</label>
+            <div
+              className={styles.inputGroup}
+              style={
+                bottleCategory === "reclaim"
+                  ? {
+                      display: "flex",
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      paddingTop: "0.75rem",
+                      borderTop: "1px solid rgba(255,255,255,0.08)",
+                    }
+                  : undefined
+              }
+            >
+              <label style={bottleCategory === "reclaim" ? { margin: 0, fontSize: "0.88rem", color: "var(--text-main)" } : undefined}>
+                Total Logged Weight (kg)
+              </label>
               <div style={{
-                padding: '0.75rem 1rem',
+                padding: bottleCategory === "reclaim" ? '0.45rem 1rem' : '0.75rem 1rem',
                 background: jobType === "leak_test" ? 'rgba(168, 85, 247, 0.1)' : isRecycleMode ? 'rgba(34, 197, 94, 0.1)' : 'rgba(0, 229, 255, 0.1)',
                 border: jobType === "leak_test" ? '1px solid #c084fc' : isRecycleMode ? '1px solid var(--success)' : '1px solid var(--primary)',
                 borderRadius: 'var(--radius-sm)',
                 color: jobType === "leak_test" ? '#c084fc' : isRecycleMode ? 'var(--success)' : 'var(--primary)',
                 fontWeight: '700',
-                fontSize: '1.2rem',
-                textAlign: 'center'
+                fontSize: bottleCategory === "reclaim" ? '1.1rem' : '1.2rem',
+                textAlign: 'center',
+                minWidth: bottleCategory === "reclaim" ? '110px' : undefined
               }}>
                 {jobType === "leak_test" ? "0.00 kg (Statutory Inspection)" : `${totalWeight.toFixed(2)} kg`}
               </div>
