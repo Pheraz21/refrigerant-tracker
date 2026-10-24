@@ -555,9 +555,23 @@ export default function LogBottlePage() {
               : `Cylinder ${serialParam} has no weighed bulk gas left, but was not evacuated to vacuum. It is classed as Trace (${bottleData?.gasType || "gas"}) and is not treated as an empty cylinder.`}
           </div>
         )}
-        <button onClick={() => { setIsDirty(false); router.replace("/engineer"); }} className={styles.primaryBtn}>
-          Return to Dashboard
-        </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", width: "100%", marginTop: "0.5rem" }}>
+          <button
+            type="button"
+            onClick={() => { setIsDirty(false); router.replace(`/engineer/bottle/${encodeURIComponent(serialParam)}`); }}
+            className={styles.primaryBtn}
+          >
+            Back to Bottle Card (Move to Van / Actions)
+          </button>
+          <button
+            type="button"
+            onClick={() => { setIsDirty(false); router.replace("/engineer"); }}
+            className={styles.primaryBtn}
+            style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-main)", border: "1px solid var(--border)" }}
+          >
+            Return to Dashboard
+          </button>
+        </div>
       </div>
     );
   }

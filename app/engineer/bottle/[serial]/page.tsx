@@ -754,7 +754,7 @@ export default function BottleActionHub() {
                     </button>
                     <button 
                       type="button"
-                      onClick={() => router.push(`/engineer/move?serial=${serial}&action=divert`)}
+                      onClick={() => router.replace(`/engineer/move?serial=${serial}&action=divert`)}
                       style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem' }}
                     >
                       No, Changing Bottle Route
@@ -778,7 +778,7 @@ export default function BottleActionHub() {
                     </button>
                     <button 
                       type="button"
-                      onClick={() => router.push(`/engineer/move?serial=${serial}&action=divert`)}
+                      onClick={() => router.replace(`/engineer/move?serial=${serial}&action=divert`)}
                       style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '0.75rem', borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem' }}
                     >
                       No, Transfer to Alternative Location
@@ -829,7 +829,7 @@ export default function BottleActionHub() {
                     : <><Truck size={18} /> Sign Out — Transfer to My Van</>
                   }
                 </button>
-                <Link href="/engineer" style={{textDecoration: 'none'}}>
+                <Link href="/engineer" replace style={{textDecoration: 'none'}}>
                   <button className={styles.secondaryBtn} style={{width: '100%'}}>Back to Dashboard</button>
                 </Link>
               </div>
@@ -847,7 +847,7 @@ export default function BottleActionHub() {
                   <p style={{color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem', maxWidth: '300px', margin: '0 auto 1.5rem'}}>
                     This bottle has been returned to the supplier. No further transfers or gas logs can be recorded.
                   </p>
-                  <Link href="/engineer" style={{textDecoration: 'none'}}>
+                  <Link href="/engineer" replace style={{textDecoration: 'none'}}>
                     <button className={styles.secondaryBtn} style={{width: '100%'}}>Back to Dashboard</button>
                   </Link>
                 </div>
@@ -862,13 +862,23 @@ export default function BottleActionHub() {
                   </p>
                   <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem'}}>
                     {generatedHWCN && (
-                      <Link href={`/engineer/hwcn/${encodeURIComponent(generatedHWCN)}`} style={{textDecoration: 'none'}}>
+                      <Link href={`/engineer/hwcn/${encodeURIComponent(generatedHWCN)}`} replace style={{textDecoration: 'none'}}>
                         <button className={styles.primaryBtn} style={{width: '100%', background: 'linear-gradient(135deg, var(--warning) 0%, #ff8800 100%)', color: '#000'}}>
                           View Digital HWCN
                         </button>
                       </Link>
                     )}
-                    <button onClick={() => router.replace('/engineer')} className={styles.secondaryBtn}>Done</button>
+                    {destination === "site" && (
+                      <button
+                        type="button"
+                        onClick={() => setTransferSuccess(false)}
+                        className={styles.primaryBtn}
+                        style={{ width: '100%' }}
+                      >
+                        <Wrench size={18} /> Continue with Bottle on Site (Log Gas)
+                      </button>
+                    )}
+                    <button onClick={() => router.replace(lastHubRoute || '/engineer')} className={styles.secondaryBtn}>Done</button>
                   </div>
                 </div>
               ) : bottle.locationType === 'van' ? (

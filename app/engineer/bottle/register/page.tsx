@@ -299,9 +299,23 @@ export default function RegisterBottlePage() {
         <CheckCircle2 size={64} color="var(--success)" />
         <h2>Bottle Registered!</h2>
         <p>This bottle is now tracked in {locationType === "van" ? "your van" : (locationType === "office" || locationType === "office_collected") ? "the office/stores" : "the job site"}.</p>
-        <button onClick={() => router.replace("/engineer")} className={styles.primaryBtn}>
-          Return to Dashboard
-        </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", width: "100%", marginTop: "0.5rem" }}>
+          <button
+            type="button"
+            onClick={() => router.replace(`/engineer/bottle/${encodeURIComponent(effectiveSerial)}`)}
+            className={styles.primaryBtn}
+          >
+            Open Bottle Actions
+          </button>
+          <button
+            type="button"
+            onClick={() => router.replace("/engineer")}
+            className={styles.primaryBtn}
+            style={{ background: "rgba(255,255,255,0.06)", color: "var(--text-main)", border: "1px solid var(--border)" }}
+          >
+            Return to Dashboard
+          </button>
+        </div>
       </div>
     );
   }
