@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { CheckCircle2, Truck, ArrowLeft, MapPin, Building2, Users, AlertTriangle, Building, Recycle } from "lucide-react";
 import styles from "../log/page.module.css"; // Reuse existing form styles
@@ -54,21 +54,35 @@ export default function MoveBottlePage() {
   const [intendedBranch, setIntendedBranch] = useState("");
   const [divertedBranch, setDivertedBranch] = useState("");
   const [divertSiteJobNo, setDivertSiteJobNo] = useState("");
-  const [siteCrmMatch, setSiteCrmMatch] = useState<string | null>(null);
-  const [divertCrmMatch, setDivertCrmMatch] = useState<string | null>(null);
+  const [siteCrmMatch, setSiteCrmMatch] = useState<any | null>(null);
+  const [divertCrmMatch, setDivertCrmMatch] = useState<any | null>(null);
   
   // HWCN Form State
   const [vehicleReg, setVehicleReg] = useState("");
   const [carrierName, setCarrierName] = useState("");
   const [intendedDest, setIntendedDest] = useState("");
   const [hwcnSites, setHwcnSites] = useState<any[]>([]);
+  const [initialHwcnSites, setInitialHwcnSites] = useState<any[]>([]);
   const [wasteAddedOnVisit, setWasteAddedOnVisit] = useState(false);
+  const hasSubmittedRef = useRef(false);
 
   const { user, activeVehicleReg, activeVehicleOwner } = useAuth();
   const { setIsDirty, setCustomMessage, requestNavigate } = useNavigationGuard();
 
+  const isMovingSiteToVanWithoutWaste = (bottle?.locationType === "site" && destination === "van" && !wasteAddedOnVisit);
+  const isMovingOfficeToVan = (bottle?.locationType === "office" && destination === "van");
+  const isDirectVanMove = (destination === "van" && reclaimFlowPath !== "alternative");
+
+  const requiresHWCN = hasReclaimWaste(bottle) && 
+    destination !== "supplier" && 
+    destination !== "site" && 
+    destination !== "engineer" &&
+    !isMovingSiteToVanWithoutWaste &&
+    !isMovingOfficeToVan &&
+    !isDirectVanMove;
+
   const isMoveDirty = useMemo(() => {
-    if (isSuccess || isSubmitting) return false;
+    if (isSuccess || isSubmitting || hasSubmittedRef.current) return false;
 
     // 1. Moving to site with typed job number
     if (destination === "site" && locationId.trim().length > 0) return true;
@@ -81,15 +95,16 @@ export default function MoveBottlePage() {
       return true;
     }
 
-    // 4. Hazardous waste producer site entered or altered
-    if (hwcnSites && hwcnSites.length > 0) {
-      const initialSites = bottle?.producerSites || [];
+    // 4. Hazardous waste producer site manually entered or altered when HWCN is required
+    if (requiresHWCN && hwcnSites && hwcnSites.length > 0) {
+      if (hwcnSites.length !== initialHwcnSites.length) return true;
       const hasDiff = hwcnSites.some((s, idx) => {
-        const init = initialSites[idx];
+        const init = initialHwcnSites[idx];
         return (
-          s.name?.trim() !== (init?.name || "").trim() ||
-          s.address?.trim() !== (init?.address || "").trim() ||
-          s.postcode?.trim() !== (init?.postcode || "").trim()
+          (s.jobNumber || "").trim() !== (init?.jobNumber || "").trim() ||
+          (s.name || "").trim() !== (init?.name || "").trim() ||
+          (s.address || "").trim() !== (init?.address || "").trim() ||
+          (s.postcode || "").trim() !== (init?.postcode || "").trim()
         );
       });
       if (hasDiff) return true;
@@ -108,8 +123,9 @@ export default function MoveBottlePage() {
     locationId,
     selectedEngineer,
     customDestination,
+    requiresHWCN,
     hwcnSites,
-    bottle?.producerSites,
+    initialHwcnSites,
     supplierPhoto,
     divertedBranch,
     divertSiteJobNo,
@@ -134,21 +150,52 @@ export default function MoveBottlePage() {
   }, [setIsDirty]);
 
   useEffect(() => {
-    db.getCompanySettings().then(s => { if (s?.carrierReg) setCarrierRegNo(s.carrierReg); });
+    let cancelled = false;
+    db.getCompanySettings().then(s => { if (!cancelled && s?.carrierReg) setCarrierRegNo(s.carrierReg); });
 
     Promise.all([
       db.getBottle(serialParam),
       db.getMovementLogs(serialParam),
       db.getUsageLogs(serialParam)
     ]).then(async ([b, moveLogs, usageLogs]) => {
-      setBottle(b);
+      if (cancelled || hasSubmittedRef.current) return;
 
-      // Build initial HWCN sites and enrich from crm_jobs only when a job number is known
+      // Check if any waste refrigerant was recovered into this cylinder during its current visit to site
+      let hasWasteThisVisit = false;
+      if (b?.locationType === "site") {
+        const siteId = (b.locationId || "").trim().toUpperCase();
+        const siteMoves = (moveLogs || []).filter((m: any) => {
+          const to = (m.to || (m as any).to_location || "").trim().toUpperCase();
+          return to === siteId;
+        });
+        const latestSiteMove = siteMoves[0];
+        let arrivalTime = b.locationChangedAt ? new Date(b.locationChangedAt).getTime() : 0;
+        if (!arrivalTime && latestSiteMove?.date) {
+          arrivalTime = new Date(latestSiteMove.date).getTime();
+        }
+
+        const recoveryLogs = (usageLogs || []).filter((log: any) => {
+          const isWaste = log.jobType === "recovery" || log.jobType === "retrofit" || log.jobType === "waste";
+          const hasWeight = Number(log.weightUsed || 0) > 0;
+          if (!isWaste || !hasWeight) return false;
+
+          const logTime = log.date ? new Date(log.date).getTime() : 0;
+          if (arrivalTime > 0) {
+            return logTime >= arrivalTime - 60000;
+          }
+          const logSite = (log.siteRef || (log as any).site_ref || "").trim().toUpperCase();
+          return logSite === siteId;
+        });
+
+        hasWasteThisVisit = recoveryLogs.length > 0;
+      }
+
+      // Build initial HWCN sites and enrich from crm_jobs only when a job number is known and waste was recovered
       const recentRecoveryLogs = (usageLogs || []).filter(
         (l: any) => l.jobType === "recovery" || l.jobType === "retrofit" || l.jobType === "waste"
       );
       const fallbackJobNo =
-        (b?.locationType === "site" && b?.locationId ? b.locationId.trim() : "") ||
+        (b?.locationType === "site" && hasWasteThisVisit && b?.locationId ? b.locationId.trim() : "") ||
         (recentRecoveryLogs[0]?.siteRef ? String(recentRecoveryLogs[0].siteRef).trim() : "");
 
       let rawSites: Array<{ jobNumber?: string; name: string; address: string; postcode: string; crmMatched?: string }> =
@@ -183,37 +230,11 @@ export default function MoveBottlePage() {
           };
         })
       );
+
+      if (cancelled || hasSubmittedRef.current) return;
+      setBottle(b);
       setHwcnSites(enrichedSites);
-
-      // Check if any waste refrigerant was recovered into this cylinder during its current visit to site
-      let hasWasteThisVisit = false;
-      if (b?.locationType === "site") {
-        const siteId = (b.locationId || "").trim().toUpperCase();
-        const siteMoves = (moveLogs || []).filter((m: any) => {
-          const to = (m.to || (m as any).to_location || "").trim().toUpperCase();
-          return to === siteId;
-        });
-        const latestSiteMove = siteMoves[0];
-        let arrivalTime = b.locationChangedAt ? new Date(b.locationChangedAt).getTime() : 0;
-        if (!arrivalTime && latestSiteMove?.date) {
-          arrivalTime = new Date(latestSiteMove.date).getTime();
-        }
-
-        const recoveryLogs = (usageLogs || []).filter((log: any) => {
-          const isWaste = log.jobType === "recovery" || log.jobType === "retrofit" || log.jobType === "waste";
-          const hasWeight = Number(log.weightUsed || 0) > 0;
-          if (!isWaste || !hasWeight) return false;
-
-          const logTime = log.date ? new Date(log.date).getTime() : 0;
-          if (arrivalTime > 0) {
-            return logTime >= arrivalTime - 60000;
-          }
-          const logSite = (log.siteRef || (log as any).site_ref || "").trim().toUpperCase();
-          return logSite === siteId;
-        });
-
-        hasWasteThisVisit = recoveryLogs.length > 0;
-      }
+      setInitialHwcnSites(enrichedSites.map((s) => ({ ...s })));
       setWasteAddedOnVisit(hasWasteThisVisit);
       
       const action = searchParams.get("action");
@@ -256,6 +277,10 @@ export default function MoveBottlePage() {
       }
     });
 
+    return () => { cancelled = true; };
+  }, [serialParam]);
+
+  useEffect(() => {
     if (user?.id) {
       const initialReg = activeVehicleReg || user.vehicleReg || "";
       if (initialReg) setVehicleReg(initialReg);
@@ -273,7 +298,7 @@ export default function MoveBottlePage() {
         }
       });
     }
-  }, [serialParam, user, activeVehicleReg]);
+  }, [user, activeVehicleReg]);
 
   useEffect(() => {
     if (destination !== "site" || !locationId || locationId.length < 3) {
@@ -283,12 +308,7 @@ export default function MoveBottlePage() {
     let active = true;
     db.getCrmJobByNumber(locationId).then(crm => {
       if (!active) return;
-      if (crm) {
-        const label = [crm.siteTitle || crm.customer, crm.siteAddress, crm.sitePostcode].filter(Boolean).join(" — ");
-        setSiteCrmMatch(label || crm.jobNumber);
-      } else {
-        setSiteCrmMatch(null);
-      }
+      setSiteCrmMatch(crm || null);
     });
     return () => { active = false; };
   }, [destination, locationId]);
@@ -301,12 +321,7 @@ export default function MoveBottlePage() {
     let active = true;
     db.getCrmJobByNumber(divertSiteJobNo).then(crm => {
       if (!active) return;
-      if (crm) {
-        const label = [crm.siteTitle || crm.customer, crm.siteAddress, crm.sitePostcode].filter(Boolean).join(" — ");
-        setDivertCrmMatch(label || crm.jobNumber);
-      } else {
-        setDivertCrmMatch(null);
-      }
+      setDivertCrmMatch(crm || null);
     });
     return () => { active = false; };
   }, [divertSiteJobNo]);
@@ -337,16 +352,6 @@ export default function MoveBottlePage() {
     }
   };
 
-  const isMovingSiteToVanWithoutWaste = (bottle?.locationType === "site" && destination === "van" && !wasteAddedOnVisit);
-  const isMovingOfficeToVan = (bottle?.locationType === "office" && destination === "van");
-
-  const requiresHWCN = hasReclaimWaste(bottle) && 
-    destination !== "supplier" && 
-    destination !== "site" && 
-    destination !== "engineer" &&
-    !isMovingSiteToVanWithoutWaste &&
-    !isMovingOfficeToVan;
-
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -354,13 +359,15 @@ export default function MoveBottlePage() {
     const isReclaimWithGas = hasReclaimWaste(bottle);
     const isMovingSiteToVanWithoutWaste = (bottle?.locationType === "site" && destination === "van" && !wasteAddedOnVisit);
     const isMovingOfficeToVan = (bottle?.locationType === "office" && destination === "van");
+    const isDirectVanMove = (destination === "van" && reclaimFlowPath !== "alternative");
 
     const requiresInternalHWCN = isReclaimWithGas && 
       destination !== "supplier" && 
       destination !== "site" && 
       destination !== "engineer" &&
       !isMovingSiteToVanWithoutWaste &&
-      !isMovingOfficeToVan;
+      !isMovingOfficeToVan &&
+      !isDirectVanMove;
     const requiresSupplierHWCN = isReclaimWithGas && (destination === "supplier");
     const needsTransit = requiresInternalHWCN || requiresSupplierHWCN;
 
@@ -489,10 +496,13 @@ export default function MoveBottlePage() {
       });
     }
 
-    setIsSubmitting(false);
-    
+    hasSubmittedRef.current = true;
+    setIsDirty(false);
+    setCustomMessage(undefined);
+
     // Redirect immediately if no HWCN was generated, otherwise show success screen with HWCN link
     if (needsTransit && isReclaimWithGas && (destination === "office" || destination === "other")) {
+      setIsSubmitting(false);
       setIsSuccess(true);
     } else {
       router.push("/engineer");
@@ -707,6 +717,8 @@ export default function MoveBottlePage() {
                     className={styles.primaryBtn}
                     style={{ background: 'var(--primary)', color: '#000' }}
                     onClick={async () => {
+                      hasSubmittedRef.current = true;
+                      setIsDirty(false);
                       const intLocType = bottle?.intendedDestination === "HQ-Stores" ? "office" : "site";
                       await db.updateBottleLocation(
                         serialParam,
@@ -730,6 +742,8 @@ export default function MoveBottlePage() {
                   className={styles.primaryBtn}
                   style={{background: 'var(--warning)', color: '#000'}}
                   onClick={async () => {
+                    hasSubmittedRef.current = true;
+                    setIsDirty(false);
                     await db.completeTransit(serialParam, undefined, user?.name);
                     router.push("/engineer");
                   }}
@@ -797,9 +811,23 @@ export default function MoveBottlePage() {
               required
             />
             {divertCrmMatch && (
-              <p style={{fontSize: "0.78rem", color: "var(--primary)", marginTop: "0.35rem", marginBottom: 0}}>
-                ✓ CRM Match: {divertCrmMatch}
-              </p>
+              <div style={{marginTop: "0.5rem", padding: "0.6rem 0.75rem", background: "rgba(0, 229, 255, 0.08)", border: "1px solid rgba(0, 229, 255, 0.25)", borderRadius: "8px", fontSize: "0.8rem", lineHeight: 1.45}}>
+                {(divertCrmMatch.siteTitle || divertCrmMatch.customer) && (
+                  <div style={{color: "var(--primary)", fontWeight: 600}}>
+                    ✓ Site: {divertCrmMatch.siteTitle || divertCrmMatch.customer}
+                  </div>
+                )}
+                {divertCrmMatch.jobTitle && (
+                  <div style={{color: "#fff", marginTop: "0.15rem"}}>
+                    <span style={{color: "var(--text-muted)"}}>Title: </span>{divertCrmMatch.jobTitle}
+                  </div>
+                )}
+                {(divertCrmMatch.siteAddress || divertCrmMatch.sitePostcode) && (
+                  <div style={{color: "var(--text-muted)", fontSize: "0.75rem", marginTop: "0.15rem"}}>
+                    {[divertCrmMatch.siteAddress, divertCrmMatch.sitePostcode].filter(Boolean).join(", ")}
+                  </div>
+                )}
+              </div>
             )}
           </div>
           <div style={{display: 'flex', gap: '1rem'}}>
@@ -834,7 +862,8 @@ export default function MoveBottlePage() {
                   undefined,
                   user?.name
                 );
-                setIsSubmitting(false);
+                hasSubmittedRef.current = true;
+                setIsDirty(false);
                 router.push("/engineer");
               }}
               style={{flex: 1}}
@@ -998,6 +1027,8 @@ export default function MoveBottlePage() {
                 const finalLocId = divertedBranch || bottle?.intendedDestination || "Supplier";
                 const photoUrl = supplierPhoto ? await uploadHwcnPhoto(supplierPhoto, serialParam) : undefined;
                 await db.completeTransit(serialParam, photoUrl, user?.name, finalLocId);
+                hasSubmittedRef.current = true;
+                setIsDirty(false);
                 router.push("/engineer");
               }}
               style={{flex: 1, opacity: (!supplierPhoto || isSubmitting) ? 0.5 : 1}}
@@ -1356,9 +1387,23 @@ export default function MoveBottlePage() {
                   required 
                 />
                 {siteCrmMatch && (
-                  <p style={{fontSize: "0.78rem", color: "var(--primary)", marginTop: "0.35rem", marginBottom: 0}}>
-                    ✓ CRM Match: {siteCrmMatch}
-                  </p>
+                  <div style={{marginTop: "0.5rem", padding: "0.6rem 0.75rem", background: "rgba(0, 229, 255, 0.08)", border: "1px solid rgba(0, 229, 255, 0.25)", borderRadius: "8px", fontSize: "0.8rem", lineHeight: 1.45}}>
+                    {(siteCrmMatch.siteTitle || siteCrmMatch.customer) && (
+                      <div style={{color: "var(--primary)", fontWeight: 600}}>
+                        ✓ Site: {siteCrmMatch.siteTitle || siteCrmMatch.customer}
+                      </div>
+                    )}
+                    {siteCrmMatch.jobTitle && (
+                      <div style={{color: "#fff", marginTop: "0.15rem"}}>
+                        <span style={{color: "var(--text-muted)"}}>Title: </span>{siteCrmMatch.jobTitle}
+                      </div>
+                    )}
+                    {(siteCrmMatch.siteAddress || siteCrmMatch.sitePostcode) && (
+                      <div style={{color: "var(--text-muted)", fontSize: "0.75rem", marginTop: "0.15rem"}}>
+                        {[siteCrmMatch.siteAddress, siteCrmMatch.sitePostcode].filter(Boolean).join(", ")}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
               <p style={{fontSize: '0.8rem', color: 'var(--text-muted)'}}>

@@ -48,6 +48,7 @@ export default function BottleActionHub() {
   const [associatedHWCNs, setAssociatedHWCNs] = useState<any[]>([]);
   const [usageLogs, setUsageLogs] = useState<UsageLog[]>([]);
   const [currentCrmJob, setCurrentCrmJob] = useState<any>(null);
+  const [siteCrmJob, setSiteCrmJob] = useState<any>(null);
   const [showNitrogenUsage, setShowNitrogenUsage] = useState(false);
   const [isSubmittingNitrogen, setIsSubmittingNitrogen] = useState(false);
   const [showMismatchConfirm, setShowMismatchConfirm] = useState(false);
@@ -65,6 +66,22 @@ export default function BottleActionHub() {
       setCurrentCrmJob(null);
     }
   }, [bottle?.locationType, bottle?.locationId]);
+
+  // Load CRM job details when entering a job number for inline site move
+  useEffect(() => {
+    if (destination !== "site" || !locationId || locationId.trim().length < 3) {
+      setSiteCrmJob(null);
+      return;
+    }
+    let active = true;
+    db.getCrmJobByNumber(locationId.trim()).then(crm => {
+      if (!active) return;
+      setSiteCrmJob(crm || null);
+    }).catch(() => {
+      if (active) setSiteCrmJob(null);
+    });
+    return () => { active = false; };
+  }, [destination, locationId]);
 
   // Determine if bottle is currently on the exact job number where the waste was reclaimed from
   const isCurrentJobMatch = useMemo(() => {
@@ -107,6 +124,7 @@ export default function BottleActionHub() {
 
     if (bottle.producerSites && Array.isArray(bottle.producerSites)) {
       for (const site of bottle.producerSites) {
+        if ((site as any).jobNumber) reclaimedIdentifiers.add(normalizeJob((site as any).jobNumber));
         if (site.name) reclaimedIdentifiers.add(normalizeJob(site.name));
       }
     }
@@ -277,6 +295,13 @@ export default function BottleActionHub() {
           }
           await db.updateBottle(serial, updates);
         }
+        setBottle(prev => prev ? {
+          ...prev,
+          locationType: finalDest as any,
+          locationId: finalLocationId,
+          locationChangedAt: new Date().toISOString()
+        } : prev);
+        setLocationId("");
         setTransferSuccess(true);
       } else {
         // Reclaim bottle with gas moving from Van to Supplier without a live HWCN in place:
@@ -415,6 +440,22 @@ export default function BottleActionHub() {
                 <span style={{color: 'var(--text-muted)'}}>Current Location: </span>
                 <strong style={{color: '#fff', textTransform: 'capitalize'}}>{bottle.locationId || bottle.locationType}</strong>
               </div>
+              {bottle.locationType === "site" && currentCrmJob && (
+                <>
+                  {(currentCrmJob.siteTitle || currentCrmJob.customer) && (
+                    <div style={{fontSize: '0.85rem', wordBreak: 'break-word'}}>
+                      <span style={{color: 'var(--text-muted)'}}>Site: </span>
+                      <strong style={{color: 'var(--primary)'}}>{currentCrmJob.siteTitle || currentCrmJob.customer}</strong>
+                    </div>
+                  )}
+                  {currentCrmJob.jobTitle && (
+                    <div style={{fontSize: '0.85rem', wordBreak: 'break-word'}}>
+                      <span style={{color: 'var(--text-muted)'}}>Job Name: </span>
+                      <strong style={{color: '#fff'}}>{currentCrmJob.jobTitle}</strong>
+                    </div>
+                  )}
+                </>
+              )}
               {(locationId || bottle.intendedDestination || (destination === 'engineer' && selectedEngineer)) && (
                 <div style={{fontSize: '0.85rem', wordBreak: 'break-word', marginTop: '0.2rem'}}>
                   <span style={{color: 'var(--text-muted)'}}>Intended Destination: </span>
@@ -898,6 +939,25 @@ export default function BottleActionHub() {
                           className={styles.textInput}
                           required
                         />
+                        {siteCrmJob && (
+                          <div style={{marginTop: '0.5rem', padding: '0.6rem 0.75rem', background: 'rgba(0, 229, 255, 0.08)', border: '1px solid rgba(0, 229, 255, 0.25)', borderRadius: '8px', fontSize: '0.8rem', lineHeight: 1.45}}>
+                            {(siteCrmJob.siteTitle || siteCrmJob.customer) && (
+                              <div style={{color: 'var(--primary)', fontWeight: 600}}>
+                                ✓ Site: {siteCrmJob.siteTitle || siteCrmJob.customer}
+                              </div>
+                            )}
+                            {siteCrmJob.jobTitle && (
+                              <div style={{color: '#fff', marginTop: '0.15rem'}}>
+                                <span style={{color: 'var(--text-muted)'}}>Title: </span>{siteCrmJob.jobTitle}
+                              </div>
+                            )}
+                            {(siteCrmJob.siteAddress || siteCrmJob.sitePostcode) && (
+                              <div style={{color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.15rem'}}>
+                                {[siteCrmJob.siteAddress, siteCrmJob.sitePostcode].filter(Boolean).join(", ")}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

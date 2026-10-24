@@ -23,6 +23,7 @@ export default function LogBottlePage() {
   const [customRefrigerant, setCustomRefrigerant] = useState("");
   const [jobNumber, setJobNumber] = useState("");
   const [producerSite, setProducerSite] = useState({ name: "", address: "", postcode: "" });
+  const [initialProducerSite, setInitialProducerSite] = useState({ name: "", address: "", postcode: "" });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -109,16 +110,17 @@ export default function LogBottlePage() {
       return true;
     }
 
-    // 4. Producer site entered by user
-    if (producerSite.name && producerSite.name.trim().length > 0) {
-      const initialSiteName = bottleData?.producerSites?.[0]?.name || "";
-      if (producerSite.name.trim() !== initialSiteName.trim() && producerSite.name.trim() !== initialLocation.trim()) {
-        return true;
-      }
+    // 4. Producer site manually entered or altered by user (ignoring CRM auto-fill)
+    if (
+      (producerSite.name || "").trim() !== (initialProducerSite.name || "").trim() ||
+      (producerSite.address || "").trim() !== (initialProducerSite.address || "").trim() ||
+      (producerSite.postcode || "").trim() !== (initialProducerSite.postcode || "").trim()
+    ) {
+      return true;
     }
 
     return false;
-  }, [equipmentList, customRefrigerant, jobNumber, producerSite, bottleData, isSuccess, isSubmitting]);
+  }, [equipmentList, customRefrigerant, jobNumber, producerSite, initialProducerSite, bottleData, isSuccess, isSubmitting]);
 
   // Synchronize dirty state and custom warning prompt
   useEffect(() => {
@@ -234,14 +236,16 @@ export default function LogBottlePage() {
           setJobNumber(b.locationId);
           if (b.producerSites && b.producerSites.length > 0) {
             const matchingSite = b.producerSites.find(
-              (s: any) => s.name === b.locationId
+              (s: any) => s.name === b.locationId || s.jobNumber === b.locationId
             );
             if (matchingSite) {
-              setProducerSite({
+              const siteVal = {
                 name: matchingSite.name || "",
                 address: matchingSite.address || "",
                 postcode: matchingSite.postcode || ""
-              });
+              };
+              setProducerSite(siteVal);
+              setInitialProducerSite(siteVal);
             }
           }
         }
@@ -254,21 +258,29 @@ export default function LogBottlePage() {
       setCrmMatch(null);
       return;
     }
+    const initialLocation = (bottleData?.locationType === "site" && bottleData?.locationId) ? bottleData.locationId : "";
+    const isInitialJob = initialLocation && jobNumber.trim().toUpperCase() === initialLocation.trim().toUpperCase();
     db.getCrmJobByNumber(jobNumber).then(crmJob => {
       if (crmJob) {
         setCrmMatch(crmJob.siteTitle || crmJob.customer || "");
         if (jobType === "recovery") {
-          setProducerSite(prev => ({
-            name: crmJob.siteTitle || crmJob.customer || prev.name || "",
-            address: crmJob.siteAddress || prev.address || "",
-            postcode: crmJob.sitePostcode || prev.postcode || ""
-          }));
+          setProducerSite(prev => {
+            const next = {
+              name: prev.name || crmJob.siteTitle || crmJob.customer || "",
+              address: prev.address || crmJob.siteAddress || "",
+              postcode: prev.postcode || crmJob.sitePostcode || ""
+            };
+            if (isInitialJob) {
+              setInitialProducerSite(next);
+            }
+            return next;
+          });
         }
       } else {
         setCrmMatch(null);
       }
     });
-  }, [jobNumber, jobType]);
+  }, [jobNumber, jobType, bottleData?.locationType, bottleData?.locationId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -332,6 +344,7 @@ export default function LogBottlePage() {
         }
         if (bottleData.producerSites && Array.isArray(bottleData.producerSites)) {
           for (const site of bottleData.producerSites) {
+            if ((site as any).jobNumber) reclaimedRefs.add(String((site as any).jobNumber).trim().replace(/\s+/g, "").toUpperCase());
             if (site.name) reclaimedRefs.add(site.name.trim().replace(/\s+/g, "").toUpperCase());
           }
         }
@@ -365,15 +378,16 @@ export default function LogBottlePage() {
     const isRecovery = jobType === "recovery" && bottleCategory !== "recycled";
     const hasExistingSites = existingProducerSites.length > 0;
     
-    const currentLocation = bottleData?.locationId || jobNumber;
-    const isNewSite = hasExistingSites && (
-      !existingProducerSites.some(
-        s => s.name === currentLocation || s.name === producerSite.name
-      ) ||
-      !existingProducerSites.some(
-        s => s.name === producerSite.name && s.address === producerSite.address
-      )
-    );
+    const currentLocation = (bottleData?.locationId || jobNumber || "").trim().toUpperCase();
+    const isSameExistingSite = existingProducerSites.some((s: any) => {
+      const sJob = (s.jobNumber || "").trim().toUpperCase();
+      const sName = (s.name || "").trim().toUpperCase();
+      if (cleanJobNumber && (sJob === cleanJobNumber || sName === cleanJobNumber)) return true;
+      if (currentLocation && (sJob === currentLocation || sName === currentLocation)) return true;
+      if (producerSite.name && sName === producerSite.name.trim().toUpperCase() && (s.address || "").trim() === (producerSite.address || "").trim()) return true;
+      return false;
+    });
+    const isNewSite = hasExistingSites && !isSameExistingSite;
     
     if (isRecovery && isNewSite && !multiSiteAcknowledged) {
       setShowMultiSiteWarning(true);

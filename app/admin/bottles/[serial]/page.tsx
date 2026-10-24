@@ -1898,9 +1898,14 @@ export default function ViewBottlePage() {
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--primary)", fontWeight: 700 }}>
                   {getLocationIcon(bottle.locationType)} {bottle.locationId}
                 </div>
-                {bottle.locationType === "site" && crmJobMap.get(bottle.locationId)?.siteTitle && (
+                {bottle.locationType === "site" && crmJobMap.get(bottle.locationId) && (
                   <div style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.55)", marginTop: "0.15rem", paddingLeft: "1.75rem" }}>
-                    {crmJobMap.get(bottle.locationId)!.siteTitle}
+                    <div>{crmJobMap.get(bottle.locationId)!.siteTitle || crmJobMap.get(bottle.locationId)!.customer}</div>
+                    {crmJobMap.get(bottle.locationId)!.jobTitle && (
+                      <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.4)" }}>
+                        {crmJobMap.get(bottle.locationId)!.jobTitle}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
