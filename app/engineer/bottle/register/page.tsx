@@ -299,7 +299,7 @@ export default function RegisterBottlePage() {
         <CheckCircle2 size={64} color="var(--success)" />
         <h2>Bottle Registered!</h2>
         <p>This bottle is now tracked in {locationType === "van" ? "your van" : (locationType === "office" || locationType === "office_collected") ? "the office/stores" : "the job site"}.</p>
-        <button onClick={() => router.push("/engineer")} className={styles.primaryBtn}>
+        <button onClick={() => router.replace("/engineer")} className={styles.primaryBtn}>
           Return to Dashboard
         </button>
       </div>
@@ -309,7 +309,7 @@ export default function RegisterBottlePage() {
   return (
     <div className={styles.container}>
       <header className={styles.header}>
-        <Link href="/engineer" className={styles.backBtn}>
+        <Link href="/engineer" replace className={styles.backBtn}>
           <ArrowLeft size={20} />
         </Link>
         <div>

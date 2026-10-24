@@ -166,7 +166,7 @@ export default function BulkDeliveryPage() {
   return (
     <div className={styles.container}>
       <header className={styles.header}>
-        <button type="button" onClick={() => router.back()} className={styles.backBtn}>
+        <button type="button" onClick={() => router.replace("/engineer")} className={styles.backBtn}>
           <ArrowLeft size={20} />
         </button>
         <div>

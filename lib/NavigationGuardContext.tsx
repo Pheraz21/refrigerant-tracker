@@ -1,7 +1,7 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { AlertTriangle, Save, X, Trash2 } from "lucide-react";
 
 interface NavigationGuardContextType {
@@ -10,6 +10,7 @@ interface NavigationGuardContextType {
   requestNavigate: (target: string | (() => void)) => boolean;
   customMessage?: string;
   setCustomMessage: (msg: string | undefined) => void;
+  lastHubRoute: string;
 }
 
 const NavigationGuardContext = createContext<NavigationGuardContextType>({
@@ -18,18 +19,44 @@ const NavigationGuardContext = createContext<NavigationGuardContextType>({
   requestNavigate: () => true,
   customMessage: undefined,
   setCustomMessage: () => {},
+  lastHubRoute: "/engineer",
 });
 
 export function useNavigationGuard() {
   return useContext(NavigationGuardContext);
 }
 
+const ENGINEER_HUB_ROUTES = new Set([
+  "/engineer",
+  "/engineer/history",
+  "/engineer/inventory",
+  "/engineer/notifications",
+  "/engineer/profile",
+]);
+
 export function NavigationGuardProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [isDirty, setIsDirty] = useState(false);
   const [customMessage, setCustomMessage] = useState<string | undefined>(undefined);
   const [pendingTarget, setPendingTarget] = useState<string | (() => void) | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [lastHubRoute, setLastHubRoute] = useState<string>("/engineer");
+  const currentHrefRef = useRef<string>("");
+  const isDirtyRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    isDirtyRef.current = isDirty;
+  }, [isDirty]);
+
+  useEffect(() => {
+    if (pathname && ENGINEER_HUB_ROUTES.has(pathname)) {
+      setLastHubRoute(pathname);
+    }
+    if (typeof window !== "undefined") {
+      currentHrefRef.current = window.location.href;
+    }
+  }, [pathname]);
 
   // Request navigation: returns true if permitted immediately, false if blocked by dirty state
   const requestNavigate = useCallback(
@@ -58,17 +85,49 @@ export function NavigationGuardProvider({ children }: { children: React.ReactNod
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isDirty]);
 
-  // Mobile / browser back button (popstate) trap
+  // Disable iOS Safari horizontal edge-swipe back/forward gesture in the engineer app
   useEffect(() => {
-    if (!isDirty) return;
+    if (!pathname?.startsWith("/engineer")) return;
 
-    // Push a dummy state to history so back button triggers popstate
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const touchX = e.touches[0].pageX;
+      const isEdgeSwipeZone = touchX <= 26 || touchX >= window.innerWidth - 26;
+      if (!isEdgeSwipeZone) return;
+
+      const targetEl = e.target as HTMLElement | null;
+      const isInteractive = targetEl?.closest("button, a, input, select, textarea, label, [role='button']");
+      if (!isInteractive) {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener("touchstart", handleTouchStart, { passive: false });
+    return () => window.removeEventListener("touchstart", handleTouchStart);
+  }, [pathname]);
+
+  // Mobile / browser back-swipe (popstate) lock:
+  // Always keep a history guard state active on /engineer routes (and whenever dirty on admin routes)
+  // so phone swipe-back never navigates to a stale or already-completed screen.
+  useEffect(() => {
+    const isEngineerRoute = Boolean(pathname?.startsWith("/engineer"));
+    if (!isEngineerRoute && !isDirty) return;
+
     try {
-      window.history.pushState({ guard: true }, "", window.location.href);
+      currentHrefRef.current = window.location.href;
+      window.history.pushState({ swipeGuard: true }, "", window.location.href);
     } catch (e) {}
 
     const handlePopState = () => {
-      if (isDirty) {
+      const targetHref = currentHrefRef.current || window.location.href;
+      try {
+        window.history.pushState({ swipeGuard: true }, "", targetHref);
+      } catch (e) {}
+
+      // Notify active bottle screens to ensure fresh state if browser attempted history restoration
+      window.dispatchEvent(new CustomEvent("bottle-data-refresh"));
+
+      if (isDirtyRef.current && !isEngineerRoute) {
         setPendingTarget(() => () => {
           setIsDirty(false);
           setShowModal(false);
@@ -82,17 +141,15 @@ export function NavigationGuardProvider({ children }: { children: React.ReactNod
     return () => {
       window.removeEventListener("popstate", handlePopState);
     };
-  }, [isDirty]);
+  }, [pathname, isDirty]);
 
   const handleStayAndSave = () => {
     setShowModal(false);
     setPendingTarget(null);
-    // Re-arm history trap if isDirty
-    if (isDirty) {
-      try {
-        window.history.pushState({ guard: true }, "", window.location.href);
-      } catch (e) {}
-    }
+    // Re-arm history trap
+    try {
+      window.history.pushState({ swipeGuard: true }, "", currentHrefRef.current || window.location.href);
+    } catch (e) {}
     // Dispatch an event to focus / scroll to the submit button on the active form
     window.dispatchEvent(new CustomEvent("focus-save-log-button"));
   };
@@ -106,7 +163,7 @@ export function NavigationGuardProvider({ children }: { children: React.ReactNod
     if (typeof target === "function") {
       target();
     } else if (typeof target === "string") {
-      router.push(target);
+      router.replace(target);
     }
   };
 
@@ -118,6 +175,7 @@ export function NavigationGuardProvider({ children }: { children: React.ReactNod
         requestNavigate,
         customMessage,
         setCustomMessage,
+        lastHubRoute,
       }}
     >
       {children}

@@ -7,6 +7,7 @@ import styles from "./page.module.css";
 import Link from "next/link";
 import { db, Bottle, MovementLog, UsageLog, isBottleTrace, hasReclaimWaste } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
+import { useNavigationGuard } from "@/lib/NavigationGuardContext";
 import { compressImage } from "@/lib/utils";
 import { supabase } from "@/lib/supabaseClient";
 import { getCylinderGenealogy } from "@/lib/genealogy";
@@ -26,6 +27,7 @@ export default function BottleActionHub() {
   const params = useParams();
   const serial = decodeURIComponent(params.serial as string);
   const { user, activeVehicleReg, activeVehicleOwner } = useAuth();
+  const { lastHubRoute } = useNavigationGuard();
   
   const [bottle, setBottle] = useState<Bottle | null>(null);
   const [moveLogs, setMoveLogs] = useState<MovementLog[]>([]);
@@ -141,7 +143,7 @@ export default function BottleActionHub() {
     try {
       const weightUsed = isEmpty ? (bottle.currentWeight || 0) : 1;
       await db.logUsage(serial, "service", weightUsed, false, undefined, undefined, user?.name || "Unknown", bottle.locationId);
-      router.push('/engineer');
+      router.replace('/engineer');
     } catch (err) {
       console.error("Failed to log nitrogen usage:", err);
       setIsSubmittingNitrogen(false);
@@ -149,10 +151,12 @@ export default function BottleActionHub() {
   };
 
   useEffect(() => {
+    let active = true;
     async function loadInitialData() {
       const b = await db.getBottle(serial);
+      if (!active) return;
       if (!b) {
-        router.push(`/engineer/bottle/register?serial=${serial}`);
+        router.replace(`/engineer/bottle/register?serial=${serial}`);
         return;
       }
       setBottle(b);
@@ -160,7 +164,7 @@ export default function BottleActionHub() {
       if (b.category === "recycled") {
         try {
           const m = await db.getMovementLogs(serial);
-          setMoveLogs(m || []);
+          if (active) setMoveLogs(m || []);
         } catch (e) {
           console.warn("Could not load movement logs for genealogy", e);
         }
@@ -168,12 +172,12 @@ export default function BottleActionHub() {
       
       // Load engineers for handover
       const profiles = await db.getEngineerProfiles();
-      setEngineers(profiles.filter(p => p.id !== user?.id));
+      if (active) setEngineers(profiles.filter(p => p.id !== user?.id));
 
       // Load vehicle reg
       if (user?.id) {
         const profile = await db.getEngineerById(user.id);
-        if (profile?.vehicleReg) setVehicleReg(profile.vehicleReg);
+        if (active && profile?.vehicleReg) setVehicleReg(profile.vehicleReg);
       }
 
       // Load associated HWCNs (both in-progress and completed) and usage logs for reclaim cylinders so engineer can view prior and active notes and verify reclaim origin
@@ -183,6 +187,7 @@ export default function BottleActionHub() {
           db.getUsageLogs(serial),
           db.getMovementLogs(serial)
         ]);
+        if (!active) return;
         const sorted = (hwcns || []).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
         setAssociatedHWCNs(sorted);
         setUsageLogs(logs || []);
@@ -225,6 +230,28 @@ export default function BottleActionHub() {
       setLoading(false);
     }
     loadInitialData();
+
+    const handleRefresh = () => {
+      loadInitialData();
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        loadInitialData();
+      }
+    };
+
+    window.addEventListener("pageshow", handleRefresh);
+    window.addEventListener("focus", handleRefresh);
+    window.addEventListener("bottle-data-refresh", handleRefresh);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      active = false;
+      window.removeEventListener("pageshow", handleRefresh);
+      window.removeEventListener("focus", handleRefresh);
+      window.removeEventListener("bottle-data-refresh", handleRefresh);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [serial, router, user]);
 
   const handleTransfer = async (e: React.FormEvent) => {
@@ -241,7 +268,7 @@ export default function BottleActionHub() {
     
     if (requiresHWCN) {
       // Need to redirect to full move flow to handle HWCN generation
-      router.push(`/engineer/move?serial=${bottle.serial}&dest=${destination}`);
+      router.replace(`/engineer/move?serial=${bottle.serial}&dest=${destination}`);
       return;
     }
 
@@ -352,7 +379,7 @@ export default function BottleActionHub() {
   return (
     <div className={styles.container}>
       <header className={styles.header}>
-        <button type="button" onClick={() => router.back()} className={styles.backBtn}>
+        <button type="button" onClick={() => router.replace(lastHubRoute || "/engineer")} className={styles.backBtn}>
           <ArrowLeft size={20} />
         </button>
         <h1>Bottle Actions</h1>
@@ -577,7 +604,7 @@ export default function BottleActionHub() {
                 return;
               }
               setReturnConfirmed(true);
-              setTimeout(() => router.push('/engineer'), 3500);
+              setTimeout(() => router.replace('/engineer'), 3500);
             }}
             style={{width: '100%', background: 'var(--error)', color: '#fff'}}
           >
@@ -680,7 +707,7 @@ export default function BottleActionHub() {
                         return;
                       }
                       setReturnConfirmed(true);
-                      setTimeout(() => router.push('/engineer'), 3500);
+                      setTimeout(() => router.replace('/engineer'), 3500);
                     }}
                   >
                     {loading ? <Loader2 size={18} className={styles.spinner} /> : "Upload & Complete Return"}
@@ -744,7 +771,7 @@ export default function BottleActionHub() {
                       onClick={async () => {
                         setLoading(true);
                         await db.completeTransit(serial, undefined, user?.name);
-                        router.push('/engineer');
+                        router.replace('/engineer');
                       }}
                     >
                       <CheckCircle2 size={18} /> Complete Transfer to HQ-Stores
@@ -761,7 +788,7 @@ export default function BottleActionHub() {
               </>
             )}
             {!showPhotoUpload && (
-              <button className={styles.secondaryBtn} onClick={() => router.push('/engineer')}>
+              <button className={styles.secondaryBtn} onClick={() => router.replace('/engineer')}>
                 Not Yet
               </button>
             )}
@@ -794,7 +821,7 @@ export default function BottleActionHub() {
                   onClick={async () => {
                     setSigningOut(true);
                     await db.signOutFromStores(serial, user?.name || 'Engineer', user?.id);
-                    router.push('/engineer');
+                    router.replace('/engineer');
                   }}
                 >
                   {signingOut
@@ -841,7 +868,7 @@ export default function BottleActionHub() {
                         </button>
                       </Link>
                     )}
-                    <button onClick={() => router.push('/engineer')} className={styles.secondaryBtn}>Done</button>
+                    <button onClick={() => router.replace('/engineer')} className={styles.secondaryBtn}>Done</button>
                   </div>
                 </div>
               ) : bottle.locationType === 'van' ? (

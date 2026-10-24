@@ -160,12 +160,10 @@ export default function HWCNViewPage() {
           <button
             type="button"
             onClick={() => {
-              if (typeof window !== "undefined" && window.history.length > 1) {
-                router.back();
-              } else if (hwcn?.serial) {
-                router.push(`/engineer/bottle/${encodeURIComponent(hwcn.serial)}`);
+              if (hwcn?.serial) {
+                router.replace(`/engineer/bottle/${encodeURIComponent(hwcn.serial)}`);
               } else {
-                router.push("/engineer");
+                router.replace("/engineer");
               }
             }}
             style={{ background: "transparent", border: "none", color: "#00e5ff", display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer", fontSize: "0.9rem", padding: 0, fontWeight: 600 }}

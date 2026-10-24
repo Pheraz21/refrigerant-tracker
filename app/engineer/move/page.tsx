@@ -505,7 +505,7 @@ export default function MoveBottlePage() {
       setIsSubmitting(false);
       setIsSuccess(true);
     } else {
-      router.push("/engineer");
+      router.replace("/engineer");
     }
   };
 
@@ -528,12 +528,12 @@ export default function MoveBottlePage() {
                 View / Download Digital HWCN
               </button>
             </Link>
-            <button onClick={() => router.push("/engineer")} className={styles.primaryBtn} style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', border: '1px solid var(--border)', marginTop: '0' }}>
+            <button onClick={() => router.replace("/engineer")} className={styles.primaryBtn} style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-main)', border: '1px solid var(--border)', marginTop: '0' }}>
               Return to Dashboard
             </button>
           </div>
         ) : (
-          <button onClick={() => router.push("/engineer")} className={styles.primaryBtn}>
+          <button onClick={() => router.replace("/engineer")} className={styles.primaryBtn}>
             Return to Dashboard
           </button>
         )}
@@ -560,7 +560,7 @@ export default function MoveBottlePage() {
             } else if (reclaimFlowStep === "divert_destination" || reclaimFlowStep === "divert_supplier_branch") {
               setReclaimFlowStep("in_transit");
             } else {
-              requestNavigate(() => router.push(`/engineer/bottle/${encodeURIComponent(serialParam)}`));
+              { const dest = `/engineer/bottle/${encodeURIComponent(serialParam)}`; if (requestNavigate(dest)) router.replace(dest); };
             }
           }}
           className={styles.backBtn}
@@ -747,7 +747,7 @@ export default function MoveBottlePage() {
                         activeVehicleReg || user?.vehicleReg,
                         user?.name
                       );
-                      router.push("/engineer");
+                      router.replace("/engineer");
                     }}
                   >
                     <Truck size={18} /> Loaded — Continue Transit to {bottle?.intendedDestination}
@@ -761,7 +761,7 @@ export default function MoveBottlePage() {
                     hasSubmittedRef.current = true;
                     setIsDirty(false);
                     await db.completeTransit(serialParam, undefined, user?.name);
-                    router.push("/engineer");
+                    router.replace("/engineer");
                   }}
                 >
                   <CheckCircle2 size={18} /> Complete Transfer to HQ-Stores
@@ -880,7 +880,7 @@ export default function MoveBottlePage() {
                 );
                 hasSubmittedRef.current = true;
                 setIsDirty(false);
-                router.push("/engineer");
+                router.replace("/engineer");
               }}
               style={{flex: 1}}
             >
@@ -1058,7 +1058,7 @@ export default function MoveBottlePage() {
                 await db.completeTransit(serialParam, photoUrl, user?.name, finalLocId);
                 hasSubmittedRef.current = true;
                 setIsDirty(false);
-                router.push("/engineer");
+                router.replace("/engineer");
               }}
               style={{flex: 1, opacity: (!supplierPhoto || isSubmitting) ? 0.5 : 1}}
             >
@@ -1099,7 +1099,7 @@ export default function MoveBottlePage() {
                   type="button"
                   className={styles.primaryBtn}
                   style={{ background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', marginTop: '0.25rem' }}
-                  onClick={() => requestNavigate(() => router.push(`/engineer/bottle/${encodeURIComponent(serialParam)}`))}
+                  onClick={() => { const dest = `/engineer/bottle/${encodeURIComponent(serialParam)}`; if (requestNavigate(dest)) router.replace(dest); }}
                 >
                   <ArrowLeft size={18} /> Back
                 </button>
@@ -1130,7 +1130,7 @@ export default function MoveBottlePage() {
                   type="button"
                   className={styles.primaryBtn}
                   style={{ background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
-                  onClick={() => requestNavigate(() => router.push(`/engineer/bottle/${encodeURIComponent(serialParam)}`))}
+                  onClick={() => { const dest = `/engineer/bottle/${encodeURIComponent(serialParam)}`; if (requestNavigate(dest)) router.replace(dest); }}
                 >
                   <ArrowLeft size={18} /> Back
                 </button>
@@ -1663,7 +1663,7 @@ export default function MoveBottlePage() {
                   setReclaimFlowPath("normal");
                   setIntendedDest("");
                 } else {
-                  requestNavigate(() => router.push(`/engineer/bottle/${encodeURIComponent(serialParam)}`));
+                  { const dest = `/engineer/bottle/${encodeURIComponent(serialParam)}`; if (requestNavigate(dest)) router.replace(dest); };
                 }
               }}
             >
