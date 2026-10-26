@@ -451,7 +451,6 @@ async function reconcileEmptyWasteBottles(bottles: Bottle[]): Promise<void> {
   const candidateWaste = bottles.filter(b => 
     b.serial === '1N384503' ||
     (b.category === 'reclaim' && (
-      b.serial === '1N051418' ||
       !b.gasType ||
       b.gasType.toLowerCase().includes('mixed/recovery') ||
       b.gasType.toLowerCase().includes('mixed / recovery') ||
@@ -579,7 +578,6 @@ export const db = {
     // Auto-reconcile reclaim bottle gas type
     if (bottle.category === 'reclaim') {
       const isCandidate =
-        bottle.serial === '1N051418' ||
         !bottle.gasType ||
         bottle.gasType.toLowerCase().includes('mixed/recovery') ||
         bottle.gasType.toLowerCase().includes('mixed / recovery') ||
