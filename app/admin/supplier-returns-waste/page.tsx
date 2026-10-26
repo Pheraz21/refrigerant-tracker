@@ -2,42 +2,94 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { db, Bottle } from "@/lib/db";
+import { db, Bottle, isBottleTrace, hasReclaimWaste } from "@/lib/db";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/lib/AuthContext";
-import { Truck, Search, Plus, Trash2, Camera, AlertCircle, CheckCircle2, Loader2, ArrowLeft, X, Lock, Calendar } from "lucide-react";
+import {
+  Truck,
+  Search,
+  Trash2,
+  Camera,
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
+  ArrowLeft,
+  X,
+  Lock,
+  ArrowUp,
+  ArrowDown,
+  PackageCheck,
+} from "lucide-react";
 import Link from "next/link";
 import HwcnLightboxModal from "@/components/HwcnLightboxModal";
 import { compressImage } from "@/lib/utils";
 import { useNavigationGuard } from "@/lib/NavigationGuardContext";
 
+function fmtDate(iso: string | undefined | null) {
+  if (!iso) return null;
+  return new Date(iso).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatCategoryLabel(category?: string) {
+  if (category === "nitrogen") return "Nitrogen";
+  if (category === "new") return "New Refrigerant";
+  if (category === "recycled") return "Recycled";
+  if (category === "reclaim") return "Waste / Reclaim";
+  return category || "Unknown";
+}
+
+function formatLocationLabel(b: Bottle) {
+  if (b.locationType === "site") return `On Site (${b.locationId || "Site"})`;
+  if (b.locationType === "van") return `In Van (${b.locationId || "Van"})`;
+  if (b.locationType === "supplier") return `Returned to Supplier (${b.locationId || "Supplier"})`;
+  if (b.locationType === "office") return "In Stores (HQ-Stores)";
+  return b.locationId || b.locationType || "Unknown";
+}
+
 export default function SupplierReturnPage() {
   const { user } = useAuth();
   const router = useRouter();
   const { setIsDirty, setCustomMessage, requestNavigate } = useNavigationGuard();
+
+  // Stores waste bottles (locationType === "office" && category === "reclaim" && status !== "returned")
+  const [storesWasteBottles, setStoresWasteBottles] = useState<Bottle[]>([]);
+  // Full inventory for helpful diagnostic messages if a user searches/scans a non-eligible serial
+  const [allBottles, setAllBottles] = useState<Bottle[]>([]);
+  const [loadingBottles, setLoadingBottles] = useState(true);
+
+  // Selection & filter state (matching /admin/stores-collection)
+  const [selectedBottles, setSelectedBottles] = useState<Bottle[]>([]);
+  const [weights, setWeights] = useState<Record<string, number>>({});
+  const [filter, setFilter] = useState("");
+  const [supplierFilter, setSupplierFilter] = useState("");
+  const [sortKey, setSortKey] = useState<"date" | "weight" | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  // Collection & HWCN details
   const [hwcnNumber, setHwcnNumber] = useState("");
   const [returnSupplier, setReturnSupplier] = useState("");
   const [returnSupplierBranch, setReturnSupplierBranch] = useState("");
   const [supplierLock, setSupplierLock] = useState("");
   const [returnDate, setReturnDate] = useState(() => new Date().toISOString().split("T")[0]);
-  const [inputSerial, setInputSerial] = useState("");
-  const [selectedBottles, setSelectedBottles] = useState<Bottle[]>([]);
-  const [weights, setWeights] = useState<Record<string, number>>({});
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
-
-  // Active database bottles for autocomplete & on-entry check
-  const [activeBottles, setActiveBottles] = useState<Bottle[]>([]);
-  const [allBottles, setAllBottles] = useState<Bottle[]>([]);
-  const [matchedBottleInfo, setMatchedBottleInfo] = useState<Bottle | null>(null);
-  const [matchedBottleError, setMatchedBottleError] = useState<string>("");
 
   // Multi-image state & lightbox
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
+
+  const selectedSerialSet = useMemo(
+    () => new Set(selectedBottles.map(b => b.serial)),
+    [selectedBottles]
+  );
 
   const isFormDirty = useMemo(() => {
     if (isSuccess || loading) return false;
@@ -46,8 +98,7 @@ export default function SupplierReturnPage() {
       photoFiles.length > 0 ||
       photoPreviewUrls.length > 0 ||
       hwcnNumber.trim().length > 0 ||
-      returnSupplierBranch.trim().length > 0 ||
-      inputSerial.trim().length > 0
+      returnSupplierBranch.trim().length > 0
     );
   }, [
     selectedBottles.length,
@@ -55,7 +106,6 @@ export default function SupplierReturnPage() {
     photoPreviewUrls.length,
     hwcnNumber,
     returnSupplierBranch,
-    inputSerial,
     isSuccess,
     loading,
   ]);
@@ -65,10 +115,10 @@ export default function SupplierReturnPage() {
     if (isFormDirty) {
       const bottleDesc =
         selectedBottles.length > 0
-          ? ` (${selectedBottles.length} cylinder${selectedBottles.length !== 1 ? "s" : ""} scanned)`
+          ? ` (${selectedBottles.length} cylinder${selectedBottles.length !== 1 ? "s" : ""} selected)`
           : "";
       setCustomMessage(
-        `You have an active Supplier Return in progress${bottleDesc}. If you leave now, the scanned cylinder batch and attached paperwork will be lost.`
+        `You have an active Supplier Waste Return in progress${bottleDesc}. If you leave now, the selected cylinder batch and attached paperwork will be lost.`
       );
     } else {
       setCustomMessage(undefined);
@@ -84,24 +134,264 @@ export default function SupplierReturnPage() {
   useEffect(() => {
     async function loadBottles() {
       try {
-        const bottles = await db.getAllBottles();
-        setAllBottles(bottles);
-        const active = bottles.filter(b => b.status !== "returned");
-        setActiveBottles(active);
+        setLoadingBottles(true);
+        const [officeBottles, all] = await Promise.all([
+          db.getBottlesByLocation("office"),
+          db.getAllBottles(),
+        ]);
+        setAllBottles(all);
+        // Strictly allow ONLY waste/reclaim bottles with hazardous waste (> 0 kg or Trace) currently in Stores (office) and not returned
+        const eligibleWasteInStores = officeBottles.filter(
+          b =>
+            b.category === "reclaim" &&
+            hasReclaimWaste(b) &&
+            b.locationType === "office" &&
+            b.status !== "returned"
+        );
+        setStoresWasteBottles(eligibleWasteInStores);
       } catch (err) {
-        console.error("Failed to load bottles for return page validation", err);
+        console.error("Failed to load stores waste bottles", err);
+      } finally {
+        setLoadingBottles(false);
       }
     }
     loadBottles();
   }, []);
 
-  const currentSupplierFilter = supplierLock || returnSupplier.trim();
+  const supplierOptions = useMemo(() => {
+    const seen = new Set<string>();
+    storesWasteBottles.forEach(b => {
+      if (b.supplier) seen.add(b.supplier);
+    });
+    return Array.from(seen).sort();
+  }, [storesWasteBottles]);
 
-  const selectableActiveBottles = activeBottles.filter(b => {
-    if (!currentSupplierFilter) return true;
-    if (!b.supplier) return false;
-    return b.supplier.toLowerCase().trim() === currentSupplierFilter.toLowerCase().trim();
-  });
+  const toggleSort = (key: "date" | "weight") => {
+    if (sortKey === key) {
+      setSortDir(d => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
+  const SortIcon = ({ k }: { k: "date" | "weight" }) => {
+    if (sortKey !== k) return null;
+    return sortDir === "asc" ? (
+      <ArrowUp size={12} style={{ display: "inline", marginLeft: "3px" }} />
+    ) : (
+      <ArrowDown size={12} style={{ display: "inline", marginLeft: "3px" }} />
+    );
+  };
+
+  const filtered = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    let list = storesWasteBottles.filter(
+      b =>
+        (q === "" ||
+          b.serial.toLowerCase().includes(q) ||
+          (b.gasType || "").toLowerCase().includes(q) ||
+          (b.supplier || "").toLowerCase().includes(q)) &&
+        (supplierFilter === "" || (b.supplier || "") === supplierFilter)
+    );
+    if (sortKey === "date") {
+      list = [...list].sort((a, bb) => {
+        const da = new Date(a.locationChangedAt || 0).getTime();
+        const db2 = new Date(bb.locationChangedAt || 0).getTime();
+        return sortDir === "asc" ? da - db2 : db2 - da;
+      });
+    } else if (sortKey === "weight") {
+      list = [...list].sort((a, bb) =>
+        sortDir === "asc"
+          ? (a.currentWeight || 0) - (bb.currentWeight || 0)
+          : (bb.currentWeight || 0) - (a.currentWeight || 0)
+      );
+    }
+    return list;
+  }, [storesWasteBottles, filter, supplierFilter, sortKey, sortDir]);
+
+  // If the user types/scans a serial in the filter box that is NOT an eligible waste bottle in stores,
+  // check allBottles so we can explain why that serial cannot be selected here.
+  const ineligibleSerialNotice = useMemo(() => {
+    const trimmed = filter.trim().toUpperCase();
+    if (!trimmed) return null;
+
+    // If it matches an eligible waste bottle in stores, no error notice needed
+    if (storesWasteBottles.some(b => b.serial.toUpperCase() === trimmed)) {
+      return null;
+    }
+
+    const matchInCompany = allBottles.find(b => b.serial.toUpperCase() === trimmed);
+    if (!matchInCompany) {
+      // Only show "not found" if there are zero partial matches in storesWasteBottles
+      if (filtered.length === 0 && trimmed.length >= 3) {
+        return `Cylinder "${trimmed}" was not found in Stores waste inventory.`;
+      }
+      return null;
+    }
+
+    if (matchInCompany.status === "returned") {
+      return `Cylinder ${matchInCompany.serial} cannot be selected: it has already been returned to a supplier.`;
+    }
+
+    const isNotWaste = matchInCompany.category !== "reclaim";
+    const isNotInStores = matchInCompany.locationType !== "office";
+
+    if (isNotWaste && isNotInStores) {
+      return `Cylinder ${matchInCompany.serial} cannot be returned here for 2 reasons: it is a ${formatCategoryLabel(
+        matchInCompany.category
+      )} bottle (not a Waste / Reclaim bottle) and it is currently ${formatLocationLabel(
+        matchInCompany
+      )} (not in Stores).`;
+    }
+
+    if (isNotWaste) {
+      return `Cylinder ${matchInCompany.serial} cannot be returned on this page: it is a ${formatCategoryLabel(
+        matchInCompany.category
+      )} bottle, not a Waste / Reclaim bottle. Use "Supplier Collection from Stores" for non-waste bottles.`;
+    }
+
+    if (isNotInStores) {
+      return `Cylinder ${matchInCompany.serial} cannot be returned yet: although it is a Waste / Reclaim bottle, it is currently ${formatLocationLabel(
+        matchInCompany
+      )}. Only waste bottles currently in Stores can be collected here.`;
+    }
+
+    if (matchInCompany.category === "reclaim" && !hasReclaimWaste(matchInCompany)) {
+      return `Cylinder ${matchInCompany.serial} is an Unused / Empty Evacuated reclaim cylinder containing no hazardous waste (0.00 kg). No HWCN is required — please use "Supplier Collection from Stores" instead.`;
+    }
+
+    return null;
+  }, [filter, storesWasteBottles, allBottles, filtered.length]);
+
+  const toggleSelect = (bottle: Bottle) => {
+    setError("");
+
+    // Guard: ensure bottle is a reclaim bottle with waste in office/stores
+    if (
+      bottle.category !== "reclaim" ||
+      !hasReclaimWaste(bottle) ||
+      bottle.locationType !== "office"
+    ) {
+      setError(
+        `Cylinder ${bottle.serial} is not eligible: only Waste / Reclaim bottles containing hazardous waste (> 0 kg or Trace) currently in Stores can be selected.`
+      );
+      return;
+    }
+
+    const isAlreadySelected = selectedSerialSet.has(bottle.serial);
+    if (isAlreadySelected) {
+      const remaining = selectedBottles.filter(b => b.serial !== bottle.serial);
+      setSelectedBottles(remaining);
+      setWeights(prev => {
+        const next = { ...prev };
+        delete next[bottle.serial];
+        return next;
+      });
+      if (remaining.length === 0) {
+        setSupplierLock("");
+        setReturnSupplier("");
+      }
+    } else {
+      const bottleSupplier = bottle.supplier || "";
+      const expectedSupplier = supplierLock || returnSupplier.trim();
+      if (selectedBottles.length === 0) {
+        if (bottleSupplier) {
+          setReturnSupplier(bottleSupplier);
+          setSupplierLock(bottleSupplier);
+        }
+      } else if (
+        expectedSupplier &&
+        bottleSupplier &&
+        bottleSupplier.toLowerCase().trim() !== expectedSupplier.toLowerCase().trim()
+      ) {
+        setError(
+          `Supplier mismatch: ${bottle.serial} belongs to "${bottleSupplier}" but this return note is locked to "${expectedSupplier}". All bottles on one return note must be for the same supplier.`
+        );
+        return;
+      }
+
+      setSelectedBottles(prev => [...prev, bottle]);
+      setWeights(prev => ({ ...prev, [bottle.serial]: bottle.currentWeight ?? 0 }));
+    }
+  };
+
+  const toggleAll = () => {
+    setError("");
+    const allFilteredSelected =
+      filtered.length > 0 && filtered.every(b => selectedSerialSet.has(b.serial));
+
+    if (allFilteredSelected) {
+      const filteredSerials = new Set(filtered.map(b => b.serial));
+      const remaining = selectedBottles.filter(b => !filteredSerials.has(b.serial));
+      setSelectedBottles(remaining);
+      setWeights(prev => {
+        const next = { ...prev };
+        filtered.forEach(b => delete next[b.serial]);
+        return next;
+      });
+      if (remaining.length === 0) {
+        setSupplierLock("");
+        setReturnSupplier("");
+      }
+    } else {
+      const targetSupplier =
+        supplierLock ||
+        returnSupplier.trim() ||
+        filtered.find(b => b.supplier)?.supplier ||
+        "";
+
+      const compatible = filtered.filter(b => {
+        if (!targetSupplier || !b.supplier) return true;
+        return b.supplier.toLowerCase().trim() === targetSupplier.toLowerCase().trim();
+      });
+
+      if (compatible.length < filtered.length) {
+        setError(
+          `Selected ${compatible.length} bottle(s) matching supplier "${targetSupplier}". Bottles from other suppliers were skipped.`
+        );
+      }
+
+      if (targetSupplier && !supplierLock) {
+        setReturnSupplier(targetSupplier);
+        setSupplierLock(targetSupplier);
+      }
+
+      const existingMap = new Map(selectedBottles.map(b => [b.serial, b]));
+      compatible.forEach(b => existingMap.set(b.serial, b));
+      const nextBottles = Array.from(existingMap.values());
+      setSelectedBottles(nextBottles);
+
+      setWeights(prev => {
+        const next = { ...prev };
+        compatible.forEach(b => {
+          if (next[b.serial] === undefined) {
+            next[b.serial] = b.currentWeight ?? 0;
+          }
+        });
+        return next;
+      });
+    }
+  };
+
+  const removeBottle = (serial: string) => {
+    const remaining = selectedBottles.filter(b => b.serial !== serial);
+    setSelectedBottles(remaining);
+    setWeights(prev => {
+      const next = { ...prev };
+      delete next[serial];
+      return next;
+    });
+    if (remaining.length === 0) {
+      setSupplierLock("");
+      setReturnSupplier("");
+    }
+  };
+
+  const handleWeightChange = (serial: string, val: string) => {
+    const num = parseFloat(val);
+    setWeights(prev => ({ ...prev, [serial]: isNaN(num) ? 0 : num }));
+  };
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -116,116 +406,14 @@ export default function SupplierReturnPage() {
     setPhotoPreviewUrls(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSerialInputChange = (val: string) => {
-    const cleanVal = val.toUpperCase();
-    setInputSerial(cleanVal);
-    setError("");
-
-    const trimmed = cleanVal.trim();
-    if (!trimmed) {
-      setMatchedBottleInfo(null);
-      setMatchedBottleError("");
-      return;
-    }
-
-    const activeMatch = activeBottles.find(b => b.serial.toUpperCase() === trimmed);
-    if (activeMatch) {
-      const activeSupplier = activeMatch.supplier || "";
-      if (currentSupplierFilter && activeSupplier && activeSupplier.toLowerCase().trim() !== currentSupplierFilter.toLowerCase().trim()) {
-        setMatchedBottleInfo(null);
-        setMatchedBottleError(`Supplier mismatch: Cylinder ${trimmed} belongs to "${activeSupplier}" but return note is locked to "${currentSupplierFilter}".`);
-      } else {
-        setMatchedBottleInfo(activeMatch);
-        setMatchedBottleError("");
-        if (!returnSupplier && activeSupplier) {
-          setReturnSupplier(activeSupplier);
-        }
-      }
-    } else {
-      setMatchedBottleInfo(null);
-      const returnedMatch = allBottles.find(b => b.serial.toUpperCase() === trimmed);
-      if (returnedMatch && returnedMatch.status === "returned") {
-        setMatchedBottleError(`Cylinder ${trimmed} has already been returned to a supplier.`);
-      } else {
-        setMatchedBottleError(`Cylinder ${trimmed} not found in company active inventory.`);
-      }
-    }
-  };
-
-  const handleAddBottle = async () => {
-    const serialToUse = inputSerial.trim().toUpperCase();
-    if (!serialToUse) return;
-    
-    // Check if already added
-    if (selectedBottles.find(b => b.serial === serialToUse)) {
-      setError("Bottle already in list");
-      return;
-    }
-
-    try {
-      let bottle = activeBottles.find(b => b.serial.toUpperCase() === serialToUse);
-      if (!bottle) {
-        const fetched = await db.getBottle(serialToUse);
-        if (!fetched) {
-          setError(`Bottle "${serialToUse}" is not in the company database. Only current company bottles can be returned.`);
-          return;
-        }
-        if (fetched.status === "returned") {
-          setError(`Bottle "${serialToUse}" has already been returned to a supplier.`);
-          return;
-        }
-        bottle = fetched;
-      }
-
-      const bottleSupplier = bottle.supplier || "";
-
-      if (selectedBottles.length === 0) {
-        // First bottle — auto-populate supplier from bottle data
-        if (bottleSupplier) {
-          setReturnSupplier(bottleSupplier);
-          setSupplierLock(bottleSupplier);
-        }
-      } else {
-        // Subsequent bottles — enforce same supplier
-        const expected = supplierLock || returnSupplier;
-        if (bottleSupplier && expected && bottleSupplier.toLowerCase().trim() !== expected.toLowerCase().trim()) {
-          setError(
-            `Supplier mismatch: ${bottle.serial} belongs to "${bottleSupplier}" but you are returning to "${expected}". All bottles on one return note must be from the same supplier.`
-          );
-          return;
-        }
-      }
-
-      setSelectedBottles(prev => [...prev, bottle!]);
-      setWeights(prev => ({ ...prev, [bottle!.serial]: bottle!.currentWeight }));
-      setInputSerial("");
-      setMatchedBottleInfo(null);
-      setMatchedBottleError("");
-      setError("");
-    } catch (err) {
-      setError("Error finding bottle in database");
-    }
-  };
-
-  const removeBottle = (serial: string) => {
-    const remaining = selectedBottles.filter(b => b.serial !== serial);
-    setSelectedBottles(remaining);
-    const newWeights = { ...weights };
-    delete newWeights[serial];
-    setWeights(newWeights);
-    if (remaining.length === 0) {
-      setSupplierLock("");
-      setReturnSupplier("");
-    }
-  };
-
-  const handleWeightChange = (serial: string, val: string) => {
-    const num = parseFloat(val);
-    setWeights({ ...weights, [serial]: isNaN(num) ? 0 : num });
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
+
+    if (selectedBottles.length === 0) {
+      setError("Please select at least one waste bottle from Stores inventory");
+      return;
+    }
     if (!returnSupplier.trim()) {
       setError("Please enter the supplier name");
       return;
@@ -234,12 +422,19 @@ export default function SupplierReturnPage() {
       setError("Please enter the supplier branch");
       return;
     }
-    if (!hwcnNumber) {
+    if (!hwcnNumber.trim()) {
       setError("Please enter the Supplier's HWCN number");
       return;
     }
-    if (selectedBottles.length === 0) {
-      setError("Please add at least one bottle to the return list by clicking '+ Add Cylinder'");
+
+    // Final safety check on all selected bottles
+    const invalidBottle = selectedBottles.find(
+      b => b.category !== "reclaim" || !hasReclaimWaste(b) || b.locationType !== "office"
+    );
+    if (invalidBottle) {
+      setError(
+        `Cylinder ${invalidBottle.serial} is not a waste bottle currently in Stores and cannot be returned here.`
+      );
       return;
     }
 
@@ -249,15 +444,17 @@ export default function SupplierReturnPage() {
       for (let i = 0; i < photoFiles.length; i++) {
         const file = photoFiles[i];
         const ext = file.name.split(".").pop() || "jpg";
-        const path = `supplier-returns/${hwcnNumber}-${Date.now()}-${i + 1}.${ext}`;
+        const path = `supplier-returns/${hwcnNumber.trim()}-${Date.now()}-${i + 1}.${ext}`;
         try {
           const { error: uploadError } = await supabase.storage
             .from("hwcn-photos")
             .upload(path, file, { upsert: true });
           if (uploadError) {
             console.error(`Photo ${i + 1} storage upload warning:`, uploadError);
-            if (uploadError.message?.toLowerCase().includes("row-level security") || uploadError.message?.toLowerCase().includes("row security")) {
-              console.warn("Storage RLS bypass warning — falling back to persistent compressed data URL");
+            if (
+              uploadError.message?.toLowerCase().includes("row-level security") ||
+              uploadError.message?.toLowerCase().includes("row security")
+            ) {
               const fallbackDataUrl = await compressImage(file);
               uploadedUrls.push(fallbackDataUrl);
             } else {
@@ -268,8 +465,10 @@ export default function SupplierReturnPage() {
             uploadedUrls.push(urlData.publicUrl);
           }
         } catch (stErr: any) {
-          if (stErr.message?.toLowerCase().includes("row-level security") || stErr.message?.toLowerCase().includes("row security")) {
-            console.warn("Storage RLS warning caught in submit — falling back to persistent compressed data URL");
+          if (
+            stErr.message?.toLowerCase().includes("row-level security") ||
+            stErr.message?.toLowerCase().includes("row security")
+          ) {
             const fallbackDataUrl = await compressImage(file);
             uploadedUrls.push(fallbackDataUrl);
           } else {
@@ -280,22 +479,27 @@ export default function SupplierReturnPage() {
 
       await db.returnBottleToSupplier({
         serials: selectedBottles.map(b => b.serial),
-        returnHwcnNumber: hwcnNumber,
+        returnHwcnNumber: hwcnNumber.trim(),
         returnedBy: user?.name || "Office Admin",
         weights: weights,
         hwcnPhotoUrl: uploadedUrls[0] || "",
         hwcnPhotoUrls: uploadedUrls,
         returnSupplier: returnSupplier.trim(),
         returnSupplierBranch: returnSupplierBranch.trim(),
-        returnedAt: returnDate ? new Date(returnDate).toISOString() : new Date().toISOString()
+        returnedAt: returnDate ? new Date(returnDate).toISOString() : new Date().toISOString(),
       });
       setIsDirty(false);
       setIsSuccess(true);
-      setTimeout(() => router.push("/admin"), 3000);
+      setTimeout(() => router.push("/admin/stores"), 3000);
     } catch (err: any) {
       console.error("Error submitting supplier return:", err);
-      if (err?.message?.toLowerCase().includes("row-level security") || err?.message?.toLowerCase().includes("row security")) {
-        setError("Database security policy (RLS) prevented updating bottle record. Please check Supabase RLS policies for the bottles table.");
+      if (
+        err?.message?.toLowerCase().includes("row-level security") ||
+        err?.message?.toLowerCase().includes("row security")
+      ) {
+        setError(
+          "Database security policy (RLS) prevented updating bottle record. Please check Supabase RLS policies for the bottles table."
+        );
       } else {
         setError(err?.message || "Failed to process return. Please try again.");
       }
@@ -306,18 +510,26 @@ export default function SupplierReturnPage() {
 
   if (isSuccess) {
     return (
-      <div style={{ minHeight: "100vh", background: "#0a0e17", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: "2rem" }}>
-        <div style={{ textAlign: "center", maxWidth: "450px", background: "rgba(17,24,39,0.8)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: "16px", padding: "3rem 2rem" }}>
-          <CheckCircle2 size={54} color="#22c55e" style={{ marginBottom: "1rem" }} />
-          <h2 style={{ fontSize: "1.5rem", fontWeight: 800, marginBottom: "0.5rem" }}>Return Completed</h2>
-          <p style={{ fontSize: "0.9rem", color: "rgba(255,255,255,0.7)", lineHeight: 1.5, marginBottom: "1.5rem" }}>
-            {selectedBottles.length} bottle{selectedBottles.length !== 1 ? "s" : ""} recorded under HWCN <strong>{hwcnNumber}</strong> to <strong>{returnSupplier} ({returnSupplierBranch})</strong> on {returnDate}.
-          </p>
-          <div style={{ fontSize: "0.8rem", color: "#00e5ff" }}>Redirecting to Admin Portal...</div>
-        </div>
+      <div style={{ padding: "4rem 2rem", textAlign: "center" }}>
+        <CheckCircle2 size={64} color="#22c55e" style={{ margin: "0 auto 1.5rem" }} />
+        <h1 className="text-gradient" style={{ fontSize: "2rem", marginBottom: "1rem" }}>
+          Waste Return Completed
+        </h1>
+        <p style={{ color: "var(--text-muted)", marginBottom: "2rem" }}>
+          {selectedBottles.length} waste {selectedBottles.length === 1 ? "bottle has" : "bottles have"} been recorded under HWCN{" "}
+          <strong>{hwcnNumber}</strong> to <strong>{returnSupplier} ({returnSupplierBranch})</strong> on {returnDate}.
+          <br />
+          They have been removed from active stores inventory.
+        </p>
+        <p style={{ fontSize: "0.9rem", color: "rgba(255,255,255,0.4)" }}>
+          Redirecting to Stores Inventory...
+        </p>
       </div>
     );
   }
+
+  const allFilteredSelected =
+    filtered.length > 0 && filtered.every(b => selectedSerialSet.has(b.serial));
 
   return (
     <>
@@ -327,127 +539,502 @@ export default function SupplierReturnPage() {
         photoUrl={photoPreviewUrls}
         title={`Uploaded HWCN Paperwork Preview (${photoPreviewUrls.length} Pages)`}
       />
-      <div style={{ minHeight: "100vh", background: "#0a0e17", color: "#e2e8f0", padding: "2rem 1.5rem" }}>
-      <div style={{ maxWidth: "1000px", margin: "0 auto 1.5rem auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <button
-          type="button"
-          onClick={() => {
-            const navigateBack = () => {
-              if (typeof window !== "undefined" && window.history.length > 1) {
-                router.back();
-              } else {
-                router.push("/admin");
+
+      <div style={{ maxWidth: "1080px" }}>
+        <div style={{ marginBottom: "2rem" }}>
+          <button
+            type="button"
+            onClick={() => {
+              const navigateBack = () => {
+                if (typeof window !== "undefined" && window.history.length > 1) {
+                  router.back();
+                } else {
+                  router.push("/admin");
+                }
+              };
+              if (requestNavigate(navigateBack)) {
+                navigateBack();
               }
-            };
-            if (requestNavigate(navigateBack)) {
-              navigateBack();
-            }
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              color: "var(--text-muted)",
+              fontSize: "0.9rem",
+              marginBottom: "1rem",
+              cursor: "pointer",
+            }}
+            title="Go back"
+          >
+            <ArrowLeft size={16} /> Back
+          </button>
+
+          <h1
+            style={{
+              fontSize: "1.8rem",
+              fontWeight: 700,
+              marginBottom: "0.25rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+            }}
+          >
+            <Truck size={28} color="var(--primary)" /> Waste Return from Office to Supplier
+          </h1>
+          <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>
+            Select waste / reclaim cylinders currently held in HQ Stores to record supplier waste collection
+          </p>
+        </div>
+
+        <form
+          onSubmit={handleSubmit}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 390px",
+            gap: "2rem",
+            alignItems: "start",
           }}
-          style={{ background: "none", border: "none", padding: 0, display: "inline-flex", alignItems: "center", gap: "0.5rem", color: "#94a3b8", cursor: "pointer", fontSize: "0.9rem", fontWeight: 600 }}
-          title="Go back"
         >
-          <ArrowLeft size={16} /> Back
-        </button>
-      </div>
+          {/* Left Column: Waste Bottles in Stores list + Selected Weights table */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+            <div className="glass-panel" style={{ padding: "1.5rem" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: "1.25rem",
+                }}
+              >
+                <h3 style={{ fontSize: "1.1rem", fontWeight: 700, margin: 0 }}>
+                  Waste Cylinders in Stores
+                  {selectedBottles.length > 0 && (
+                    <span
+                      style={{
+                        marginLeft: "0.75rem",
+                        fontSize: "0.85rem",
+                        color: "var(--primary)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {selectedBottles.length} selected
+                    </span>
+                  )}
+                </h3>
+                {filtered.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={toggleAll}
+                    style={{
+                      fontSize: "0.8rem",
+                      color: "rgba(255,255,255,0.5)",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      textDecoration: "underline",
+                    }}
+                  >
+                    {allFilteredSelected ? "Deselect all" : "Select all"}
+                  </button>
+                )}
+              </div>
 
-      <form onSubmit={handleSubmit} style={{ maxWidth: "1000px", margin: "0 auto" }}>
-        <div style={{ background: "rgba(17,24,39,0.8)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "16px", padding: "2rem", marginBottom: "2rem" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "1.5rem", borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: "1rem" }}>
-            <div style={{ width: "42px", height: "42px", borderRadius: "10px", background: "rgba(0,229,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#00e5ff" }}>
-              <Truck size={22} />
-            </div>
-            <div>
-              <h1 style={{ fontSize: "1.35rem", fontWeight: 800, margin: 0, color: "#fff" }}>Supplier Returns & Waste Collection</h1>
-              <p style={{ fontSize: "0.82rem", color: "rgba(255,255,255,0.5)", margin: 0 }}>Record cylinders returned or collected by gas suppliers</p>
-            </div>
-          </div>
+              {/* Supplier filter */}
+              {supplierOptions.length > 1 && (
+                <select
+                  value={supplierFilter}
+                  onChange={e => setSupplierFilter(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "0.75rem 1rem",
+                    marginBottom: "0.75rem",
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "8px",
+                    color: supplierFilter ? "#fff" : "rgba(255,255,255,0.4)",
+                    outline: "none",
+                    fontSize: "0.9rem",
+                    cursor: "pointer",
+                    colorScheme: "dark",
+                  }}
+                >
+                  <option value="">All suppliers</option>
+                  {supplierOptions.map(s => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              )}
 
-          {/* Step 1: Scan & Select Cylinders (Main Entry Point) */}
-          <div style={{ marginBottom: "2rem", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "12px", padding: "1.25rem" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
-              <label style={{ fontSize: "0.85rem", color: "#00e5ff", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                1. Scan / Select Cylinder Serial (Main Entry)
-              </label>
-              {selectedBottles.length > 0 && (
-                <span style={{ fontSize: "0.75rem", color: "#22c55e", fontWeight: 600 }}>
-                  ✓ {selectedBottles.length} cylinder{selectedBottles.length !== 1 ? "s" : ""} added to return note
-                </span>
+              {/* Search / Serial Filter */}
+              <div style={{ position: "relative", marginBottom: "0.75rem" }}>
+                <Search
+                  size={16}
+                  style={{
+                    position: "absolute",
+                    left: "0.9rem",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: "rgba(255,255,255,0.3)",
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="Filter by serial, gas type or supplier..."
+                  value={filter}
+                  onChange={e => {
+                    setFilter(e.target.value);
+                    setError("");
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      const exact = storesWasteBottles.find(
+                        b => b.serial.toUpperCase() === filter.trim().toUpperCase()
+                      );
+                      if (exact) {
+                        toggleSelect(exact);
+                        setFilter("");
+                      }
+                    }
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "0.75rem 2.25rem 0.75rem 2.5rem",
+                    background: "rgba(255,255,255,0.05)",
+                    border: ineligibleSerialNotice
+                      ? "1px solid rgba(255,51,102,0.5)"
+                      : "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "8px",
+                    color: "#fff",
+                    outline: "none",
+                    fontSize: "0.9rem",
+                  }}
+                />
+                {filter && (
+                  <button
+                    type="button"
+                    onClick={() => setFilter("")}
+                    style={{
+                      position: "absolute",
+                      right: "0.75rem",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "none",
+                      border: "none",
+                      color: "rgba(255,255,255,0.4)",
+                      cursor: "pointer",
+                      padding: 0,
+                      display: "flex",
+                    }}
+                    title="Clear search"
+                  >
+                    <X size={15} />
+                  </button>
+                )}
+              </div>
+
+              {/* Diagnostic warning when user enters a serial that is not a waste bottle or not in stores */}
+              {ineligibleSerialNotice && (
+                <div
+                  style={{
+                    padding: "0.75rem 1rem",
+                    marginBottom: "0.9rem",
+                    background: "rgba(255,51,102,0.1)",
+                    border: "1px solid rgba(255,51,102,0.28)",
+                    borderRadius: "8px",
+                    color: "#ff3366",
+                    fontSize: "0.83rem",
+                    lineHeight: 1.45,
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "0.5rem",
+                  }}
+                >
+                  <AlertCircle size={16} style={{ flexShrink: 0, marginTop: "2px" }} />
+                  <span>{ineligibleSerialNotice}</span>
+                </div>
+              )}
+
+              {/* Sort controls */}
+              <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.25rem" }}>
+                <button
+                  type="button"
+                  onClick={() => toggleSort("date")}
+                  style={{
+                    fontSize: "0.75rem",
+                    padding: "0.3rem 0.75rem",
+                    borderRadius: "6px",
+                    border: "none",
+                    background:
+                      sortKey === "date" ? "rgba(0,229,255,0.15)" : "rgba(255,255,255,0.06)",
+                    color: sortKey === "date" ? "#00e5ff" : "rgba(255,255,255,0.5)",
+                    cursor: "pointer",
+                    fontWeight: sortKey === "date" ? 700 : 400,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "2px",
+                  }}
+                >
+                  Date in Stores <SortIcon k="date" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleSort("weight")}
+                  style={{
+                    fontSize: "0.75rem",
+                    padding: "0.3rem 0.75rem",
+                    borderRadius: "6px",
+                    border: "none",
+                    background:
+                      sortKey === "weight" ? "rgba(0,229,255,0.15)" : "rgba(255,255,255,0.06)",
+                    color: sortKey === "weight" ? "#00e5ff" : "rgba(255,255,255,0.5)",
+                    cursor: "pointer",
+                    fontWeight: sortKey === "weight" ? 700 : 400,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "2px",
+                  }}
+                >
+                  Weight <SortIcon k="weight" />
+                </button>
+              </div>
+
+              {loadingBottles ? (
+                <div
+                  style={{
+                    padding: "3rem",
+                    textAlign: "center",
+                    color: "rgba(255,255,255,0.3)",
+                  }}
+                >
+                  <Loader2 size={32} className="spinner" style={{ margin: "0 auto 1rem" }} />
+                  <p>Loading waste bottles in stores...</p>
+                </div>
+              ) : filtered.length === 0 ? (
+                <div
+                  style={{
+                    padding: "3rem 1.5rem",
+                    textAlign: "center",
+                    color: "rgba(255,255,255,0.3)",
+                    border: "2px dashed rgba(255,255,255,0.05)",
+                    borderRadius: "12px",
+                  }}
+                >
+                  <PackageCheck size={40} style={{ marginBottom: "1rem", opacity: 0.15 }} />
+                  <p style={{ margin: 0 }}>
+                    {storesWasteBottles.length === 0
+                      ? "No waste / reclaim bottles currently in Stores."
+                      : "No waste bottles in Stores match your filter."}
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+                  {filtered.map(b => {
+                    const isSelected = selectedSerialSet.has(b.serial);
+                    const inStoresSince = fmtDate(b.locationChangedAt);
+                    const isTrace = isBottleTrace(b);
+                    return (
+                      <div
+                        key={b.serial}
+                        onClick={() => toggleSelect(b)}
+                        style={{
+                          padding: "0.9rem 1.1rem",
+                          background: isSelected
+                            ? "rgba(0,229,255,0.08)"
+                            : "rgba(255,255,255,0.02)",
+                          border: `1px solid ${
+                            isSelected ? "rgba(0,229,255,0.35)" : "rgba(255,255,255,0.07)"
+                          }`,
+                          borderRadius: "10px",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "1rem",
+                          transition: "all 0.15s",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: "20px",
+                            height: "20px",
+                            borderRadius: "5px",
+                            flexShrink: 0,
+                            border: `2px solid ${
+                              isSelected ? "var(--primary)" : "rgba(255,255,255,0.2)"
+                            }`,
+                            background: isSelected ? "var(--primary)" : "transparent",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          {isSelected && (
+                            <span
+                              style={{ color: "#000", fontSize: "0.75rem", fontWeight: 900 }}
+                            >
+                              ✓
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <Link
+                            href={`/admin/bottles/${b.serial}`}
+                            onClick={e => e.stopPropagation()}
+                            style={{
+                              fontWeight: 700,
+                              color: isSelected ? "var(--primary)" : "#fff",
+                              fontSize: "0.95rem",
+                              textDecoration: "none",
+                              borderBottom: "1px solid rgba(255,255,255,0.2)",
+                              paddingBottom: "1px",
+                            }}
+                          >
+                            {b.serial}
+                          </Link>
+                          <div
+                            style={{
+                              fontSize: "0.78rem",
+                              color: "rgba(255,255,255,0.45)",
+                              marginTop: "0.25rem",
+                            }}
+                          >
+                            {b.gasType}
+                            {" • "}
+                            {isTrace ? "Trace" : `${Number(b.currentWeight ?? 0).toFixed(2)} kg`}
+                            {b.supplier && ` • ${b.supplier}`}
+                            {inStoresSince && (
+                              <span
+                                style={{
+                                  marginLeft: "0.5rem",
+                                  color: "rgba(255,255,255,0.3)",
+                                }}
+                              >
+                                — in stores {inStoresSince}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "0.72rem",
+                            fontWeight: 600,
+                            padding: "0.2rem 0.6rem",
+                            borderRadius: "6px",
+                            background: "rgba(255,170,0,0.14)",
+                            color: "#ffaa00",
+                            flexShrink: 0,
+                          }}
+                        >
+                          reclaim
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
 
-            <div style={{ display: "flex", gap: "0.75rem" }}>
-              <input
-                type="text"
-                list="active-bottles-list"
-                placeholder="Scan barcode or select cylinder serial (e.g. REC-1029)..."
-                value={inputSerial}
-                onChange={e => handleSerialInputChange(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAddBottle(); } }}
-                style={{
-                  flex: 1, padding: "0.85rem 1rem", background: "rgba(255,255,255,0.05)",
-                  border: matchedBottleInfo
-                    ? "1px solid rgba(34,197,94,0.5)"
-                    : matchedBottleError
-                    ? "1px solid rgba(255,51,102,0.5)"
-                    : "1px solid rgba(0,229,255,0.3)",
-                  borderRadius: "8px", color: "#fff", outline: "none",
-                  fontFamily: "var(--font-geist-mono), monospace", fontSize: "1.05rem", fontWeight: 700
-                }}
-              />
-              <datalist id="active-bottles-list">
-                {selectableActiveBottles.map(b => (
-                  <option key={b.serial} value={b.serial}>
-                    {b.serial} — {b.gasType} ({b.category}){b.supplier ? ` [Supplier: ${b.supplier}]` : ""}
-                  </option>
-                ))}
-              </datalist>
-              <button
-                type="button"
-                onClick={handleAddBottle}
-                style={{
-                  padding: "0.85rem 1.5rem", background: "linear-gradient(135deg, rgba(0,229,255,0.2) 0%, rgba(0,136,255,0.2) 100%)",
-                  border: "1px solid rgba(0,229,255,0.4)", borderRadius: "8px", color: "#00e5ff", fontWeight: 700,
-                  cursor: "pointer", display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.95rem"
-                }}
-              >
-                <Plus size={18} /> Add Cylinder
-              </button>
-            </div>
-
-            {matchedBottleInfo && (
-              <div style={{ marginTop: "0.6rem", fontSize: "0.82rem", color: "#22c55e", display: "flex", alignItems: "center", gap: "0.35rem" }}>
-                <CheckCircle2 size={15} /> Active cylinder in database: <strong>{matchedBottleInfo.serial}</strong> ({matchedBottleInfo.gasType}, {matchedBottleInfo.category}){matchedBottleInfo.supplier ? ` — Supplier: "${matchedBottleInfo.supplier}"` : ""}
-              </div>
-            )}
-            {matchedBottleError && inputSerial.trim().length > 0 && (
-              <div style={{ marginTop: "0.6rem", fontSize: "0.82rem", color: "#ff3366", display: "flex", alignItems: "center", gap: "0.35rem" }}>
-                <AlertCircle size={15} /> {matchedBottleError}
-              </div>
-            )}
-
-            {/* Selected Cylinders Table */}
+            {/* Selected Cylinders & Editable Return Weights */}
             {selectedBottles.length > 0 && (
-              <div style={{ marginTop: "1.25rem" }}>
-                <h4 style={{ fontSize: "0.8rem", fontWeight: 700, color: "rgba(255,255,255,0.7)", marginBottom: "0.5rem", textTransform: "uppercase" }}>
-                  Selected Cylinders on Return Note ({selectedBottles.length})
-                </h4>
-                <div style={{ border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", overflow: "hidden", background: "rgba(0,0,0,0.2)" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+              <div className="glass-panel" style={{ padding: "1.5rem" }}>
+                <h3
+                  style={{
+                    fontSize: "0.95rem",
+                    fontWeight: 700,
+                    color: "#fff",
+                    margin: "0 0 0.85rem 0",
+                  }}
+                >
+                  Selected Waste Cylinders on Return Note ({selectedBottles.length})
+                </h3>
+                <div
+                  style={{
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    borderRadius: "8px",
+                    overflow: "hidden",
+                    background: "rgba(0,0,0,0.2)",
+                  }}
+                >
+                  <table
+                    style={{
+                      width: "100%",
+                      borderCollapse: "collapse",
+                      fontSize: "0.85rem",
+                    }}
+                  >
                     <thead>
                       <tr style={{ background: "rgba(255,255,255,0.03)" }}>
-                        <th style={{ padding: "0.65rem 1rem", textAlign: "left", color: "rgba(255,255,255,0.5)", fontSize: "0.7rem", textTransform: "uppercase" }}>Serial</th>
-                        <th style={{ padding: "0.65rem 1rem", textAlign: "left", color: "rgba(255,255,255,0.5)", fontSize: "0.7rem", textTransform: "uppercase" }}>Category</th>
-                        <th style={{ padding: "0.65rem 1rem", textAlign: "left", color: "rgba(255,255,255,0.5)", fontSize: "0.7rem", textTransform: "uppercase" }}>Gas Type</th>
-                        <th style={{ padding: "0.65rem 1rem", textAlign: "right", color: "rgba(255,255,255,0.5)", fontSize: "0.7rem", textTransform: "uppercase" }}>Current Weight (kg)</th>
-                        <th style={{ padding: "0.65rem 1rem", textAlign: "center", color: "rgba(255,255,255,0.5)", fontSize: "0.7rem", textTransform: "uppercase" }}>Remove</th>
+                        <th
+                          style={{
+                            padding: "0.65rem 1rem",
+                            textAlign: "left",
+                            color: "rgba(255,255,255,0.5)",
+                            fontSize: "0.7rem",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          Serial
+                        </th>
+                        <th
+                          style={{
+                            padding: "0.65rem 1rem",
+                            textAlign: "left",
+                            color: "rgba(255,255,255,0.5)",
+                            fontSize: "0.7rem",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          Gas Type
+                        </th>
+                        <th
+                          style={{
+                            padding: "0.65rem 1rem",
+                            textAlign: "right",
+                            color: "rgba(255,255,255,0.5)",
+                            fontSize: "0.7rem",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          Return Weight (kg)
+                        </th>
+                        <th
+                          style={{
+                            padding: "0.65rem 1rem",
+                            textAlign: "center",
+                            color: "rgba(255,255,255,0.5)",
+                            fontSize: "0.7rem",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          Remove
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
                       {selectedBottles.map(b => (
-                        <tr key={b.serial} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                          <td style={{ padding: "0.65rem 1rem", fontFamily: "var(--font-geist-mono), monospace", fontWeight: 700, color: "#00e5ff" }}>{b.serial}</td>
-                          <td style={{ padding: "0.65rem 1rem", textTransform: "capitalize", color: "rgba(255,255,255,0.7)" }}>{b.category}</td>
-                          <td style={{ padding: "0.65rem 1rem", color: "rgba(255,255,255,0.7)" }}>{b.gasType}</td>
+                        <tr
+                          key={b.serial}
+                          style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
+                        >
+                          <td
+                            style={{
+                              padding: "0.65rem 1rem",
+                              fontFamily: "var(--font-geist-mono), monospace",
+                              fontWeight: 700,
+                              color: "#00e5ff",
+                            }}
+                          >
+                            {b.serial}
+                          </td>
+                          <td style={{ padding: "0.65rem 1rem", color: "rgba(255,255,255,0.7)" }}>
+                            {b.gasType}
+                          </td>
                           <td style={{ padding: "0.65rem 1rem", textAlign: "right" }}>
                             <input
                               type="number"
@@ -455,8 +1042,14 @@ export default function SupplierReturnPage() {
                               value={weights[b.serial] ?? b.currentWeight}
                               onChange={e => handleWeightChange(b.serial, e.target.value)}
                               style={{
-                                width: "90px", padding: "0.35rem 0.5rem", background: "rgba(255,255,255,0.05)",
-                                border: "1px solid rgba(255,255,255,0.12)", borderRadius: "6px", color: "#fff", textAlign: "right", fontSize: "0.85rem"
+                                width: "90px",
+                                padding: "0.35rem 0.5rem",
+                                background: "rgba(255,255,255,0.05)",
+                                border: "1px solid rgba(255,255,255,0.12)",
+                                borderRadius: "6px",
+                                color: "#fff",
+                                textAlign: "right",
+                                fontSize: "0.85rem",
                               }}
                             />
                           </td>
@@ -464,7 +1057,14 @@ export default function SupplierReturnPage() {
                             <button
                               type="button"
                               onClick={() => removeBottle(b.serial)}
-                              style={{ background: "transparent", border: "none", color: "#ff3366", cursor: "pointer", padding: "0.2rem" }}
+                              style={{
+                                background: "transparent",
+                                border: "none",
+                                color: "#ff3366",
+                                cursor: "pointer",
+                                padding: "0.2rem",
+                              }}
+                              title="Remove from selection"
                             >
                               <Trash2 size={16} />
                             </button>
@@ -478,34 +1078,115 @@ export default function SupplierReturnPage() {
             )}
           </div>
 
-          {/* Step 2: Supplier & Collection Details (Completed Once) */}
-          <div style={{ marginBottom: "2rem" }}>
-            <label style={{ display: "block", fontSize: "0.85rem", color: "#00e5ff", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
-              2. Supplier & Collection Details (Completed once per batch)
-            </label>
+          {/* Right Column: Return & HWCN Details */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+            <div className="glass-panel" style={{ padding: "1.5rem" }}>
+              <h3
+                style={{
+                  fontSize: "1rem",
+                  fontWeight: 700,
+                  marginBottom: "1.25rem",
+                  color: "#fff",
+                }}
+              >
+                Return &amp; HWCN Details
+              </h3>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "1.25rem" }}>
-              <div>
-                <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.4rem", fontWeight: 600 }}>
-                  Supplier Name (Auto-Completed) {supplierLock && <Lock size={12} style={{ marginLeft: "0.3rem", color: "#00e5ff" }} />}
+              <div style={{ marginBottom: "1rem" }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "0.8rem",
+                    color: "rgba(255,255,255,0.6)",
+                    marginBottom: "0.5rem",
+                    fontWeight: 600,
+                  }}
+                >
+                  Collection / Return Date <span style={{ color: "#ff3366" }}>*</span>
                 </label>
                 <input
-                  type="text"
+                  type="date"
                   required
-                  placeholder="e.g. BOC, Air Products"
-                  value={returnSupplier}
-                  onChange={e => setReturnSupplier(e.target.value)}
-                  disabled={!!supplierLock}
+                  value={returnDate}
+                  onChange={e => setReturnDate(e.target.value)}
                   style={{
-                    width: "100%", padding: "0.75rem 1rem", background: supplierLock ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "#fff", outline: "none", fontSize: "0.95rem"
+                    width: "100%",
+                    padding: "0.85rem 1rem",
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: "10px",
+                    color: "#fff",
+                    outline: "none",
+                    colorScheme: "dark",
                   }}
                 />
               </div>
 
-              <div>
-                <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.4rem", fontWeight: 600 }}>
-                  Supplier Branch / Depot
+              <div style={{ marginBottom: "1rem" }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    fontSize: "0.8rem",
+                    color: "rgba(255,255,255,0.6)",
+                    marginBottom: "0.5rem",
+                    fontWeight: 600,
+                  }}
+                >
+                  <span>
+                    Supplier Name <span style={{ color: "#ff3366" }}>*</span>
+                  </span>
+                  {supplierLock && (
+                    <span
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.3rem",
+                        fontSize: "0.7rem",
+                        color: "#22c55e",
+                        fontWeight: 600,
+                      }}
+                    >
+                      <Lock size={11} /> Auto-filled from bottle
+                    </span>
+                  )}
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Select a bottle — supplier will auto-fill"
+                  value={returnSupplier}
+                  onChange={e => !supplierLock && setReturnSupplier(e.target.value)}
+                  readOnly={!!supplierLock}
+                  style={{
+                    width: "100%",
+                    padding: "0.85rem 1rem",
+                    background: supplierLock
+                      ? "rgba(34,197,94,0.06)"
+                      : "rgba(255,255,255,0.05)",
+                    border: `1px solid ${
+                      supplierLock ? "rgba(34,197,94,0.25)" : "rgba(255,255,255,0.12)"
+                    }`,
+                    borderRadius: "10px",
+                    color: "#fff",
+                    outline: "none",
+                    cursor: supplierLock ? "default" : "text",
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: "1rem" }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "0.8rem",
+                    color: "rgba(255,255,255,0.6)",
+                    marginBottom: "0.5rem",
+                    fontWeight: 600,
+                  }}
+                >
+                  Supplier Branch / Depot <span style={{ color: "#ff3366" }}>*</span>
                 </label>
                 <input
                   type="text"
@@ -514,133 +1195,254 @@ export default function SupplierReturnPage() {
                   value={returnSupplierBranch}
                   onChange={e => setReturnSupplierBranch(e.target.value)}
                   style={{
-                    width: "100%", padding: "0.75rem 1rem", background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "#fff", outline: "none", fontSize: "0.95rem"
+                    width: "100%",
+                    padding: "0.85rem 1rem",
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: "10px",
+                    color: "#fff",
+                    outline: "none",
                   }}
                 />
               </div>
 
-              <div>
-                <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.4rem", fontWeight: 600 }}>
-                  Collection / Return Date
+              <div style={{ marginBottom: "1.25rem" }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "0.8rem",
+                    color: "rgba(255,255,255,0.6)",
+                    marginBottom: "0.5rem",
+                    fontWeight: 600,
+                  }}
+                >
+                  Supplier&apos;s HWCN Number <span style={{ color: "#ff3366" }}>*</span>
                 </label>
                 <input
-                  type="date"
+                  type="text"
                   required
-                  value={returnDate}
-                  onChange={e => setReturnDate(e.target.value)}
+                  placeholder="e.g. BJJ-123456"
+                  value={hwcnNumber}
+                  onChange={e => setHwcnNumber(e.target.value.toUpperCase())}
                   style={{
-                    width: "100%", padding: "0.75rem 1rem", background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.12)", borderRadius: "8px", color: "#fff", outline: "none", fontSize: "0.95rem",
-                    colorScheme: "dark"
+                    width: "100%",
+                    padding: "0.85rem 1rem",
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: "10px",
+                    color: "#fff",
+                    outline: "none",
+                    fontWeight: 700,
                   }}
                 />
               </div>
-            </div>
-          </div>
 
-          {/* Step 3: HWCN & Paperwork Details */}
-          <div style={{ gridTemplateColumns: "1fr", gap: "1.25rem", marginBottom: "2rem" }}>
-            <label style={{ display: "block", fontSize: "0.85rem", color: "#00e5ff", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
-              3. HWCN & Paperwork
-            </label>
+              {/* Multi-Photo Upload Section */}
+              <div style={{ marginBottom: "1.25rem" }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "0.8rem",
+                    color: "rgba(255,255,255,0.6)",
+                    marginBottom: "0.5rem",
+                    fontWeight: 600,
+                  }}
+                >
+                  Photos / Paperwork Pages ({photoFiles.length} uploaded)
+                </label>
 
-            <div style={{ marginBottom: "1.5rem" }}>
-              <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.5rem", fontWeight: 600 }}>
-                Supplier's HWCN Number
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. BJJ-123456"
-                value={hwcnNumber}
-                onChange={e => setHwcnNumber(e.target.value.toUpperCase())}
-                style={{
-                  width: "100%", padding: "0.85rem 1rem", background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.12)", borderRadius: "10px", color: "#fff", outline: "none", fontSize: "1rem", fontWeight: 700
-                }}
-              />
-            </div>
-
-            {/* Multi-Photo Upload Section */}
-            <div style={{ marginBottom: "1.5rem" }}>
-              <label style={{ display: "block", fontSize: "0.8rem", color: "rgba(255,255,255,0.6)", marginBottom: "0.5rem", fontWeight: 600 }}>
-                Photos / Paperwork Pages of Supplier Note ({photoFiles.length} uploaded)
-              </label>
-
-              {photoPreviewUrls.length > 0 && (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: "0.85rem", marginBottom: "1rem" }}>
-                  {photoPreviewUrls.map((url, idx) => (
-                    <div key={idx} style={{ position: "relative", borderRadius: "8px", overflow: "hidden", border: "1px solid rgba(0,229,255,0.3)", background: "#1a202c" }}>
-                      <img
-                        src={url}
-                        alt={`HWCN page ${idx + 1}`}
-                        onClick={() => { setSelectedPhotoIndex(idx); setIsLightboxOpen(true); }}
-                        style={{ width: "100%", height: "110px", objectFit: "cover", display: "block", cursor: "pointer" }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removePhoto(idx)}
+                {photoPreviewUrls.length > 0 && (
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))",
+                      gap: "0.65rem",
+                      marginBottom: "0.85rem",
+                    }}
+                  >
+                    {photoPreviewUrls.map((url, idx) => (
+                      <div
+                        key={idx}
                         style={{
-                          position: "absolute", top: "0.35rem", right: "0.35rem",
-                          background: "rgba(0,0,0,0.75)", border: "none", borderRadius: "50%",
-                          padding: "0.25rem", color: "#ff3366", cursor: "pointer", display: "flex"
+                          position: "relative",
+                          borderRadius: "8px",
+                          overflow: "hidden",
+                          border: "1px solid rgba(0,229,255,0.3)",
+                          background: "#1a202c",
                         }}
                       >
-                        <X size={14} />
-                      </button>
-                      <div
-                        onClick={() => { setSelectedPhotoIndex(idx); setIsLightboxOpen(true); }}
-                        style={{ padding: "0.25rem 0.5rem", background: "rgba(0,0,0,0.6)", fontSize: "0.68rem", color: "#00e5ff", fontWeight: 600, textAlign: "center", cursor: "pointer" }}
-                      >
-                        Page {idx + 1} (Preview)
+                        <img
+                          src={url}
+                          alt={`HWCN page ${idx + 1}`}
+                          onClick={() => {
+                            setSelectedPhotoIndex(idx);
+                            setIsLightboxOpen(true);
+                          }}
+                          style={{
+                            width: "100%",
+                            height: "90px",
+                            objectFit: "cover",
+                            display: "block",
+                            cursor: "pointer",
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removePhoto(idx)}
+                          style={{
+                            position: "absolute",
+                            top: "0.3rem",
+                            right: "0.3rem",
+                            background: "rgba(0,0,0,0.75)",
+                            border: "none",
+                            borderRadius: "50%",
+                            padding: "0.2rem",
+                            color: "#ff3366",
+                            cursor: "pointer",
+                            display: "flex",
+                          }}
+                        >
+                          <X size={13} />
+                        </button>
+                        <div
+                          onClick={() => {
+                            setSelectedPhotoIndex(idx);
+                            setIsLightboxOpen(true);
+                          }}
+                          style={{
+                            padding: "0.2rem 0.4rem",
+                            background: "rgba(0,0,0,0.6)",
+                            fontSize: "0.65rem",
+                            color: "#00e5ff",
+                            fontWeight: 600,
+                            textAlign: "center",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Page {idx + 1}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                )}
+
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "0.5rem",
+                    cursor: "pointer",
+                    padding: "0.75rem 1rem",
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px dashed rgba(0,229,255,0.4)",
+                    borderRadius: "8px",
+                    color: "#00e5ff",
+                    fontWeight: 600,
+                    fontSize: "0.85rem",
+                  }}
+                >
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*,application/pdf"
+                    onChange={handlePhotoSelect}
+                    style={{ display: "none" }}
+                  />
+                  <Camera size={18} />
+                  {photoFiles.length === 0
+                    ? "Upload HWCN Photos / Paperwork"
+                    : "+ Add Another Page / Photo"}
+                </label>
+              </div>
+
+              {error && (
+                <div
+                  style={{
+                    padding: "0.75rem 1rem",
+                    background: "rgba(255,51,102,0.1)",
+                    border: "1px solid rgba(255,51,102,0.2)",
+                    borderRadius: "8px",
+                    color: "#ff3366",
+                    fontSize: "0.85rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    marginBottom: "1.25rem",
+                  }}
+                >
+                  <AlertCircle size={16} style={{ flexShrink: 0 }} /> {error}
                 </div>
               )}
 
-              <label style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", padding: "0.75rem 1.25rem", background: "rgba(255,255,255,0.05)", border: "1px dashed rgba(0,229,255,0.4)", borderRadius: "8px", color: "#00e5ff", fontWeight: 600, fontSize: "0.85rem" }}>
-                <input type="file" multiple accept="image/*,application/pdf" onChange={handlePhotoSelect} style={{ display: "none" }} />
-                <Camera size={18} />
-                {photoFiles.length === 0 ? "Upload HWCN Photos / Paperwork Pages" : "+ Add Another Page / Photo"}
-              </label>
+              <button
+                type="submit"
+                disabled={loading || selectedBottles.length === 0}
+                style={{
+                  width: "100%",
+                  padding: "1rem",
+                  background: "linear-gradient(135deg, #00e5ff 0%, #0088ff 100%)",
+                  border: "none",
+                  borderRadius: "10px",
+                  color: "#000",
+                  fontWeight: 800,
+                  fontSize: "1rem",
+                  cursor:
+                    loading || selectedBottles.length === 0 ? "not-allowed" : "pointer",
+                  opacity: loading || selectedBottles.length === 0 ? 0.6 : 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.5rem",
+                }}
+              >
+                {loading ? (
+                  <Loader2 size={20} className="spinner" />
+                ) : (
+                  `Complete Supplier Return (${selectedBottles.length} bottle${
+                    selectedBottles.length !== 1 ? "s" : ""
+                  })`
+                )}
+              </button>
             </div>
 
-            {error && (
-              <div style={{ 
-                padding: "0.75rem 1rem", background: "rgba(255,51,102,0.1)", border: "1px solid rgba(255,51,102,0.2)", 
-                borderRadius: "8px", color: "#ff3366", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1.5rem"
-              }}>
-                <AlertCircle size={16} /> {error}
-              </div>
-            )}
-
-            <button 
-              type="submit" 
-              disabled={loading || selectedBottles.length === 0}
+            <div
               style={{
-                width: "100%", padding: "1rem", background: "linear-gradient(135deg, #00e5ff 0%, #0088ff 100%)",
-                border: "none", borderRadius: "10px", color: "#000", fontWeight: 800, fontSize: "1rem",
-                cursor: (loading || selectedBottles.length === 0) ? "not-allowed" : "pointer", opacity: (loading || selectedBottles.length === 0) ? 0.6 : 1,
-                display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem"
+                padding: "1.25rem",
+                background: "rgba(255,187,0,0.05)",
+                border: "1px solid rgba(255,187,0,0.15)",
+                borderRadius: "12px",
               }}
             >
-              {loading ? <Loader2 size={20} className="spinner" /> : `Complete Supplier Return ${selectedBottles.length > 0 ? `(${selectedBottles.length} Cylinder${selectedBottles.length !== 1 ? 's' : ''})` : ''}`}
-            </button>
+              <h4
+                style={{
+                  fontSize: "0.85rem",
+                  color: "#ffbb00",
+                  fontWeight: 700,
+                  marginBottom: "0.5rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                }}
+              >
+                <AlertCircle size={16} /> Compliance Notice
+              </h4>
+              <p
+                style={{
+                  fontSize: "0.75rem",
+                  color: "rgba(255,187,0,0.8)",
+                  lineHeight: 1.5,
+                  margin: 0,
+                }}
+              >
+                Only waste / reclaim cylinders currently held in HQ Stores can be returned on
+                this page. Marking these cylinders as returned will remove them from active
+                stores inventory and log a permanent movement record for regulatory auditing.
+              </p>
+            </div>
           </div>
-
-          <div style={{ padding: "1.25rem", background: "rgba(255,187,0,0.05)", border: "1px solid rgba(255,187,0,0.15)", borderRadius: "12px" }}>
-            <h4 style={{ fontSize: "0.85rem", color: "#ffbb00", fontWeight: 700, marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
-              <AlertCircle size={16} /> Compliance Notice
-            </h4>
-            <p style={{ fontSize: "0.75rem", color: "rgba(255,187,0,0.8)", lineHeight: 1.5, margin: 0 }}>
-              Marking these cylinders as returned will remove them from your active inventory. This action is permanent and logs a movement log for regulatory auditing.
-            </p>
-          </div>
-        </div>
-      </form>
-    </div>
+        </form>
+      </div>
     </>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { db, Bottle } from "@/lib/db";
+import { db, Bottle, hasReclaimWaste } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { PackageCheck, AlertCircle, CheckCircle2, Loader2, ArrowLeft, Search, Lock, ArrowUp, ArrowDown } from "lucide-react";
 import Link from "next/link";
@@ -42,7 +42,7 @@ export default function StoresCollectionPage() {
   useEffect(() => {
     db.getBottlesByLocation("office").then(bottles => {
       setStoresBottles(bottles.filter(b =>
-        b.category !== "reclaim" &&
+        (b.category !== "reclaim" || !hasReclaimWaste(b)) &&
         (b.supplier || "").toLowerCase() !== "21 degrees"
       ));
       setLoadingBottles(false);

@@ -704,6 +704,34 @@ export const db = {
     const returnTimestamp = data.returnedAt ? new Date(data.returnedAt).toISOString() : new Date().toISOString();
 
     for (const serial of data.serials) {
+      const { data: existing } = await supabase
+        .from('bottles')
+        .select('serial, category, gas_type, current_weight, location_type, location_id, status')
+        .eq('serial', serial)
+        .maybeSingle();
+
+      if (!existing) {
+        throw new Error(`Cylinder ${serial} was not found in the database.`);
+      }
+      if (existing.status === 'returned') {
+        throw new Error(`Cylinder ${serial} has already been returned to a supplier.`);
+      }
+      if (existing.category !== 'reclaim') {
+        throw new Error(`Cylinder ${serial} is a ${existing.category} bottle, not a waste/reclaim bottle.`);
+      }
+      if (existing.location_type !== 'office') {
+        throw new Error(`Cylinder ${serial} is not currently in Stores (currently at: ${existing.location_id || existing.location_type}). Only waste bottles in Stores can be returned here.`);
+      }
+      const mappedExisting = {
+        category: existing.category,
+        currentWeight: Number(existing.current_weight ?? 0),
+        gasType: existing.gas_type,
+        status: existing.status,
+      };
+      if (!hasReclaimWaste(mappedExisting)) {
+        throw new Error(`Cylinder ${serial} is an Unused / Empty Evacuated reclaim cylinder with no hazardous waste. Please return it via 'Supplier Collection from Stores'.`);
+      }
+
       const weight = data.weights[serial];
       const { error: updateError } = await supabase.from('bottles').update({
         status: 'returned',
