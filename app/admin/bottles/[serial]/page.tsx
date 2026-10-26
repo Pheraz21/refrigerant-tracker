@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { db, Bottle, MovementLog, UsageLog, CrmJob, AuditTrailEntry, isBottleTrace } from "@/lib/db";
+import { db, Bottle, MovementLog, UsageLog, CrmJob, AuditTrailEntry, isBottleTrace, hasReclaimWaste } from "@/lib/db";
 import { supabase } from "@/lib/supabaseClient";
 import { ArrowLeft, Edit3, History, ArrowRight, User, Package, Calendar, MapPin, Truck, Building2, FileText, FileSpreadsheet, ClipboardList, Wrench, Tag, CheckCircle, RotateCcw, RefreshCw, Camera, ZoomIn, ZoomOut, Printer, Maximize2, Trash2, Archive, Recycle, AlertTriangle, Pencil, ShieldCheck, X, Activity, Gauge, Layers, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import Link from "next/link";
@@ -1540,10 +1540,10 @@ export default function ViewBottlePage() {
 
   const getCatBadge = () => {
     switch (bottle.category) {
-      case "new":     return { bg: "rgba(0,229,255,0.1)",   color: "#00e5ff", label: "New Refrigerant" };
-      case "reclaim": return { bg: "rgba(255,170,0,0.12)",  color: "#ffaa00", label: "Reclaim / Haz" };
+      case "new":     return { bg: "rgba(0,229,255,0.1)",   color: "#00e5ff", label: "Virgin Gas" };
+      case "reclaim": return { bg: "rgba(255,170,0,0.12)",  color: "#ffaa00", label: hasReclaimWaste(bottle) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim" };
       case "recycled": return { bg: "rgba(16,185,129,0.12)", color: "#10b981", label: "Recycled Refrigerant" };
-      default:        return { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", label: "Nitrogen" };
+      default:        return { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", label: "Nitrogen (OFN)" };
     }
   };
 

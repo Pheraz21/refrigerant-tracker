@@ -425,9 +425,9 @@ export default function BottleActionHub() {
                   bottle.category === "reclaim" ? "var(--warning)" : 
                   bottle.category === "nitrogen" ? "#22c55e" : "var(--primary)" 
               }}>
-                {bottle.category === "new" ? "New Refrigerant" : 
-                 bottle.category === "recycled" ? "Recycled Bottle" :
-                 bottle.category === "nitrogen" ? "Nitrogen" : "Reclaim / Haz"}
+                {bottle.category === "new" ? "Virgin Gas" : 
+                 bottle.category === "recycled" ? "Recycled Refrigerant" :
+                 bottle.category === "nitrogen" ? "Nitrogen (OFN)" : (hasReclaimWaste(bottle) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim")}
               </span>
             </div>
             <span className={styles.serial}>{bottle.serial}</span>

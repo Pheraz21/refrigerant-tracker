@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import { db, Bottle, isBottleTrace } from "@/lib/db";
+import { db, Bottle, isBottleTrace, hasReclaimWaste } from "@/lib/db";
 import { Truck, Search, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Filter, Download, Printer, Settings2, Archive, ShieldCheck, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTablePrefs } from "@/lib/useTablePrefs";
@@ -217,7 +217,7 @@ export default function ReturnedToSupplierPage() {
     const isNitrogen = b.category === "nitrogen";
     switch (key) {
       case "serial": return b.serial || "—";
-      case "category": return b.category === "reclaim" ? "Reclaim / Haz" : b.category === "recycled" ? "Recycled" : b.category === "new" ? "New" : b.category === "nitrogen" ? "Nitrogen" : (b.category || "—");
+      case "category": return b.category === "reclaim" ? (hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim") : b.category === "recycled" ? "Recycled" : b.category === "new" ? "Virgin Gas" : b.category === "nitrogen" ? "Nitrogen (OFN)" : (b.category || "—");
       case "gasType": return b.gasType || "—";
       case "capacity": return `${(b.initialWeight || 0).toFixed(2)} kg`;
       case "gasInBottle": return isNitrogen ? "N/A" : isBottleTrace(b) ? "Trace" : `${(b.currentWeight || 0).toFixed(2)} kg`;
@@ -408,7 +408,7 @@ export default function ReturnedToSupplierPage() {
 
   const optionLabel = (k: string, o: string) => {
     if (k === "category") {
-      return o === "reclaim" ? "Reclaim / Haz" : o === "new" ? "New" : o === "recycled" ? "Recycled" : "N₂ (Nitrogen)";
+      return o === "reclaim" ? "Recovery / Reclaim" : o === "new" ? "Virgin Gas" : o === "recycled" ? "Recycled" : "Nitrogen (OFN)";
     }
     if (k === "status") {
       return o === "trace" ? "Trace" : o === "unused" ? "Unopened" : o === "active" ? "Opened" : o === "returned" ? "Returned" : o === "archived" ? "Archived" : o === "full" ? "Full" : o === "empty" ? "Empty" : o === "recycled" ? "Recycled" : (o || "(none)");
@@ -660,12 +660,12 @@ export default function ReturnedToSupplierPage() {
     const balance = (b.initialWeight || 0) - (b.currentWeight || 0);
     const percent = Math.min(100, Math.max(0, ((b.currentWeight || 0) / (b.initialWeight || 1)) * 100));
     const catBadge = isReclaim
-      ? { bg: "rgba(255,170,0,0.12)", color: "#ffaa00", label: "Reclaim / Haz" }
+      ? { bg: "rgba(255,170,0,0.12)", color: "#ffaa00", label: hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim" }
       : b.category === "recycled"
       ? { bg: "rgba(16,185,129,0.12)", color: "#10b981", label: "Recycled" }
       : isNitrogen
-      ? { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", label: "N₂" }
-      : { bg: "rgba(0,229,255,0.08)", color: "#00e5ff", label: "New" };
+      ? { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", label: "Nitrogen (OFN)" }
+      : { bg: "rgba(0,229,255,0.08)", color: "#00e5ff", label: "Virgin Gas" };
 
     switch (key) {
       case "serial":

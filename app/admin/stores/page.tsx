@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import { db, Bottle, isBottleTrace } from "@/lib/db";
+import { db, Bottle, isBottleTrace, hasReclaimWaste } from "@/lib/db";
 import { Warehouse, ArrowUpDown, ArrowUp, ArrowDown, Search, Calendar, Filter as FilterIcon, FileText, FileSpreadsheet, Settings2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTablePrefs } from "@/lib/useTablePrefs";
@@ -158,12 +158,12 @@ export default function StoresInventoryPage() {
       return 0;
     });
 
-  const getCatBadge = (cat: string) => {
-    switch (cat) {
-      case "reclaim":  return { bg: "rgba(255,170,0,0.12)", color: "#ffaa00", label: "Reclaim / Haz" };
-      case "new":      return { bg: "rgba(0,229,255,0.08)", color: "#00e5ff",  label: "New"           };
+  const getCatBadge = (b: Bottle) => {
+    switch (b.category) {
+      case "reclaim":  return { bg: "rgba(255,170,0,0.12)", color: "#ffaa00", label: hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim" };
+      case "new":      return { bg: "rgba(0,229,255,0.08)", color: "#00e5ff",  label: "Virgin Gas" };
       case "recycled": return { bg: "rgba(16,185,129,0.12)", color: "#10b981", label: "Recycled" };
-      default:         return { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", label: "N₂" };
+      default:         return { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", label: "Nitrogen (OFN)" };
     }
   };
 
@@ -183,7 +183,7 @@ export default function StoresInventoryPage() {
 
   const optionLabel = (k: string, o: string) => {
     if (k === "category") {
-      return o === "reclaim" ? "Reclaim / Haz" : o === "new" ? "New" : o === "recycled" ? "Recycled" : "N₂ (Nitrogen)";
+      return o === "reclaim" ? "Recovery / Reclaim" : o === "new" ? "Virgin Gas" : o === "recycled" ? "Recycled" : "Nitrogen (OFN)";
     }
     if (k === "status") {
       return o === "trace" ? "Trace" : o === "unused" ? "Unopened" : o === "active" ? "Opened" : o === "returned" ? "Returned" : o === "archived" ? "Archived" : o === "full" ? "Full" : o === "empty" ? "Empty" : o === "recycled" ? "Recycled" : (o || "(none)");
@@ -346,7 +346,7 @@ export default function StoresInventoryPage() {
 
       switch (key) {
         case "serial": return `<strong>${b.serial}</strong>`;
-        case "category": return b.category === "reclaim" ? "Reclaim / Haz" : b.category === "new" ? "New" : b.category === "recycled" ? "Recycled" : "Nitrogen";
+        case "category": return b.category === "reclaim" ? (hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim") : b.category === "new" ? "Virgin Gas" : b.category === "recycled" ? "Recycled" : "Nitrogen (OFN)";
         case "gasType": return b.gasType;
         case "capacity": return `${iw.toFixed(2)} kg`;
         case "gasInBottle": return isNitrogen ? "N/A" : `${cw.toFixed(2)} kg`;
@@ -527,7 +527,7 @@ export default function StoresInventoryPage() {
   }
 
   function renderCell(key: string, b: Bottle) {
-    const badge = getCatBadge(b.category);
+    const badge = getCatBadge(b);
     const isReclaim = b.category === "reclaim";
     const isNitrogen = b.category === "nitrogen";
     const iw = b.initialWeight ?? 0;

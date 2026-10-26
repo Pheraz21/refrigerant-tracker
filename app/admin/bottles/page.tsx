@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useMemo } from "react";
-import { db, Bottle, isBottleTrace } from "@/lib/db";
+import { db, Bottle, isBottleTrace, hasReclaimWaste } from "@/lib/db";
 import { Package, Search, MapPin, Truck, Warehouse, Building2, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Filter as FilterIcon, FileText, FileSpreadsheet, Edit2, Trash2, Plus, Settings2, Archive, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
@@ -19,10 +19,10 @@ const locationFilters = [
 
 const categoryFilters = [
   { key: "all", label: "All Types" },
-  { key: "new", label: "New Refrigerant" },
-  { key: "recycled", label: "Recycled Bottle" },
-  { key: "reclaim", label: "Reclaim / Haz" },
-  { key: "nitrogen", label: "Nitrogen" },
+  { key: "new", label: "Virgin Gas" },
+  { key: "recycled", label: "Recycled Refrigerant" },
+  { key: "reclaim", label: "Recovery / Reclaim" },
+  { key: "nitrogen", label: "Nitrogen (OFN)" },
 ];
 
 type SortKey = "serial" | "category" | "gasType" | "currentWeight" | "initialWeight" | "locationId" | "status" | "locationChangedAt" | "supplier" | "registeredAt" | "rentalExpiryDate" | "intendedDestination" | "activeHWCN";
@@ -233,7 +233,7 @@ export default function AllBottlesPage() {
 
   const optionLabel = (k: string, o: string) => {
     if (k === "category") {
-      return o === "reclaim" ? "Reclaim / Haz" : o === "new" ? "New" : o === "recycled" ? "Recycled" : "N₂ (Nitrogen)";
+      return o === "reclaim" ? "Recovery / Reclaim" : o === "new" ? "Virgin Gas" : o === "recycled" ? "Recycled" : "Nitrogen (OFN)";
     }
     if (k === "status") {
       return o === "trace" ? "Trace" : o === "unused" ? "Unopened" : o === "active" ? "Opened" : o === "returned" ? "Returned" : o === "archived" ? "Archived" : o === "full" ? "Full" : o === "empty" ? "Empty" : o === "recycled" ? "Recycled" : o;
@@ -391,7 +391,7 @@ export default function AllBottlesPage() {
 
       switch (key) {
         case "serial": return `<strong>${b.serial}</strong>`;
-        case "category": return b.category === "reclaim" ? "Reclaim / Haz" : b.category === "new" ? "New" : b.category === "recycled" ? "Recycled" : "Nitrogen";
+        case "category": return b.category === "reclaim" ? (hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim") : b.category === "new" ? "Virgin Gas" : b.category === "recycled" ? "Recycled" : "Nitrogen (OFN)";
         case "gasType": return b.gasType;
         case "capacity": return `${iw.toFixed(2)} kg`;
         case "gasInBottle": return isNitrogen ? "N/A" : `${cw.toFixed(2)} kg`;
@@ -600,7 +600,7 @@ export default function AllBottlesPage() {
         return (
           <td key={key} style={{padding: "0.85rem 1rem"}}>
             <span style={{color: getCatColor(b.category), fontSize: "0.85rem", fontWeight: 600}}>
-              {b.category === "new" ? "New" : b.category === "recycled" ? "Recycled" : isReclaim ? "Reclaim" : "N₂"}
+              {b.category === "new" ? "Virgin Gas" : b.category === "recycled" ? "Recycled" : isReclaim ? (hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim") : "Nitrogen (OFN)"}
             </span>
           </td>
         );

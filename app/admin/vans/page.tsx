@@ -44,7 +44,7 @@ function downloadFile(content: string, filename: string, type: string) {
 function exportVanCSV(bottles: Bottle[], engineer: string) {
   const header = "Serial,Category,Gas Type,Full Weight (kg),Current Weight (kg),Status,Intended Destination,Active HWCN #,Since";
   const rows = bottles.map(b =>
-    `${b.serial},${b.category === "new" ? "New" : b.category === "reclaim" ? "Reclaim" : "N₂"},${b.gasType},${(b.initialWeight || 0).toFixed(2)},${b.category === "nitrogen" ? "N/A" : (b.currentWeight || 0).toFixed(2)},${isBottleTrace(b) ? "Trace" : (b.status || "")},"${b.intendedDestination || ""}","${b.activeHWCN || ""}",${b.locationChangedAt ? new Date(b.locationChangedAt).toLocaleDateString("en-GB") : ""}`
+    `${b.serial},${b.category === "new" ? "Virgin Gas" : b.category === "reclaim" ? (hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim") : b.category === "recycled" ? "Recycled" : "Nitrogen (OFN)"},${b.gasType},${(b.initialWeight || 0).toFixed(2)},${b.category === "nitrogen" ? "N/A" : (b.currentWeight || 0).toFixed(2)},${isBottleTrace(b) ? "Trace" : (b.status || "")},"${b.intendedDestination || ""}","${b.activeHWCN || ""}",${b.locationChangedAt ? new Date(b.locationChangedAt).toLocaleDateString("en-GB") : ""}`
   );
   const fileName = engineer === "all" ? "fleet_inventory.csv" : `${engineer}_van.csv`;
   downloadFile([header, ...rows].join("\n"), fileName, "text/csv");
@@ -97,7 +97,7 @@ function exportVanPDF(bottles: Bottle[], engineer: string, engineerProfiles: App
 
     switch (key) {
       case "serial": return `<strong>${b.serial}</strong>`;
-      case "category": return b.category === "reclaim" ? "Reclaim / Haz" : b.category === "new" ? "New" : b.category === "recycled" ? "Recycled" : "Nitrogen";
+      case "category": return b.category === "reclaim" ? (hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim") : b.category === "new" ? "Virgin Gas" : b.category === "recycled" ? "Recycled" : "Nitrogen (OFN)";
       case "gasType": return b.gasType;
       case "capacity": return `${iw.toFixed(2)} kg`;
       case "gasInBottle": return isNitrogen ? "N/A" : `${cw.toFixed(2)} kg`;
@@ -370,12 +370,12 @@ export default function VanInventoryPage() {
     return 0;
   });
 
-  const getCatBadge = (cat: string) => {
-    switch (cat) {
-      case "reclaim":  return { bg: "rgba(255,170,0,0.12)", color: "#ffaa00", label: "Reclaim / Haz" };
-      case "new":      return { bg: "rgba(0,229,255,0.08)", color: "#00e5ff",  label: "New"           };
+  const getCatBadge = (b: Bottle) => {
+    switch (b.category) {
+      case "reclaim":  return { bg: "rgba(255,170,0,0.12)", color: "#ffaa00", label: hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim" };
+      case "new":      return { bg: "rgba(0,229,255,0.08)", color: "#00e5ff",  label: "Virgin Gas"    };
       case "recycled": return { bg: "rgba(16,185,129,0.12)", color: "#10b981", label: "Recycled" };
-      default:         return { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", label: "N₂" };
+      default:         return { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", label: "Nitrogen (OFN)" };
     }
   };
 
@@ -395,7 +395,7 @@ export default function VanInventoryPage() {
 
   const optionLabel = (k: string, o: string) => {
     if (k === "category") {
-      return o === "reclaim" ? "Reclaim / Haz" : o === "new" ? "New" : o === "recycled" ? "Recycled" : "N₂ (Nitrogen)";
+      return o === "reclaim" ? "Recovery / Reclaim" : o === "new" ? "Virgin Gas" : o === "recycled" ? "Recycled" : "Nitrogen (OFN)";
     }
     if (k === "status") {
       return o === "trace" ? "Trace" : o === "unused" ? "Unopened" : o === "active" ? "Opened" : o === "returned" ? "Returned" : o === "archived" ? "Archived" : o === "full" ? "Full" : o === "empty" ? "Empty" : o === "recycled" ? "Recycled" : (o || "(none)");
@@ -650,7 +650,7 @@ export default function VanInventoryPage() {
   }
 
   function renderCell(key: string, b: Bottle) {
-    const badge = getCatBadge(b.category);
+    const badge = getCatBadge(b);
     const isReclaim = b.category === "reclaim";
     const isNitrogen = b.category === "nitrogen";
     const balance = b.initialWeight - b.currentWeight;
@@ -942,15 +942,15 @@ export default function VanInventoryPage() {
 
       <div style={{display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem", marginBottom: "1.5rem"}}>
         <div style={{background: "rgba(0,229,255,0.04)", border: "1px solid rgba(0,229,255,0.12)", borderRadius: "10px", padding: "1rem", textAlign: "center"}}>
-          <div style={{fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.3rem"}}>New Refrigerant</div>
+          <div style={{fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.3rem"}}>Virgin Gas</div>
           <div style={{fontSize: "1.5rem", fontWeight: 700, color: "#00e5ff"}}>{bottles.filter(b => b.category === "new").length}</div>
         </div>
         <div style={{background: "rgba(255,170,0,0.04)", border: "1px solid rgba(255,170,0,0.12)", borderRadius: "10px", padding: "1rem", textAlign: "center"}}>
-          <div style={{fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.3rem"}}>Reclaim / Haz</div>
+          <div style={{fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.3rem"}}>Recovery / Reclaim</div>
           <div style={{fontSize: "1.5rem", fontWeight: 700, color: "#ffaa00"}}>{bottles.filter(b => b.category === "reclaim").length}</div>
         </div>
         <div style={{background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", padding: "1rem", textAlign: "center"}}>
-          <div style={{fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.3rem"}}>Nitrogen</div>
+          <div style={{fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "0.3rem"}}>Nitrogen (OFN)</div>
           <div style={{fontSize: "1.5rem", fontWeight: 700}}>{bottles.filter(b => b.category === "nitrogen").length}</div>
         </div>
       </div>

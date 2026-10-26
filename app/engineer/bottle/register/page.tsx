@@ -436,7 +436,7 @@ export default function RegisterBottlePage() {
               }}
             >
               <CheckCircle2 size={24} />
-              <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>New</span>
+              <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>Virgin Gas</span>
             </button>
             <button
               type="button"
@@ -449,7 +449,7 @@ export default function RegisterBottlePage() {
               }}
             >
               <RotateCcw size={24} />
-              <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>Reclaim</span>
+              <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>Recovery / Reclaim</span>
             </button>
             <button
               type="button"
@@ -462,7 +462,7 @@ export default function RegisterBottlePage() {
               }}
             >
               <Wind size={24} />
-              <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>Nitrogen</span>
+              <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>Nitrogen (OFN)</span>
             </button>
           </div>
         </div>

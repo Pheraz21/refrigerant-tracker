@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, PackageSearch } from "lucide-react";
 import styles from "./page.module.css";
 import Link from "next/link";
-import { db, Bottle, isBottleTrace } from "@/lib/db";
+import { db, Bottle, isBottleTrace, hasReclaimWaste } from "@/lib/db";
 import { useAuth } from "@/lib/AuthContext";
 import { ActiveVehicleBanner } from "@/components/ActiveVehicleBanner";
 import { BrazingKitCard } from "@/components/BrazingKitCard";
@@ -62,7 +62,7 @@ export default function EngineerInventoryPage() {
       return `
       <tr>
         <td>${b.serial}</td>
-        <td>${b.category === "new" ? "New" : b.category === "recycled" ? "Recycled" : b.category === "reclaim" ? "Reclaim" : "N2"}</td>
+        <td>${b.category === "new" ? "Virgin Gas" : b.category === "recycled" ? "Recycled" : b.category === "reclaim" ? (hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim") : "Nitrogen (OFN)"}</td>
         <td>${b.gasType}</td>
         <td>${statusLabel}</td>
         <td>${(b.initialWeight || 0).toFixed(2)} kg</td>
@@ -282,9 +282,9 @@ export default function EngineerInventoryPage() {
                         bottle.category === "reclaim" ? "var(--warning)" : 
                         bottle.category === "nitrogen" ? "#22c55e" : "var(--primary)" 
                     }}>
-                      {bottle.category === "new" ? "New Refrigerant" : 
+                      {bottle.category === "new" ? "Virgin Gas" : 
                        bottle.category === "recycled" ? "Recycled Refrigerant" :
-                       bottle.category === "nitrogen" ? "Nitrogen" : "Reclaim / Haz"}
+                       bottle.category === "nitrogen" ? "Nitrogen (OFN)" : (hasReclaimWaste(bottle) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim")}
                     </span>
                   </div>
                   <span className={styles.serial}>{bottle.serial}</span>

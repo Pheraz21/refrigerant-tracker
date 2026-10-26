@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { db, Bottle, isBottleTrace } from "@/lib/db";
+import { db, Bottle, isBottleTrace, hasReclaimWaste } from "@/lib/db";
 import { CalendarClock, AlertCircle, Clock, CheckCircle2, RefreshCw, Edit2, Truck, ExternalLink } from "lucide-react";
 import styles from "../../engineer/page.module.css";
 import { useRouter } from "next/navigation";
@@ -175,7 +175,7 @@ export default function ExpiryPage() {
                         b.category === "recycled" ? "#10b981" :
                         b.category === "new" ? "#00e5ff" : "rgba(255,255,255,0.6)"
                     }}>
-                      {b.category === "reclaim" ? "Reclaim / Haz" : b.category === "recycled" ? "Recycled" : b.category === "new" ? "New" : "N₂"}
+                      {b.category === "reclaim" ? (hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim") : b.category === "recycled" ? "Recycled" : b.category === "new" ? "Virgin Gas" : "Nitrogen (OFN)"}
                     </span>
                   </div>
                   <div style={{display: "flex", justifyContent: "space-between", fontSize: "0.85rem"}}>

@@ -140,10 +140,10 @@ export default function EditBottlePage() {
               onChange={e => handleChange("category", e.target.value)}
               style={{width: "100%", padding: "0.75rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "8px", color: "#fff", outline: "none"}}
             >
-              <option value="new">New Refrigerant</option>
+              <option value="new">Virgin Gas</option>
               <option value="recycled">Recycled Refrigerant</option>
-              <option value="reclaim">Reclaim / Haz</option>
-              <option value="nitrogen">Nitrogen</option>
+              <option value="reclaim">Recovery / Reclaim</option>
+              <option value="nitrogen">Nitrogen (OFN)</option>
             </select>
           </div>
         </div>
