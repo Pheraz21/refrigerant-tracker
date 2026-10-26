@@ -1552,8 +1552,8 @@ export default function ViewBottlePage() {
       return { bg: "rgba(255,170,0,0.12)", color: "#ffaa00", label: "Trace" };
     }
     switch (bottle.status) {
-      case "unused":   return { bg: "rgba(0,229,255,0.12)",   color: "#00e5ff", label: "Unused" };
-      case "active":   return { bg: "rgba(34,197,94,0.12)",  color: "#22c55e", label: "Active" };
+      case "unused":   return { bg: "rgba(0,229,255,0.12)",   color: "#00e5ff", label: "Unopened" };
+      case "active":   return { bg: "rgba(34,197,94,0.12)",  color: "#22c55e", label: "Opened" };
       case "returned": return { bg: "rgba(168,85,247,0.12)", color: "#a855f7", label: "Returned" };
       case "archived": return { bg: "rgba(239,68,68,0.12)",  color: "#ef4444", label: "Archived (Audit Trail)" };
       case "full":     return { bg: "rgba(59,130,246,0.12)", color: "#3b82f6", label: "Full" };

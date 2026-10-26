@@ -17,6 +17,23 @@ export function isBottleTrace(bottle?: { category?: string; currentWeight?: numb
   return true;
 }
 
+export function formatBottleStatus(
+  bottle?: { category?: string; currentWeight?: number; gasType?: string; status?: string } | null,
+  fallback = "Opened"
+): string {
+  if (isBottleTrace(bottle)) return "Trace";
+  const s = (bottle?.status || "").trim().toLowerCase();
+  if (s === "unused") return "Unopened";
+  if (s === "active") return "Opened";
+  if (s === "returned") return "Returned";
+  if (s === "archived") return "Archived";
+  if (s === "full") return "Full";
+  if (s === "empty") return "Empty";
+  if (s === "recycled") return "Recycled";
+  if (s) return s.charAt(0).toUpperCase() + s.slice(1);
+  return fallback;
+}
+
 export function hasReclaimWaste(bottle?: { category?: string; currentWeight?: number; gasType?: string } | null): boolean {
   if (!bottle || bottle.category !== "reclaim") return false;
   return Number(bottle.currentWeight ?? 0) > 0 || isBottleTrace(bottle);

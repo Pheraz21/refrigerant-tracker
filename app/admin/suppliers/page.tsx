@@ -203,7 +203,7 @@ function SupplierInventoryContent() {
       return o === "reclaim" ? "Reclaim / Haz" : o === "new" ? "New" : o === "recycled" ? "Recycled" : "N₂ (Nitrogen)";
     }
     if (k === "status") {
-      return o === "trace" ? "Trace" : o === "unused" ? "Unused" : o === "active" ? "Active" : o === "returned" ? "Returned" : o === "archived" ? "Archived" : o === "full" ? "Full" : o === "empty" ? "Empty" : o === "recycled" ? "Recycled" : o;
+      return o === "trace" ? "Trace" : o === "unused" ? "Unopened" : o === "active" ? "Opened" : o === "returned" ? "Returned" : o === "archived" ? "Archived" : o === "full" ? "Full" : o === "empty" ? "Empty" : o === "recycled" ? "Recycled" : o;
     }
     return o || "(none)";
   };
@@ -364,7 +364,7 @@ function SupplierInventoryContent() {
       case "poNumber": return b.poNumber || "—";
       case "registered": return b.registeredAt ? new Date(b.registeredAt).toLocaleDateString("en-GB") : "—";
       case "expiry": return b.rentalExpiryDate ? new Date(b.rentalExpiryDate).toLocaleDateString("en-GB") : "—";
-      case "status": return isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unused" : b.status ? (b.status.charAt(0).toUpperCase() + b.status.slice(1)) : "—";
+      case "status": return isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unopened" : b.status === "active" ? "Opened" : b.status ? (b.status.charAt(0).toUpperCase() + b.status.slice(1)) : "—";
       case "lastChanged": return b.locationChangedAt ? new Date(b.locationChangedAt).toLocaleDateString("en-GB") : "—";
       default: return "—";
     }
@@ -739,7 +739,7 @@ function SupplierInventoryContent() {
               fontSize: "0.75rem", fontWeight: 600, padding: "0.2rem 0.6rem", borderRadius: "20px", textTransform: "capitalize",
               background: isBottleTrace(b) ? "rgba(255,170,0,0.12)" : b.status === "unused" ? "rgba(0,229,255,0.12)" : b.status === "active" ? "rgba(34,197,94,0.12)" : b.status === "returned" ? "rgba(168,85,247,0.12)" : b.status === "archived" ? "rgba(239,68,68,0.12)" : b.status === "full" ? "rgba(59,130,246,0.12)" : b.status === "recycled" ? "rgba(16,185,129,0.12)" : "rgba(255,255,255,0.06)",
               color: isBottleTrace(b) ? "#ffaa00" : b.status === "unused" ? "#00e5ff" : b.status === "active" ? "#22c55e" : b.status === "returned" ? "#a855f7" : b.status === "archived" ? "#ef4444" : b.status === "full" ? "#3b82f6" : b.status === "recycled" ? "#10b981" : "rgba(255,255,255,0.5)"
-            }}>{isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unused" : (b.status || "Active")}</span>
+            }}>{isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unopened" : b.status === "active" ? "Opened" : (b.status || "Opened")}</span>
           </td>
         );
       case "lastChanged":

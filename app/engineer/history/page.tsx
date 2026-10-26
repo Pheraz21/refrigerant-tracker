@@ -210,7 +210,7 @@ export default function HistoryPage() {
                   b.status === 'full' ? '#3b82f6' :
                   b.status === 'recycled' ? '#10b981' : 'rgba(255,255,255,0.75)'
               }}>
-                {isBottleTrace(b) ? 'Trace' : (b.status || 'Active')}
+                {isBottleTrace(b) ? 'Trace' : b.status === 'unused' ? 'Unopened' : b.status === 'active' ? 'Opened' : (b.status || 'Opened')}
               </span>
             </div>
             <div className={styles.stat}>

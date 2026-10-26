@@ -102,7 +102,7 @@ function exportVanPDF(bottles: Bottle[], engineer: string, engineerProfiles: App
       case "capacity": return `${iw.toFixed(2)} kg`;
       case "gasInBottle": return isNitrogen ? "N/A" : `${cw.toFixed(2)} kg`;
       case "balance": return isNitrogen ? "N/A" : `${bal.toFixed(2)} kg`;
-      case "status": return isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unused" : b.status ? (b.status.charAt(0).toUpperCase() + b.status.slice(1)) : "—";
+      case "status": return isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unopened" : b.status === "active" ? "Opened" : b.status ? (b.status.charAt(0).toUpperCase() + b.status.slice(1)) : "—";
       case "engineer": return `${engineerName}${reg !== "—" ? ` (${reg})` : ""}`;
       case "intendedDestination": return b.intendedDestination || "—";
       case "activeHWCN": return b.activeHWCN || "—";
@@ -398,7 +398,7 @@ export default function VanInventoryPage() {
       return o === "reclaim" ? "Reclaim / Haz" : o === "new" ? "New" : o === "recycled" ? "Recycled" : "N₂ (Nitrogen)";
     }
     if (k === "status") {
-      return o === "trace" ? "Trace" : o === "unused" ? "Unused" : o === "active" ? "Active" : o === "returned" ? "Returned" : o === "archived" ? "Archived" : o === "full" ? "Full" : o === "empty" ? "Empty" : o === "recycled" ? "Recycled" : (o || "(none)");
+      return o === "trace" ? "Trace" : o === "unused" ? "Unopened" : o === "active" ? "Opened" : o === "returned" ? "Returned" : o === "archived" ? "Archived" : o === "full" ? "Full" : o === "empty" ? "Empty" : o === "recycled" ? "Recycled" : (o || "(none)");
     }
     return o || "(none)";
   };
@@ -722,7 +722,7 @@ export default function VanInventoryPage() {
               background: isBottleTrace(b) ? "rgba(255,170,0,0.12)" : b.status === "unused" ? "rgba(0,229,255,0.12)" : b.status === "active" ? "rgba(34,197,94,0.12)" : b.status === "returned" ? "rgba(168,85,247,0.12)" : b.status === "archived" ? "rgba(239,68,68,0.12)" : b.status === "full" ? "rgba(59,130,246,0.12)" : b.status === "recycled" ? "rgba(16,185,129,0.12)" : "rgba(255,255,255,0.06)",
               color: isBottleTrace(b) ? "#ffaa00" : b.status === "unused" ? "#00e5ff" : b.status === "active" ? "#22c55e" : b.status === "returned" ? "#a855f7" : b.status === "archived" ? "#ef4444" : b.status === "full" ? "#3b82f6" : b.status === "recycled" ? "#10b981" : "rgba(255,255,255,0.6)"
             }}>
-              {isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unused" : (b.status || "Active")}
+              {isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unopened" : b.status === "active" ? "Opened" : (b.status || "Opened")}
             </span>
           </td>
         );

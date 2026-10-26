@@ -52,9 +52,13 @@ export default function EngineerInventoryPage() {
     const rows = bottles.map(b => {
       const statusLabel = isBottleTrace(b)
         ? "Trace"
-        : b.status
-          ? b.status.charAt(0).toUpperCase() + b.status.slice(1)
-          : "Active";
+        : b.status === "unused"
+          ? "Unopened"
+          : b.status === "active"
+            ? "Opened"
+            : b.status
+              ? b.status.charAt(0).toUpperCase() + b.status.slice(1)
+              : "Opened";
       return `
       <tr>
         <td>${b.serial}</td>
@@ -304,7 +308,7 @@ export default function EngineerInventoryPage() {
                         background: isBottleTrace(bottle) ? 'rgba(255,170,0,0.15)' : bottle.status === 'unused' ? 'rgba(0,229,255,0.15)' : bottle.status === 'active' ? 'rgba(34,197,94,0.15)' : bottle.status === 'returned' ? 'rgba(168,85,247,0.15)' : bottle.status === 'archived' ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.08)',
                         color: isBottleTrace(bottle) ? '#ffaa00' : bottle.status === 'unused' ? '#00e5ff' : bottle.status === 'active' ? '#22c55e' : bottle.status === 'returned' ? '#a855f7' : bottle.status === 'archived' ? '#ef4444' : 'rgba(255,255,255,0.75)'
                       }}>
-                        {isBottleTrace(bottle) ? 'Trace' : (bottle.status || 'Active')}
+                        {isBottleTrace(bottle) ? 'Trace' : bottle.status === 'unused' ? 'Unopened' : bottle.status === 'active' ? 'Opened' : (bottle.status || 'Opened')}
                       </span>
                     </div>
                     <div style={{fontSize: '0.85rem', wordBreak: 'break-word'}}>

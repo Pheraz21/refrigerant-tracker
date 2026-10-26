@@ -684,7 +684,7 @@ export default function MoveBottlePage() {
                     bottle.status === 'full' ? '#3b82f6' :
                     bottle.status === 'recycled' ? '#10b981' : 'rgba(255,255,255,0.75)'
                 }}>
-                  {isBottleTrace(bottle) ? 'Trace' : (bottle.status || 'Active')}
+                  {isBottleTrace(bottle) ? 'Trace' : bottle.status === 'unused' ? 'Unopened' : bottle.status === 'active' ? 'Opened' : (bottle.status || 'Opened')}
                 </span>
               </div>
             </div>
