@@ -5,9 +5,9 @@
 | | |
 |---|---|
 | **Document Number** | SOP-001 |
-| **Version** | 3.0 |
-| **Issue Date** | 25 April 2026 |
-| **Next Review Date** | 25 April 2027 |
+| **Version** | 3.1 |
+| **Issue Date** | 26 October 2026 |
+| **Next Review Date** | 26 October 2027 |
 | **Author** | _________________________ |
 | **Approved By** | _________________________ |
 | **REFCOM Registration** | REF1010728 |
@@ -84,9 +84,11 @@ In all cases, the following mandatory fields are recorded at registration:
 The system records:
 - `registeredAt` timestamp
 - `registeredBy` (user ID of admin or engineer performing registration)
-- `locationType: "office"` or `"van"` depending on route
-- `status: "active"`
+- `locationType: "office"`, `"van"`, or `"site"` depending on route
+- `status: "unused"` (until first usage or movement into active service)
 - An immutable **movement log** entry: action = `registered`
+
+> **Supplier Serial Format Check:** At registration, F-Gas Tracker Pro automatically checks the entered serial number against the selected supplier's standard format (e.g. BOC 8 digits + 1–2 letters; Beijer Ref / HRP / Dean & Wood / Kooltech 2 letters/digits + 6 digits; A-Gas / TF Solutions AG + digits; Climate Center CC + digits). If the serial does not match the typical format, a warning prompt requires explicit confirmation before registration proceeds. Cylinders owned by **21 Degrees** (company-purchased stock) or **Other** are exempt as they may carry any serial format.
 
 ---
 
@@ -151,6 +153,7 @@ The system continuously tracks cylinder status:
 
 | Status | Condition | Action Required |
 |---|---|---|
+| Unused | Newly registered cylinder; no usage logged yet | Ready for allocation and first job use |
 | Active | `currentWeight > 0` | Normal use — available for jobs |
 | Low Gas | Below configured threshold weight | Admin and office notified automatically |
 | Empty | `currentWeight = 0` | Return to stores or supplier |

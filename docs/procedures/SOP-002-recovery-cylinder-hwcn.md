@@ -5,9 +5,9 @@
 | | |
 |---|---|
 | **Document Number** | SOP-002 |
-| **Version** | 3.1 |
-| **Issue Date** | 14 October 2026 |
-| **Next Review Date** | 14 October 2027 |
+| **Version** | 3.2 |
+| **Issue Date** | 26 October 2026 |
+| **Next Review Date** | 26 October 2027 |
 | **Author** | _________________________ |
 | **Approved By** | _________________________ |
 | **REFCOM Registration** | REF1010728 |
@@ -68,6 +68,9 @@ No refrigerant cylinder may enter service without a corresponding purchase order
 | **HQ-Stores** | 21 Degrees Ltd premises (Unit 10, Apollo Court, Hebburn) acting as interim consignee for multi-site waste. |
 | **Single-Site Recovery** | A recovery cylinder that has received gas from only one producer site. May be returned directly to supplier. |
 | **Multi-Site Recovery** | A recovery cylinder that has received gas from two or more producer sites. Must be returned to HQ-Stores first; cannot go direct to supplier. |
+| **Unused Reclaim Cylinder** | A newly registered recovery cylinder (`gasType: "Unused"`, `currentWeight: 0 kg`) that has never had waste refrigerant recovered into it. Exempt from HWCN requirements when moved or returned. |
+| **Trace Cylinder** | A recovery cylinder that previously held waste refrigerant and has been emptied to `0.00 kg` (via on-site re-charge or workshop decant) **without** being evacuated to vacuum (not vacced). Retains its refrigerant classification (e.g. `R410A`), displays its weight as **`Trace`**, and remains legally classified as Hazardous Waste — requiring a Paper Supplier HWCN when returned to the supplier. |
+| **Empty / Evacuated Cylinder** | A recovery cylinder that has been emptied to `0.00 kg` **and** confirmed as pulled down to a full vacuum (vacced). Its gas type is reset to `Empty / Evacuated` and its producer sites are cleared; no HWCN is required when moved. |
 
 ---
 
@@ -99,17 +102,30 @@ In all cases, the following mandatory fields are recorded at registration:
 
 | Field | Description | Example |
 |---|---|---|
-| Serial Number | Unique cylinder identifier | `REC-402` |
+| Serial Number | Unique cylinder identifier | `1N051418` |
 | Category | Select **Reclaim** | Reclaim |
-| Gas Type | Leave as `Mixed/Recovery` (updated when gas type is confirmed on site) | `Mixed/Recovery` |
+| Gas Type | Initialized as `Unused` (updated automatically when gas type is confirmed on site) | `Unused` |
 | Capacity (kg) | Maximum fill weight in kg (cylinder capacity) | `10.00 kg` |
-| Supplier | Supplier from whom this cylinder was obtained | `A-Gas` |
+| Supplier | Supplier from whom this cylinder was obtained | `Kooltech` / `A-Gas` |
 
-The system creates a permanent cylinder record and an entry in the audit log at the time of registration.
+The system creates a permanent cylinder record with an initial status and gas type of **Unused** (`0.00 kg`) and an entry in the audit log at the time of registration.
+
+> **Supplier Serial Format Check:** At registration, F-Gas Tracker Pro checks the entered serial number against the selected supplier's standard format (e.g. BOC 8 digits + 1–2 letters; Beijer Ref / HRP / Dean & Wood / Kooltech 2 letters/digits + 6 digits or RR + 8 digits; A-Gas / TF Solutions AG + digits; Climate Center CC + digits). If an unusual format is entered, a warning prompt requires explicit confirmation before registering. Cylinders owned by **21 Degrees** (company-purchased bottles) or **Other** are exempt.
 
 ---
 
-### 6.2 Cylinder Movements
+### 6.2 Recovery Cylinder Classifications (Unused, Active Waste, Trace, and Empty / Evacuated)
+
+| Classification | Gas Type & Weight | Definition & HWCN Requirement |
+|---|---|---|
+| **Unused** | Gas Type: `Unused`<br>Weight: `0.00 kg` | Newly registered recovery cylinder that has never had waste refrigerant recovered into it. Contains no hazardous waste; may be moved between Stores, Vans, and Supplier with **no HWCN required**. |
+| **Active Waste** | Gas Type: e.g. `R410A`, `R32`, `Mixed`<br>Weight: `> 0.00 kg` | Contains weighed recovered waste refrigerant. Legally classified as Hazardous Waste (EWC 14 06 01) — **requires an HWCN** when transferred to HQ-Stores or returned to a Supplier. |
+| **Trace** | Gas Type: Retained (e.g. `R410A`)<br>Weight displayed as: `Trace` (`0.00 kg`) | A recovery cylinder that previously held waste refrigerant and has been emptied of weighed gas (`0.00 kg`) via on-site re-charge or workshop decant, **without being evacuated to a full vacuum (not vacced)**. Residual refrigerant vapour remains inside the vessel. The cylinder retains its gas classification, displays its weight as **Trace**, and **remains legally classified as Hazardous Waste — requiring a Paper Supplier HWCN when returned to the supplier** (with quantity recorded as *Trace* on Part B of the HWCN). |
+| **Empty / Evacuated** | Gas Type: `Empty / Evacuated`<br>Weight: `0.00 kg` | A recovery cylinder that has been emptied to `0.00 kg` **and confirmed as pulled down to a full vacuum (vacced)** on site or during workshop decant. Its gas type is reset to `Empty / Evacuated`, its producer site history is cleared, and it can be reused for any refrigerant type or moved with **no HWCN required**. |
+
+---
+
+### 6.3 Cylinder Movements
 
 **Stores to Van:** When a cylinder is issued to a field engineer, the Engineer records this allocation in F-Gas Tracker Pro. The engineer's name and vehicle registration plate are recorded against the cylinder and a movement log entry is created. The cylinder then appears in the engineer's Van Inventory on the mobile app.
 
@@ -154,11 +170,12 @@ When recovering refrigerant from a customer's system on site:
 
 ---
 
-### 6.4 On-Site Re-charge Restrictions (Waste vs. Clean Recycled Gas)
+### 6.5 On-Site Re-charge Restrictions (Waste vs. Clean Recycled Gas)
 
 Under UK F-Gas and Hazardous Waste Regulations, strict legal segregation applies between raw recovered waste and certified recycled stock:
 
-- **Raw Recovery / Waste Cylinders (Category: Reclaim):** Uncleaned refrigerant decanted into a reclaim cylinder is legally classified as hazardous waste. It may strictly **ONLY be re-charged into equipment on the exact same job number** from which it was recovered (under the statutory on-site repair exemption). F-Gas Tracker Pro programmatically restricts the *"Use / Re-charge Recycled Gas on Site"* action card so that it will **only appear** when the cylinder is currently located on that exact matching job number. Re-charging raw waste across different customer sites or jobs is strictly blocked.
+- **Raw Recovery / Waste Cylinders (Category: Reclaim):** Uncleaned refrigerant decanted into a reclaim cylinder is legally classified as hazardous waste. It may strictly **ONLY be re-charged into equipment on the exact same job number** (`locationId`) from which that batch of waste gas was recovered (under the statutory on-site repair exemption). F-Gas Tracker Pro programmatically restricts the *"Use / Re-charge Recovered Gas"* button on both the **Bottle Actions** screen and the **Log Gas Recovery / Usage** screen so that it will **only appear when the cylinder is currently located on that exact matching job number** (e.g. if waste gas was recovered on job `C38038`, the re-charge option is hidden if the bottle is moved to job `C38037`, even at the same customer premises).
+- **Evacuation Check When Re-charging to 0.00 kg:** If an on-site re-charge empties the recovery cylinder down to `0.00 kg`, the mobile app prompts the engineer to confirm whether the cylinder was **pulled to a full vacuum (Evacuated / Vacced)**. If evacuated, the cylinder is reset to `Empty / Evacuated`; if not evacuated, it retains its gas type and is classified as **Trace** (still subject to a Paper Supplier HWCN on return).
 - **Certified Recycled Cylinders (Category: Recycled):** Where recovered refrigerant has been transferred to HQ-Stores/Workshop, passed through certified reclamation/filtration rigs, and formally reclassified under the Reclassification Procedure, the cylinder holds clean recycled gas. Certified recycled cylinders may be dispatched and charged into equipment on **any site for any job**.
 
 ---
@@ -200,12 +217,12 @@ When an engineer has completed recovery work and the cylinder contains waste ref
 
 ### 7.1 Initiating a Transfer
 
-The engineer opens the cylinder record in the F-Gas Tracker Pro mobile application and selects **Move Cylinder**. The system automatically determines the required transfer route based on the cylinder's contents:
+The engineer opens the cylinder record in the F-Gas Tracker Pro mobile application and selects **Move Cylinder**. The system automatically determines the required transfer route based on the cylinder's classification and contents:
 
-- If the cylinder contains **no gas**, a simple location update is performed with no HWCN required.
-- If the cylinder contains **waste refrigerant**, the system checks whether any waste refrigerant was actually recovered into the cylinder during the current site visit:
-  - **No waste added on current visit:** Transferring the cylinder from the job site back into the engineer's van is completed as a direct vehicle stock allocation without prompting for or generating an HWCN.
-  - **Waste recovered on current visit:** The system routes the movement through the required HWCN consignment workflow described below (Route A or Route B).
+- If the cylinder is classified as **Unused** or **Empty / Evacuated** (`0.00 kg` vacced), a simple location update is performed with no HWCN required.
+- If the cylinder contains **waste refrigerant (`> 0.00 kg`)** or is classified as **Trace (`0.00 kg` non-evacuated with retained gas type)**, the system enforces hazardous waste consignment rules:
+  - **Site to Van (No waste added on current visit):** Transferring the cylinder from the job site back into the engineer's van is completed as a direct vehicle stock allocation without prompting for or generating an HWCN.
+  - **Transfer to HQ-Stores or Return to Supplier (from Site, Van, or after signing out of HQ-Stores):** The system routes the movement through the mandatory HWCN consignment workflow described below (Route A or Route B).
 
 ### 7.2 Transfer Routes
 
@@ -213,21 +230,21 @@ The system determines the permitted destination based on how many producer sites
 
 | Scenario | Permitted Destination | HWCN Type |
 |---|---|---|
-| **Single producer site** — all gas recovered from one customer site | Direct to supplier *or* HQ-Stores | Supplier's physical HWCN paperwork *or* System-generated internal HWCN |
-| **Multiple producer sites** — gas recovered from two or more different customer sites | HQ-Stores only — direct supplier return is blocked | System-generated internal HWCN |
+| **Single producer site (or Trace cylinder from Stores/Van)** — waste or Trace gas from one source | Direct to supplier *or* HQ-Stores | Supplier's physical paper HWCN (e.g. `21DEGR/A XXXX`) *or* System-generated internal HWCN |
+| **Multiple producer sites** — gas recovered from two or more different customer sites | HQ-Stores only — direct supplier return is blocked | System-generated internal HWCN (to HQ-Stores), followed by consolidated Supplier paper HWCN on return from Stores |
 
-### 7.3 Route A — Direct Transfer to Supplier
+### 7.3 Route A — Transfer to Supplier (From Van or After Signing Out of HQ-Stores) & Paper HWCN Capture
 
-Where the cylinder contains waste from a single producer site, the engineer may transfer it directly to the supplier.
+Where a waste cylinder (`> 0.00 kg`) or a **Trace** cylinder (`0.00 kg` non-evacuated) is transferred to a supplier by an engineer — whether directly following a single-site recovery or after signing a waste/Trace bottle out of HQ-Stores into their van to drop off at a supplier branch — a **Paper Supplier HWCN** is mandatory:
 
-1. The engineer selects **Supplier** as the destination and enters the supplier branch name (e.g. *A-Gas Newcastle*).
-2. Before confirming the transfer in the app, the engineer completes the supplier's paper HWCN — filling in the Producer, Consignor, and Carrier sections. The app prompts the engineer to confirm this has been done before the transfer can proceed.
-3. The system records the cylinder as *in transit* to the supplier and creates a movement log entry.
-4. The engineer transports the cylinder to the supplier's premises. The company waste carrier registration **CBDU368286** must be current for the legal transport of waste refrigerant on public roads.
-5. At the supplier, the engineer hands over the cylinder with the paperwork, where the supplier completes the Consignee section and accepts receipt of the waste cylinder.
-6. The engineer taps **Complete Transit** in the mobile application and uploads a photo of the completed supplier HWCN.
-7. The system marks the cylinder as *returned*, records the delivery timestamp, and stores the supplier's HWCN photo. A permanent movement log entry is created.
-8. The cylinder then appears in the Returned to Supplier register with its full audit trail.
+1. The engineer selects **Supplier** as the destination and enters the supplier branch name (e.g. *Kooltech Gateshead* or *A-Gas Newcastle*).
+2. The engineer completes the supplier's physical paper HWCN (e.g. `21DEGR/A XXXX`) — filling in Part A (Notification Details), Part B (Description of Waste — entering the weighed kg or **Trace** alongside the cylinder serial number and gas type), Part C (Carrier's Certificate including vehicle registration and CBDU368286), and Part D (Consignor's Certificate).
+3. The system places the cylinder into **Supplier Transit** and immediately prompts the engineer to photograph and upload the completed Paper Supplier HWCN once the supplier branch has signed Part E (Consignee's Certificate).
+4. When the engineer uploads the photo of the completed paper HWCN and confirms delivery, the system:
+   - Marks the cylinder status as `returned` and location as `supplier`
+   - Automatically stamps `returned_by` (engineer name) and `returned_at` (return timestamp)
+   - Stores the uploaded HWCN photo permanently against the cylinder record and movement log
+5. The cylinder then appears in the **Returned to Supplier** register showing its gas type, weight (or **Trace**), Return Date, Returned By, Supplier, and linked HWCN photo.
 
 ### 7.4 Route B — Transfer to HQ-Stores with Internal HWCN
 
@@ -273,13 +290,12 @@ Once a cylinder has been delivered to HQ-Stores under Route B, office staff must
 
 > **Note:** The internal HWCN print template pre-populates all mandatory regulatory reference numbers (CBDU368286, waste exemption 31Z 3725 34, EWC Code 14 06 01). These values are immutable and cannot be changed by users.
 
-### 7.6 Supplier Collection from HQ-Stores
+### 7.6 Returning Waste or Trace Cylinders from HQ-Stores to Supplier
 
-Once a waste cylinder has been received at HQ-Stores and Part E has been signed off, office staff contact the supplier to arrange collection of the cylinder.
+Once a waste cylinder (or **Trace** cylinder) has been received at HQ-Stores and Part E of any internal HWCN has been signed off, it may be returned to the supplier by either of two methods — both of which require a **Paper Supplier HWCN**:
 
-When the supplier attends HQ-Stores to collect the waste cylinder, they bring their own HWCN paperwork. This is completed as part of the handover — covering the transfer of the waste from 21 Degrees Ltd to the supplier for reclamation or destruction.
-
-Office staff photograph the completed supplier paperwork and upload it against the cylinder record in F-Gas Tracker Pro. The system marks the cylinder as returned to the supplier and the photo is stored permanently against the bottle, completing the audit trail.
+- **Method 1 — Office / Admin Return from HQ-Stores (Return Waste to Supplier):** When the supplier collects from HQ-Stores or office staff process a batch return from Stores, the paper Supplier HWCN (e.g. `21DEGR/A XXXX`) is completed with 21 Degrees Ltd (Unit 10, Apollo Court, Hebburn, NE31 2ES) as the waste remover/consignor and the supplier branch as consignee. Multiple cylinders (including both weighed waste cylinders and **Trace** cylinders) may be listed on Part B of the same paper HWCN. Office staff open **HQ-Stores → Return Waste to Supplier**, select the cylinder(s), enter the Supplier Name, Supplier Branch, and Paper HWCN Number, and upload the photograph(s) of the signed paper HWCN.
+- **Method 2 — Engineer Takes Waste / Trace Cylinder from HQ-Stores to Supplier Branch:** Where an engineer signs a waste or **Trace** cylinder out of HQ-Stores into their van to drop off at a supplier branch in person, selecting **Supplier** on the cylinder transfer screen automatically triggers the **Paper Supplier HWCN** capture flow (Section 7.3), requiring the engineer to photograph and upload the completed and signed paper HWCN at the supplier branch.
 
 ### 7.7 Cross-Referencing Prior Consignment Notes and Incremental Weight Tracking
 

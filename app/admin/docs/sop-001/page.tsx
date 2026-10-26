@@ -83,8 +83,8 @@ export default function Sop001Page() {
           </div>
           <table className="control-table">
             <tbody>
-              <tr><td>Document Number</td><td>SOP-001</td><td>Version</td><td>3.0</td></tr>
-              <tr><td>Issue Date</td><td>25 April 2026</td><td>Next Review</td><td>25 April 2027</td></tr>
+              <tr><td>Document Number</td><td>SOP-001</td><td>Version</td><td>3.1</td></tr>
+              <tr><td>Issue Date</td><td>26 October 2026</td><td>Next Review</td><td>26 October 2027</td></tr>
               <tr><td>Author</td><td>_________________________</td><td>Approved By</td><td>_________________________</td></tr>
               <tr><td>F-Gas Certification No.</td><td>REF1010728</td><td>System</td><td>21 Degrees F-Gas Tracker Pro</td></tr>
             </tbody>
@@ -151,16 +151,17 @@ export default function Sop001Page() {
             <tr><td>Rental Expiry Date (if applicable)</td><td>Date the rental agreement expires</td><td>31/12/2026</td></tr>
           </tbody>
         </table>
-        <p>The system creates a permanent cylinder record and an entry in the audit log at the time of registration.</p>
+        <p>The system creates a permanent cylinder record with an initial status of <strong>Unused</strong> and an entry in the audit log at the time of registration.</p>
+        <blockquote><strong>Supplier Serial Format Check:</strong> At registration, F-Gas Tracker Pro automatically checks the entered serial number against the selected supplier&apos;s standard format (e.g. BOC 8 digits + 1&ndash;2 letters; Beijer Ref / HRP / Dean &amp; Wood / Kooltech 2 letters/digits + 6 digits; A-Gas / TF Solutions AG + digits; Climate Center CC + digits). If the serial does not match the typical format, a warning prompt requires the user to explicitly confirm the serial before registration proceeds. Cylinders owned by <strong>21 Degrees</strong> (company-purchased stock) or <strong>Other</strong> are exempt as they may carry any serial format.</blockquote>
 
         <h3>5.2 Cylinder Movements</h3>
         <p><strong>Stores to Van:</strong> When a cylinder is to be issued from Stores to a field engineer, this allocation is recorded in F-Gas Tracker Pro by the Engineer. The engineer's name and vehicle registration plate are recorded against the cylinder, and a movement log entry is created. The cylinder then appears in the engineer's Van Inventory on the mobile app.</p>
         <blockquote><strong>Control:</strong> Only one engineer's van is associated with each cylinder at any time. If a cylinder is transferred between vans, both parties and the date/time of the handover are recorded in the movement log.</blockquote>
-        <p><strong>Van to Site:</strong> When an engineer takes a cylinder from their van to a customer job site, this movement is recorded in F-Gas Tracker Pro by the Engineer. The job reference and site details are recorded against the cylinder, and a movement log entry is created. The cylinder is shown as located at that job site until it is moved again.</p>
+        <p><strong>Van to Site:</strong> When an engineer takes a cylinder from their van to a customer job site, this movement is recorded in F-Gas Tracker Pro by the Engineer. The job reference and recognized CRM site details (Site Name and Job Name) are displayed on the cylinder card and recorded against the cylinder, and a movement log entry is created. The cylinder is shown as located at that job site until it is moved again.</p>
         <p><strong>Site back to Van:</strong> On completion of work at the site — whether the cylinder is fully used or has remaining gas — the engineer records the movement of the cylinder back to their van in F-Gas Tracker Pro. A movement log entry is created. The cylinder returns to the engineer's Van Inventory.</p>
 
         <h3>5.3 On-Site Usage</h3>
-        <p>When refrigerant is dispensed to a customer's system on site, the engineer records the usage in the F-Gas Tracker Pro mobile application before leaving site. The following information is captured:</p>
+        <p>When refrigerant is dispensed to a customer's system on site, the engineer records the usage in the F-Gas Tracker Pro mobile application before leaving site. If the cylinder is already located at a job site, the <strong>Job Number</strong> is automatically populated and locked to prevent accidental changes (modifiable only via an explicit <em>Edit</em> button). The following information is captured:</p>
         <table>
           <thead><tr><th>Field</th><th>Description</th><th>Example</th></tr></thead>
           <tbody>
@@ -183,7 +184,8 @@ export default function Sop001Page() {
         <table>
           <thead><tr><th>Status</th><th>Condition</th><th>Action Required</th></tr></thead>
           <tbody>
-            <tr><td>Active</td><td>Cylinder has remaining gas</td><td>Normal use — available for jobs</td></tr>
+            <tr><td>Unused</td><td>Newly registered cylinder; no usage logged yet</td><td>Ready for allocation and first job use</td></tr>
+            <tr><td>Active</td><td>Cylinder has been used and has remaining gas</td><td>Normal use — available for jobs</td></tr>
             <tr><td>Low Gas</td><td>Remaining weight is below the minimum threshold</td><td>Admin and office notified automatically</td></tr>
             <tr><td>Empty</td><td>No remaining gas</td><td>Return to stores or supplier</td></tr>
           </tbody>
