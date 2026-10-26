@@ -183,6 +183,37 @@ export default function HistoryPage() {
               <strong>{isBottleTrace(b) ? "Trace" : `${(b.currentWeight || 0).toFixed(2)} kg`}</strong>
             </div>
             <div className={styles.stat}>
+              <span>Status</span>
+              <span style={{
+                display: 'inline-block',
+                alignSelf: 'flex-start',
+                marginTop: '0.15rem',
+                padding: '0.12rem 0.5rem',
+                borderRadius: '10px',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                textTransform: 'capitalize',
+                background:
+                  isBottleTrace(b) ? 'rgba(255,170,0,0.12)' :
+                  b.status === 'unused' ? 'rgba(0,229,255,0.12)' :
+                  b.status === 'active' ? 'rgba(34,197,94,0.12)' :
+                  b.status === 'returned' ? 'rgba(168,85,247,0.12)' :
+                  b.status === 'archived' ? 'rgba(239,68,68,0.12)' :
+                  b.status === 'full' ? 'rgba(59,130,246,0.12)' :
+                  b.status === 'recycled' ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.08)',
+                color:
+                  isBottleTrace(b) ? '#ffaa00' :
+                  b.status === 'unused' ? '#00e5ff' :
+                  b.status === 'active' ? '#22c55e' :
+                  b.status === 'returned' ? '#a855f7' :
+                  b.status === 'archived' ? '#ef4444' :
+                  b.status === 'full' ? '#3b82f6' :
+                  b.status === 'recycled' ? '#10b981' : 'rgba(255,255,255,0.75)'
+              }}>
+                {isBottleTrace(b) ? 'Trace' : (b.status || 'Active')}
+              </span>
+            </div>
+            <div className={styles.stat}>
               <span>Location</span>
               <strong>{b.locationId || b.locationType}</strong>
             </div>

@@ -25,23 +25,25 @@ const categoryFilters = [
   { key: "nitrogen", label: "Nitrogen" },
 ];
 
-type SortKey = "serial" | "category" | "gasType" | "currentWeight" | "initialWeight" | "locationId" | "status" | "locationChangedAt" | "supplier" | "registeredAt" | "rentalExpiryDate";
+type SortKey = "serial" | "category" | "gasType" | "currentWeight" | "initialWeight" | "locationId" | "status" | "locationChangedAt" | "supplier" | "registeredAt" | "rentalExpiryDate" | "intendedDestination" | "activeHWCN";
 
 const COLUMN_DEFS = [
-  { key: "serial",      label: "Serial",        required: true  },
-  { key: "category",    label: "Category"                       },
-  { key: "gasType",     label: "Gas Type"                       },
-  { key: "capacity",    label: "Capacity"                       },
-  { key: "gasInBottle", label: "Gas In Bottle"                  },
-  { key: "balance",     label: "Balance"                        },
-  { key: "location",    label: "Location"                       },
-  { key: "supplier",    label: "Supplier"                       },
-  { key: "poNumber",    label: "PO Number"                      },
-  { key: "registered",  label: "Registered"                     },
-  { key: "expiry",      label: "Expiry Date"                    },
-  { key: "status",      label: "Status"                         },
-  { key: "lastChanged", label: "Last Changed"                   },
-  { key: "actions",     label: "Actions",       required: true  },
+  { key: "serial",              label: "Serial",                required: true  },
+  { key: "category",            label: "Category"                               },
+  { key: "gasType",             label: "Gas Type"                               },
+  { key: "capacity",            label: "Capacity"                               },
+  { key: "gasInBottle",         label: "Gas In Bottle"                          },
+  { key: "balance",             label: "Balance"                                },
+  { key: "location",            label: "Location"                               },
+  { key: "intendedDestination", label: "Intended Destination"                   },
+  { key: "activeHWCN",          label: "Active HWCN #"                          },
+  { key: "supplier",            label: "Supplier"                               },
+  { key: "poNumber",            label: "PO Number"                              },
+  { key: "registered",          label: "Registered"                             },
+  { key: "expiry",              label: "Expiry Date"                            },
+  { key: "status",              label: "Status"                                 },
+  { key: "lastChanged",         label: "Last Changed"                           },
+  { key: "actions",             label: "Actions",               required: true  },
 ] as const;
 
 export default function AllBottlesPage() {
@@ -149,6 +151,8 @@ export default function AllBottlesPage() {
       case "gasInBottle":  return (b.currentWeight ?? 0).toFixed(2).includes(v);
       case "balance":      return ((b.initialWeight ?? 0) - (b.currentWeight ?? 0)).toFixed(2).includes(v);
       case "poNumber":     return (b.poNumber || "").toLowerCase().includes(v);
+      case "intendedDestination": return (b.intendedDestination || "").toLowerCase().includes(v);
+      case "activeHWCN":   return (b.activeHWCN || "").toLowerCase().includes(v);
       case "registered":   return b.registeredAt ? new Date(b.registeredAt).toLocaleDateString("en-GB").toLowerCase().includes(v) : false;
       case "expiry":       return b.rentalExpiryDate ? new Date(b.rentalExpiryDate).toLocaleDateString("en-GB").toLowerCase().includes(v) : false;
       case "lastChanged":  return b.locationChangedAt ? new Date(b.locationChangedAt).toLocaleDateString("en-GB").toLowerCase().includes(v) : false;
@@ -365,8 +369,8 @@ export default function AllBottlesPage() {
   };
 
   const exportCSV = () => {
-    const header = "Serial,Category,Gas Type,Capacity,Current,Location,Status,Supplier,Registered\n";
-    const rows = filtered.map(b => `${b.serial},${b.category},${b.gasType},${b.initialWeight},${b.currentWeight},${b.locationId},${b.status},${b.supplier},${b.registeredAt}`).join("\n");
+    const header = "Serial,Category,Gas Type,Capacity,Current,Location,Intended Destination,Active HWCN #,Status,Supplier,Registered\n";
+    const rows = filtered.map(b => `${b.serial},${b.category},${b.gasType},${b.initialWeight},${b.currentWeight},${b.locationId},"${b.intendedDestination || ""}","${b.activeHWCN || ""}",${isBottleTrace(b) ? "Trace" : b.status},${b.supplier},${b.registeredAt}`).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -393,6 +397,8 @@ export default function AllBottlesPage() {
         case "gasInBottle": return isNitrogen ? "N/A" : `${cw.toFixed(2)} kg`;
         case "balance": return isNitrogen ? "N/A" : `${bal.toFixed(2)} kg`;
         case "location": return getLocDisplay(b);
+        case "intendedDestination": return b.intendedDestination || "—";
+        case "activeHWCN": return b.activeHWCN || "—";
         case "supplier": return b.supplier || "—";
         case "poNumber": return b.poNumber || "—";
         case "registered": return b.registeredAt ? new Date(b.registeredAt).toLocaleDateString("en-GB") : "—";
@@ -512,6 +518,20 @@ export default function AllBottlesPage() {
           <th key={key} style={thBase}>
             <div style={labelStyle} onClick={() => handleSort("locationId")}>Location <SortIcon col="locationId" /></div>
             {multiSelect("location", distinctVals.location || [])}
+          </th>
+        );
+      case "intendedDestination":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("intendedDestination")}>Intended Destination <SortIcon col="intendedDestination" /></div>
+            {textFilter("intendedDestination", "e.g. HQ-Stores")}
+          </th>
+        );
+      case "activeHWCN":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("activeHWCN")}>Active HWCN # <SortIcon col="activeHWCN" /></div>
+            {textFilter("activeHWCN", "e.g. HWCN...")}
           </th>
         );
       case "supplier":
@@ -651,6 +671,24 @@ export default function AllBottlesPage() {
               {getLocIcon(b.locationType)}
               <span style={{color: getLocColor(b.locationType)}}>{getLocDisplay(b)}</span>
             </div>
+          </td>
+        );
+      case "intendedDestination":
+        return (
+          <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", color: b.intendedDestination ? "#ffaa00" : "var(--text-muted)", fontWeight: b.intendedDestination ? 600 : 400}}>
+            {b.intendedDestination || "—"}
+          </td>
+        );
+      case "activeHWCN":
+        return (
+          <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", fontFamily: "var(--font-geist-mono)"}}>
+            {b.activeHWCN ? (
+              <span style={{color: "#ffaa00", background: "rgba(255,170,0,0.1)", border: "1px solid rgba(255,170,0,0.25)", padding: "0.15rem 0.45rem", borderRadius: "5px", fontWeight: 700, fontSize: "0.78rem"}}>
+                {b.activeHWCN}
+              </span>
+            ) : (
+              <span style={{color: "var(--text-muted)"}}>—</span>
+            )}
           </td>
         );
       case "supplier":

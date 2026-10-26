@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { db, Bottle } from "@/lib/db";
+import { db, Bottle, isBottleTrace } from "@/lib/db";
 import { CalendarClock, AlertCircle, Clock, CheckCircle2, RefreshCw, Edit2, Truck, ExternalLink } from "lucide-react";
 import styles from "../../engineer/page.module.css";
 import { useRouter } from "next/navigation";
@@ -159,6 +159,36 @@ export default function ExpiryPage() {
                 </div>
 
                 <div style={{display: "flex", flexDirection: "column", gap: "0.5rem"}}>
+                  <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.85rem"}}>
+                    <span style={{color: "rgba(255,255,255,0.4)"}}>Category:</span>
+                    <span style={{
+                      padding: "0.15rem 0.5rem",
+                      borderRadius: "10px",
+                      fontSize: "0.72rem",
+                      fontWeight: 700,
+                      background:
+                        b.category === "reclaim" ? "rgba(255,170,0,0.12)" :
+                        b.category === "recycled" ? "rgba(16,185,129,0.12)" :
+                        b.category === "new" ? "rgba(0,229,255,0.08)" : "rgba(255,255,255,0.06)",
+                      color:
+                        b.category === "reclaim" ? "#ffaa00" :
+                        b.category === "recycled" ? "#10b981" :
+                        b.category === "new" ? "#00e5ff" : "rgba(255,255,255,0.6)"
+                    }}>
+                      {b.category === "reclaim" ? "Reclaim / Haz" : b.category === "recycled" ? "Recycled" : b.category === "new" ? "New" : "N₂"}
+                    </span>
+                  </div>
+                  <div style={{display: "flex", justifyContent: "space-between", fontSize: "0.85rem"}}>
+                    <span style={{color: "rgba(255,255,255,0.4)"}}>{b.category === "reclaim" ? "Recovered / Capacity:" : "Gas in Bottle / Capacity:"}</span>
+                    <span style={{
+                      color: b.category === "nitrogen" ? "rgba(255,255,255,0.7)" : isBottleTrace(b) || (b.currentWeight || 0) === 0 ? "#ffaa00" : "#22c55e",
+                      fontWeight: 700
+                    }}>
+                      {b.category === "nitrogen"
+                        ? `N/A (${(b.initialWeight || 0).toFixed(2)} kg)`
+                        : `${isBottleTrace(b) ? "Trace" : `${(b.currentWeight || 0).toFixed(2)} kg`} / ${(b.initialWeight || 0).toFixed(2)} kg`}
+                    </span>
+                  </div>
                   <div style={{display: "flex", justifyContent: "space-between", fontSize: "0.85rem"}}>
                     <span style={{color: "rgba(255,255,255,0.4)"}}>Expiry Date:</span>
                     <span style={{color: "#fff", fontWeight: 500}}>{new Date(b.rentalExpiryDate!).toLocaleDateString("en-GB")}</span>
@@ -166,6 +196,34 @@ export default function ExpiryPage() {
                   <div style={{display: "flex", justifyContent: "space-between", fontSize: "0.85rem"}}>
                     <span style={{color: "rgba(255,255,255,0.4)"}}>Location:</span>
                     <span style={{color: "#fff", fontWeight: 500}}>{b.locationId}</span>
+                  </div>
+                  <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.85rem"}}>
+                    <span style={{color: "rgba(255,255,255,0.4)"}}>Status:</span>
+                    <span style={{
+                      padding: "0.15rem 0.5rem",
+                      borderRadius: "10px",
+                      fontSize: "0.72rem",
+                      fontWeight: 700,
+                      textTransform: "capitalize",
+                      background:
+                        isBottleTrace(b) ? "rgba(255,170,0,0.12)" :
+                        b.status === "unused" ? "rgba(0,229,255,0.12)" :
+                        b.status === "active" ? "rgba(34,197,94,0.12)" :
+                        b.status === "returned" ? "rgba(168,85,247,0.12)" :
+                        b.status === "archived" ? "rgba(239,68,68,0.12)" :
+                        b.status === "full" ? "rgba(59,130,246,0.12)" :
+                        b.status === "recycled" ? "rgba(16,185,129,0.12)" : "rgba(255,255,255,0.08)",
+                      color:
+                        isBottleTrace(b) ? "#ffaa00" :
+                        b.status === "unused" ? "#00e5ff" :
+                        b.status === "active" ? "#22c55e" :
+                        b.status === "returned" ? "#a855f7" :
+                        b.status === "archived" ? "#ef4444" :
+                        b.status === "full" ? "#3b82f6" :
+                        b.status === "recycled" ? "#10b981" : "rgba(255,255,255,0.75)"
+                    }}>
+                      {isBottleTrace(b) ? "Trace" : (b.status || "Active")}
+                    </span>
                   </div>
                 </div>
 

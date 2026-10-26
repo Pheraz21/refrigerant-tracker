@@ -49,16 +49,24 @@ export default function EngineerInventoryPage() {
   const printReport = () => {
     const reportDate = new Date().toLocaleDateString("en-GB");
     const targetReg = activeVehicleReg || user?.vehicleReg || "Unassigned";
-    const rows = bottles.map(b => `
+    const rows = bottles.map(b => {
+      const statusLabel = isBottleTrace(b)
+        ? "Trace"
+        : b.status
+          ? b.status.charAt(0).toUpperCase() + b.status.slice(1)
+          : "Active";
+      return `
       <tr>
         <td>${b.serial}</td>
         <td>${b.category === "new" ? "New" : b.category === "recycled" ? "Recycled" : b.category === "reclaim" ? "Reclaim" : "N2"}</td>
         <td>${b.gasType}</td>
+        <td>${statusLabel}</td>
         <td>${(b.initialWeight || 0).toFixed(2)} kg</td>
         <td>${isBottleTrace(b) ? "Trace" : `${(b.currentWeight || 0).toFixed(2)} kg`}</td>
         <td>${((b.initialWeight || 0) - (b.currentWeight || 0)).toFixed(2)} kg</td>
       </tr>
-    `).join("");
+    `;
+    }).join("");
 
     const html = `
       <html>
@@ -102,7 +110,7 @@ export default function EngineerInventoryPage() {
           <table>
             <thead>
               <tr>
-                <th>Serial</th><th>Type</th><th>Gas</th><th>Capacity</th><th>In Bottle</th><th>Balance</th>
+                <th>Serial</th><th>Type</th><th>Gas</th><th>Status</th><th>Capacity</th><th>In Bottle</th><th>Balance</th>
               </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -284,6 +292,20 @@ export default function EngineerInventoryPage() {
                     <div style={{fontSize: '0.85rem', wordBreak: 'break-word'}}>
                       <span style={{color: 'var(--text-muted)'}}>Gas Type: </span>
                       <strong style={{color: '#fff'}}>{bottle.gasType}</strong>
+                    </div>
+                    <div style={{fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap'}}>
+                      <span style={{color: 'var(--text-muted)'}}>Status: </span>
+                      <span style={{
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        padding: '0.15rem 0.55rem',
+                        borderRadius: '20px',
+                        textTransform: 'capitalize',
+                        background: isBottleTrace(bottle) ? 'rgba(255,170,0,0.15)' : bottle.status === 'unused' ? 'rgba(0,229,255,0.15)' : bottle.status === 'active' ? 'rgba(34,197,94,0.15)' : bottle.status === 'returned' ? 'rgba(168,85,247,0.15)' : bottle.status === 'archived' ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.08)',
+                        color: isBottleTrace(bottle) ? '#ffaa00' : bottle.status === 'unused' ? '#00e5ff' : bottle.status === 'active' ? '#22c55e' : bottle.status === 'returned' ? '#a855f7' : bottle.status === 'archived' ? '#ef4444' : 'rgba(255,255,255,0.75)'
+                      }}>
+                        {isBottleTrace(bottle) ? 'Trace' : (bottle.status || 'Active')}
+                      </span>
                     </div>
                     <div style={{fontSize: '0.85rem', wordBreak: 'break-word'}}>
                       <span style={{color: 'var(--text-muted)'}}>Current Location: </span>

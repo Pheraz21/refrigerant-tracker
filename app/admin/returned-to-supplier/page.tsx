@@ -9,18 +9,21 @@ import { ColumnCustomizer } from "@/app/components/ColumnCustomizer";
 import { DoubleScrollContainer } from "@/app/components/DoubleScrollContainer";
 
 const COLUMN_DEFS = [
-  { key: "serial",      label: "Serial",      required: true },
-  { key: "category",    label: "Category"                    },
-  { key: "gasType",     label: "Gas Type"                    },
-  { key: "capacity",    label: "Capacity"                    },
-  { key: "gasInBottle", label: "Gas In Bottle"               },
-  { key: "balance",     label: "Balance"                     },
-  { key: "returnedBy",  label: "Returned By"                 },
-  { key: "returnDate",  label: "Return Date"                 },
-  { key: "supplier",    label: "Supplier"                    },
-  { key: "poNumber",    label: "PO Number"                   },
-  { key: "registered",  label: "Registered"                  },
-  { key: "expiry",      label: "Expiry Date"                    },
+  { key: "serial",               label: "Serial",          required: true },
+  { key: "category",             label: "Category"                        },
+  { key: "gasType",              label: "Gas Type"                        },
+  { key: "capacity",             label: "Capacity"                        },
+  { key: "gasInBottle",          label: "Gas In Bottle"                   },
+  { key: "balance",              label: "Balance"                         },
+  { key: "status",               label: "Status"                          },
+  { key: "returnHwcnNumber",     label: "HWCN #"                          },
+  { key: "returnSupplierBranch", label: "Supplier Branch"                 },
+  { key: "returnedBy",           label: "Returned By"                     },
+  { key: "returnDate",           label: "Return Date"                     },
+  { key: "supplier",             label: "Supplier"                        },
+  { key: "poNumber",             label: "PO Number"                       },
+  { key: "registered",           label: "Registered"                      },
+  { key: "expiry",               label: "Expiry Date"                     },
 ] as const;
 
 export default function ReturnedToSupplierPage() {
@@ -81,13 +84,18 @@ export default function ReturnedToSupplierPage() {
       category: new Set(),
       gasType: new Set(),
       returnedBy: new Set(),
-      supplier: new Set()
+      supplier: new Set(),
+      returnSupplierBranch: new Set(),
+      status: new Set()
     };
     for (const b of bottles) {
       if (b.category) sets.category.add(b.category);
       if (b.gasType) sets.gasType.add(b.gasType);
       if (b.returnedBy) sets.returnedBy.add(b.returnedBy);
       if (b.supplier) sets.supplier.add(b.supplier);
+      if (b.returnSupplierBranch) sets.returnSupplierBranch.add(b.returnSupplierBranch);
+      const st = isBottleTrace(b) ? "trace" : (b.status || "");
+      if (st) sets.status.add(st);
     }
     const result: Record<string, string[]> = {};
     for (const k of Object.keys(sets)) result[k] = Array.from(sets[k]).sort();
@@ -118,6 +126,7 @@ export default function ReturnedToSupplierPage() {
       case "capacity":    return (b.initialWeight ?? 0).toFixed(2).includes(v);
       case "gasInBottle": return (isBottleTrace(b) ? "trace" : (b.currentWeight ?? 0).toFixed(2)).includes(v);
       case "balance":     return ((b.initialWeight ?? 0) - (b.currentWeight ?? 0)).toFixed(2).includes(v);
+      case "returnHwcnNumber": return (b.returnHwcnNumber || "").toLowerCase().includes(v);
       case "returnDate":  return b.returnedAt ? new Date(b.returnedAt).toLocaleDateString("en-GB").toLowerCase().includes(v) : false;
       case "poNumber":    return (b.poNumber || "").toLowerCase().includes(v);
       case "registered":  return b.registeredAt ? new Date(b.registeredAt).toLocaleDateString("en-GB").toLowerCase().includes(v) : false;
@@ -129,11 +138,13 @@ export default function ReturnedToSupplierPage() {
   function matchMultiFilter(key: string, b: Bottle, vals: string[]): boolean {
     if (!vals || vals.length === 0) return true;
     switch (key) {
-      case "category":   return vals.includes(b.category);
-      case "gasType":    return vals.includes(b.gasType);
-      case "returnedBy": return vals.includes(b.returnedBy || "");
-      case "supplier":   return vals.includes(b.supplier || "");
-      default:           return true;
+      case "category":             return vals.includes(b.category);
+      case "gasType":              return vals.includes(b.gasType);
+      case "returnedBy":           return vals.includes(b.returnedBy || "");
+      case "supplier":             return vals.includes(b.supplier || "");
+      case "returnSupplierBranch": return vals.includes(b.returnSupplierBranch || "");
+      case "status":               return vals.includes(isBottleTrace(b) ? "trace" : (b.status || ""));
+      default:                     return true;
     }
   }
 
@@ -154,7 +165,9 @@ export default function ReturnedToSupplierPage() {
           b.supplier?.toLowerCase().includes(s) ||
           b.gasType.toLowerCase().includes(s) ||
           b.category.toLowerCase().includes(s) ||
-          b.returnedBy?.toLowerCase().includes(s);
+          b.returnedBy?.toLowerCase().includes(s) ||
+          b.returnHwcnNumber?.toLowerCase().includes(s) ||
+          b.returnSupplierBranch?.toLowerCase().includes(s);
         if (!match) return false;
       }
       if (dateFrom && b.returnedAt) {
@@ -178,9 +191,12 @@ export default function ReturnedToSupplierPage() {
     });
 
   const handleExportCSV = () => {
-    const headers = ["Serial", "Category", "Gas Type", "Supplier", "Returned By", "Return Date"];
+    const headers = ["Serial", "Category", "Gas Type", "Status", "HWCN #", "Supplier Branch", "Supplier", "Returned By", "Return Date"];
     const rows = filteredBottles.map(b => [
       b.serial, b.category, b.gasType,
+      isBottleTrace(b) ? "Trace" : (b.status || "Returned"),
+      b.returnHwcnNumber || "",
+      b.returnSupplierBranch || "",
       b.supplier || "",
       b.returnedBy || "",
       b.returnedAt ? new Date(b.returnedAt).toLocaleDateString("en-GB") : ""
@@ -210,6 +226,9 @@ export default function ReturnedToSupplierPage() {
         const bal = Math.max(0, (b.initialWeight || 0) - (b.currentWeight || 0));
         return `${bal.toFixed(2)} kg`;
       }
+      case "status": return isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unused" : b.status ? (b.status.charAt(0).toUpperCase() + b.status.slice(1)) : "Returned";
+      case "returnHwcnNumber": return b.returnHwcnNumber || "—";
+      case "returnSupplierBranch": return b.returnSupplierBranch || "—";
       case "returnedBy": return b.returnedBy || "—";
       case "returnDate": return b.returnedAt ? new Date(b.returnedAt).toLocaleDateString("en-GB") : "—";
       case "supplier": return b.supplier || "—";
@@ -391,6 +410,9 @@ export default function ReturnedToSupplierPage() {
     if (k === "category") {
       return o === "reclaim" ? "Reclaim / Haz" : o === "new" ? "New" : o === "recycled" ? "Recycled" : "N₂ (Nitrogen)";
     }
+    if (k === "status") {
+      return o === "trace" ? "Trace" : o === "unused" ? "Unused" : o === "active" ? "Active" : o === "returned" ? "Returned" : o === "archived" ? "Archived" : o === "full" ? "Full" : o === "empty" ? "Empty" : o === "recycled" ? "Recycled" : (o || "(none)");
+    }
     return o || "(none)";
   };
 
@@ -564,6 +586,27 @@ export default function ReturnedToSupplierPage() {
             {textFilter("balance", "e.g. 1.50")}
           </th>
         );
+      case "status":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("status")}>Status <SortIcon field="status" /></div>
+            {multiSelect("status", distinctVals.status || [])}
+          </th>
+        );
+      case "returnHwcnNumber":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("returnHwcnNumber")}>HWCN # <SortIcon field="returnHwcnNumber" /></div>
+            {textFilter("returnHwcnNumber", "e.g. HWCN...")}
+          </th>
+        );
+      case "returnSupplierBranch":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("returnSupplierBranch")}>Supplier Branch <SortIcon field="returnSupplierBranch" /></div>
+            {multiSelect("returnSupplierBranch", distinctVals.returnSupplierBranch || [])}
+          </th>
+        );
       case "returnedBy":
         return (
           <th key={key} style={thBase}>
@@ -673,6 +716,36 @@ export default function ReturnedToSupplierPage() {
                 <div style={{fontSize: "0.72rem", color: "var(--text-muted)"}}>{isReclaim ? "Available Space" : "Total Used"}</div>
               </>
             )}
+          </td>
+        );
+      case "status":
+        return (
+          <td key={key} style={{padding: "0.85rem 1rem"}}>
+            <span style={{
+              fontSize: "0.75rem", fontWeight: 600, padding: "0.2rem 0.6rem", borderRadius: "20px", textTransform: "capitalize",
+              background: isBottleTrace(b) ? "rgba(255,170,0,0.12)" : b.status === "unused" ? "rgba(0,229,255,0.12)" : b.status === "active" ? "rgba(34,197,94,0.12)" : b.status === "returned" ? "rgba(168,85,247,0.12)" : b.status === "archived" ? "rgba(239,68,68,0.12)" : b.status === "full" ? "rgba(59,130,246,0.12)" : b.status === "recycled" ? "rgba(16,185,129,0.12)" : "rgba(255,255,255,0.06)",
+              color: isBottleTrace(b) ? "#ffaa00" : b.status === "unused" ? "#00e5ff" : b.status === "active" ? "#22c55e" : b.status === "returned" ? "#a855f7" : b.status === "archived" ? "#ef4444" : b.status === "full" ? "#3b82f6" : b.status === "recycled" ? "#10b981" : "rgba(255,255,255,0.6)"
+            }}>
+              {isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unused" : (b.status || "Returned")}
+            </span>
+          </td>
+        );
+      case "returnHwcnNumber":
+        return (
+          <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", fontFamily: "var(--font-geist-mono)"}}>
+            {b.returnHwcnNumber ? (
+              <span style={{color: "#ffaa00", background: "rgba(255,170,0,0.1)", border: "1px solid rgba(255,170,0,0.25)", padding: "0.15rem 0.45rem", borderRadius: "5px", fontWeight: 700, fontSize: "0.78rem"}}>
+                {b.returnHwcnNumber}
+              </span>
+            ) : (
+              <span style={{color: "var(--text-muted)"}}>—</span>
+            )}
+          </td>
+        );
+      case "returnSupplierBranch":
+        return (
+          <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", color: b.returnSupplierBranch ? "rgba(255,255,255,0.85)" : "var(--text-muted)"}}>
+            {b.returnSupplierBranch || "—"}
           </td>
         );
       case "returnedBy":

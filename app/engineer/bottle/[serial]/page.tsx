@@ -474,6 +474,34 @@ export default function BottleActionHub() {
                 <span style={{color: 'var(--text-muted)'}}>Location: </span>
                 <strong style={{color: '#fff', textTransform: 'capitalize'}}>{bottle.locationId || bottle.locationType}</strong>
               </div>
+              <div style={{fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem'}}>
+                <span style={{color: 'var(--text-muted)'}}>Status: </span>
+                <span style={{
+                  padding: '0.12rem 0.5rem',
+                  borderRadius: '10px',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  textTransform: 'capitalize',
+                  background:
+                    isBottleTrace(bottle) ? 'rgba(255,170,0,0.12)' :
+                    bottle.status === 'unused' ? 'rgba(0,229,255,0.12)' :
+                    bottle.status === 'active' ? 'rgba(34,197,94,0.12)' :
+                    bottle.status === 'returned' ? 'rgba(168,85,247,0.12)' :
+                    bottle.status === 'archived' ? 'rgba(239,68,68,0.12)' :
+                    bottle.status === 'full' ? 'rgba(59,130,246,0.12)' :
+                    bottle.status === 'recycled' ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.08)',
+                  color:
+                    isBottleTrace(bottle) ? '#ffaa00' :
+                    bottle.status === 'unused' ? '#00e5ff' :
+                    bottle.status === 'active' ? '#22c55e' :
+                    bottle.status === 'returned' ? '#a855f7' :
+                    bottle.status === 'archived' ? '#ef4444' :
+                    bottle.status === 'full' ? '#3b82f6' :
+                    bottle.status === 'recycled' ? '#10b981' : 'rgba(255,255,255,0.75)'
+                }}>
+                  {isBottleTrace(bottle) ? 'Trace' : (bottle.status || 'Active')}
+                </span>
+              </div>
             </div>
 
             {/* Right Column: Weights */}

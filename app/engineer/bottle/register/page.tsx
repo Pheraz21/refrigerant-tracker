@@ -135,6 +135,7 @@ export default function RegisterBottlePage() {
   const [gasType, setGasType] = useState("R410A");
   const [locationType, setLocationType] = useState<"van" | "office" | "office_collected" | "site">(user?.role === "admin" ? "office" : "van");
   const [locationId, setLocationId] = useState("");
+  const [siteCrmJob, setSiteCrmJob] = useState<any | null>(null);
   const [vehicleReg, setVehicleReg] = useState("");
   const [poNumber, setPoNumber] = useState("");
   const [supplier, setSupplier] = useState("");
@@ -151,6 +152,20 @@ export default function RegisterBottlePage() {
   useEffect(() => {
     setSerialWarningConfirmed(false);
   }, [effectiveSerial, supplier]);
+
+  useEffect(() => {
+    if (locationType !== "site" || !locationId || locationId.trim().length < 3) {
+      setSiteCrmJob(null);
+      return;
+    }
+    let active = true;
+    db.getCrmJobByNumber(locationId.trim()).then(crm => {
+      if (active) setSiteCrmJob(crm || null);
+    }).catch(() => {
+      if (active) setSiteCrmJob(null);
+    });
+    return () => { active = false; };
+  }, [locationType, locationId]);
 
   useEffect(() => {
     if (!effectiveSerial || effectiveSerial === serialParam.trim().toUpperCase()) {
@@ -491,7 +506,7 @@ export default function RegisterBottlePage() {
         {category === "reclaim" && (
           <div className={styles.readonlyField} style={{ background: 'rgba(0, 229, 255, 0.08)', borderColor: 'rgba(0, 229, 255, 0.25)', marginTop: '-0.5rem', marginBottom: '1.5rem' }}>
             <span className={styles.label}>Gas Type</span>
-            <span style={{ color: '#00e5ff', fontWeight: 600 }}>Empty / Evacuated (Ready for Recovery)</span>
+            <span style={{ color: '#00e5ff', fontWeight: 600 }}>Unused (Ready for Recovery)</span>
             <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', marginTop: '0.2rem' }}>
               Cylinder will automatically adopt the refrigerant type upon first gas recovery on site.
             </span>
@@ -562,6 +577,25 @@ export default function RegisterBottlePage() {
                 placeholder="e.g. J12345"
                 required
               />
+              {siteCrmJob && (
+                <div style={{ marginTop: "0.5rem", padding: "0.65rem 0.8rem", background: "rgba(0, 229, 255, 0.08)", border: "1px solid rgba(0, 229, 255, 0.25)", borderRadius: "8px", fontSize: "0.82rem", lineHeight: 1.45 }}>
+                  {(siteCrmJob.siteTitle || siteCrmJob.customer) && (
+                    <div style={{ color: "var(--primary)", fontWeight: 600 }}>
+                      ✓ Site: {String(siteCrmJob.siteTitle || siteCrmJob.customer).replace(/,(?!\s)/g, ", ")}
+                    </div>
+                  )}
+                  {siteCrmJob.jobTitle && (
+                    <div style={{ color: "#fff", marginTop: "0.15rem" }}>
+                      <span style={{ color: "var(--text-muted)" }}>Job Name: </span>{siteCrmJob.jobTitle}
+                    </div>
+                  )}
+                  {(siteCrmJob.siteAddress || siteCrmJob.sitePostcode) && (
+                    <div style={{ color: "var(--text-muted)", fontSize: "0.75rem", marginTop: "0.15rem" }}>
+                      {[siteCrmJob.siteAddress, siteCrmJob.sitePostcode].filter(Boolean).join(", ")}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

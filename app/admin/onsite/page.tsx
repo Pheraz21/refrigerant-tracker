@@ -9,24 +9,27 @@ import { useTablePrefs } from "@/lib/useTablePrefs";
 import { ColumnCustomizer } from "@/app/components/ColumnCustomizer";
 import { DoubleScrollContainer } from "@/app/components/DoubleScrollContainer";
 
-type SortKey = "serial" | "category" | "gasType" | "currentWeight" | "initialWeight" | "locationId" | "locationChangedAt" | "supplier" | "registeredAt" | "rentalExpiryDate" | "lastEngineer";
+type SortKey = "serial" | "category" | "gasType" | "currentWeight" | "initialWeight" | "locationId" | "locationChangedAt" | "supplier" | "registeredAt" | "rentalExpiryDate" | "lastEngineer" | "status" | "intendedDestination" | "activeHWCN";
 
 const COLUMN_DEFS = [
-  { key: "serial",      label: "Serial",       required: true },
-  { key: "category",    label: "Category"                     },
-  { key: "gasType",     label: "Gas Type"                     },
-  { key: "capacity",    label: "Capacity"                     },
-  { key: "gasInBottle", label: "Gas In Bottle"                },
-  { key: "balance",     label: "Balance"                      },
-  { key: "jobNo",       label: "Job No"                       },
-  { key: "site",        label: "Site"                         },
-  { key: "customer",    label: "Customer"                     },
-  { key: "supplier",    label: "Supplier"                     },
-  { key: "poNumber",    label: "PO Number"                    },
-  { key: "registered",  label: "Registered"                   },
-  { key: "expiry",      label: "Expiry Date"                    },
-  { key: "onSiteSince",    label: "On Site Since"                },
-  { key: "lastEngineer",  label: "Last Engineer"                },
+  { key: "serial",              label: "Serial",               required: true },
+  { key: "category",            label: "Category"                             },
+  { key: "gasType",             label: "Gas Type"                             },
+  { key: "capacity",            label: "Capacity"                             },
+  { key: "gasInBottle",         label: "Gas In Bottle"                        },
+  { key: "balance",             label: "Balance"                              },
+  { key: "status",              label: "Status"                               },
+  { key: "jobNo",               label: "Job No"                               },
+  { key: "site",                label: "Site"                                 },
+  { key: "customer",            label: "Customer"                             },
+  { key: "intendedDestination", label: "Intended Destination"                 },
+  { key: "activeHWCN",          label: "Active HWCN #"                        },
+  { key: "supplier",            label: "Supplier"                             },
+  { key: "poNumber",            label: "PO Number"                            },
+  { key: "registered",          label: "Registered"                           },
+  { key: "expiry",              label: "Expiry Date"                          },
+  { key: "onSiteSince",         label: "On Site Since"                        },
+  { key: "lastEngineer",        label: "Last Engineer"                        },
 ] as const;
 
 export default function BottlesOnSitePage() {
@@ -81,7 +84,8 @@ export default function BottlesOnSitePage() {
       gasType: new Set(),
       customer: new Set(),
       supplier: new Set(),
-      lastEngineer: new Set()
+      lastEngineer: new Set(),
+      status: new Set()
     };
     for (const b of bottles) {
       if (b.category) sets.category.add(b.category);
@@ -90,6 +94,8 @@ export default function BottlesOnSitePage() {
       if (crm?.customer) sets.customer.add(crm.customer);
       if (b.supplier) sets.supplier.add(b.supplier);
       if (b.lastEngineer) sets.lastEngineer.add(b.lastEngineer);
+      const st = isBottleTrace(b) ? "trace" : (b.status || "");
+      if (st) sets.status.add(st);
     }
     const result: Record<string, string[]> = {};
     for (const k of Object.keys(sets)) result[k] = Array.from(sets[k]).sort();
@@ -123,6 +129,8 @@ export default function BottlesOnSitePage() {
       case "balance":     return ((b.initialWeight ?? 0) - (b.currentWeight ?? 0)).toFixed(2).includes(v);
       case "jobNo":       return (b.locationId || "").toLowerCase().includes(v);
       case "site":        return (crm?.siteTitle || "").toLowerCase().includes(v);
+      case "intendedDestination": return (b.intendedDestination || "").toLowerCase().includes(v);
+      case "activeHWCN":  return (b.activeHWCN || "").toLowerCase().includes(v);
       case "poNumber":    return (b.poNumber || "").toLowerCase().includes(v);
       case "registered":  return b.registeredAt ? new Date(b.registeredAt).toLocaleDateString("en-GB").toLowerCase().includes(v) : false;
       case "expiry":      return b.rentalExpiryDate ? new Date(b.rentalExpiryDate).toLocaleDateString("en-GB").toLowerCase().includes(v) : false;
@@ -140,6 +148,7 @@ export default function BottlesOnSitePage() {
       case "customer":     return vals.includes(crm?.customer || "");
       case "supplier":     return vals.includes(b.supplier || "");
       case "lastEngineer": return vals.includes(b.lastEngineer || "");
+      case "status":       return vals.includes(isBottleTrace(b) ? "trace" : (b.status || ""));
       default:             return true;
     }
   }
@@ -199,6 +208,9 @@ export default function BottlesOnSitePage() {
   const optionLabel = (k: string, o: string) => {
     if (k === "category") {
       return o === "reclaim" ? "Reclaim / Haz" : o === "new" ? "New" : o === "recycled" ? "Recycled" : "N₂ (Nitrogen)";
+    }
+    if (k === "status") {
+      return o === "trace" ? "Trace" : o === "unused" ? "Unused" : o === "active" ? "Active" : o === "returned" ? "Returned" : o === "archived" ? "Archived" : o === "full" ? "Full" : o === "empty" ? "Empty" : o === "recycled" ? "Recycled" : (o || "(none)");
     }
     return o || "(none)";
   };
@@ -331,8 +343,8 @@ export default function BottlesOnSitePage() {
   };
 
   const exportCSV = () => {
-    const header = "Serial,Category,Gas Type,Capacity,Current,Site,Supplier,On Site Since\n";
-    const rows = filtered.map(b => `${b.serial},${b.category},${b.gasType},${b.initialWeight},${b.currentWeight},${b.locationId},${b.supplier},${b.locationChangedAt}`).join("\n");
+    const header = "Serial,Category,Gas Type,Capacity,Current,Status,Site,Intended Destination,Active HWCN #,Supplier,On Site Since\n";
+    const rows = filtered.map(b => `${b.serial},${b.category},${b.gasType},${b.initialWeight},${b.currentWeight},${isBottleTrace(b) ? "Trace" : (b.status || "")},${b.locationId},"${b.intendedDestination || ""}","${b.activeHWCN || ""}",${b.supplier},${b.locationChangedAt}`).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -355,9 +367,12 @@ export default function BottlesOnSitePage() {
         const bal = Math.max(0, (b.initialWeight || 0) - (b.currentWeight || 0));
         return `${bal.toFixed(2)} kg`;
       }
+      case "status": return isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unused" : b.status ? (b.status.charAt(0).toUpperCase() + b.status.slice(1)) : "—";
       case "jobNo": return b.locationId || "—";
       case "site": return crmMap.get(b.locationId)?.siteTitle || "—";
       case "customer": return crmMap.get(b.locationId)?.customer || "—";
+      case "intendedDestination": return b.intendedDestination || "—";
+      case "activeHWCN": return b.activeHWCN || "—";
       case "supplier": return b.supplier || "—";
       case "poNumber": return b.poNumber || "—";
       case "registered": return b.registeredAt ? new Date(b.registeredAt).toLocaleDateString("en-GB") : "—";
@@ -572,6 +587,13 @@ export default function BottlesOnSitePage() {
             {textFilter("balance", "e.g. 1.50")}
           </th>
         );
+      case "status":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("status")}>Status <SortIcon col="status" /></div>
+            {multiSelect("status", distinctVals.status || [])}
+          </th>
+        );
       case "jobNo":
         return (
           <th key={key} style={thBase}>
@@ -591,6 +613,20 @@ export default function BottlesOnSitePage() {
           <th key={key} style={thBase}>
             <div style={labelStyleNoSort}>Customer</div>
             {multiSelect("customer", distinctVals.customer || [])}
+          </th>
+        );
+      case "intendedDestination":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("intendedDestination")}>Intended Destination <SortIcon col="intendedDestination" /></div>
+            {textFilter("intendedDestination", "e.g. HQ-Stores")}
+          </th>
+        );
+      case "activeHWCN":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("activeHWCN")}>Active HWCN # <SortIcon col="activeHWCN" /></div>
+            {textFilter("activeHWCN", "e.g. HWCN...")}
           </th>
         );
       case "supplier":
@@ -705,6 +741,18 @@ export default function BottlesOnSitePage() {
             )}
           </td>
         );
+      case "status":
+        return (
+          <td key={key} style={{padding: "0.85rem 1rem"}}>
+            <span style={{
+              fontSize: "0.75rem", fontWeight: 600, padding: "0.2rem 0.6rem", borderRadius: "20px", textTransform: "capitalize",
+              background: isBottleTrace(b) ? "rgba(255,170,0,0.12)" : b.status === "unused" ? "rgba(0,229,255,0.12)" : b.status === "active" ? "rgba(34,197,94,0.12)" : b.status === "returned" ? "rgba(168,85,247,0.12)" : b.status === "archived" ? "rgba(239,68,68,0.12)" : b.status === "full" ? "rgba(59,130,246,0.12)" : b.status === "recycled" ? "rgba(16,185,129,0.12)" : "rgba(255,255,255,0.06)",
+              color: isBottleTrace(b) ? "#ffaa00" : b.status === "unused" ? "#00e5ff" : b.status === "active" ? "#22c55e" : b.status === "returned" ? "#a855f7" : b.status === "archived" ? "#ef4444" : b.status === "full" ? "#3b82f6" : b.status === "recycled" ? "#10b981" : "rgba(255,255,255,0.6)"
+            }}>
+              {isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unused" : (b.status || "Active")}
+            </span>
+          </td>
+        );
       case "jobNo":
         return (
           <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.9rem"}}>
@@ -740,6 +788,24 @@ export default function BottlesOnSitePage() {
           </td>
         );
       }
+      case "intendedDestination":
+        return (
+          <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", color: b.intendedDestination ? "#ffaa00" : "var(--text-muted)", fontWeight: b.intendedDestination ? 600 : 400}}>
+            {b.intendedDestination || "—"}
+          </td>
+        );
+      case "activeHWCN":
+        return (
+          <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", fontFamily: "var(--font-geist-mono)"}}>
+            {b.activeHWCN ? (
+              <span style={{color: "#ffaa00", background: "rgba(255,170,0,0.1)", border: "1px solid rgba(255,170,0,0.25)", padding: "0.15rem 0.45rem", borderRadius: "5px", fontWeight: 700, fontSize: "0.78rem"}}>
+                {b.activeHWCN}
+              </span>
+            ) : (
+              <span style={{color: "var(--text-muted)"}}>—</span>
+            )}
+          </td>
+        );
       case "poNumber":
         return (
           <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.85rem", color: b.poNumber ? "rgba(255,255,255,0.75)" : "var(--text-muted)"}}>

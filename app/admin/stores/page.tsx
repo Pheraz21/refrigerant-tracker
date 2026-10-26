@@ -8,7 +8,7 @@ import { useTablePrefs } from "@/lib/useTablePrefs";
 import { ColumnCustomizer } from "@/app/components/ColumnCustomizer";
 import { DoubleScrollContainer } from "@/app/components/DoubleScrollContainer";
 
-type SortKey = "serial" | "category" | "gasType" | "currentWeight" | "initialWeight" | "returnedBy" | "returnedAt" | "locationChangedAt" | "supplier" | "registeredAt" | "rentalExpiryDate";
+type SortKey = "serial" | "category" | "gasType" | "currentWeight" | "initialWeight" | "returnedBy" | "returnedAt" | "locationChangedAt" | "supplier" | "registeredAt" | "rentalExpiryDate" | "status";
 
 const COLUMN_DEFS = [
   { key: "serial",       label: "Serial",      required: true },
@@ -17,6 +17,7 @@ const COLUMN_DEFS = [
   { key: "capacity",     label: "Capacity"                    },
   { key: "gasInBottle",  label: "Gas In Bottle"               },
   { key: "balance",      label: "Balance"                     },
+  { key: "status",       label: "Status"                      },
   { key: "returnedBy",   label: "Returned By"                 },
   { key: "returnedDate", label: "Returned Date"               },
   { key: "dateReceived", label: "Date Received"               },
@@ -27,7 +28,7 @@ const COLUMN_DEFS = [
 ] as const;
 
 // Columns that use multi-select checkboxes vs text input
-const MULTI_SELECT_COLS = new Set(["category", "gasType", "supplier", "returnedBy"]);
+const MULTI_SELECT_COLS = new Set(["category", "gasType", "supplier", "returnedBy", "status"]);
 
 export default function StoresInventoryPage() {
   const router = useRouter();
@@ -75,13 +76,15 @@ export default function StoresInventoryPage() {
 
   const distinctVals = useMemo(() => {
     const sets: Record<string, Set<string>> = {
-      category: new Set(), gasType: new Set(), supplier: new Set(), returnedBy: new Set()
+      category: new Set(), gasType: new Set(), supplier: new Set(), returnedBy: new Set(), status: new Set()
     };
     for (const b of bottles) {
       if (b.category) sets.category.add(b.category);
       if (b.gasType) sets.gasType.add(b.gasType);
       if (b.supplier) sets.supplier.add(b.supplier);
       if (b.returnedBy) sets.returnedBy.add(b.returnedBy);
+      const st = isBottleTrace(b) ? "trace" : (b.status || "");
+      if (st) sets.status.add(st);
     }
     const result: Record<string, string[]> = {};
     for (const k of Object.keys(sets)) result[k] = Array.from(sets[k]).sort();
@@ -131,6 +134,7 @@ export default function StoresInventoryPage() {
       case "gasType":    return vals.includes(b.gasType);
       case "supplier":   return vals.includes(b.supplier || "");
       case "returnedBy": return vals.includes(b.returnedBy || "");
+      case "status":     return vals.includes(isBottleTrace(b) ? "trace" : (b.status || ""));
       default:           return true;
     }
   }
@@ -180,6 +184,9 @@ export default function StoresInventoryPage() {
   const optionLabel = (k: string, o: string) => {
     if (k === "category") {
       return o === "reclaim" ? "Reclaim / Haz" : o === "new" ? "New" : o === "recycled" ? "Recycled" : "N₂ (Nitrogen)";
+    }
+    if (k === "status") {
+      return o === "trace" ? "Trace" : o === "unused" ? "Unused" : o === "active" ? "Active" : o === "returned" ? "Returned" : o === "archived" ? "Archived" : o === "full" ? "Full" : o === "empty" ? "Empty" : o === "recycled" ? "Recycled" : (o || "(none)");
     }
     return o || "(none)";
   };
@@ -312,10 +319,11 @@ export default function StoresInventoryPage() {
   };
 
   const exportCSV = () => {
-    const header = "Serial,Category,Gas Type,Capacity,Current,Supplier,Registered,Returned By,Returned Date,Date Received\n";
+    const header = "Serial,Category,Gas Type,Capacity,Current,Status,Supplier,Registered,Returned By,Returned Date,Date Received\n";
     const rows = filtered.map(b => {
       const retDate = b.returnedAt || b.deliveredAt || b.locationChangedAt || "";
-      return `${b.serial},${b.category},${b.gasType},${b.initialWeight ?? 0},${b.currentWeight ?? 0},${b.supplier},${b.registeredAt},${b.returnedBy},${retDate},${b.locationChangedAt}`;
+      const st = isBottleTrace(b) ? "Trace" : (b.status || "");
+      return `${b.serial},${b.category},${b.gasType},${b.initialWeight ?? 0},${b.currentWeight ?? 0},${st},${b.supplier},${b.registeredAt},${b.returnedBy},${retDate},${b.locationChangedAt}`;
     }).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -343,6 +351,7 @@ export default function StoresInventoryPage() {
         case "capacity": return `${iw.toFixed(2)} kg`;
         case "gasInBottle": return isNitrogen ? "N/A" : `${cw.toFixed(2)} kg`;
         case "balance": return isNitrogen ? "N/A" : `${bal.toFixed(2)} kg`;
+        case "status": return isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unused" : b.status ? (b.status.charAt(0).toUpperCase() + b.status.slice(1)) : "—";
         case "returnedBy": return b.returnedBy || "—";
         case "returnedDate": return retDate ? new Date(retDate).toLocaleDateString("en-GB") : "—";
         case "dateReceived": return b.locationChangedAt ? new Date(b.locationChangedAt).toLocaleDateString("en-GB") : "—";
@@ -454,6 +463,13 @@ export default function StoresInventoryPage() {
           <th key={key} style={thBase}>
             <div style={labelStyleNoSort}>Balance</div>
             {textFilter("balance", "e.g. 1.50")}
+          </th>
+        );
+      case "status":
+        return (
+          <th key={key} style={thBase}>
+            <div style={labelStyle} onClick={() => handleSort("status")}>Status <SortIcon col="status" /></div>
+            {multiSelect("status", distinctVals.status || [])}
           </th>
         );
       case "returnedBy":
@@ -568,6 +584,18 @@ export default function StoresInventoryPage() {
                 <div style={{fontSize: "0.72rem", color: "var(--text-muted)"}}>{isReclaim ? "Available Space" : "Total Used"}</div>
               </>
             )}
+          </td>
+        );
+      case "status":
+        return (
+          <td key={key} style={{padding: "0.85rem 1rem"}}>
+            <span style={{
+              fontSize: "0.75rem", fontWeight: 600, padding: "0.2rem 0.6rem", borderRadius: "20px", textTransform: "capitalize",
+              background: isBottleTrace(b) ? "rgba(255,170,0,0.12)" : b.status === "unused" ? "rgba(0,229,255,0.12)" : b.status === "active" ? "rgba(34,197,94,0.12)" : b.status === "returned" ? "rgba(168,85,247,0.12)" : b.status === "archived" ? "rgba(239,68,68,0.12)" : b.status === "full" ? "rgba(59,130,246,0.12)" : b.status === "recycled" ? "rgba(16,185,129,0.12)" : "rgba(255,255,255,0.06)",
+              color: isBottleTrace(b) ? "#ffaa00" : b.status === "unused" ? "#00e5ff" : b.status === "active" ? "#22c55e" : b.status === "returned" ? "#a855f7" : b.status === "archived" ? "#ef4444" : b.status === "full" ? "#3b82f6" : b.status === "recycled" ? "#10b981" : "rgba(255,255,255,0.6)"
+            }}>
+              {isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unused" : (b.status || "Active")}
+            </span>
           </td>
         );
       case "returnedBy":
