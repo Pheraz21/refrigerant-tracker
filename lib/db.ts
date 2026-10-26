@@ -638,7 +638,7 @@ export const db = {
       }
     }
 
-    if (bottle.locationType === 'office' && (!bottle.returnedBy || !bottle.returnedAt)) {
+    if ((bottle.locationType === 'office' || bottle.locationType === 'supplier' || bottle.status === 'returned') && (!bottle.returnedBy || !bottle.returnedAt)) {
       try {
         const { data: logs } = await supabase
           .from('movement_logs')
@@ -647,11 +647,12 @@ export const db = {
           .order('date', { ascending: false });
         const dbPatch: Record<string, any> = {};
         if (logs && logs.length > 0) {
-          const storeLog = logs.find(l => 
-            (l.to_location === "HQ-Stores" || l.to_location === "office" || l.action === "received") && l.engineer
-          ) || logs.find(l => l.engineer);
-          const resolvedEng = storeLog?.engineer || bottle.registeredBy || bottle.lastEngineer;
-          const resolvedDate = storeLog?.date || bottle.deliveredAt || bottle.locationChangedAt || bottle.registeredAt;
+          const isSupplierReturn = bottle.locationType === 'supplier' || bottle.status === 'returned';
+          const returnLog = isSupplierReturn
+            ? (logs.find(l => (l.action === "returned_to_supplier" || l.action === "collected_by_supplier" || l.to_location === bottle.locationId || l.to_location === "supplier" || l.action === "moved") && l.engineer) || logs.find(l => l.engineer))
+            : (logs.find(l => (l.to_location === "HQ-Stores" || l.to_location === "office" || l.action === "received") && l.engineer) || logs.find(l => l.engineer));
+          const resolvedEng = returnLog?.engineer || bottle.lastEngineer || bottle.registeredBy;
+          const resolvedDate = returnLog?.date || bottle.locationChangedAt || bottle.deliveredAt || bottle.registeredAt;
           if (!bottle.returnedBy && resolvedEng) {
             bottle.returnedBy = resolvedEng;
             dbPatch.returned_by = resolvedEng;
@@ -661,11 +662,11 @@ export const db = {
             dbPatch.returned_at = resolvedDate;
           }
         } else {
-          if (!bottle.returnedBy && (bottle.registeredBy || bottle.lastEngineer)) {
-            bottle.returnedBy = bottle.registeredBy || bottle.lastEngineer;
+          if (!bottle.returnedBy && (bottle.lastEngineer || bottle.registeredBy)) {
+            bottle.returnedBy = bottle.lastEngineer || bottle.registeredBy;
           }
-          if (!bottle.returnedAt && (bottle.deliveredAt || bottle.locationChangedAt || bottle.registeredAt)) {
-            bottle.returnedAt = bottle.deliveredAt || bottle.locationChangedAt || bottle.registeredAt;
+          if (!bottle.returnedAt && (bottle.locationChangedAt || bottle.deliveredAt || bottle.registeredAt)) {
+            bottle.returnedAt = bottle.locationChangedAt || bottle.deliveredAt || bottle.registeredAt;
           }
         }
         if (Object.keys(dbPatch).length > 0) {
@@ -1025,6 +1026,8 @@ export const db = {
         updates.returned_at = new Date().toISOString();
       } else if (locationType === "supplier") {
         updates.vehicle_reg = null;
+        updates.returned_by = movedBy || engineerName || "System";
+        updates.returned_at = new Date().toISOString();
       }
 
       const { error: updateError } = await supabase.from('bottles').update(updates).eq('serial', serial);
@@ -1668,6 +1671,61 @@ export const db = {
     const { data } = await supabase.from('bottles').select('*');
     if (!data) return [];
     const bottles = data.map(mapBottle);
+
+    const missingReturnMeta = bottles.filter(
+      b => (b.locationType === "office" || b.locationType === "supplier" || b.status === "returned") && (!b.returnedBy || !b.returnedAt)
+    );
+    if (missingReturnMeta.length > 0) {
+      try {
+        const serials = missingReturnMeta.map(b => b.serial);
+        const { data: logs } = await supabase
+          .from('movement_logs')
+          .select('serial, engineer, date, to_location, from_location, action')
+          .in('serial', serials)
+          .order('date', { ascending: false });
+
+        const logsBySerial: Record<string, any[]> = {};
+        if (logs) {
+          for (const l of logs) {
+            if (!logsBySerial[l.serial]) logsBySerial[l.serial] = [];
+            logsBySerial[l.serial].push(l);
+          }
+        }
+
+        const updatesToPersist: Array<{ serial: string; patch: Record<string, any> }> = [];
+        for (const b of missingReturnMeta) {
+          const bLogs = logsBySerial[b.serial] || [];
+          const isSupplierReturn = b.locationType === "supplier" || b.status === "returned";
+          const returnLog = isSupplierReturn
+            ? (bLogs.find(l => (l.action === "returned_to_supplier" || l.action === "collected_by_supplier" || l.to_location === b.locationId || l.to_location === "supplier" || l.action === "moved") && l.engineer) || bLogs.find(l => l.engineer))
+            : (bLogs.find(l => (l.to_location === "HQ-Stores" || l.to_location === "office" || l.action === "received") && l.engineer) || bLogs.find(l => l.engineer));
+
+          const resolvedEngineer = returnLog?.engineer || b.lastEngineer || b.registeredBy;
+          const resolvedDate = returnLog?.date || b.locationChangedAt || b.deliveredAt || b.registeredAt;
+          const patch: Record<string, any> = {};
+          if (!b.returnedBy && resolvedEngineer) {
+            b.returnedBy = resolvedEngineer;
+            patch.returned_by = resolvedEngineer;
+          }
+          if (!b.returnedAt && resolvedDate) {
+            b.returnedAt = resolvedDate;
+            patch.returned_at = resolvedDate;
+          }
+          if (Object.keys(patch).length > 0) {
+            updatesToPersist.push({ serial: b.serial, patch });
+          }
+        }
+
+        if (updatesToPersist.length > 0) {
+          Promise.all(
+            updatesToPersist.map(u =>
+              Promise.resolve(supabase.from('bottles').update(u.patch).eq('serial', u.serial))
+            )
+          ).catch(() => {});
+        }
+      } catch {}
+    }
+
     await reconcileEmptyWasteBottles(bottles);
     return bottles;
   },

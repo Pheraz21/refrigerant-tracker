@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import { db, Bottle } from "@/lib/db";
+import { db, Bottle, isBottleTrace } from "@/lib/db";
 import { Truck, Search, ArrowUpDown, ArrowUp, ArrowDown, Calendar, Filter, Download, Printer, Settings2, Archive, ShieldCheck, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTablePrefs } from "@/lib/useTablePrefs";
@@ -116,7 +116,7 @@ export default function ReturnedToSupplierPage() {
     switch (key) {
       case "serial":      return b.serial.toLowerCase().includes(v);
       case "capacity":    return (b.initialWeight ?? 0).toFixed(2).includes(v);
-      case "gasInBottle": return (b.currentWeight ?? 0).toFixed(2).includes(v);
+      case "gasInBottle": return (isBottleTrace(b) ? "trace" : (b.currentWeight ?? 0).toFixed(2)).includes(v);
       case "balance":     return ((b.initialWeight ?? 0) - (b.currentWeight ?? 0)).toFixed(2).includes(v);
       case "returnDate":  return b.returnedAt ? new Date(b.returnedAt).toLocaleDateString("en-GB").toLowerCase().includes(v) : false;
       case "poNumber":    return (b.poNumber || "").toLowerCase().includes(v);
@@ -204,7 +204,7 @@ export default function ReturnedToSupplierPage() {
       case "category": return b.category === "reclaim" ? "Reclaim / Haz" : b.category === "recycled" ? "Recycled" : b.category === "new" ? "New" : b.category === "nitrogen" ? "Nitrogen" : (b.category || "—");
       case "gasType": return b.gasType || "—";
       case "capacity": return `${(b.initialWeight || 0).toFixed(2)} kg`;
-      case "gasInBottle": return isNitrogen ? "N/A" : `${(b.currentWeight || 0).toFixed(2)} kg`;
+      case "gasInBottle": return isNitrogen ? "N/A" : isBottleTrace(b) ? "Trace" : `${(b.currentWeight || 0).toFixed(2)} kg`;
       case "balance": {
         if (isNitrogen) return "N/A";
         const bal = Math.max(0, (b.initialWeight || 0) - (b.currentWeight || 0));
@@ -651,10 +651,12 @@ export default function ReturnedToSupplierPage() {
               <span style={{color: "var(--text-muted)"}}>N/A</span>
             ) : (
               <>
-                <div style={{fontWeight: 700, color: "#22c55e"}}>{(b.currentWeight || 0).toFixed(2)} kg</div>
-                <div style={{fontSize: "0.72rem", color: "var(--text-muted)"}}>Remaining</div>
+                <div style={{fontWeight: 700, color: isReclaim ? "#ffaa00" : "#22c55e"}}>
+                  {isBottleTrace(b) ? "Trace" : `${(b.currentWeight || 0).toFixed(2)} kg`}
+                </div>
+                <div style={{fontSize: "0.72rem", color: "var(--text-muted)"}}>{isReclaim ? "Recovered" : "Remaining"}</div>
                 <div style={{width: "60px", height: "4px", background: "rgba(255,255,255,0.1)", borderRadius: "2px", marginTop: "4px", overflow: "hidden"}}>
-                  <div style={{width: `${percent}%`, height: "100%", background: "#22c55e", transition: "width 0.3s"}} />
+                  <div style={{width: `${percent}%`, height: "100%", background: isReclaim ? "#ffaa00" : "#22c55e", transition: "width 0.3s"}} />
                 </div>
               </>
             )}
@@ -667,8 +669,8 @@ export default function ReturnedToSupplierPage() {
               <span style={{color: "var(--text-muted)"}}>N/A</span>
             ) : (
               <>
-                <div style={{fontWeight: 700, color: "#ffc107"}}>{balance.toFixed(2)} kg</div>
-                <div style={{fontSize: "0.72rem", color: "var(--text-muted)"}}>Total Used</div>
+                <div style={{fontWeight: 700, color: isReclaim ? "#22c55e" : "#ffc107"}}>{balance.toFixed(2)} kg</div>
+                <div style={{fontSize: "0.72rem", color: "var(--text-muted)"}}>{isReclaim ? "Available Space" : "Total Used"}</div>
               </>
             )}
           </td>

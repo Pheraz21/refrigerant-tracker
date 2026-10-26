@@ -17,7 +17,7 @@ async function uploadHwcnPhoto(base64: string, serial: string): Promise<string> 
     const res = await fetch(base64);
     const blob = await res.blob();
     const path = `supplier-returns/${serial}-${Date.now()}.jpg`;
-    const { error } = await supabase.storage.from("hwcn-photos").upload(path, blob, { contentType: "image/jpeg", upsert: true });
+    const { error } = await supabase.storage.from("hwcn-photos").upload(path, blob, { contentType: "image/jpeg" });
     if (error) {
       console.warn("Storage upload warning, falling back to compressed data URL:", error.message);
       return base64;
