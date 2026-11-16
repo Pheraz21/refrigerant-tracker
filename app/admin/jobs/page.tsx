@@ -15,38 +15,70 @@ import { DoubleScrollContainer } from "@/app/components/DoubleScrollContainer";
 
 // ── CSV-import helpers (moved from /admin/all-jobs) ───────────────────────────
 const EXACT_HEADERS: Record<string, string> = {
-  "prefix":                  "prefix",
-  "job no.":                 "jobNumber",
-  "job no":                  "jobNumber",
-  "job no (prefixed)":       "jobNumber",
-  "job number (prefixed)":   "jobNumber",
-  "job number":              "jobNumberUnprefixed",
-  "job no (unprefixed)":     "jobNumberUnprefixed",
-  "job number (unprefixed)": "jobNumberUnprefixed",
-  "start date":              "startDate",
-  "customer":                "customer",
-  "site":                    "__site__",
-  "title":                   "jobTitle",
-  "postcode":                "sitePostcode",
-  "category":                "category",
-  "fault code":              "faultCode",
+  "prefix":                       "prefix",
+  "job no.":                      "jobNumberRaw",
+  "job no":                       "jobNumberRaw",
+  "job no (prefixed)":            "jobNumberPrefixed",
+  "job number (prefixed)":        "jobNumberPrefixed",
+  "job number":                   "jobNumberUnprefixed",
+  "job no (unprefixed)":          "jobNumberUnprefixed",
+  "job number (unprefixed)":      "jobNumberUnprefixed",
+  "start date":                   "startDate",
+  "customer":                     "customer",
+  "site":                         "__site__",
+  "title":                        "jobTitle",
+  "postcode":                     "sitePostcode",
+  "site postcode":                "sitePostcode",
+  "location postcode":            "sitePostcode",
+  "location address":             "locationAddress",
+  "location address description": "locationAddressDesc",
+  "location town/city":           "locationTownCity",
+  "location county":              "locationCounty",
+  "category":                     "category",
+  "fault code":                   "faultCode",
 };
 
 const UK_POSTCODE_RE = /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i;
+const TRAILING_UK_POSTCODE_RE = /\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\s*$/i;
+
+function normalizeUkPostcode(pc: string): string {
+  const clean = (pc || "").trim().toUpperCase().replace(/\s+/g, "");
+  if (clean.length >= 5 && clean.length <= 7) {
+    return `${clean.slice(0, -3)} ${clean.slice(-3)}`;
+  }
+  return (pc || "").trim().toUpperCase();
+}
 
 function parseSiteField(value: string): { siteTitle: string; siteAddress: string; parsedPostcode: string } {
   const colonIdx = value.indexOf(":");
-  if (colonIdx === -1) return { siteTitle: "", siteAddress: value.trim(), parsedPostcode: "" };
-  const siteTitle = value.slice(0, colonIdx).trim();
-  const rest = value.slice(colonIdx + 1).trim();
+  const siteTitle = colonIdx !== -1 ? value.slice(0, colonIdx).trim() : "";
+  const rest = (colonIdx !== -1 ? value.slice(colonIdx + 1) : value).trim();
   const parts = rest.split(",").map(p => p.trim()).filter(Boolean);
   if (!parts.length) return { siteTitle, siteAddress: "", parsedPostcode: "" };
   const lastPart = parts[parts.length - 1];
-  const hasPostcode = UK_POSTCODE_RE.test(lastPart);
+  if (UK_POSTCODE_RE.test(lastPart)) {
+    return {
+      siteTitle,
+      siteAddress: parts.slice(0, -1).join(", "),
+      parsedPostcode: normalizeUkPostcode(lastPart)
+    };
+  }
+  // Also check if a UK postcode is embedded at the end of the last segment without a comma
+  const trailingMatch = lastPart.match(TRAILING_UK_POSTCODE_RE);
+  if (trailingMatch) {
+    const extractedPc = normalizeUkPostcode(trailingMatch[1]);
+    const strippedLast = lastPart.slice(0, trailingMatch.index).trim().replace(/[-,]+$/, "").trim();
+    const addrParts = [...parts.slice(0, -1), ...(strippedLast ? [strippedLast] : [])];
+    return {
+      siteTitle,
+      siteAddress: addrParts.join(", "),
+      parsedPostcode: extractedPc
+    };
+  }
   return {
     siteTitle,
-    siteAddress: (hasPostcode ? parts.slice(0, -1) : parts).join(", "),
-    parsedPostcode: hasPostcode ? lastPart : ""
+    siteAddress: parts.join(", "),
+    parsedPostcode: ""
   };
 }
 
@@ -61,8 +93,10 @@ function parseRows(rawRows: Record<string, any>[]): Omit<CrmJob, "id" | "importe
   return rawRows.map(row => {
     const obj: any = {
       rawData: row, uprn: null,
-      jobNumber: "", jobNumberUnprefixed: "", prefix: "", customer: "", siteTitle: "", siteAddress: "",
+      jobNumber: "", jobNumberPrefixed: "", jobNumberRaw: "", jobNumberUnprefixed: "",
+      prefix: "", customer: "", siteTitle: "", siteAddress: "",
       sitePostcode: "", startDate: "", category: "", faultCode: "", jobTitle: "",
+      locationAddress: "", locationAddressDesc: "", locationTownCity: "", locationCounty: "",
       _pp: ""
     };
     for (const [rawHeader, field] of Object.entries(fieldMap)) {
@@ -76,14 +110,77 @@ function parseRows(rawRows: Record<string, any>[]): Omit<CrmJob, "id" | "importe
         obj[field] = val;
       }
     }
-    if (!obj.sitePostcode && obj._pp) obj.sitePostcode = obj._pp;
+
+    // Resolve canonical prefixed jobNumber and unprefixed number regardless of column order
+    const rawNum = obj.jobNumberRaw || obj.jobNumberUnprefixed || "";
+    const strippedNum = rawNum.replace(/^[^0-9]+/, "");
+    if (obj.jobNumberPrefixed) {
+      obj.jobNumber = obj.jobNumberPrefixed;
+      obj.jobNumberUnprefixed = strippedNum || obj.jobNumberPrefixed.replace(/^[^0-9]+/, "");
+    } else if (rawNum) {
+      const hasLetterPrefix = /^[A-Za-z]/.test(rawNum);
+      obj.jobNumber = (!hasLetterPrefix && obj.prefix) ? `${obj.prefix}${rawNum}` : rawNum;
+      obj.jobNumberUnprefixed = strippedNum || rawNum;
+    }
+
+    // Fallback to Location Address / Description columns if Site column left them blank
+    if (!obj.siteTitle && obj.locationAddressDesc) {
+      obj.siteTitle = obj.locationAddressDesc;
+    }
+    if (!obj.siteAddress && obj.locationAddress) {
+      const locParts = [obj.locationAddress, obj.locationTownCity, obj.locationCounty]
+        .map((s: string) => (s || "").trim())
+        .filter(Boolean);
+      const deduped: string[] = [];
+      for (const p of locParts) {
+        if (!deduped.some(existing => existing.toLowerCase().includes(p.toLowerCase()))) {
+          deduped.push(p);
+        }
+      }
+      obj.siteAddress = deduped.join(", ");
+    }
+
+    // Resolve postcode from Postcode column, parsed Site column, or trailing Location Address
+    if (obj.sitePostcode) {
+      obj.sitePostcode = normalizeUkPostcode(obj.sitePostcode);
+    } else if (obj._pp) {
+      obj.sitePostcode = obj._pp;
+    } else if (obj.siteAddress) {
+      const m = obj.siteAddress.match(TRAILING_UK_POSTCODE_RE);
+      if (m) {
+        obj.sitePostcode = normalizeUkPostcode(m[1]);
+        obj.siteAddress = obj.siteAddress.slice(0, m.index).trim().replace(/[-,]+$/, "").trim();
+      }
+    }
+
+    // If siteAddress still ends with the postcode, strip the duplicate postcode from siteAddress
+    if (obj.sitePostcode && obj.siteAddress) {
+      const pcClean = obj.sitePostcode.replace(/\s+/g, "").toLowerCase();
+      const addrParts = obj.siteAddress.split(",").map((p: string) => p.trim()).filter(Boolean);
+      if (addrParts.length > 0 && addrParts[addrParts.length - 1].replace(/\s+/g, "").toLowerCase() === pcClean) {
+        obj.siteAddress = addrParts.slice(0, -1).join(", ");
+      }
+    }
+
     delete obj._pp;
+    delete obj.jobNumberPrefixed;
+    delete obj.jobNumberRaw;
+    delete obj.locationAddress;
+    delete obj.locationAddressDesc;
+    delete obj.locationTownCity;
+    delete obj.locationCounty;
     return obj as Omit<CrmJob, "id" | "importedAt">;
   }).filter(r => r.jobNumber);
 }
 
+interface UpdatedJobPreview {
+  job: Omit<CrmJob, "id" | "importedAt">;
+  changes: string[];
+}
+
 interface PreviewState {
   newRows: Omit<CrmJob, "id" | "importedAt">[];
+  updatedRows: UpdatedJobPreview[];
   skippedCount: number;
 }
 
@@ -395,11 +492,86 @@ export default function RefrigerantJobsPage() {
         setImportError(`No rows with a recognised Job Number found. Expected a column named "Job No." or "Prefix".`);
         return;
       }
-      const existingNos = new Set<string>();
+
       const allCrm = await db.getAllCrmJobs();
-      allCrm.forEach(j => existingNos.add(j.jobNumber));
-      const newRows = allParsed.filter(r => !existingNos.has(r.jobNumber));
-      setPreview({ newRows, skippedCount: allParsed.length - newRows.length });
+      const existingByKey = new Map<string, CrmJob>();
+      for (const j of allCrm) {
+        if (j.jobNumber) existingByKey.set(j.jobNumber.trim().toUpperCase(), j);
+        if (j.jobNumberUnprefixed) {
+          const unpKey = j.jobNumberUnprefixed.trim().toUpperCase();
+          if (!existingByKey.has(unpKey)) existingByKey.set(unpKey, j);
+          if (j.prefix) {
+            existingByKey.set(`${j.prefix.trim().toUpperCase()}${unpKey}`, j);
+          }
+        }
+      }
+
+      const normText = (s?: string | null) => (s || "").trim().replace(/\s+/g, " ").toLowerCase();
+      const normPc = (s?: string | null) => (s || "").trim().replace(/\s+/g, "").toUpperCase();
+
+      const newRows: Omit<CrmJob, "id" | "importedAt">[] = [];
+      const updatedRows: UpdatedJobPreview[] = [];
+      let skippedCount = 0;
+
+      for (const r of allParsed) {
+        const key1 = (r.jobNumber || "").trim().toUpperCase();
+        const key2 = (r.jobNumberUnprefixed || "").trim().toUpperCase();
+        const existing = existingByKey.get(key1) || (key2 ? existingByKey.get(key2) : undefined);
+
+        if (!existing) {
+          newRows.push(r);
+          continue;
+        }
+
+        const changes: string[] = [];
+        let addressOrPostcodeChanged = false;
+
+        if (r.sitePostcode && normPc(r.sitePostcode) !== normPc(existing.sitePostcode)) {
+          changes.push(`Postcode: ${existing.sitePostcode ? `"${existing.sitePostcode}"` : "(blank)"} → "${r.sitePostcode}"`);
+          addressOrPostcodeChanged = true;
+        }
+        if (r.siteAddress && normText(r.siteAddress) !== normText(existing.siteAddress)) {
+          changes.push(`Address: ${existing.siteAddress ? `"${existing.siteAddress}"` : "(blank)"} → "${r.siteAddress}"`);
+          addressOrPostcodeChanged = true;
+        }
+        if (r.siteTitle && normText(r.siteTitle) !== normText(existing.siteTitle)) {
+          changes.push(`Site Title: ${existing.siteTitle ? `"${existing.siteTitle}"` : "(blank)"} → "${r.siteTitle}"`);
+        }
+        if (r.customer && normText(r.customer) !== normText(existing.customer)) {
+          changes.push(`Customer: ${existing.customer ? `"${existing.customer}"` : "(blank)"} → "${r.customer}"`);
+        }
+        if (r.jobTitle && normText(r.jobTitle) !== normText(existing.jobTitle)) {
+          changes.push(`Job Title: ${existing.jobTitle ? `"${existing.jobTitle}"` : "(blank)"} → "${r.jobTitle}"`);
+        }
+
+        if (changes.length > 0) {
+          updatedRows.push({
+            job: {
+              ...r,
+              // Keep the existing canonical jobNumber in crm_jobs so the onConflict update matches 100%
+              jobNumber: existing.jobNumber,
+              jobNumberUnprefixed: r.jobNumberUnprefixed || existing.jobNumberUnprefixed,
+              prefix: r.prefix || existing.prefix,
+              customer: r.customer || existing.customer,
+              siteTitle: r.siteTitle || existing.siteTitle,
+              siteAddress: r.siteAddress || existing.siteAddress,
+              sitePostcode: r.sitePostcode || existing.sitePostcode,
+              startDate: r.startDate || existing.startDate,
+              category: r.category || existing.category,
+              faultCode: r.faultCode || existing.faultCode,
+              jobTitle: r.jobTitle || existing.jobTitle,
+              // Reset UPRN if the address or postcode changed so Find UPRNs re-geocodes it; otherwise preserve existing UPRN
+              uprn: addressOrPostcodeChanged ? null : existing.uprn,
+              rawData: { ...(existing.rawData || {}), ...(r.rawData || {}) },
+            },
+            changes,
+          });
+        } else {
+          skippedCount++;
+        }
+      }
+
+      setPreview({ newRows, updatedRows, skippedCount });
     } catch (err: any) {
       setImportError("Failed to parse file: " + err.message);
     }
@@ -407,11 +579,26 @@ export default function RefrigerantJobsPage() {
   };
 
   const confirmImport = async () => {
-    if (!preview || !preview.newRows.length) return;
+    if (!preview || (!preview.newRows.length && !preview.updatedRows.length)) return;
     setImporting(true);
     try {
-      await db.upsertCrmJobs(preview.newRows);
-      setImportResult(`${preview.newRows.length.toLocaleString()} new job${preview.newRows.length !== 1 ? "s" : ""} imported.${preview.skippedCount > 0 ? ` ${preview.skippedCount.toLocaleString()} existing records skipped.` : ""}`);
+      if (preview.newRows.length > 0) {
+        await db.upsertCrmJobs(preview.newRows);
+      }
+      if (preview.updatedRows.length > 0) {
+        await db.updateExistingCrmJobs(preview.updatedRows.map(u => u.job));
+      }
+      const parts: string[] = [];
+      if (preview.newRows.length > 0) {
+        parts.push(`${preview.newRows.length.toLocaleString()} new job${preview.newRows.length !== 1 ? "s" : ""} imported`);
+      }
+      if (preview.updatedRows.length > 0) {
+        parts.push(`${preview.updatedRows.length.toLocaleString()} existing job${preview.updatedRows.length !== 1 ? "s" : ""} updated with new address/postcode details`);
+      }
+      if (preview.skippedCount > 0) {
+        parts.push(`${preview.skippedCount.toLocaleString()} unchanged record${preview.skippedCount !== 1 ? "s" : ""} skipped`);
+      }
+      setImportResult(parts.join(" · ") + ".");
       setPreview(null);
       await load();
     } catch (err: any) {
@@ -1475,7 +1662,7 @@ export default function RefrigerantJobsPage() {
       {/* CSV import preview modal */}
       {preview && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}>
-          <div style={{ background: "#0f1420", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", padding: "1.5rem", maxWidth: "900px", width: "95%", maxHeight: "80vh", display: "flex", flexDirection: "column", gap: "1rem" }}>
+          <div style={{ background: "#0f1420", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", padding: "1.5rem", maxWidth: "950px", width: "95%", maxHeight: "82vh", display: "flex", flexDirection: "column", gap: "1rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h2 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#fff" }}>Import Preview</h2>
               <button onClick={() => setPreview(null)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer" }}><X size={20} /></button>
@@ -1485,62 +1672,111 @@ export default function RefrigerantJobsPage() {
               <span style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.25)", color: "#22c55e", padding: "0.3rem 0.8rem", borderRadius: "20px", fontSize: "0.82rem", fontWeight: 600 }}>
                 {preview.newRows.length.toLocaleString()} new — will be imported
               </span>
+              {preview.updatedRows.length > 0 && (
+                <span style={{ background: "rgba(0,229,255,0.1)", border: "1px solid rgba(0,229,255,0.3)", color: "#00e5ff", padding: "0.3rem 0.8rem", borderRadius: "20px", fontSize: "0.82rem", fontWeight: 600 }}>
+                  {preview.updatedRows.length.toLocaleString()} existing with address/detail changes — will be updated
+                </span>
+              )}
               {preview.skippedCount > 0 && (
                 <span style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.4)", padding: "0.3rem 0.8rem", borderRadius: "20px", fontSize: "0.82rem" }}>
-                  {preview.skippedCount.toLocaleString()} already exist — skipped
+                  {preview.skippedCount.toLocaleString()} unchanged — skipped
                 </span>
               )}
             </div>
 
-            {preview.newRows.length === 0 ? (
+            {preview.newRows.length === 0 && preview.updatedRows.length === 0 ? (
               <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "0.9rem", margin: 0 }}>
-                All job numbers in this file already exist in the database. Nothing to import.
+                All job numbers in this file already exist in the database with identical address and job details. Nothing to import or update.
               </p>
             ) : (
-              <>
-                <p style={{ margin: 0, fontSize: "0.8rem", color: "rgba(255,255,255,0.4)" }}>
-                  Showing first 5 new rows. The Site column has been split into title + address + postcode.
-                </p>
-                <div style={{ overflowX: "auto", flex: 1, overflowY: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                    <thead>
-                      <tr>
-                        {["Prefix", "Job No.", "Start Date", "Title", "Customer", "Site Title", "Address", "Postcode"].map(h => (
-                          <th key={h} style={{ ...thBase, cursor: "default" }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {preview.newRows.slice(0, 5).map((row, i) => (
-                        <tr key={i}>
-                          <td style={tdBase}>{row.prefix || "—"}</td>
-                          <td style={{ ...tdBase, fontWeight: 600, color: "#fff" }}>{row.jobNumber || "—"}</td>
-                          <td style={tdBase}>{row.startDate || "—"}</td>
-                          <td style={tdBase}>{row.jobTitle || "—"}</td>
-                          <td style={tdBase}>{row.customer || "—"}</td>
-                          <td style={tdBase}>{row.siteTitle || "—"}</td>
-                          <td style={tdBase}>{row.siteAddress || "—"}</td>
-                          <td style={tdBase}>{row.sitePostcode || "—"}</td>
-                        </tr>
-                      ))}
-                      {preview.newRows.length > 5 && (
+              <div style={{ overflowX: "auto", flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "1rem" }}>
+                {preview.updatedRows.length > 0 && (
+                  <div>
+                    <p style={{ margin: "0 0 0.45rem", fontSize: "0.8rem", color: "#00e5ff", fontWeight: 600 }}>
+                      Existing Jobs With Address / Detail Updates ({preview.updatedRows.length.toLocaleString()}):
+                    </p>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead>
                         <tr>
-                          <td colSpan={8} style={{ ...tdBase, color: "rgba(255,255,255,0.3)", fontStyle: "italic", textAlign: "center" }}>
-                            …and {(preview.newRows.length - 5).toLocaleString()} more rows
-                          </td>
+                          {["Job No.", "Customer", "Site Title", "Updated Address", "Updated Postcode", "Detected Changes"].map(h => (
+                            <th key={h} style={{ ...thBase, cursor: "default" }}>{h}</th>
+                          ))}
                         </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </>
+                      </thead>
+                      <tbody>
+                        {preview.updatedRows.slice(0, 10).map(({ job: row, changes }, i) => (
+                          <tr key={i}>
+                            <td style={{ ...tdBase, fontWeight: 700, color: "#00e5ff" }}>{row.jobNumber || "—"}</td>
+                            <td style={tdBase}>{row.customer || "—"}</td>
+                            <td style={tdBase}>{row.siteTitle || "—"}</td>
+                            <td style={tdBase}>{row.siteAddress || "—"}</td>
+                            <td style={{ ...tdBase, fontWeight: 600, color: "#22c55e" }}>{row.sitePostcode || "—"}</td>
+                            <td style={{ ...tdBase, fontSize: "0.78rem", color: "#ffaa00" }}>{changes.join(" · ")}</td>
+                          </tr>
+                        ))}
+                        {preview.updatedRows.length > 10 && (
+                          <tr>
+                            <td colSpan={6} style={{ ...tdBase, color: "rgba(255,255,255,0.3)", fontStyle: "italic", textAlign: "center" }}>
+                              …and {(preview.updatedRows.length - 10).toLocaleString()} more updated jobs
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {preview.newRows.length > 0 && (
+                  <div>
+                    <p style={{ margin: "0 0 0.45rem", fontSize: "0.8rem", color: "rgba(255,255,255,0.4)" }}>
+                      Showing first 5 new rows ({preview.newRows.length.toLocaleString()} total). The Site column has been split into title + address + postcode.
+                    </p>
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr>
+                          {["Prefix", "Job No.", "Start Date", "Title", "Customer", "Site Title", "Address", "Postcode"].map(h => (
+                            <th key={h} style={{ ...thBase, cursor: "default" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {preview.newRows.slice(0, 5).map((row, i) => (
+                          <tr key={i}>
+                            <td style={tdBase}>{row.prefix || "—"}</td>
+                            <td style={{ ...tdBase, fontWeight: 600, color: "#fff" }}>{row.jobNumber || "—"}</td>
+                            <td style={tdBase}>{row.startDate || "—"}</td>
+                            <td style={tdBase}>{row.jobTitle || "—"}</td>
+                            <td style={tdBase}>{row.customer || "—"}</td>
+                            <td style={tdBase}>{row.siteTitle || "—"}</td>
+                            <td style={tdBase}>{row.siteAddress || "—"}</td>
+                            <td style={tdBase}>{row.sitePostcode || "—"}</td>
+                          </tr>
+                        ))}
+                        {preview.newRows.length > 5 && (
+                          <tr>
+                            <td colSpan={8} style={{ ...tdBase, color: "rgba(255,255,255,0.3)", fontStyle: "italic", textAlign: "center" }}>
+                              …and {(preview.newRows.length - 5).toLocaleString()} more new rows
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             )}
 
             <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end" }}>
               <button onClick={() => setPreview(null)} style={{ padding: "0.6rem 1.2rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem" }}>Cancel</button>
-              {preview.newRows.length > 0 && (
+              {(preview.newRows.length > 0 || preview.updatedRows.length > 0) && (
                 <button onClick={confirmImport} disabled={importing} style={{ padding: "0.6rem 1.4rem", background: "rgba(0,229,255,0.15)", border: "1px solid rgba(0,229,255,0.35)", color: "#00e5ff", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem", fontWeight: 700 }}>
-                  {importing ? "Importing…" : `Import ${preview.newRows.length.toLocaleString()} new jobs`}
+                  {importing
+                    ? "Importing…"
+                    : preview.newRows.length > 0 && preview.updatedRows.length > 0
+                      ? `Import ${preview.newRows.length.toLocaleString()} new & update ${preview.updatedRows.length.toLocaleString()} existing`
+                      : preview.updatedRows.length > 0
+                        ? `Update ${preview.updatedRows.length.toLocaleString()} existing job${preview.updatedRows.length !== 1 ? "s" : ""}`
+                        : `Import ${preview.newRows.length.toLocaleString()} new job${preview.newRows.length !== 1 ? "s" : ""}`}
                 </button>
               )}
             </div>

@@ -13,7 +13,18 @@ export function isBottleTrace(bottle?: { category?: string; currentWeight?: numb
   if (cw > 0) return false;
   if ((bottle.status || "").trim().toLowerCase() === "unused") return false;
   const gt = (bottle.gasType || "").trim().toLowerCase();
-  if (!gt || gt === "unused" || gt === "empty / evacuated" || gt === "empty/evacuated" || gt === "—" || gt === "-") return false;
+  if (
+    !gt ||
+    gt === "unused" ||
+    gt === "none (supplier clean)" ||
+    gt === "empty / evacuated" ||
+    gt === "empty/evacuated" ||
+    gt === "none (21d vacc'd)" ||
+    gt === "—" ||
+    gt === "-"
+  ) {
+    return false;
+  }
   return true;
 }
 
@@ -65,9 +76,19 @@ const mapUser = (u: any): AppUser => ({
   certificate: u.certificate || u.f_gas_cert || u.fgas_certificate || (u.role === 'engineer' ? 'REF1010728 (Cat I)' : undefined),
 });
 
+const normalizeReclaimGasType = (rawGasType: any, category: any): string => {
+  const gt = (rawGasType || "").trim();
+  if (category === "reclaim") {
+    const lower = gt.toLowerCase();
+    if (lower === "unused") return "None (Supplier Clean)";
+    if (lower === "empty / evacuated" || lower === "empty/evacuated") return "None (21D Vacc'd)";
+  }
+  return gt;
+};
+
 const mapBottle = (b: any): Bottle => ({
   ...b,
-  gasType: b.gas_type || b.gasType,
+  gasType: normalizeReclaimGasType(b.gas_type || b.gasType, b.category),
   initialWeight: b.initial_weight ?? b.initialWeight,
   currentWeight: b.current_weight ?? b.currentWeight,
   locationType: b.location_type || b.locationType,
@@ -472,7 +493,7 @@ async function reconcileEmptyWasteBottles(bottles: Bottle[]): Promise<void> {
       b.gasType.toLowerCase().includes('mixed/recovery') ||
       b.gasType.toLowerCase().includes('mixed / recovery') ||
       (b.gasType.toLowerCase() === 'unknown' && (b.currentWeight ?? 0) === 0) ||
-      (b.gasType.toLowerCase() === 'empty / evacuated' && (b.currentWeight ?? 0) > 0)
+      ((b.gasType.toLowerCase() === 'empty / evacuated' || b.gasType.toLowerCase() === "none (21d vacc'd)") && (b.currentWeight ?? 0) > 0)
     ))
   );
 
@@ -516,18 +537,19 @@ async function reconcileEmptyWasteBottles(bottles: Bottle[]): Promise<void> {
       const hasWeight = (b.currentWeight ?? 0) > 0;
       let targetGas: string | null = null;
       if (!hasWeight) {
-        targetGas = b.status === "unused" || (b.gasType || "").toLowerCase() === "unused" ? "Unused" : "Empty / Evacuated";
+        const gLower = (b.gasType || "").toLowerCase();
+        targetGas = b.status === "unused" || gLower === "unused" || gLower === "none (supplier clean)" ? "None (Supplier Clean)" : "None (21D Vacc'd)";
       } else {
         const distinct = new Set<string>();
         recoveryLogs.forEach(u => {
           const g = (u.gas_type || "").trim();
-          if (g && !["mixed/recovery", "mixed / recovery", "unknown", "empty / evacuated", "empty/evacuated"].includes(g.toLowerCase())) {
+          if (g && !["mixed/recovery", "mixed / recovery", "unknown", "empty / evacuated", "empty/evacuated", "none (21d vacc'd)", "none (supplier clean)", "unused"].includes(g.toLowerCase())) {
             distinct.add(g);
           }
           if (Array.isArray(u.equipment_details)) {
             u.equipment_details.forEach((eq: any) => {
               const eqG = (eq.gasType || eq.gas_type || eq.refrigerant || "").trim();
-              if (eqG && !["mixed/recovery", "mixed / recovery", "unknown", "empty / evacuated"].includes(eqG.toLowerCase())) {
+              if (eqG && !["mixed/recovery", "mixed / recovery", "unknown", "empty / evacuated", "none (21d vacc'd)", "none (supplier clean)", "unused"].includes(eqG.toLowerCase())) {
                 distinct.add(eqG);
               }
             });
@@ -540,7 +562,7 @@ async function reconcileEmptyWasteBottles(bottles: Bottle[]): Promise<void> {
           targetGas = "Mixed";
         } else if (b.gasType && (b.gasType.toLowerCase().includes("mixed/recovery") || b.gasType.toLowerCase().includes("mixed / recovery"))) {
           targetGas = "Mixed";
-        } else if (hasWeight && (!b.gasType || b.gasType.toLowerCase() === "empty / evacuated")) {
+        } else if (hasWeight && (!b.gasType || b.gasType.toLowerCase() === "empty / evacuated" || b.gasType.toLowerCase() === "none (21d vacc'd)")) {
           targetGas = (b.serial === "1N210008" || b.serial === "1N394444") ? "R410A" : "Unknown";
         }
       }
@@ -563,6 +585,126 @@ async function reconcileEmptyWasteBottles(bottles: Bottle[]): Promise<void> {
     }
   } catch (err) {
     console.warn("Error auto-normalizing candidate waste bottles:", err);
+  }
+}
+
+export function isRawUserId(val?: string | null): boolean {
+  if (!val) return false;
+  const v = val.trim();
+  return /^user_[a-z0-9_-]+$/i.test(v) || /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(v);
+}
+
+async function reconcileUserIdsInBottles(bottles: Bottle[]): Promise<void> {
+  const affected = bottles.filter(
+    b => isRawUserId(b.returnedBy) || isRawUserId(b.registeredBy) || isRawUserId(b.lastEngineer)
+  );
+  if (affected.length === 0) return;
+
+  try {
+    const { data: users } = await supabase.from('users').select('id, name');
+    const userMap = new Map<string, string>();
+    (users || []).forEach((u: any) => {
+      if (u.id && u.name) {
+        userMap.set(u.id.trim(), u.name.trim());
+        userMap.set(u.id.trim().toLowerCase(), u.name.trim());
+      }
+    });
+
+    const serialsNeedingLogs = affected.map(b => b.serial);
+    const [{ data: moveLogs }, { data: usageLogs }] = await Promise.all([
+      supabase
+        .from('movement_logs')
+        .select('id, serial, engineer, date, to_location, from_location, action')
+        .in('serial', serialsNeedingLogs)
+        .order('date', { ascending: false }),
+      supabase
+        .from('usage_logs')
+        .select('serial, engineer, date')
+        .in('serial', serialsNeedingLogs)
+        .order('date', { ascending: false }),
+    ]);
+
+    const movesBySerial: Record<string, any[]> = {};
+    (moveLogs || []).forEach(m => {
+      if (!movesBySerial[m.serial]) movesBySerial[m.serial] = [];
+      movesBySerial[m.serial].push(m);
+    });
+
+    const usagesBySerial: Record<string, any[]> = {};
+    (usageLogs || []).forEach(u => {
+      if (!usagesBySerial[u.serial]) usagesBySerial[u.serial] = [];
+      usagesBySerial[u.serial].push(u);
+    });
+
+    const resolveName = (raw?: string | null): string | null => {
+      if (!raw) return null;
+      const trimmed = raw.trim();
+      if (!trimmed || trimmed.toLowerCase() === 'system' || trimmed.toLowerCase() === 'unknown') return null;
+      if (userMap.has(trimmed)) return userMap.get(trimmed)!;
+      if (userMap.has(trimmed.toLowerCase())) return userMap.get(trimmed.toLowerCase())!;
+      if (isRawUserId(trimmed)) return null;
+      return trimmed;
+    };
+
+    const updatesToPersist: Array<{ serial: string; patch: Record<string, any> }> = [];
+
+    for (const b of affected) {
+      const patch: Record<string, any> = {};
+      const bMoves = movesBySerial[b.serial] || [];
+      const bUsages = usagesBySerial[b.serial] || [];
+
+      const fallbackFromLogs =
+        bMoves.map(m => resolveName(m.engineer)).find(Boolean) ||
+        bUsages.map(u => resolveName(u.engineer)).find(Boolean) ||
+        null;
+
+      if (isRawUserId(b.registeredBy)) {
+        const resolved = resolveName(b.registeredBy) || resolveName(b.lastEngineer) || fallbackFromLogs;
+        if (resolved) {
+          b.registeredBy = resolved;
+          patch.registered_by = resolved;
+        }
+      }
+
+      if (isRawUserId(b.lastEngineer)) {
+        const resolved = resolveName(b.lastEngineer) || fallbackFromLogs || resolveName(b.registeredBy);
+        if (resolved) {
+          b.lastEngineer = resolved;
+          patch.last_engineer = resolved;
+        }
+      }
+
+      if (isRawUserId(b.returnedBy)) {
+        const storeMoveEng = bMoves
+          .filter(l => l.to_location === 'HQ-Stores' || l.to_location === 'office' || l.action === 'received')
+          .map(l => resolveName(l.engineer))
+          .find(Boolean);
+        const resolved =
+          storeMoveEng ||
+          resolveName(b.returnedBy) ||
+          resolveName(b.lastEngineer) ||
+          resolveName(b.registeredBy) ||
+          fallbackFromLogs;
+        if (resolved) {
+          b.returnedBy = resolved;
+          patch.returned_by = resolved;
+        }
+      }
+
+      if (Object.keys(patch).length > 0) {
+        updatesToPersist.push({ serial: b.serial, patch });
+      }
+    }
+
+    if (updatesToPersist.length > 0) {
+      Promise.all(
+        updatesToPersist.map(u =>
+          Promise.resolve(supabase.from('bottles').update(u.patch).eq('serial', u.serial))
+        )
+      ).catch(e => console.warn("Failed persisting resolved user IDs on bottles:", e));
+    }
+  } catch (err) {
+    console.warn("Error reconciling user IDs in bottles:", err);
   }
 }
 
@@ -599,7 +741,7 @@ export const db = {
         bottle.gasType.toLowerCase().includes('mixed/recovery') ||
         bottle.gasType.toLowerCase().includes('mixed / recovery') ||
         (bottle.gasType.toLowerCase() === 'unknown' && (bottle.currentWeight ?? 0) === 0) ||
-        (bottle.gasType.toLowerCase() === 'empty / evacuated' && (bottle.currentWeight ?? 0) > 0);
+        ((bottle.gasType.toLowerCase() === 'empty / evacuated' || bottle.gasType.toLowerCase() === "none (21d vacc'd)") && (bottle.currentWeight ?? 0) > 0);
 
       if (isCandidate) {
         try {
@@ -616,18 +758,19 @@ export const db = {
           const hasWeight = (bottle.currentWeight ?? 0) > 0;
           let targetGas: string | null = null;
           if (!hasWeight) {
-            targetGas = bottle.status === "unused" || (bottle.gasType || "").toLowerCase() === "unused" ? "Unused" : "Empty / Evacuated";
+            const gLower = (bottle.gasType || "").toLowerCase();
+            targetGas = bottle.status === "unused" || gLower === "unused" || gLower === "none (supplier clean)" ? "None (Supplier Clean)" : "None (21D Vacc'd)";
           } else {
             const distinct = new Set<string>();
             recoveryLogs.forEach(u => {
               const g = (u.gas_type || "").trim();
-              if (g && !["mixed/recovery", "mixed / recovery", "unknown", "empty / evacuated", "empty/evacuated"].includes(g.toLowerCase())) {
+              if (g && !["mixed/recovery", "mixed / recovery", "unknown", "empty / evacuated", "empty/evacuated", "none (21d vacc'd)", "none (supplier clean)", "unused"].includes(g.toLowerCase())) {
                 distinct.add(g);
               }
               if (Array.isArray(u.equipment_details)) {
                 u.equipment_details.forEach((eq: any) => {
                   const eqG = (eq.gasType || eq.gas_type || eq.refrigerant || "").trim();
-                  if (eqG && !["mixed/recovery", "mixed / recovery", "unknown", "empty / evacuated"].includes(eqG.toLowerCase())) {
+                  if (eqG && !["mixed/recovery", "mixed / recovery", "unknown", "empty / evacuated", "none (21d vacc'd)", "none (supplier clean)", "unused"].includes(eqG.toLowerCase())) {
                     distinct.add(eqG);
                   }
                 });
@@ -640,7 +783,7 @@ export const db = {
               targetGas = "Mixed";
             } else if (bottle.gasType && (bottle.gasType.toLowerCase().includes("mixed/recovery") || bottle.gasType.toLowerCase().includes("mixed / recovery"))) {
               targetGas = "Mixed";
-            } else if (hasWeight && (!bottle.gasType || bottle.gasType.toLowerCase() === "empty / evacuated")) {
+            } else if (hasWeight && (!bottle.gasType || bottle.gasType.toLowerCase() === "empty / evacuated" || bottle.gasType.toLowerCase() === "none (21d vacc'd)")) {
               targetGas = (bottle.serial === "1N210008" || bottle.serial === "1N394444") ? "R410A" : "Unknown";
             }
           }
@@ -666,8 +809,8 @@ export const db = {
         if (logs && logs.length > 0) {
           const isSupplierReturn = bottle.locationType === 'supplier' || bottle.status === 'returned';
           const returnLog = isSupplierReturn
-            ? (logs.find(l => (l.action === "returned_to_supplier" || l.action === "collected_by_supplier" || l.to_location === bottle.locationId || l.to_location === "supplier" || l.action === "moved") && l.engineer) || logs.find(l => l.engineer))
-            : (logs.find(l => (l.to_location === "HQ-Stores" || l.to_location === "office" || l.action === "received") && l.engineer) || logs.find(l => l.engineer));
+            ? (logs.find(l => (l.action === "returned_to_supplier" || l.action === "collected_by_supplier" || l.to_location === bottle.locationId || l.to_location === "supplier" || l.action === "moved") && l.engineer && l.engineer.toLowerCase() !== "system") || logs.find(l => l.engineer && l.engineer.toLowerCase() !== "system"))
+            : (logs.find(l => (l.to_location === "HQ-Stores" || l.to_location === "office" || l.action === "received") && l.engineer && l.engineer.toLowerCase() !== "system") || logs.find(l => l.engineer && l.engineer.toLowerCase() !== "system"));
           const resolvedEng = returnLog?.engineer || bottle.lastEngineer || bottle.registeredBy;
           const resolvedDate = returnLog?.date || bottle.locationChangedAt || bottle.deliveredAt || bottle.registeredAt;
           if (!bottle.returnedBy && resolvedEng) {
@@ -692,6 +835,7 @@ export const db = {
       } catch {}
     }
 
+    await reconcileUserIdsInBottles([bottle]);
     return bottle;
   },
 
@@ -746,7 +890,7 @@ export const db = {
         status: existing.status,
       };
       if (!hasReclaimWaste(mappedExisting)) {
-        throw new Error(`Cylinder ${serial} is an Unused / Empty Evacuated reclaim cylinder with no hazardous waste. Please return it via 'Supplier Collection from Stores'.`);
+        throw new Error(`Cylinder ${serial} is a None (Supplier Clean) / None (21D Vacc'd) reclaim cylinder with no hazardous waste. Please return it via 'Supplier Collection from Stores'.`);
       }
 
       const weight = data.weights[serial];
@@ -902,7 +1046,7 @@ export const db = {
         // It's a returned bottle being recirculated — reset it in-place with fresh data
         const { error: updateErr } = await supabase.from('bottles').update({
           category: data.category,
-          gas_type: data.category === "reclaim" ? "Unused" : data.gasType,
+          gas_type: data.category === "reclaim" ? "None (Supplier Clean)" : data.gasType,
           initial_weight: data.initialWeight,
           current_weight: data.currentWeight,
           location_type: data.locationType,
@@ -972,7 +1116,7 @@ export const db = {
     const { error: bottleError } = await supabase.from('bottles').insert({
       serial: data.serial,
       category: data.category,
-      gas_type: data.category === "reclaim" ? "Unused" : data.gasType,
+      gas_type: data.category === "reclaim" ? "None (Supplier Clean)" : data.gasType,
       initial_weight: data.initialWeight,
       current_weight: data.currentWeight,
       location_type: data.locationType,
@@ -1463,10 +1607,10 @@ export const db = {
         } else if (bottle.category === "reclaim") {
           newStatus = "active";
           if (isFullyEvacuated) {
-            // Only reset producer sites and mark Empty / Evacuated when genuinely evacuated to vacuum
+            // Only reset producer sites and mark None (21D Vacc'd) when genuinely evacuated to vacuum
             bottleUpdatePayload.producer_sites = [];
             await supabase.from('bottles').update({ producer_sites: [] }).eq('serial', serial);
-            bottleUpdatePayload.gas_type = "Empty / Evacuated";
+            bottleUpdatePayload.gas_type = "None (21D Vacc'd)";
           }
         }
       } else if (newWeight > 0) {
@@ -1518,8 +1662,10 @@ export const db = {
           const isVaccedOrUnassigned =
             !currentGasType ||
             currentGasType.toLowerCase() === "unused" ||
+            currentGasType.toLowerCase() === "none (supplier clean)" ||
             currentGasType.toLowerCase() === "empty / evacuated" ||
             currentGasType.toLowerCase() === "empty/evacuated" ||
+            currentGasType.toLowerCase() === "none (21d vacc'd)" ||
             currentGasType.toLowerCase() === "mixed/recovery" ||
             currentGasType.toLowerCase() === "unknown";
 
@@ -1568,7 +1714,7 @@ export const db = {
     if (newWeight === 0 && bottle.category === "reclaim") {
       try {
         const evacNote = isFullyEvacuated
-          ? "Cylinder fully charged back into equipment and evacuated to vacuum (reset to Empty / Evacuated)."
+          ? "Cylinder fully charged back into equipment and evacuated to vacuum (reset to None (21D Vacc'd))."
           : `Cylinder emptied of bulk gas (Trace ${bottle.gas_type || "gas"} remains — not vacced).`;
         await supabase.from('movement_logs').insert({
           serial,
@@ -1742,8 +1888,8 @@ export const db = {
           const bLogs = logsBySerial[b.serial] || [];
           const isSupplierReturn = b.locationType === "supplier" || b.status === "returned";
           const returnLog = isSupplierReturn
-            ? (bLogs.find(l => (l.action === "returned_to_supplier" || l.action === "collected_by_supplier" || l.to_location === b.locationId || l.to_location === "supplier" || l.action === "moved") && l.engineer) || bLogs.find(l => l.engineer))
-            : (bLogs.find(l => (l.to_location === "HQ-Stores" || l.to_location === "office" || l.action === "received") && l.engineer) || bLogs.find(l => l.engineer));
+            ? (bLogs.find(l => (l.action === "returned_to_supplier" || l.action === "collected_by_supplier" || l.to_location === b.locationId || l.to_location === "supplier" || l.action === "moved") && l.engineer && l.engineer.toLowerCase() !== "system") || bLogs.find(l => l.engineer && l.engineer.toLowerCase() !== "system"))
+            : (bLogs.find(l => (l.to_location === "HQ-Stores" || l.to_location === "office" || l.action === "received") && l.engineer && l.engineer.toLowerCase() !== "system") || bLogs.find(l => l.engineer && l.engineer.toLowerCase() !== "system"));
 
           const resolvedEngineer = returnLog?.engineer || b.lastEngineer || b.registeredBy;
           const resolvedDate = returnLog?.date || b.locationChangedAt || b.deliveredAt || b.registeredAt;
@@ -1772,6 +1918,7 @@ export const db = {
     }
 
     await reconcileEmptyWasteBottles(bottles);
+    await reconcileUserIdsInBottles(bottles);
     return bottles;
   },
 
@@ -1781,13 +1928,14 @@ export const db = {
       const eng = await this.getEngineerById(engineerId);
       vehicleReg = eng?.vehicleReg || null;
     }
-    const { data: existingBottle } = await supabase.from('bottles').select('current_weight').eq('serial', serial).maybeSingle();
+    const { data: existingBottle } = await supabase.from('bottles').select('current_weight, status').eq('serial', serial).maybeSingle();
     const hasRemainingGas = Number(existingBottle?.current_weight || 0) > 0;
+    const preservedStatus = existingBottle?.status === "unused" ? "unused" : "active";
     const updates: any = {
       location_type: "van",
       location_id: `${engineerName} - Van`,
       location_changed_at: new Date().toISOString(),
-      status: "active",
+      status: preservedStatus,
       intended_destination: null,
       intended_location_type: null,
       active_hwcn: null,
@@ -1853,7 +2001,9 @@ export const db = {
       .eq('status', 'returned')
       .not('supplier_hwcn_photo_url', 'is', null)
       .is('return_hwcn_number', null);
-    return data ? data.map(mapBottle) : [];
+    const bottles = data ? data.map(mapBottle) : [];
+    await reconcileUserIdsInBottles(bottles);
+    return bottles;
   },
 
   async getHWCNsByStatus(status: string): Promise<any[]> {
@@ -1905,10 +2055,10 @@ export const db = {
           for (const b of missingReturnMeta) {
             const bLogs = logsBySerial[b.serial] || [];
             const storeLog = bLogs.find(l => 
-              (l.to_location === "HQ-Stores" || l.to_location === "office" || l.action === "received") && l.engineer
-            ) || bLogs.find(l => l.engineer);
+              (l.to_location === "HQ-Stores" || l.to_location === "office" || l.action === "received") && l.engineer && l.engineer.toLowerCase() !== "system"
+            ) || bLogs.find(l => l.engineer && l.engineer.toLowerCase() !== "system");
 
-            const resolvedEngineer = storeLog?.engineer || b.registeredBy || b.lastEngineer;
+            const resolvedEngineer = storeLog?.engineer || b.lastEngineer || b.registeredBy;
             const resolvedDate = storeLog?.date || b.deliveredAt || b.locationChangedAt || b.registeredAt;
             const patch: Record<string, any> = {};
 
@@ -1935,8 +2085,8 @@ export const db = {
         } catch (err) {
           console.warn("Failed resolving return metadata from movement_logs:", err);
           for (const b of missingReturnMeta) {
-            if (!b.returnedBy && (b.registeredBy || b.lastEngineer)) {
-              b.returnedBy = b.registeredBy || b.lastEngineer;
+            if (!b.returnedBy && (b.lastEngineer || b.registeredBy)) {
+              b.returnedBy = b.lastEngineer || b.registeredBy;
             }
             if (!b.returnedAt && (b.deliveredAt || b.locationChangedAt || b.registeredAt)) {
               b.returnedAt = b.deliveredAt || b.locationChangedAt || b.registeredAt;
@@ -1947,6 +2097,7 @@ export const db = {
     }
 
     await reconcileEmptyWasteBottles(bottles);
+    await reconcileUserIdsInBottles(bottles);
     return bottles;
   },
 
@@ -1973,6 +2124,7 @@ export const db = {
     }
     const bottles = raw ? raw.map(mapBottle) : [];
     await reconcileEmptyWasteBottles(bottles);
+    await reconcileUserIdsInBottles(bottles);
     return bottles;
   },
 
@@ -1983,6 +2135,7 @@ export const db = {
       .eq('location_id', vanId);
     const bottles = data ? data.map(mapBottle) : [];
     await reconcileEmptyWasteBottles(bottles);
+    await reconcileUserIdsInBottles(bottles);
     return bottles;
   },
 
@@ -1990,6 +2143,7 @@ export const db = {
     const { data } = await supabase.from('bottles').select('*').eq('category', category);
     const bottles = data ? data.map(mapBottle) : [];
     await reconcileEmptyWasteBottles(bottles);
+    await reconcileUserIdsInBottles(bottles);
     return bottles;
   },
 
@@ -2804,6 +2958,7 @@ export const db = {
   },
 
   async upsertCrmJobs(jobs: Omit<CrmJob, "id" | "importedAt">[]): Promise<void> {
+    if (!jobs.length) return;
     const rows = jobs.map(j => ({
       job_number: j.jobNumber,
       job_number_unprefixed: j.jobNumberUnprefixed || (j.jobNumber || "").replace(/^[^0-9]+/, ""),
@@ -2821,9 +2976,64 @@ export const db = {
     }));
     const { error } = await supabase
       .from("crm_jobs")
-      // ignoreDuplicates: existing job numbers are never overwritten on import
+      // ignoreDuplicates: existing job numbers are never overwritten by brand-new insert pass
       .upsert(rows, { onConflict: "job_number", ignoreDuplicates: true });
     if (error) throw error;
+  },
+
+  async updateExistingCrmJobs(jobs: Omit<CrmJob, "id" | "importedAt">[]): Promise<void> {
+    if (!jobs.length) return;
+    const rows = jobs.map(j => ({
+      job_number: j.jobNumber,
+      job_number_unprefixed: j.jobNumberUnprefixed || (j.jobNumber || "").replace(/^[^0-9]+/, ""),
+      prefix: j.prefix ?? null,
+      customer: j.customer,
+      site_title: j.siteTitle,
+      site_address: j.siteAddress,
+      site_postcode: j.sitePostcode,
+      uprn: j.uprn ?? null,
+      raw_data: j.rawData,
+      start_date: j.startDate ?? null,
+      category: j.category ?? null,
+      fault_code: j.faultCode ?? null,
+      job_title: j.jobTitle ?? null
+    }));
+
+    const chunkSize = 500;
+    for (let i = 0; i < rows.length; i += chunkSize) {
+      const chunk = rows.slice(i, i + chunkSize);
+      const { error } = await supabase
+        .from("crm_jobs")
+        .upsert(chunk, { onConflict: "job_number", ignoreDuplicates: false });
+      if (error) throw error;
+    }
+
+    // Also propagate updated address/postcode to any matching decommissioned_equipment or usage_logs records
+    for (const j of jobs) {
+      if (!j.jobNumber || (!j.siteAddress && !j.sitePostcode)) continue;
+      const fullAddr = [j.siteAddress, j.sitePostcode].filter(Boolean).join(", ");
+      try {
+        await supabase
+          .from("decommissioned_equipment")
+          .update({
+            ...(j.siteTitle ? { site_name: j.siteTitle } : {}),
+            ...(j.siteAddress ? { site_address: j.siteAddress } : {}),
+            ...(j.sitePostcode ? { site_postcode: j.sitePostcode } : {})
+          })
+          .ilike("job_number", j.jobNumber);
+        if (fullAddr) {
+          await supabase
+            .from("usage_logs")
+            .update({
+              ...(j.siteTitle ? { site_name: j.siteTitle } : {}),
+              site_address: fullAddr
+            })
+            .ilike("site_ref", j.jobNumber);
+        }
+      } catch {
+        // Non-fatal if auxiliary tables have no matching rows
+      }
+    }
   },
 
   async updateCrmJobUprn(id: string, uprn: string): Promise<void> {
@@ -2849,11 +3059,35 @@ export const db = {
 
   async getCrmJobsByNumbers(jobNumbers: string[]): Promise<CrmJob[]> {
     if (!jobNumbers.length) return [];
-    const { data } = await supabase
-      .from("crm_jobs")
-      .select("*")
-      .in("job_number", jobNumbers);
-    return data ? data.map((r: any) => ({
+    const unique = Array.from(new Set(jobNumbers.flatMap(j => {
+      const clean = (j || "").trim().replace(/\s+/g, "");
+      return clean ? [clean, clean.toUpperCase(), clean.toLowerCase()] : [];
+    })));
+    const unprefixed = Array.from(new Set(jobNumbers.map(j => (j || "").trim().replace(/\s+/g, "").replace(/^[^0-9]+/, "")).filter(Boolean)));
+    if (!unique.length) return [];
+
+    const queries: Promise<any>[] = [
+      Promise.resolve(supabase.from("crm_jobs").select("*").in("job_number", unique))
+    ];
+    if (unprefixed.length > 0) {
+      queries.push(Promise.resolve(supabase.from("crm_jobs").select("*").in("job_number_unprefixed", unprefixed)));
+    }
+
+    const results = await Promise.all(queries);
+    const seen = new Set<string>();
+    const combined: any[] = [];
+    for (const res of results) {
+      if (res?.data) {
+        for (const r of res.data) {
+          if (!seen.has(r.id)) {
+            seen.add(r.id);
+            combined.push(r);
+          }
+        }
+      }
+    }
+
+    return combined.map((r: any) => ({
       id: r.id,
       jobNumber: r.job_number,
       jobNumberUnprefixed: r.job_number_unprefixed ?? "",
@@ -2869,7 +3103,7 @@ export const db = {
       category: r.category ?? "",
       faultCode: r.fault_code ?? "",
       jobTitle: r.job_title ?? ""
-    })) : [];
+    }));
   },
 
   async getCrmJobByNumber(jobNumber: string): Promise<CrmJob | null> {
@@ -2911,14 +3145,16 @@ export const db = {
   },
 
   async getUsageLogsBySiteRef(siteRef: string): Promise<UsageLog[]> {
+    const clean = (siteRef || "").trim();
     const { data } = await supabase
-      .from("usage_logs").select("*").eq("site_ref", siteRef).order("date", { ascending: true });
+      .from("usage_logs").select("*").ilike("site_ref", clean).order("date", { ascending: true });
     return data ? data.map(mapUsage) : [];
   },
 
   async getDecommissionsByJobNumber(jobNumber: string): Promise<any[]> {
+    const clean = (jobNumber || "").trim();
     const { data } = await supabase
-      .from("decommissioned_equipment").select("*").eq("job_number", jobNumber).order("date", { ascending: false });
+      .from("decommissioned_equipment").select("*").ilike("job_number", clean).order("date", { ascending: false });
     return data ? data.map((d: any) => ({
       ...d,
       bottleSerial: d.bottle_serial, jobNumber: d.job_number, siteName: d.site_name,
@@ -3384,7 +3620,7 @@ export const db = {
     };
     if (newDonorWeight === 0 && data.isFullyEvacuated) {
       donorUpdate.producer_sites = [];
-      donorUpdate.gas_type = "Empty / Evacuated";
+      donorUpdate.gas_type = "None (21D Vacc'd)";
     }
     const { error: donorErr } = await supabase.from('bottles').update(donorUpdate).eq('serial', data.donorSerial);
     if (donorErr) throw donorErr;
@@ -3400,7 +3636,7 @@ export const db = {
 
     const evacNote = newDonorWeight === 0
       ? data.isFullyEvacuated
-        ? " Donor cylinder fully emptied & evacuated (vacced) — reset to Empty / Evacuated (ready for any waste refrigerant)."
+        ? " Donor cylinder fully emptied & evacuated (vacced) — reset to None (21D Vacc'd) (ready for any waste refrigerant)."
         : ` Donor cylinder emptied of weighed gas but residual gas remains (not vacced) — retained ${donor.gas_type || 'original'} gas classification.`
       : ` Remaining: ${newDonorWeight}kg.`;
 
