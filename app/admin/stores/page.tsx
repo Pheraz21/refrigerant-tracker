@@ -54,13 +54,20 @@ export default function StoresInventoryPage() {
   useEffect(() => {
     Promise.all([
       db.getBottlesByLocation("office"),
-      db.getEngineerProfiles(),
+      db.getAllUsers(),
     ]).then(([b, e]) => {
       setBottles(b);
       setEngineers(e);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
+
+  const resolveUserName = (val?: string) => {
+    if (!val) return "";
+    const trimmed = val.trim();
+    const match = engineers.find((u: any) => u.id === trimmed || u.name === trimmed);
+    return match ? match.name : trimmed;
+  };
 
   // Close dropdown on outside click — check the ref so clicks inside don't close it
   useEffect(() => {
@@ -82,14 +89,15 @@ export default function StoresInventoryPage() {
       if (b.category) sets.category.add(b.category);
       if (b.gasType) sets.gasType.add(b.gasType);
       if (b.supplier) sets.supplier.add(b.supplier);
-      if (b.returnedBy) sets.returnedBy.add(b.returnedBy);
+      const retBy = resolveUserName(b.returnedBy);
+      if (retBy) sets.returnedBy.add(retBy);
       const st = isBottleTrace(b) ? "trace" : (b.status || "");
       if (st) sets.status.add(st);
     }
     const result: Record<string, string[]> = {};
     for (const k of Object.keys(sets)) result[k] = Array.from(sets[k]).sort();
     return result;
-  }, [bottles]);
+  }, [bottles, engineers]);
 
   const activeColFilters =
     Object.values(colFilters).filter(Boolean).length +
@@ -133,14 +141,14 @@ export default function StoresInventoryPage() {
       case "category":   return vals.includes(b.category);
       case "gasType":    return vals.includes(b.gasType);
       case "supplier":   return vals.includes(b.supplier || "");
-      case "returnedBy": return vals.includes(b.returnedBy || "");
+      case "returnedBy": return vals.includes(resolveUserName(b.returnedBy));
       case "status":     return vals.includes(isBottleTrace(b) ? "trace" : (b.status || ""));
       default:           return true;
     }
   }
 
   const filtered = bottles
-    .filter(b => !search || b.serial.toLowerCase().includes(search.toLowerCase()) || b.gasType.toLowerCase().includes(search.toLowerCase()) || (b.returnedBy || "").toLowerCase().includes(search.toLowerCase()))
+    .filter(b => !search || b.serial.toLowerCase().includes(search.toLowerCase()) || b.gasType.toLowerCase().includes(search.toLowerCase()) || resolveUserName(b.returnedBy).toLowerCase().includes(search.toLowerCase()))
     .filter(b => {
       if (!sinceDate) return true;
       const bottleDate = b.locationChangedAt || b.registeredAt;
@@ -149,8 +157,8 @@ export default function StoresInventoryPage() {
     .filter(b => Object.entries(colFilters).every(([k, v]) => matchTextFilter(k, b, v)))
     .filter(b => Object.entries(colMultiFilters).every(([k, v]) => matchMultiFilter(k, b, v)))
     .sort((a, b) => {
-      let av: any = sortKey === "returnedAt" ? (a.returnedAt || a.deliveredAt || a.locationChangedAt || "") : (a[sortKey] ?? "");
-      let bv: any = sortKey === "returnedAt" ? (b.returnedAt || b.deliveredAt || b.locationChangedAt || "") : (b[sortKey] ?? "");
+      let av: any = sortKey === "returnedAt" ? (a.returnedAt || a.deliveredAt || a.locationChangedAt || "") : sortKey === "returnedBy" ? resolveUserName(a.returnedBy) : (a[sortKey] ?? "");
+      let bv: any = sortKey === "returnedAt" ? (b.returnedAt || b.deliveredAt || b.locationChangedAt || "") : sortKey === "returnedBy" ? resolveUserName(b.returnedBy) : (b[sortKey] ?? "");
       if (sortKey === "currentWeight") { av = Number(av); bv = Number(bv); }
       else { av = String(av).toLowerCase(); bv = String(bv).toLowerCase(); }
       if (av < bv) return sortDir === "asc" ? -1 : 1;
@@ -323,7 +331,7 @@ export default function StoresInventoryPage() {
     const rows = filtered.map(b => {
       const retDate = b.returnedAt || b.deliveredAt || b.locationChangedAt || "";
       const st = isBottleTrace(b) ? "Trace" : (b.status || "");
-      return `${b.serial},${b.category},${b.gasType},${b.initialWeight ?? 0},${b.currentWeight ?? 0},${st},${b.supplier},${b.registeredAt},${b.returnedBy},${retDate},${b.locationChangedAt}`;
+      return `${b.serial},${b.category},${b.gasType},${b.initialWeight ?? 0},${b.currentWeight ?? 0},${st},${b.supplier},${b.registeredAt},${resolveUserName(b.returnedBy)},${retDate},${b.locationChangedAt}`;
     }).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -352,7 +360,7 @@ export default function StoresInventoryPage() {
         case "gasInBottle": return isNitrogen ? "N/A" : `${cw.toFixed(2)} kg`;
         case "balance": return isNitrogen ? "N/A" : `${bal.toFixed(2)} kg`;
         case "status": return isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unopened" : b.status === "active" ? "Opened" : b.status ? (b.status.charAt(0).toUpperCase() + b.status.slice(1)) : "—";
-        case "returnedBy": return b.returnedBy || "—";
+        case "returnedBy": return resolveUserName(b.returnedBy) || "—";
         case "returnedDate": return retDate ? new Date(retDate).toLocaleDateString("en-GB") : "—";
         case "dateReceived": return b.locationChangedAt ? new Date(b.locationChangedAt).toLocaleDateString("en-GB") : "—";
         case "supplier": return b.supplier || "—";
@@ -598,25 +606,27 @@ export default function StoresInventoryPage() {
             </span>
           </td>
         );
-      case "returnedBy":
+      case "returnedBy": {
+        const displayReturnedBy = resolveUserName(b.returnedBy);
         return (
           <td key={key} style={{padding: "0.85rem 1rem", fontSize: "0.9rem"}}>
-            {b.returnedBy ? (
+            {displayReturnedBy ? (
               <span
                 onClick={(e) => {
                   e.stopPropagation();
-                  const eng = engineers.find((u: any) => u.name === b.returnedBy);
-                  router.push(`/admin/vans?engineer=${eng ? eng.id : b.returnedBy}`);
+                  const eng = engineers.find((u: any) => u.name === displayReturnedBy || u.id === b.returnedBy);
+                  router.push(`/admin/vans?engineer=${eng ? eng.id : displayReturnedBy}`);
                 }}
                 style={{cursor: "pointer", color: "#00e5ff", fontWeight: 500}}
                 onMouseEnter={(e) => e.currentTarget.style.textDecoration = "underline"}
                 onMouseLeave={(e) => e.currentTarget.style.textDecoration = "none"}
               >
-                {b.returnedBy}
+                {displayReturnedBy}
               </span>
             ) : "—"}
           </td>
         );
+      }
       case "returnedDate": {
         const retDate = b.returnedAt || b.deliveredAt || b.locationChangedAt;
         return (

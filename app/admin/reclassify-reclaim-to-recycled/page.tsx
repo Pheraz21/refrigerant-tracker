@@ -122,6 +122,9 @@ export default function ReclassifyRecycledPage() {
         !selectedReclaimBottle.gasType ||
         selectedReclaimBottle.gasType === "Mixed/Recovery" ||
         selectedReclaimBottle.gasType === "Empty / Evacuated" ||
+        selectedReclaimBottle.gasType === "None (21D Vacc'd)" ||
+        selectedReclaimBottle.gasType === "None (Supplier Clean)" ||
+        selectedReclaimBottle.gasType === "Unused" ||
         selectedReclaimBottle.gasType === "Mixed";
       const cleanGas = !isGeneric ? selectedReclaimBottle.gasType : "R410A";
       setTargetGasType(cleanGas);
@@ -265,7 +268,7 @@ export default function ReclassifyRecycledPage() {
 
       const evacMsg = donorRemaining === 0
         ? isFullyEvacuated
-          ? ` Donor cylinder ${selectedDonorBottle.serial} was vacced and reset to "Empty / Evacuated".`
+          ? ` Donor cylinder ${selectedDonorBottle.serial} was vacced and reset to "None (21D Vacc'd)".`
           : ` Donor cylinder ${selectedDonorBottle.serial} retained gas type "${selectedDonorBottle.gasType}".`
         : "";
 
@@ -527,7 +530,7 @@ export default function ReclassifyRecycledPage() {
                       <option key={g} value={g}>{g}</option>
                     ))}
                     {gasCatalogue
-                      .filter(g => !["R410A", "R32", "R134a", "R404A", "R407C", "R422D", "R507", "Mixed/Recovery", "Mixed", "Empty / Evacuated"].includes(g.name))
+                      .filter(g => !["R410A", "R32", "R134a", "R404A", "R407C", "R422D", "R507", "Mixed/Recovery", "Mixed", "Empty / Evacuated", "None (21D Vacc'd)", "None (Supplier Clean)", "Unused"].includes(g.name))
                       .map(g => (
                         <option key={g.id || g.name} value={g.name}>{g.name}</option>
                       ))}
@@ -847,7 +850,7 @@ export default function ReclassifyRecycledPage() {
                             Yes — Fully emptied and vacced
                           </div>
                           <div style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.6)", marginTop: "0.15rem" }}>
-                            Gas type will be reset to <strong>Empty / Evacuated</strong>. Ready to receive any waste refrigerant.
+                            Gas type will be reset to <strong>None (21D Vacc&apos;d)</strong>. Ready to receive any waste refrigerant.
                           </div>
                         </div>
                       </label>

@@ -200,13 +200,15 @@ export default function LogBottlePage() {
           const isEvacuated =
             !existingGas ||
             existingGas.toLowerCase() === "unused" ||
+            existingGas.toLowerCase() === "none (supplier clean)" ||
             existingGas.toLowerCase() === "empty / evacuated" ||
             existingGas.toLowerCase() === "empty/evacuated" ||
+            existingGas.toLowerCase() === "none (21d vacc'd)" ||
             existingGas.toLowerCase() === "mixed/recovery" ||
             existingGas.toLowerCase() === "unknown";
 
           if (isEvacuated) {
-            // Empty / Evacuated cylinder: let engineer select the gas being recovered
+            // None (Supplier Clean) / None (21D Vacc'd) cylinder: let engineer select the gas being recovered
             setRefrigerantType("");
           } else {
             const standardGases = ["R410A", "R32", "R134a", "R404A", "R407C", "R22"];
@@ -511,8 +513,10 @@ export default function LogBottlePage() {
         !hasReclaimWaste(bottleData) ||
         !curGas ||
         curGas.toLowerCase() === "unused" ||
+        curGas.toLowerCase() === "none (supplier clean)" ||
         curGas.toLowerCase() === "empty / evacuated" ||
         curGas.toLowerCase() === "empty/evacuated" ||
+        curGas.toLowerCase() === "none (21d vacc'd)" ||
         curGas.toLowerCase() === "mixed/recovery" ||
         curGas === "Unknown";
 
@@ -618,10 +622,10 @@ export default function LogBottlePage() {
             lineHeight: 1.5
           }}>
             <div style={{ fontWeight: 700, color: isFullyEvacuated ? "#10b981" : "#ffbb00", marginBottom: "0.25rem" }}>
-              {isFullyEvacuated ? "✓ Cylinder Reset to Empty / Evacuated" : `ℹ️ Cylinder Classed as Trace (${bottleData?.gasType || "Gas"})`}
+              {isFullyEvacuated ? "✓ Cylinder Reset to None (21D Vacc'd)" : `ℹ️ Cylinder Classed as Trace (${bottleData?.gasType || "Gas"})`}
             </div>
             {isFullyEvacuated 
-              ? `Cylinder ${serialParam} reached 0.00 kg and was marked as fully evacuated. Gas type has been reset to Empty / Evacuated.` 
+              ? `Cylinder ${serialParam} reached 0.00 kg and was marked as fully evacuated. Gas type has been reset to None (21D Vacc'd).` 
               : `Cylinder ${serialParam} has no weighed bulk gas left, but was not evacuated to vacuum. It is classed as Trace (${bottleData?.gasType || "gas"}) and is not treated as an empty cylinder.`}
           </div>
         )}
@@ -1101,10 +1105,10 @@ export default function LogBottlePage() {
                         `${bottleData?.gasType || "Mixed"} (${bottleData?.currentWeight} kg present)`
                       ) : isBottleTrace(bottleData) ? (
                         `${bottleData?.gasType} (Trace present — not vacced)`
-                      ) : (bottleData?.status === "unused" || (bottleData?.gasType || "").toLowerCase() === "unused") ? (
-                        `Unused (No gas type applied yet)`
+                      ) : (bottleData?.status === "unused" || (bottleData?.gasType || "").toLowerCase() === "unused" || (bottleData?.gasType || "").toLowerCase() === "none (supplier clean)") ? (
+                        `None (Supplier Clean)`
                       ) : (
-                        `Empty / Evacuated (${bottleData?.gasType || "Empty / Evacuated"})`
+                        `None (21D Vacc'd)`
                       )}
                     </span>
                   </div>
@@ -1147,7 +1151,7 @@ export default function LogBottlePage() {
                     })()
                   ) : (
                     <p style={{ margin: '0.4rem 0 0', fontSize: '0.78rem', color: '#00e5ff', lineHeight: 1.4 }}>
-                      Empty / evacuated reclaim cylinder. Select the gas being recovered into this cylinder (it will adopt this refrigerant type).
+                      Clean / evacuated reclaim cylinder. Select the gas being recovered into this cylinder (it will adopt this refrigerant type).
                     </p>
                   )}
                 </div>
@@ -1424,7 +1428,7 @@ export default function LogBottlePage() {
                     Yes — Fully emptied and vacced
                   </div>
                   <div style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.6)", marginTop: "0.15rem" }}>
-                    Gas type will change to <strong>Empty / Evacuated</strong>. Ready to receive any waste refrigerant.
+                    Gas type will change to <strong>None (21D Vacc&apos;d)</strong>. Ready to receive any waste refrigerant.
                   </div>
                 </div>
               </label>

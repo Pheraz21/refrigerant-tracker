@@ -99,7 +99,7 @@ function formatMoveActionFull(action?: string): string {
     case "signed_out_from_stores":
       return "Signed Out from HQ-Stores to Engineer Van";
     case "evacuated":
-      return "Cylinder Charged Back & Evacuated to Vacuum (Empty / Evacuated)";
+      return "Cylinder Charged Back & Evacuated to Vacuum (None (21D Vacc'd))";
     case "emptied":
       return "Cylinder Emptied of Bulk Liquid (Trace Refrigerant Retained)";
     case "workshop_decant_out":

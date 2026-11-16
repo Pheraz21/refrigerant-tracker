@@ -112,11 +112,12 @@ function parseRows(rawRows: Record<string, any>[]): Omit<CrmJob, "id" | "importe
     }
 
     // Resolve canonical prefixed jobNumber and unprefixed number regardless of column order
-    const rawNum = obj.jobNumberRaw || obj.jobNumberUnprefixed || "";
-    const strippedNum = rawNum.replace(/^[^0-9]+/, "");
-    if (obj.jobNumberPrefixed) {
-      obj.jobNumber = obj.jobNumberPrefixed;
-      obj.jobNumberUnprefixed = strippedNum || obj.jobNumberPrefixed.replace(/^[^0-9]+/, "");
+    const rawNum = (obj.jobNumberRaw || obj.jobNumberUnprefixed || "").replace(/\.0+$/, "");
+    const strippedNum = rawNum.replace(/^[^0-9]+/, "").replace(/\.0+$/, "");
+    const prefNum = (obj.jobNumberPrefixed || "").replace(/\.0+$/, "");
+    if (prefNum) {
+      obj.jobNumber = prefNum;
+      obj.jobNumberUnprefixed = strippedNum || prefNum.replace(/^[^0-9]+/, "");
     } else if (rawNum) {
       const hasLetterPrefix = /^[A-Za-z]/.test(rawNum);
       obj.jobNumber = (!hasLetterPrefix && obj.prefix) ? `${obj.prefix}${rawNum}` : rawNum;

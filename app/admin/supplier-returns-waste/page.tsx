@@ -258,7 +258,7 @@ export default function SupplierReturnPage() {
     }
 
     if (matchInCompany.category === "reclaim" && !hasReclaimWaste(matchInCompany)) {
-      return `Cylinder ${matchInCompany.serial} is an Unused / Empty Evacuated reclaim cylinder containing no hazardous waste (0.00 kg). No HWCN is required — please use "Supplier Collection from Stores" instead.`;
+      return `Cylinder ${matchInCompany.serial} is a None (Supplier Clean) / None (21D Vacc'd) reclaim cylinder containing no hazardous waste (0.00 kg). No HWCN is required — please use "Supplier Collection from Stores" instead.`;
     }
 
     return null;

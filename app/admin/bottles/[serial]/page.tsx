@@ -1093,7 +1093,7 @@ export default function ViewBottlePage() {
             gLower.includes("mixed/recovery") ||
             gLower.includes("mixed / recovery") ||
             (gLower === "unknown" && !hasWeight) ||
-            (gLower === "empty / evacuated" && hasWeight);
+            ((gLower === "empty / evacuated" || gLower === "none (21d vacc'd)") && hasWeight);
 
           if (isCandidate) {
             const recoveryLogs = (useData || []).filter(u =>
@@ -1103,18 +1103,18 @@ export default function ViewBottlePage() {
 
             let targetGas: string | null = null;
             if (!hasWeight) {
-              targetGas = bottleData.status === "unused" || gLower === "unused" ? "Unused" : "Empty / Evacuated";
+              targetGas = bottleData.status === "unused" || gLower === "unused" || gLower === "none (supplier clean)" ? "None (Supplier Clean)" : "None (21D Vacc'd)";
             } else {
             const distinct = new Set<string>();
             recoveryLogs.forEach(u => {
               const g = (u.gasType || (u as any).gas_type || "").trim();
-              if (g && !["mixed/recovery", "mixed / recovery", "unknown", "empty / evacuated", "empty/evacuated"].includes(g.toLowerCase())) {
+              if (g && !["mixed/recovery", "mixed / recovery", "unknown", "empty / evacuated", "empty/evacuated", "none (21d vacc'd)", "none (supplier clean)", "unused"].includes(g.toLowerCase())) {
                 distinct.add(g);
               }
               if (Array.isArray(u.equipmentDetails)) {
                 u.equipmentDetails.forEach((eq: any) => {
                   const eqG = (eq.gasType || eq.gas_type || eq.refrigerant || "").trim();
-                  if (eqG && !["mixed/recovery", "mixed / recovery", "unknown", "empty / evacuated"].includes(eqG.toLowerCase())) {
+                  if (eqG && !["mixed/recovery", "mixed / recovery", "unknown", "empty / evacuated", "none (21d vacc'd)", "none (supplier clean)", "unused"].includes(eqG.toLowerCase())) {
                     distinct.add(eqG);
                   }
                 });
@@ -1128,7 +1128,7 @@ export default function ViewBottlePage() {
               targetGas = "Mixed";
             } else if (bottleData.gasType && (bottleData.gasType.toLowerCase().includes("mixed/recovery") || bottleData.gasType.toLowerCase().includes("mixed / recovery"))) {
               targetGas = "Mixed";
-            } else if (hasWeight && (!bottleData.gasType || bottleData.gasType.toLowerCase() === "empty / evacuated")) {
+            } else if (hasWeight && (!bottleData.gasType || bottleData.gasType.toLowerCase() === "empty / evacuated" || bottleData.gasType.toLowerCase() === "none (21d vacc'd)")) {
               targetGas = (bottleData.serial === "1N210008" || bottleData.serial === "1N394444") ? "R410A" : "Unknown";
             }
           }
@@ -1917,7 +1917,7 @@ export default function ViewBottlePage() {
                     type="button"
                     onClick={() => {
                       const cur = bottle.gasType || "";
-                      const standard = ["R410A", "R32", "R134a", "R404A", "R407C", "R22", "Empty / Evacuated", "Mixed"];
+                      const standard = ["R410A", "R32", "R134a", "R404A", "R407C", "R22", "None (Supplier Clean)", "None (21D Vacc'd)", "Mixed"];
                       if (standard.includes(cur)) {
                         setSelectedGasType(cur);
                         setCustomGasType("");
@@ -2704,7 +2704,7 @@ export default function ViewBottlePage() {
             </p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1.5rem" }}>
-              {["R410A", "R32", "R134a", "R404A", "R407C", "R22", "Empty / Evacuated", "Mixed", "other"].map(opt => (
+              {["R410A", "R32", "R134a", "R404A", "R407C", "R22", "None (Supplier Clean)", "None (21D Vacc'd)", "Mixed", "other"].map(opt => (
                 <label key={opt} style={{
                   display: "flex",
                   alignItems: "center",

@@ -1,14 +1,34 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { db, MovementLog } from "@/lib/db";
+import { db, MovementLog, CrmJob } from "@/lib/db";
 import { History, Search, Calendar, FileText, FileSpreadsheet, Clock, User, ArrowRight, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import styles from "../../engineer/page.module.css";
 
+interface JobLookupInfo {
+  exists: boolean;
+  canonicalRef: string;
+  siteName?: string;
+}
+
+function isNonJobLocation(loc?: string): boolean {
+  const s = (loc || "").trim().toLowerCase();
+  if (!s || s === "—" || s === "-" || s === "none" || s === "unknown") return true;
+  if (s === "hq-stores" || s === "office" || s === "stores" || s.startsWith("hq-stores")) return true;
+  if (s === "supplier" || s.startsWith("supplier ") || s.startsWith("supplier-") || s.startsWith("supplier(")) return true;
+  if (s.includes("direct delivery to site")) return true;
+  if (s === "in transit" || s.startsWith("in transit")) return true;
+  if (s.startsWith("archived")) return true;
+  if (s.includes(" - van") || s.startsWith("van (")) return true;
+  if (s.startsWith("decanted ")) return true;
+  return false;
+}
+
 export default function DailyActionsPage() {
   const [logs, setLogs] = useState<MovementLog[]>([]);
   const [bottleMap, setBottleMap] = useState<Record<string, { category: string; gasType: string; supplier?: string }>>({});
+  const [jobMap, setJobMap] = useState<Record<string, JobLookupInfo>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -17,17 +37,121 @@ export default function DailyActionsPage() {
   useEffect(() => {
     Promise.all([
       db.getMovementLogs(),
-      db.getAllBottles()
-    ]).then(([movementData, bottlesData]) => {
+      db.getAllBottles(),
+      db.getAllUsageLogs(),
+      db.getAllDecommissions()
+    ]).then(async ([movementData, bottlesData, usageData, decomData]) => {
       const map: Record<string, { category: string; gasType: string; supplier?: string }> = {};
+      const producerSiteByJob = new Map<string, string>();
+
       bottlesData.forEach(b => {
         map[b.serial] = { category: b.category, gasType: b.gasType, supplier: b.supplier };
+        if (Array.isArray(b.producerSites)) {
+          b.producerSites.forEach((ps: any) => {
+            const jn = (ps?.jobNumber || "").trim().toUpperCase();
+            const nm = (ps?.name || "").trim();
+            if (jn && nm && nm.toUpperCase() !== jn && !producerSiteByJob.has(jn)) {
+              producerSiteByJob.set(jn, nm);
+            }
+          });
+        }
       });
+
+      const candidateRefs = new Set<string>();
+      movementData.forEach(m => {
+        if (m.from && !isNonJobLocation(m.from)) candidateRefs.add(m.from.trim());
+        if (m.to && !isNonJobLocation(m.to)) candidateRefs.add(m.to.trim());
+      });
+      usageData.forEach(u => {
+        if (u.siteRef && !isNonJobLocation(u.siteRef)) candidateRefs.add(u.siteRef.trim());
+      });
+      decomData.forEach((d: any) => {
+        if (d.jobNumber && !isNonJobLocation(d.jobNumber)) candidateRefs.add(String(d.jobNumber).trim());
+      });
+      bottlesData.forEach(b => {
+        if (b.locationType === "site" && b.locationId && !isNonJobLocation(b.locationId)) {
+          candidateRefs.add(b.locationId.trim());
+        }
+      });
+
+      const crmJobs: CrmJob[] = candidateRefs.size > 0
+        ? await db.getCrmJobsByNumbers(Array.from(candidateRefs))
+        : [];
+
+      const crmByNumber = new Map<string, CrmJob>();
+      const crmByUnprefixed = new Map<string, CrmJob>();
+      crmJobs.forEach(j => {
+        if (j.jobNumber) crmByNumber.set(j.jobNumber.trim().toUpperCase(), j);
+        if (j.jobNumberUnprefixed && !crmByUnprefixed.has(j.jobNumberUnprefixed.trim())) {
+          crmByUnprefixed.set(j.jobNumberUnprefixed.trim(), j);
+        }
+      });
+
+      const usageByRef = new Map<string, { canonicalRef: string; siteName?: string }>();
+      usageData.forEach(u => {
+        const ref = (u.siteRef || "").trim();
+        if (!ref) return;
+        const key = ref.toUpperCase();
+        const existing = usageByRef.get(key);
+        const siteName = u.siteName && u.siteName.trim().toUpperCase() !== key ? u.siteName.trim() : undefined;
+        if (!existing) {
+          usageByRef.set(key, { canonicalRef: ref, siteName });
+        } else if (!existing.siteName && siteName) {
+          existing.siteName = siteName;
+        }
+      });
+
+      const decomByRef = new Map<string, { canonicalRef: string; siteName?: string }>();
+      decomData.forEach((d: any) => {
+        const ref = String(d.jobNumber || "").trim();
+        if (!ref) return;
+        const key = ref.toUpperCase();
+        const existing = decomByRef.get(key);
+        const siteName = d.siteName && String(d.siteName).trim().toUpperCase() !== key ? String(d.siteName).trim() : undefined;
+        if (!existing) {
+          decomByRef.set(key, { canonicalRef: ref, siteName });
+        } else if (!existing.siteName && siteName) {
+          existing.siteName = siteName;
+        }
+      });
+
+      const resolvedJobs: Record<string, JobLookupInfo> = {};
+      candidateRefs.forEach(rawRef => {
+        const key = rawRef.trim().toUpperCase();
+        if (!key) return;
+        const unpref = key.replace(/^[^0-9]+/, "");
+        const crm = crmByNumber.get(key) || (unpref ? crmByUnprefixed.get(unpref) : undefined);
+        const crmKey = crm?.jobNumber ? crm.jobNumber.trim().toUpperCase() : key;
+        const uInfo = usageByRef.get(key) || usageByRef.get(crmKey);
+        const dInfo = decomByRef.get(key) || decomByRef.get(crmKey);
+
+        const exists = Boolean(crm || uInfo || dInfo);
+        const canonicalRef = uInfo?.canonicalRef || dInfo?.canonicalRef || crm?.jobNumber || rawRef.trim();
+        const siteName =
+          crm?.siteTitle ||
+          uInfo?.siteName ||
+          dInfo?.siteName ||
+          producerSiteByJob.get(key) ||
+          producerSiteByJob.get(crmKey) ||
+          crm?.siteAddress ||
+          crm?.customer ||
+          undefined;
+
+        resolvedJobs[key] = { exists, canonicalRef, siteName };
+      });
+
       setBottleMap(map);
+      setJobMap(resolvedJobs);
       setLogs(movementData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
       setLoading(false);
     });
   }, []);
+
+  const getJobInfo = (loc?: string): JobLookupInfo | null => {
+    if (!loc || isNonJobLocation(loc)) return null;
+    const key = loc.trim().toUpperCase();
+    return jobMap[key] || null;
+  };
 
   const getDisplayFrom = (log: MovementLog) => {
     const bSupplier = bottleMap[log.serial]?.supplier;
@@ -96,25 +220,78 @@ export default function DailyActionsPage() {
     const bInfo = bottleMap[log.serial];
     const displayFrom = getDisplayFrom(log);
     const displayTo = getDisplayTo(log);
+    const fromJob = getJobInfo(log.from);
+    const toJob = getJobInfo(log.to);
     const catBadge = getCategoryBadge(bInfo?.category, log.action, log.notes);
 
     const matchesCategory = categoryFilter === "all" || catBadge.key === categoryFilter;
 
+    const q = search.toLowerCase();
     const matchesSearch = !search || 
-      log.serial.toLowerCase().includes(search.toLowerCase()) || 
-      log.engineer.toLowerCase().includes(search.toLowerCase()) ||
-      displayTo.toLowerCase().includes(search.toLowerCase()) ||
-      displayFrom.toLowerCase().includes(search.toLowerCase()) ||
-      catBadge.label.toLowerCase().includes(search.toLowerCase()) ||
-      (bInfo && bInfo.gasType.toLowerCase().includes(search.toLowerCase())) ||
-      (bInfo && bInfo.supplier && bInfo.supplier.toLowerCase().includes(search.toLowerCase())) ||
-      (log.notes && log.notes.toLowerCase().includes(search.toLowerCase()));
+      log.serial.toLowerCase().includes(q) || 
+      log.engineer.toLowerCase().includes(q) ||
+      displayTo.toLowerCase().includes(q) ||
+      displayFrom.toLowerCase().includes(q) ||
+      (fromJob?.siteName && fromJob.siteName.toLowerCase().includes(q)) ||
+      (toJob?.siteName && toJob.siteName.toLowerCase().includes(q)) ||
+      catBadge.label.toLowerCase().includes(q) ||
+      (bInfo && bInfo.gasType.toLowerCase().includes(q)) ||
+      (bInfo && bInfo.supplier && bInfo.supplier.toLowerCase().includes(q)) ||
+      (log.notes && log.notes.toLowerCase().includes(q));
     
     const logDate = log.date.slice(0, 10);
     const matchesDate = (!dateFrom || logDate >= dateFrom) && (!dateTo || logDate <= dateTo);
     
     return matchesCategory && matchesSearch && matchesDate;
   });
+
+  const renderLocation = (rawLoc: string, displayLoc: string, isFrom: boolean) => {
+    const info = getJobInfo(rawLoc);
+    if (!info) {
+      return (
+        <span style={{ color: isFrom ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.8)", fontWeight: isFrom ? 400 : 600 }}>
+          {displayLoc}
+        </span>
+      );
+    }
+
+    return (
+      <div style={{ display: "inline-flex", flexDirection: "column", gap: "0.1rem", minWidth: 0 }}>
+        {info.exists ? (
+          <Link
+            href={`/admin/jobs/${encodeURIComponent(info.canonicalRef)}`}
+            style={{
+              color: "#00e5ff",
+              textDecoration: "underline",
+              textDecorationColor: "rgba(0,229,255,0.4)",
+              fontWeight: 700,
+              fontFamily: "var(--font-geist-mono)",
+              fontSize: "0.85rem",
+              width: "fit-content"
+            }}
+          >
+            {displayLoc}
+          </Link>
+        ) : (
+          <span style={{ color: isFrom ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.8)", fontWeight: isFrom ? 400 : 600, fontFamily: "var(--font-geist-mono)" }}>
+            {displayLoc}
+          </span>
+        )}
+        {info.siteName && (
+          <span
+            style={{
+              fontSize: "0.73rem",
+              color: "rgba(255,255,255,0.55)",
+              fontWeight: 400,
+              lineHeight: 1.25
+            }}
+          >
+            {info.siteName}
+          </span>
+        )}
+      </div>
+    );
+  };
 
   // Group logs by day
   const groupedLogs: Record<string, MovementLog[]> = {};
@@ -356,10 +533,10 @@ export default function DailyActionsPage() {
                       </span>
                     </div>
                     <div>
-                      <div style={{fontSize: "0.85rem", color: "rgba(255,255,255,0.8)", display: "flex", alignItems: "center", gap: "0.5rem"}}>
-                        <span style={{color: "rgba(255,255,255,0.5)"}}>{getDisplayFrom(log)}</span>
-                        <ArrowRight size={14} style={{opacity: 0.3}} />
-                        <span style={{fontWeight: 600}}>{getDisplayTo(log)}</span>
+                      <div style={{fontSize: "0.85rem", color: "rgba(255,255,255,0.8)", display: "flex", alignItems: "flex-start", gap: "0.5rem"}}>
+                        {renderLocation(log.from, getDisplayFrom(log), true)}
+                        <ArrowRight size={14} style={{opacity: 0.3, marginTop: "0.2rem", flexShrink: 0}} />
+                        {renderLocation(log.to, getDisplayTo(log), false)}
                       </div>
                       {log.notes && (
                         <div style={{fontSize: "0.74rem", color: "rgba(255,255,255,0.45)", marginTop: "0.2rem", fontStyle: "italic", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"}} title={log.notes}>
