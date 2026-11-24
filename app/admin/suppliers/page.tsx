@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useMemo, Suspense } from "react";
-import { db, Bottle, isBottleTrace, hasReclaimWaste } from "@/lib/db";
+import { db, Bottle, isBottleTrace, hasReclaimWaste, formatBottleStatus } from "@/lib/db";
 import { Building2, Search, MapPin, Truck, Warehouse, ArrowUpDown, ArrowUp, ArrowDown, Filter as FilterIcon, Calendar, FileText, FileSpreadsheet, Settings2, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTablePrefs } from "@/lib/useTablePrefs";
@@ -102,7 +102,8 @@ function SupplierInventoryContent() {
       const loc = getLocDisplay(b);
       if (loc) sets.currentLocation.add(loc);
       if (b.supplier) sets.supplier.add(b.supplier);
-      if (b.status) sets.status.add(b.status);
+      const st = isBottleTrace(b) ? "trace" : (b.status || "");
+      if (st) sets.status.add(st);
     }
     const result: Record<string, string[]> = {};
     for (const k of Object.keys(sets)) result[k] = Array.from(sets[k]).sort();
@@ -148,7 +149,7 @@ function SupplierInventoryContent() {
       case "gasType":         return vals.includes(b.gasType);
       case "currentLocation": return vals.includes(getLocDisplay(b));
       case "supplier":        return vals.includes(b.supplier || "");
-      case "status":          return vals.includes(b.status || "");
+      case "status":          return vals.includes(isBottleTrace(b) ? "trace" : (b.status || ""));
       default:                return true;
     }
   }
@@ -200,7 +201,7 @@ function SupplierInventoryContent() {
 
   const optionLabel = (k: string, o: string) => {
     if (k === "category") {
-      return o === "reclaim" ? "Recovery / Reclaim" : o === "new" ? "Virgin Gas" : o === "recycled" ? "Recycled" : "Nitrogen (OFN)";
+      return o === "reclaim" ? "Recovery / Reclaim" : o === "new" ? "Virgin Gas" : o === "recycled" ? "Recycled Refrigerant" : "Nitrogen (OFN)";
     }
     if (k === "status") {
       return o === "trace" ? "Trace" : o === "unused" ? "Unopened" : o === "active" ? "Opened" : o === "returned" ? "Returned" : o === "archived" ? "Archived" : o === "full" ? "Full" : o === "empty" ? "Empty" : o === "recycled" ? "Recycled" : o;
@@ -337,20 +338,24 @@ function SupplierInventoryContent() {
 
   const exportCSV = () => {
     const header = "Serial,Supplier,Category,Gas Type,Capacity,Current,Location,Status,Registered\n";
-    const rows = filtered.map(b => `${b.serial},${b.supplier},${b.category},${b.gasType},${b.initialWeight},${b.currentWeight},${b.locationId},${b.status},${b.registeredAt}`).join("\n");
+    const rows = filtered.map(b => {
+      const catLabel = b.category === "reclaim" ? (hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim") : b.category === "new" ? "Virgin Gas" : b.category === "recycled" ? "Recycled Refrigerant" : "Nitrogen (OFN)";
+      return `${b.serial},${b.supplier},"${catLabel}",${b.gasType},${b.initialWeight},${b.currentWeight},${b.locationId},${formatBottleStatus(b, "")},${b.registeredAt}`;
+    }).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = `supplier_inventory_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
+    URL.revokeObjectURL(url);
   };
 
   const getCellText = (key: string, b: Bottle): string => {
     const isNitrogen = b.category === "nitrogen";
     switch (key) {
       case "serial": return b.serial || "—";
-      case "category": return b.category === "reclaim" ? (hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim") : b.category === "recycled" ? "Recycled" : b.category === "new" ? "Virgin Gas" : b.category === "nitrogen" ? "Nitrogen (OFN)" : (b.category || "—");
+      case "category": return b.category === "reclaim" ? (hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim") : b.category === "recycled" ? "Recycled Refrigerant" : b.category === "new" ? "Virgin Gas" : b.category === "nitrogen" ? "Nitrogen (OFN)" : (b.category || "—");
       case "gasType": return b.gasType || "—";
       case "capacity": return `${(b.initialWeight || 0).toFixed(2)} kg`;
       case "gasInBottle": return isNitrogen ? "N/A" : `${(b.currentWeight || 0).toFixed(2)} kg`;
@@ -364,7 +369,7 @@ function SupplierInventoryContent() {
       case "poNumber": return b.poNumber || "—";
       case "registered": return b.registeredAt ? new Date(b.registeredAt).toLocaleDateString("en-GB") : "—";
       case "expiry": return b.rentalExpiryDate ? new Date(b.rentalExpiryDate).toLocaleDateString("en-GB") : "—";
-      case "status": return isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unopened" : b.status === "active" ? "Opened" : b.status ? (b.status.charAt(0).toUpperCase() + b.status.slice(1)) : "—";
+      case "status": return formatBottleStatus(b, "—");
       case "lastChanged": return b.locationChangedAt ? new Date(b.locationChangedAt).toLocaleDateString("en-GB") : "—";
       default: return "—";
     }
@@ -636,7 +641,7 @@ function SupplierInventoryContent() {
     const catBadge = isReclaim
       ? { bg: "rgba(255,170,0,0.12)", color: "#ffaa00", label: hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim" }
       : b.category === "recycled"
-      ? { bg: "rgba(16,185,129,0.12)", color: "#10b981", label: "Recycled" }
+      ? { bg: "rgba(16,185,129,0.12)", color: "#10b981", label: "Recycled Refrigerant" }
       : isNitrogen
       ? { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", label: "Nitrogen (OFN)" }
       : { bg: "rgba(0,229,255,0.08)", color: "#00e5ff", label: "Virgin Gas" };
@@ -739,7 +744,7 @@ function SupplierInventoryContent() {
               fontSize: "0.75rem", fontWeight: 600, padding: "0.2rem 0.6rem", borderRadius: "20px", textTransform: "capitalize",
               background: isBottleTrace(b) ? "rgba(255,170,0,0.12)" : b.status === "unused" ? "rgba(0,229,255,0.12)" : b.status === "active" ? "rgba(34,197,94,0.12)" : b.status === "returned" ? "rgba(168,85,247,0.12)" : b.status === "archived" ? "rgba(239,68,68,0.12)" : b.status === "full" ? "rgba(59,130,246,0.12)" : b.status === "recycled" ? "rgba(16,185,129,0.12)" : "rgba(255,255,255,0.06)",
               color: isBottleTrace(b) ? "#ffaa00" : b.status === "unused" ? "#00e5ff" : b.status === "active" ? "#22c55e" : b.status === "returned" ? "#a855f7" : b.status === "archived" ? "#ef4444" : b.status === "full" ? "#3b82f6" : b.status === "recycled" ? "#10b981" : "rgba(255,255,255,0.5)"
-            }}>{isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unopened" : b.status === "active" ? "Opened" : (b.status || "Opened")}</span>
+            }}>{formatBottleStatus(b)}</span>
           </td>
         );
       case "lastChanged":
@@ -859,7 +864,7 @@ function SupplierInventoryContent() {
               {filtered.map(b => (
                 <tr key={b.serial}
                   style={{borderBottom: "1px solid rgba(255,255,255,0.04)", cursor: "pointer", transition: "background 0.15s"}}
-                  onClick={() => router.push(`/admin/bottles/${b.serial}`)}
+                  onClick={() => router.push(`/admin/bottles/${encodeURIComponent(b.serial)}`)}
                   onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
                   onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                 >

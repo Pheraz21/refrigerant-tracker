@@ -35,10 +35,10 @@ function fmtDate(iso: string | undefined | null) {
 }
 
 function formatCategoryLabel(category?: string) {
-  if (category === "nitrogen") return "Nitrogen";
-  if (category === "new") return "New Refrigerant";
-  if (category === "recycled") return "Recycled";
-  if (category === "reclaim") return "Waste / Reclaim";
+  if (category === "nitrogen") return "Nitrogen (OFN)";
+  if (category === "new") return "Virgin Gas";
+  if (category === "recycled") return "Recycled Refrigerant";
+  if (category === "reclaim") return "Recovery / Reclaim";
   return category || "Unknown";
 }
 
@@ -240,7 +240,7 @@ export default function SupplierReturnPage() {
     if (isNotWaste && isNotInStores) {
       return `Cylinder ${matchInCompany.serial} cannot be returned here for 2 reasons: it is a ${formatCategoryLabel(
         matchInCompany.category
-      )} bottle (not a Waste / Reclaim bottle) and it is currently ${formatLocationLabel(
+      )} bottle (not a Recovery / Reclaim bottle) and it is currently ${formatLocationLabel(
         matchInCompany
       )} (not in Stores).`;
     }
@@ -248,11 +248,11 @@ export default function SupplierReturnPage() {
     if (isNotWaste) {
       return `Cylinder ${matchInCompany.serial} cannot be returned on this page: it is a ${formatCategoryLabel(
         matchInCompany.category
-      )} bottle, not a Waste / Reclaim bottle. Use "Supplier Collection from Stores" for non-waste bottles.`;
+      )} bottle, not a Recovery / Reclaim bottle. Use "Supplier Collection from Stores" for non-waste bottles.`;
     }
 
     if (isNotInStores) {
-      return `Cylinder ${matchInCompany.serial} cannot be returned yet: although it is a Waste / Reclaim bottle, it is currently ${formatLocationLabel(
+      return `Cylinder ${matchInCompany.serial} cannot be returned yet: although it is a Recovery / Reclaim bottle, it is currently ${formatLocationLabel(
         matchInCompany
       )}. Only waste bottles currently in Stores can be collected here.`;
     }
@@ -274,7 +274,7 @@ export default function SupplierReturnPage() {
       bottle.locationType !== "office"
     ) {
       setError(
-        `Cylinder ${bottle.serial} is not eligible: only Waste / Reclaim bottles containing hazardous waste (> 0 kg or Trace) currently in Stores can be selected.`
+        `Cylinder ${bottle.serial} is not eligible: only Reclaim (Haz Waste) bottles containing hazardous waste (> 0 kg or Trace) currently in Stores can be selected.`
       );
       return;
     }
@@ -931,7 +931,7 @@ export default function SupplierReturnPage() {
                             flexShrink: 0,
                           }}
                         >
-                          reclaim
+                          {hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim"}
                         </div>
                       </div>
                     );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import { db, Bottle, isBottleTrace, hasReclaimWaste } from "@/lib/db";
+import { db, Bottle, isBottleTrace, hasReclaimWaste, formatBottleStatus } from "@/lib/db";
 import { Warehouse, ArrowUpDown, ArrowUp, ArrowDown, Search, Calendar, Filter as FilterIcon, FileText, FileSpreadsheet, Settings2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTablePrefs } from "@/lib/useTablePrefs";
@@ -170,7 +170,7 @@ export default function StoresInventoryPage() {
     switch (b.category) {
       case "reclaim":  return { bg: "rgba(255,170,0,0.12)", color: "#ffaa00", label: hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim" };
       case "new":      return { bg: "rgba(0,229,255,0.08)", color: "#00e5ff",  label: "Virgin Gas" };
-      case "recycled": return { bg: "rgba(16,185,129,0.12)", color: "#10b981", label: "Recycled" };
+      case "recycled": return { bg: "rgba(16,185,129,0.12)", color: "#10b981", label: "Recycled Refrigerant" };
       default:         return { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", label: "Nitrogen (OFN)" };
     }
   };
@@ -191,7 +191,7 @@ export default function StoresInventoryPage() {
 
   const optionLabel = (k: string, o: string) => {
     if (k === "category") {
-      return o === "reclaim" ? "Recovery / Reclaim" : o === "new" ? "Virgin Gas" : o === "recycled" ? "Recycled" : "Nitrogen (OFN)";
+      return o === "reclaim" ? "Recovery / Reclaim" : o === "new" ? "Virgin Gas" : o === "recycled" ? "Recycled Refrigerant" : "Nitrogen (OFN)";
     }
     if (k === "status") {
       return o === "trace" ? "Trace" : o === "unused" ? "Unopened" : o === "active" ? "Opened" : o === "returned" ? "Returned" : o === "archived" ? "Archived" : o === "full" ? "Full" : o === "empty" ? "Empty" : o === "recycled" ? "Recycled" : (o || "(none)");
@@ -330,8 +330,9 @@ export default function StoresInventoryPage() {
     const header = "Serial,Category,Gas Type,Capacity,Current,Status,Supplier,Registered,Returned By,Returned Date,Date Received\n";
     const rows = filtered.map(b => {
       const retDate = b.returnedAt || b.deliveredAt || b.locationChangedAt || "";
-      const st = isBottleTrace(b) ? "Trace" : (b.status || "");
-      return `${b.serial},${b.category},${b.gasType},${b.initialWeight ?? 0},${b.currentWeight ?? 0},${st},${b.supplier},${b.registeredAt},${resolveUserName(b.returnedBy)},${retDate},${b.locationChangedAt}`;
+      const st = formatBottleStatus(b, "");
+      const catLabel = b.category === "reclaim" ? (hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim") : b.category === "new" ? "Virgin Gas" : b.category === "recycled" ? "Recycled Refrigerant" : "Nitrogen (OFN)";
+      return `${b.serial},"${catLabel}",${b.gasType},${b.initialWeight ?? 0},${b.currentWeight ?? 0},${st},${b.supplier},${b.registeredAt},${resolveUserName(b.returnedBy)},${retDate},${b.locationChangedAt}`;
     }).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -339,6 +340,7 @@ export default function StoresInventoryPage() {
     a.href = url;
     a.download = `stores_inventory_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
+    URL.revokeObjectURL(url);
   };
 
   const exportPDF = () => {
@@ -354,12 +356,12 @@ export default function StoresInventoryPage() {
 
       switch (key) {
         case "serial": return `<strong>${b.serial}</strong>`;
-        case "category": return b.category === "reclaim" ? (hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim") : b.category === "new" ? "Virgin Gas" : b.category === "recycled" ? "Recycled" : "Nitrogen (OFN)";
+        case "category": return b.category === "reclaim" ? (hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim") : b.category === "new" ? "Virgin Gas" : b.category === "recycled" ? "Recycled Refrigerant" : "Nitrogen (OFN)";
         case "gasType": return b.gasType;
         case "capacity": return `${iw.toFixed(2)} kg`;
         case "gasInBottle": return isNitrogen ? "N/A" : `${cw.toFixed(2)} kg`;
         case "balance": return isNitrogen ? "N/A" : `${bal.toFixed(2)} kg`;
-        case "status": return isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unopened" : b.status === "active" ? "Opened" : b.status ? (b.status.charAt(0).toUpperCase() + b.status.slice(1)) : "—";
+        case "status": return formatBottleStatus(b, "—");
         case "returnedBy": return resolveUserName(b.returnedBy) || "—";
         case "returnedDate": return retDate ? new Date(retDate).toLocaleDateString("en-GB") : "—";
         case "dateReceived": return b.locationChangedAt ? new Date(b.locationChangedAt).toLocaleDateString("en-GB") : "—";
@@ -602,7 +604,7 @@ export default function StoresInventoryPage() {
               background: isBottleTrace(b) ? "rgba(255,170,0,0.12)" : b.status === "unused" ? "rgba(0,229,255,0.12)" : b.status === "active" ? "rgba(34,197,94,0.12)" : b.status === "returned" ? "rgba(168,85,247,0.12)" : b.status === "archived" ? "rgba(239,68,68,0.12)" : b.status === "full" ? "rgba(59,130,246,0.12)" : b.status === "recycled" ? "rgba(16,185,129,0.12)" : "rgba(255,255,255,0.06)",
               color: isBottleTrace(b) ? "#ffaa00" : b.status === "unused" ? "#00e5ff" : b.status === "active" ? "#22c55e" : b.status === "returned" ? "#a855f7" : b.status === "archived" ? "#ef4444" : b.status === "full" ? "#3b82f6" : b.status === "recycled" ? "#10b981" : "rgba(255,255,255,0.6)"
             }}>
-              {isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unopened" : b.status === "active" ? "Opened" : (b.status || "Opened")}
+              {formatBottleStatus(b)}
             </span>
           </td>
         );
@@ -733,7 +735,7 @@ export default function StoresInventoryPage() {
             <tbody>
               {filtered.map(b => (
                 <tr key={b.serial}
-                  onClick={() => router.push(`/admin/bottles/${b.serial}`)}
+                  onClick={() => router.push(`/admin/bottles/${encodeURIComponent(b.serial)}`)}
                   style={{borderBottom: "1px solid rgba(255,255,255,0.04)", cursor: "pointer", transition: "background 0.2s"}}
                   onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
                   onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}

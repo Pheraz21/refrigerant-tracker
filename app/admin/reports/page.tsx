@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { db, Bottle } from "@/lib/db";
+import { db, Bottle, hasReclaimWaste } from "@/lib/db";
 import { FileText, Droplets, MapPin, ClipboardList, ShieldAlert, FileSpreadsheet, Calendar } from "lucide-react";
 
 type ReportView = "usage" | "locations" | "hwcn" | "waste";
@@ -32,7 +32,7 @@ export default function ReportsPage() {
   }, []);
 
   const reports = [
-    { key: "usage" as ReportView, label: "Refrigerant Usage Log", icon: Droplets, desc: "Where new refrigerant has been used" },
+    { key: "usage" as ReportView, label: "Refrigerant Usage Log", icon: Droplets, desc: "Where virgin gas has been used" },
     { key: "locations" as ReportView, label: "Current Bottle Locations", icon: MapPin, desc: "Where all bottles are right now" },
     { key: "waste" as ReportView, label: "Full Waste Audit", icon: ShieldAlert, desc: "Consolidated haz-waste exposure" },
     { key: "hwcn" as ReportView, label: "Completed HWCNs", icon: ClipboardList, desc: "All completed consignment notes" },
@@ -116,7 +116,7 @@ export default function ReportsPage() {
           <>
             <div style={{padding: "1rem 1.25rem", background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center"}}>
               <div>
-                <h3 style={{margin: 0, fontSize: "1rem"}}>New Refrigerant Usage Log</h3>
+                <h3 style={{margin: 0, fontSize: "1rem"}}>Virgin Gas Usage Log</h3>
                 <p style={{margin: "0.25rem 0 0", fontSize: "0.82rem", color: "var(--text-muted)"}}>
                   {newBottles.length} bottle{newBottles.length !== 1 ? "s" : ""}{(dateFrom || dateTo) ? " (filtered)" : ""}
                 </p>
@@ -173,7 +173,13 @@ export default function ReportsPage() {
                 <p style={{margin: "0.25rem 0 0", fontSize: "0.82rem", color: "var(--text-muted)"}}>{bottles.length} bottles across {Object.keys(locGroups).length} locations</p>
               </div>
               <button onClick={() => {
-                const rows = Object.entries(locGroups).flatMap(([loc, bots]) => bots.map(b => [b.serial, b.gasType, b.category, (b.currentWeight ?? 0).toFixed(2), loc]));
+                const rows = Object.entries(locGroups).flatMap(([loc, bots]) => bots.map(b => [
+                  b.serial,
+                  b.gasType,
+                  b.category === "new" ? "Virgin Gas" : b.category === "recycled" ? "Recycled Refrigerant" : b.category === "reclaim" ? (hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim") : "Nitrogen (OFN)",
+                  (b.currentWeight ?? 0).toFixed(2),
+                  loc
+                ]));
                 exportCSV([["Serial","Gas Type","Category","Current Weight (kg)","Location"], ...rows], `bottle_locations_${today}.csv`);
               }} style={{display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.45rem 0.9rem", background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.2)", borderRadius: "7px", color: "#00e5ff", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer"}}>
                 <FileSpreadsheet size={14} /> Export CSV
@@ -206,7 +212,7 @@ export default function ReportsPage() {
                             background: b.category === "reclaim" ? "rgba(255,170,0,0.1)" : b.category === "recycled" ? "rgba(16,185,129,0.12)" : "rgba(0,229,255,0.08)",
                             color: b.category === "reclaim" ? "#ffaa00" : b.category === "recycled" ? "#10b981" : "#00e5ff"
                           }}>
-                            {b.category === "new" ? "New" : b.category === "recycled" ? "Recycled" : b.category === "reclaim" ? "Haz" : "N₂"}
+                            {b.category === "new" ? "Virgin Gas" : b.category === "recycled" ? "Recycled Refrigerant" : b.category === "reclaim" ? (hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim") : "Nitrogen (OFN)"}
                           </span>
                         </div>
                       </div>

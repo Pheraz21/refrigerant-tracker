@@ -39,7 +39,7 @@ export default function JobAuditReportPage({ params }: { params: Promise<{ ref: 
   }, [jobRef]);
 
   const stats = useMemo(() => {
-    const RECOVERY_TYPES = new Set(["recovery", "waste", "reclaim", "recovered"]);
+    const RECOVERY_TYPES = new Set(["recovery", "retrofit", "waste", "reclaim", "recovered"]);
     let totalAdded = 0;
     let totalRecovered = 0;
     const engineerSet = new Set<string>();
@@ -292,7 +292,7 @@ export default function JobAuditReportPage({ params }: { params: Promise<{ ref: 
                 ) : (
                   usageLogs.map((u) => {
                     const rawType = (u.jobType || "").toLowerCase();
-                    const isRec = rawType.includes("recovery") || rawType.includes("waste") || rawType.includes("reclaim");
+                    const isRec = rawType.includes("recovery") || rawType.includes("retrofit") || rawType.includes("waste") || rawType.includes("reclaim");
                     const eqItems = Array.isArray(u.equipmentDetails) ? u.equipmentDetails : [];
                     const eqSummary = eqItems.map(eq => [eq.manufacturer, eq.model ? eq.model.toUpperCase() : "", eq.serial ? `(SN: ${eq.serial.toUpperCase()})` : ""].filter(Boolean).join(" ")).join(" | ");
 

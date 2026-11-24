@@ -19,17 +19,21 @@ export function DoubleScrollContainer({
   const syncing = useRef(false);
 
   useEffect(() => {
+    let observedTable: HTMLTableElement | null = null;
+    const ro = new ResizeObserver(() => measure());
     const measure = () => {
-      const tbl = bottomRef.current?.querySelector("table");
+      const tbl = bottomRef.current?.querySelector("table") ?? null;
+      if (tbl && tbl !== observedTable) {
+        if (observedTable) ro.unobserve(observedTable);
+        ro.observe(tbl);
+        observedTable = tbl;
+      }
       if (tbl) setInnerWidth(tbl.scrollWidth);
     };
     measure();
-    const ro = new ResizeObserver(measure);
     if (bottomRef.current) ro.observe(bottomRef.current);
-    const tbl = bottomRef.current?.querySelector("table");
-    if (tbl) ro.observe(tbl);
     return () => ro.disconnect();
-  });
+  }, []);
 
   const sync = (from: "top" | "bottom") => () => {
     if (syncing.current) return;

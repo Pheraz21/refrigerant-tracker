@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { db, Bottle, isBottleTrace, hasReclaimWaste } from "@/lib/db";
+import { db, Bottle, isBottleTrace, hasReclaimWaste, formatBottleStatus } from "@/lib/db";
 import { CalendarClock, AlertCircle, Clock, CheckCircle2, RefreshCw, Edit2, Truck, ExternalLink } from "lucide-react";
 import styles from "../../engineer/page.module.css";
 import { useRouter } from "next/navigation";
@@ -125,7 +125,7 @@ export default function ExpiryPage() {
               >
                 <div style={{display: "flex", justifyContent: "space-between", alignItems: "flex-start"}}>
                   <div>
-                    <Link href={`/admin/bottles/${b.serial}`} style={{fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "#00e5ff", fontSize: "1.1rem", textDecoration: "none"}}>
+                    <Link href={`/admin/bottles/${encodeURIComponent(b.serial)}`} style={{fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "#00e5ff", fontSize: "1.1rem", textDecoration: "none"}}>
                       {b.serial} <ExternalLink size={12} />
                     </Link>
                     <div style={{fontSize: "0.8rem", color: "rgba(255,255,255,0.5)", marginTop: "0.25rem"}}>
@@ -175,7 +175,7 @@ export default function ExpiryPage() {
                         b.category === "recycled" ? "#10b981" :
                         b.category === "new" ? "#00e5ff" : "rgba(255,255,255,0.6)"
                     }}>
-                      {b.category === "reclaim" ? (hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim") : b.category === "recycled" ? "Recycled" : b.category === "new" ? "Virgin Gas" : "Nitrogen (OFN)"}
+                      {b.category === "reclaim" ? (hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim") : b.category === "recycled" ? "Recycled Refrigerant" : b.category === "new" ? "Virgin Gas" : "Nitrogen (OFN)"}
                     </span>
                   </div>
                   <div style={{display: "flex", justifyContent: "space-between", fontSize: "0.85rem"}}>
@@ -222,14 +222,14 @@ export default function ExpiryPage() {
                         b.status === "full" ? "#3b82f6" :
                         b.status === "recycled" ? "#10b981" : "rgba(255,255,255,0.75)"
                     }}>
-                      {isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unopened" : b.status === "active" ? "Opened" : (b.status || "Opened")}
+                      {formatBottleStatus(b)}
                     </span>
                   </div>
                 </div>
 
                 <div style={{display: "flex", gap: "0.75rem", marginTop: "0.5rem"}}>
                   <button 
-                    onClick={() => router.push(`/admin/bottles/${b.serial}/edit`)}
+                    onClick={() => router.push(`/admin/bottles/${encodeURIComponent(b.serial)}/edit`)}
                     style={{
                       flex: 1, padding: "0.6rem", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
                       borderRadius: "6px", color: "#fff", fontSize: "0.85rem", fontWeight: 600, cursor: "pointer",

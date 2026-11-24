@@ -161,7 +161,7 @@ export default function HistoryPage() {
     const hasIntendedDest = Boolean(hasReclaimWaste(b) && b.intendedDestination);
 
     return (
-      <Link key={b.serial} href={`/engineer/bottle/${b.serial}`} style={{ textDecoration: "none" }}>
+      <Link key={b.serial} href={`/engineer/bottle/${encodeURIComponent(b.serial)}`} style={{ textDecoration: "none" }}>
         <div className={`${styles.card} glass-panel`}>
           <div className={styles.cardHeader}>
             <div className={styles.cardType}>

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { db } from "@/lib/db";
+import { db, formatBottleStatus, hasReclaimWaste } from "@/lib/db";
 import { Search, Package, Briefcase, FileText, User, Truck, Building2, Calendar, ShieldCheck, ArrowRight, CornerDownLeft, X } from "lucide-react";
 
 interface SearchResult {
@@ -38,6 +38,7 @@ export default function CommandPalette({ isOpen, onClose }: { isOpen: boolean; o
   const [hwcns, setHwcns] = useState<any[]>([]);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const lastLoadedAtRef = useRef<number>(0);
 
   useEffect(() => {
     if (isOpen) {
@@ -50,7 +51,7 @@ export default function CommandPalette({ isOpen, onClose }: { isOpen: boolean; o
   }, [isOpen]);
 
   async function loadIndexData() {
-    if (bottles.length > 0) return;
+    if (bottles.length > 0 && Date.now() - lastLoadedAtRef.current < 30_000) return;
     setLoading(true);
     try {
       const [bList, jList, hList] = await Promise.all([
@@ -61,6 +62,7 @@ export default function CommandPalette({ isOpen, onClose }: { isOpen: boolean; o
       setBottles(bList || []);
       setCrmJobs(jList || []);
       setHwcns(hList || []);
+      lastLoadedAtRef.current = Date.now();
     } catch (err) {
       console.error("Error loading command palette index:", err);
     } finally {
@@ -77,14 +79,20 @@ export default function CommandPalette({ isOpen, onClose }: { isOpen: boolean; o
     // Search Bottles
     bottles.forEach(b => {
       if (b.serial.toLowerCase().includes(q) || (b.gasType && b.gasType.toLowerCase().includes(q)) || (b.locationId && b.locationId.toLowerCase().includes(q))) {
+        const categoryLabel =
+          b.category === "new" ? "Virgin Gas" :
+          b.category === "recycled" ? "Recycled Refrigerant" :
+          b.category === "reclaim" ? (hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim") :
+          b.category === "nitrogen" ? "Nitrogen (OFN)" :
+          b.category;
         list.push({
           id: `bottle-${b.serial}`,
           type: "bottle",
           title: `Cylinder ${b.serial}`,
-          subtitle: `${b.gasType || 'Gas'} · ${b.locationId || 'Storage'} · ${b.status}`,
-          badge: b.category,
-          badgeColor: b.category === "new" ? "#22c55e" : b.category === "reclaim" ? "#ffaa00" : "#00e5ff",
-          href: `/admin/bottles/${b.serial}`,
+          subtitle: `${b.gasType || 'Gas'} · ${b.locationId || 'Storage'} · ${formatBottleStatus(b)}`,
+          badge: categoryLabel,
+          badgeColor: b.category === "new" ? "#22c55e" : b.category === "reclaim" ? "#ffaa00" : b.category === "recycled" ? "#10b981" : "#00e5ff",
+          href: `/admin/bottles/${encodeURIComponent(b.serial)}`,
         });
       }
     });

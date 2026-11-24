@@ -58,7 +58,7 @@ export default function NotificationsPage() {
         {missingPaperwork.map(bottle => (
           <Link 
             key={bottle.serial} 
-            href={`/engineer/bottle/${bottle.serial}`}
+            href={`/engineer/bottle/${encodeURIComponent(bottle.serial)}`}
             className={`${styles.notificationCard} ${styles.urgent}`}
           >
             <div className={styles.cardIcon}>

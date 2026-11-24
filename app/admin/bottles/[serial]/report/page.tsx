@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo, use } from "react";
-import { db, Bottle, MovementLog, UsageLog, AuditTrailEntry, CrmJob } from "@/lib/db";
+import { db, Bottle, MovementLog, UsageLog, AuditTrailEntry, CrmJob, hasReclaimWaste } from "@/lib/db";
 import {
   Printer,
   ArrowLeft,
@@ -47,7 +47,7 @@ interface HistoryItem {
 
 export default function BottleAuditReportPage({ params }: { params: Promise<{ serial: string }> }) {
   const resolvedParams = use(params);
-  const serial = (resolvedParams.serial || "").toUpperCase();
+  const serial = decodeURIComponent(resolvedParams.serial || "").toUpperCase();
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
@@ -382,10 +382,10 @@ export default function BottleAuditReportPage({ params }: { params: Promise<{ se
   const categoryLabel = bottle.category === "recycled"
     ? "Recycled Refrigerant"
     : bottle.category === "reclaim"
-    ? "Waste / Reclaim"
+    ? (hasReclaimWaste(bottle) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim")
     : bottle.category === "new"
-    ? "Virgin New"
-    : "Nitrogen";
+    ? "Virgin Gas"
+    : "Nitrogen (OFN)";
 
   return (
     <div className="report-page-root" style={{ minHeight: "100vh", background: "#0a0e17", color: "#e2e8f0", fontFamily: "var(--font-geist-sans), sans-serif" }}>

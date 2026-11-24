@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated service workers, scratch scripts, and test artifacts:
+    "public/sw*",
+    "scratch/**",
+    "testsprite_tests/**",
+    "playwright-report/**",
+    "test-results/**",
   ]),
 ]);
 

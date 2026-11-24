@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState, useRef, useMemo } from "react";
-import { db, Bottle, AppUser, isBottleTrace, hasReclaimWaste } from "@/lib/db";
+import { db, Bottle, AppUser, isBottleTrace, hasReclaimWaste, formatBottleStatus } from "@/lib/db";
 import Link from "next/link";
 import { Truck, AlertTriangle, Search, ArrowUpDown, ArrowUp, ArrowDown, FileText, FileSpreadsheet, Calendar, Filter as FilterIcon, Settings2, Users, UserCheck, XCircle, Shield, Check, Package, ArrowRight, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -44,7 +44,7 @@ function downloadFile(content: string, filename: string, type: string) {
 function exportVanCSV(bottles: Bottle[], engineer: string) {
   const header = "Serial,Category,Gas Type,Full Weight (kg),Current Weight (kg),Status,Intended Destination,Active HWCN #,Since";
   const rows = bottles.map(b =>
-    `${b.serial},${b.category === "new" ? "Virgin Gas" : b.category === "reclaim" ? (hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim") : b.category === "recycled" ? "Recycled" : "Nitrogen (OFN)"},${b.gasType},${(b.initialWeight || 0).toFixed(2)},${b.category === "nitrogen" ? "N/A" : (b.currentWeight || 0).toFixed(2)},${isBottleTrace(b) ? "Trace" : (b.status || "")},"${b.intendedDestination || ""}","${b.activeHWCN || ""}",${b.locationChangedAt ? new Date(b.locationChangedAt).toLocaleDateString("en-GB") : ""}`
+    `${b.serial},"${b.category === "new" ? "Virgin Gas" : b.category === "reclaim" ? (hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim") : b.category === "recycled" ? "Recycled Refrigerant" : "Nitrogen (OFN)"}",${b.gasType},${(b.initialWeight || 0).toFixed(2)},${b.category === "nitrogen" ? "N/A" : (b.currentWeight || 0).toFixed(2)},${formatBottleStatus(b, "")},"${b.intendedDestination || ""}","${b.activeHWCN || ""}",${b.locationChangedAt ? new Date(b.locationChangedAt).toLocaleDateString("en-GB") : ""}`
   );
   const fileName = engineer === "all" ? "fleet_inventory.csv" : `${engineer}_van.csv`;
   downloadFile([header, ...rows].join("\n"), fileName, "text/csv");
@@ -97,12 +97,12 @@ function exportVanPDF(bottles: Bottle[], engineer: string, engineerProfiles: App
 
     switch (key) {
       case "serial": return `<strong>${b.serial}</strong>`;
-      case "category": return b.category === "reclaim" ? (hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim") : b.category === "new" ? "Virgin Gas" : b.category === "recycled" ? "Recycled" : "Nitrogen (OFN)";
+      case "category": return b.category === "reclaim" ? (hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim") : b.category === "new" ? "Virgin Gas" : b.category === "recycled" ? "Recycled Refrigerant" : "Nitrogen (OFN)";
       case "gasType": return b.gasType;
       case "capacity": return `${iw.toFixed(2)} kg`;
       case "gasInBottle": return isNitrogen ? "N/A" : `${cw.toFixed(2)} kg`;
       case "balance": return isNitrogen ? "N/A" : `${bal.toFixed(2)} kg`;
-      case "status": return isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unopened" : b.status === "active" ? "Opened" : b.status ? (b.status.charAt(0).toUpperCase() + b.status.slice(1)) : "—";
+      case "status": return formatBottleStatus(b, "—");
       case "engineer": return `${engineerName}${reg !== "—" ? ` (${reg})` : ""}`;
       case "intendedDestination": return b.intendedDestination || "—";
       case "activeHWCN": return b.activeHWCN || "—";
@@ -166,13 +166,13 @@ function exportVanPDF(bottles: Bottle[], engineer: string, engineerProfiles: App
       </div>
       <div class="summary-boxes">
         <div class="summary-box"><div class="label">Total Cylinders</div><div class="value">${bottles.length}</div></div>
-        <div class="summary-box"><div class="label">New Gas</div><div class="value">${newCount}</div></div>
-        <div class="summary-box"><div class="label">Recycled</div><div class="value">${recycledCount}</div></div>
-        <div class="summary-box"><div class="label">Reclaim / Haz</div><div class="value">${reclaimCount}</div></div>
-        <div class="summary-box"><div class="label">Nitrogen</div><div class="value">${n2Count}</div></div>
+        <div class="summary-box"><div class="label">Virgin Gas</div><div class="value">${newCount}</div></div>
+        <div class="summary-box"><div class="label">Recycled Refrigerant</div><div class="value">${recycledCount}</div></div>
+        <div class="summary-box"><div class="label">Recovery / Reclaim</div><div class="value">${reclaimCount}</div></div>
+        <div class="summary-box"><div class="label">Nitrogen (OFN)</div><div class="value">${n2Count}</div></div>
       </div>
       <div class="section-title">Engineer Summary</div>
-      <table><thead><tr><th>Engineer</th><th>Vehicle Reg</th><th style="text-align:center">New Gas</th><th style="text-align:center">Recycled</th><th style="text-align:center">Reclaim / Haz</th><th style="text-align:center">Nitrogen</th><th style="text-align:center">Total</th></tr></thead>
+      <table><thead><tr><th>Engineer</th><th>Vehicle Reg</th><th style="text-align:center">Virgin Gas</th><th style="text-align:center">Recycled Refrigerant</th><th style="text-align:center">Recovery / Reclaim</th><th style="text-align:center">Nitrogen (OFN)</th><th style="text-align:center">Total</th></tr></thead>
       <tbody>${engRows}</tbody></table>
       <div class="section-title">Cylinder Detail (${bottles.length} Bottles)</div>
       <table><thead><tr>${theadHtml}</tr></thead>
@@ -374,7 +374,7 @@ function VanInventoryContent() {
     switch (b.category) {
       case "reclaim":  return { bg: "rgba(255,170,0,0.12)", color: "#ffaa00", label: hasReclaimWaste(b) ? "Reclaim (Haz Waste)" : "Recovery / Reclaim" };
       case "new":      return { bg: "rgba(0,229,255,0.08)", color: "#00e5ff",  label: "Virgin Gas"    };
-      case "recycled": return { bg: "rgba(16,185,129,0.12)", color: "#10b981", label: "Recycled" };
+      case "recycled": return { bg: "rgba(16,185,129,0.12)", color: "#10b981", label: "Recycled Refrigerant" };
       default:         return { bg: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", label: "Nitrogen (OFN)" };
     }
   };
@@ -395,7 +395,7 @@ function VanInventoryContent() {
 
   const optionLabel = (k: string, o: string) => {
     if (k === "category") {
-      return o === "reclaim" ? "Recovery / Reclaim" : o === "new" ? "Virgin Gas" : o === "recycled" ? "Recycled" : "Nitrogen (OFN)";
+      return o === "reclaim" ? "Recovery / Reclaim" : o === "new" ? "Virgin Gas" : o === "recycled" ? "Recycled Refrigerant" : "Nitrogen (OFN)";
     }
     if (k === "status") {
       return o === "trace" ? "Trace" : o === "unused" ? "Unopened" : o === "active" ? "Opened" : o === "returned" ? "Returned" : o === "archived" ? "Archived" : o === "full" ? "Full" : o === "empty" ? "Empty" : o === "recycled" ? "Recycled" : (o || "(none)");
@@ -722,7 +722,7 @@ function VanInventoryContent() {
               background: isBottleTrace(b) ? "rgba(255,170,0,0.12)" : b.status === "unused" ? "rgba(0,229,255,0.12)" : b.status === "active" ? "rgba(34,197,94,0.12)" : b.status === "returned" ? "rgba(168,85,247,0.12)" : b.status === "archived" ? "rgba(239,68,68,0.12)" : b.status === "full" ? "rgba(59,130,246,0.12)" : b.status === "recycled" ? "rgba(16,185,129,0.12)" : "rgba(255,255,255,0.06)",
               color: isBottleTrace(b) ? "#ffaa00" : b.status === "unused" ? "#00e5ff" : b.status === "active" ? "#22c55e" : b.status === "returned" ? "#a855f7" : b.status === "archived" ? "#ef4444" : b.status === "full" ? "#3b82f6" : b.status === "recycled" ? "#10b981" : "rgba(255,255,255,0.6)"
             }}>
-              {isBottleTrace(b) ? "Trace" : b.status === "unused" ? "Unopened" : b.status === "active" ? "Opened" : (b.status || "Opened")}
+              {formatBottleStatus(b)}
             </span>
           </td>
         );
@@ -973,7 +973,7 @@ function VanInventoryContent() {
               {sorted.map(b => (
                 <tr key={b.serial}
                   style={{borderBottom: "1px solid rgba(255,255,255,0.04)", cursor: "pointer"}}
-                  onClick={() => router.push(`/admin/bottles/${b.serial}`)}
+                  onClick={() => router.push(`/admin/bottles/${encodeURIComponent(b.serial)}`)}
                 >
                   {visibleCols.map(key => renderCell(key, b))}
                 </tr>

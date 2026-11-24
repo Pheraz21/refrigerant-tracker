@@ -226,28 +226,28 @@ export default function AnalyticsPage() {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem" }}>
                   <div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", marginBottom: "0.3rem" }}>
-                      <span style={{ color: "var(--primary)", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.25rem" }}><Package size={11} /> New Gas</span>
+                      <span style={{ color: "var(--primary)", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.25rem" }}><Package size={11} /> Virgin Gas</span>
                       <span style={{ color: "rgba(255,255,255,0.5)" }}>{eng.newKg.toFixed(1)} kg · {eng.newBottles}b</span>
                     </div>
                     <MiniBar pct={(eng.newKg / maxEngineerKg) * 100} color="var(--primary)" />
                   </div>
                   <div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", marginBottom: "0.3rem" }}>
-                      <span style={{ color: "#10b981", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.25rem" }}><Package size={11} /> Recycled</span>
+                      <span style={{ color: "#10b981", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.25rem" }}><Package size={11} /> Recycled Refrigerant</span>
                       <span style={{ color: "rgba(255,255,255,0.5)" }}>{eng.recycledKg.toFixed(1)} kg · {eng.recycledBottles}b</span>
                     </div>
                     <MiniBar pct={(eng.recycledKg / maxEngineerKg) * 100} color="#10b981" />
                   </div>
                   <div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", marginBottom: "0.3rem" }}>
-                      <span style={{ color: "#22c55e", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.25rem" }}><Wind size={11} /> Nitrogen</span>
+                      <span style={{ color: "#22c55e", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.25rem" }}><Wind size={11} /> Nitrogen (OFN)</span>
                       <span style={{ color: "rgba(255,255,255,0.5)" }}>{eng.nitroKg.toFixed(1)} kg · {eng.nitroBottles}b</span>
                     </div>
                     <MiniBar pct={(eng.nitroKg / maxEngineerKg) * 100} color="#22c55e" />
                   </div>
                   <div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", marginBottom: "0.3rem" }}>
-                      <span style={{ color: "var(--warning)", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.25rem" }}><AlertTriangle size={11} /> Waste</span>
+                      <span style={{ color: "var(--warning)", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.25rem" }}><AlertTriangle size={11} /> Recovery / Reclaim</span>
                       <span style={{ color: "rgba(255,255,255,0.5)" }}>{eng.reclaimKg.toFixed(1)} kg · {eng.reclaimBottles}b</span>
                     </div>
                     <MiniBar pct={(eng.reclaimKg / maxEngineerKg) * 100} color="var(--warning)" />
@@ -320,17 +320,17 @@ export default function AnalyticsPage() {
             </div>
           </div>
 
-          {/* Card D: New gas utilisation */}
+          {/* Card D: Virgin Gas utilisation */}
           <div className="glass-panel" style={{ padding: "1.5rem", borderTop: "3px solid var(--primary)" }}>
             <div style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.75rem" }}>
-              New Gas Utilisation
+              Virgin Gas Utilisation
             </div>
             <div style={{ fontSize: "2.2rem", fontWeight: 800, color: "var(--primary)", lineHeight: 1 }}>
               {efficiencyStats.avgNewUtilisation.toFixed(0)}%
             </div>
             <MiniBar pct={efficiencyStats.avgNewUtilisation} color="var(--primary)" />
             <div style={{ fontSize: "0.78rem", color: "rgba(255,255,255,0.45)", marginTop: "0.5rem", lineHeight: 1.4 }}>
-              avg gas consumed across {efficiencyStats.activeNewCount} active new bottles
+              avg gas consumed across {efficiencyStats.activeNewCount} active Virgin Gas bottles
             </div>
             <div style={{ marginTop: "0.75rem", fontSize: "0.72rem", color: "rgba(255,255,255,0.3)", fontStyle: "italic" }}>
               How much of ordered gas has been used on average
@@ -445,7 +445,7 @@ export default function AnalyticsPage() {
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
                     <span style={{ fontSize: "0.8rem", color: "#ffaa00", fontWeight: 700 }}>{b.daysSince} days idle</span>
-                    <Link href={`/admin/bottles/${b.serial}`} style={{ textDecoration: "none" }}>
+                    <Link href={`/admin/bottles/${encodeURIComponent(b.serial)}`} style={{ textDecoration: "none" }}>
                       <button style={{ background: "none", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "6px", padding: "0.3rem 0.6rem", color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "0.3rem" }}>
                         View <ArrowRight size={12} />
                       </button>

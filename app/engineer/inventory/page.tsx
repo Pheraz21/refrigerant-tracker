@@ -248,7 +248,7 @@ export default function EngineerInventoryPage() {
           {displayedBottles.map(bottle => (
             <Link 
               key={bottle.serial} 
-              href={`/engineer/bottle/${bottle.serial}`}
+              href={`/engineer/bottle/${encodeURIComponent(bottle.serial)}`}
               style={{ textDecoration: "none", color: "inherit" }}
             >
               <div 
