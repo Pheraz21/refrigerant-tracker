@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Lock, ArrowLeft, Loader2, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import styles from "../page.module.css";
@@ -19,12 +19,16 @@ function ResetPasswordContent() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [ready, setReady] = useState(false);
+  const exchangedCodeRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!code) {
       setError("Invalid or expired reset link. Please request a new one.");
       return;
     }
+    if (exchangedCodeRef.current === code) return;
+    exchangedCodeRef.current = code;
+
     supabase.auth.exchangeCodeForSession(code).then(({ error: exchErr }) => {
       if (exchErr) setError("This reset link is invalid or has expired. Please request a new one.");
       else setReady(true);

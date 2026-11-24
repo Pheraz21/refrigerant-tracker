@@ -27,6 +27,7 @@ export default function HWCNViewPage() {
   const hwcnId = decodeURIComponent(id as string);
   const { user, activeVehicleReg } = useAuth();
   const [hwcn, setHwcn] = useState<any>(null);
+  const [loadingHwcn, setLoadingHwcn] = useState(true);
   const [usageLogs, setUsageLogs] = useState<any[]>([]);
   const [bottle, setBottle] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -43,16 +44,25 @@ export default function HWCNViewPage() {
   const [bottleHwcns, setBottleHwcns] = useState<any[]>([]);
 
   const loadData = () => {
-    db.getCompanySettings().then(setCompanySettings);
-    db.getHWCN(hwcnId).then(data => {
-      setHwcn(data);
-      if (data?.receivedBy) setPartEReceivedBy(data.receivedBy);
-      if (data?.serial) {
-        db.getUsageLogs(data.serial).then(logs => setUsageLogs(logs));
-        db.getBottle(data.serial).then(b => setBottle(b));
-        db.getHWCNsForBottle(data.serial).then(hwcns => setBottleHwcns(hwcns || []));
-      }
-    });
+    setLoadingHwcn(true);
+    db.getCompanySettings().then(setCompanySettings).catch(console.error);
+    db.getHWCN(hwcnId)
+      .then(data => {
+        setHwcn(data || null);
+        if (data?.receivedBy) setPartEReceivedBy(data.receivedBy);
+        if (data?.serial) {
+          db.getUsageLogs(data.serial).then(logs => setUsageLogs(logs));
+          db.getBottle(data.serial).then(b => setBottle(b));
+          db.getHWCNsForBottle(data.serial).then(hwcns => setBottleHwcns(hwcns || []));
+        }
+      })
+      .catch(err => {
+        console.error("Failed to load HWCN:", err);
+        setHwcn(null);
+      })
+      .finally(() => {
+        setLoadingHwcn(false);
+      });
   };
 
   useEffect(() => {
@@ -101,8 +111,36 @@ export default function HWCNViewPage() {
     }
   };
 
-  if (!hwcn) {
+  if (loadingHwcn) {
     return <div style={{ padding: "2rem", textAlign: "center" }}>Loading HWCN Data...</div>;
+  }
+
+  if (!hwcn) {
+    return (
+      <div style={{ maxWidth: "520px", margin: "4rem auto", padding: "2rem", textAlign: "center", fontFamily: "Arial, sans-serif" }}>
+        <h2 style={{ marginBottom: "0.75rem" }}>HWCN Not Found</h2>
+        <p style={{ color: "#94a3b8", marginBottom: "1.5rem", fontSize: "0.95rem" }}>
+          No Hazardous Waste Consignment Note was found for ID <strong style={{ fontFamily: "monospace" }}>{hwcnId}</strong>.
+        </p>
+        <Link
+          href="/engineer"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.4rem",
+            padding: "0.6rem 1.2rem",
+            background: "#00e5ff",
+            color: "#000",
+            borderRadius: "6px",
+            textDecoration: "none",
+            fontWeight: 700,
+            fontSize: "0.9rem"
+          }}
+        >
+          <ArrowLeft size={16} /> Back to Dashboard
+        </Link>
+      </div>
+    );
   }
 
   const refrigerantType = bottle?.gasType || hwcn.gasType || "Unknown";
@@ -113,7 +151,7 @@ export default function HWCNViewPage() {
   const deliveredDate = hwcn.deliveredAt ? new Date(hwcn.deliveredAt).toLocaleDateString("en-GB") : "";
   const deliveredTime = hwcn.deliveredAt ? new Date(hwcn.deliveredAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
 
-  const isOffice = hwcn.destination === "HQ-Stores" || hwcn.destination === "HQ-Stores";
+  const isOffice = hwcn.destination === "HQ-Stores";
 
   // Dynamic company fields
   const companyName = companySettings?.companyName || "21 Degrees Ltd";
@@ -641,13 +679,15 @@ export default function HWCNViewPage() {
             <p style={{ fontSize: "0.82rem", color: "rgba(255,255,255,0.7)", marginBottom: "1rem" }}>
               Provide your signature below as both the waste carrier and consignor for this consignment.
             </p>
-            <SignaturePad
-              label="Carrier & Consignor Signature"
-              value={partCDSignature}
-              onChange={setPartCDSignature}
-              height={140}
-              theme="dark"
-            />
+            <div style={{ background: "#f8fafc", padding: "0.75rem", borderRadius: "8px" }}>
+              <SignaturePad
+                label="Carrier & Consignor Signature"
+                value={partCDSignature}
+                onChange={setPartCDSignature}
+                height={140}
+                theme="light"
+              />
+            </div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "1.25rem" }}>
               <button
                 type="button"
@@ -765,13 +805,15 @@ export default function HWCNViewPage() {
               />
             </div>
 
-            <SignaturePad
-              label="Consignee Touch Signature"
-              value={partESignature}
-              onChange={setPartESignature}
-              height={130}
-              theme="dark"
-            />
+            <div style={{ background: "#f8fafc", padding: "0.75rem", borderRadius: "8px" }}>
+              <SignaturePad
+                label="Consignee Touch Signature"
+                value={partESignature}
+                onChange={setPartESignature}
+                height={130}
+                theme="light"
+              />
+            </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "1.25rem" }}>
               <button

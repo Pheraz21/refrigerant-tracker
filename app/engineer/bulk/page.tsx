@@ -18,7 +18,11 @@ interface BatchBottle {
 
 export default function BulkDeliveryPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, activeVehicleReg } = useAuth();
+  const canUseOfficeStores =
+    user?.role === "admin" ||
+    user?.role === "office" ||
+    Boolean(user?.availableRoles?.includes("office"));
 
   // Step 1: Global PO Data
   const [step, setStep] = useState<1 | 2>(1);
@@ -26,7 +30,7 @@ export default function BulkDeliveryPage() {
   const [jobNumber, setJobNumber] = useState("");
   const [supplier, setSupplier] = useState("");
   const [suppliers, setSuppliers] = useState<any[]>([]);
-  const [locationType, setLocationType] = useState<"van" | "office" | "site">(user?.role === "admin" ? "office" : "van");
+  const [locationType, setLocationType] = useState<"van" | "office" | "site">(canUseOfficeStores ? "office" : "van");
 
   // Step 2: Batch Data
   const [batch, setBatch] = useState<BatchBottle[]>([]);
@@ -39,28 +43,67 @@ export default function BulkDeliveryPage() {
   const [lastGasType, setLastGasType] = useState("R410A");
   const [lastWeight, setLastWeight] = useState(10.5);
 
+  // Refs to avoid stale closure inside Html5QrcodeScanner callback
+  const lastCategoryRef = useRef<BottleCategory>(lastCategory);
+  const lastGasTypeRef = useRef<string>(lastGasType);
+  const lastWeightRef = useRef<number>(lastWeight);
+  const batchRef = useRef<BatchBottle[]>(batch);
+
+  useEffect(() => { lastCategoryRef.current = lastCategory; }, [lastCategory]);
+  useEffect(() => { lastGasTypeRef.current = lastGasType; }, [lastGasType]);
+  useEffect(() => { lastWeightRef.current = lastWeight; }, [lastWeight]);
+  useEffect(() => { batchRef.current = batch; }, [batch]);
+
+  // Inline scan status & duplicate cooldown (2s per serial)
+  const [scanStatus, setScanStatus] = useState<{ type: "info" | "warning" | "error"; message: string } | null>(null);
+  const duplicateCooldownRef = useRef<Record<string, number>>({});
+  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showScanStatus = (type: "info" | "warning" | "error", message: string) => {
+    setScanStatus({ type, message });
+    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    statusTimerRef.current = setTimeout(() => setScanStatus(null), 3000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    };
+  }, []);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [submittedCount, setSubmittedCount] = useState(0);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   function handleScanSuccess(decodedText: string) {
-    const upperSerial = decodedText.toUpperCase();
+    const upperSerial = decodedText.trim().toUpperCase();
+    if (!upperSerial) return;
+
+    if (batchRef.current.some(b => b.serial === upperSerial)) {
+      const now = Date.now();
+      const lastWarned = duplicateCooldownRef.current[upperSerial] || 0;
+      if (now - lastWarned >= 2000) {
+        duplicateCooldownRef.current[upperSerial] = now;
+        showScanStatus("warning", `Bottle ${upperSerial} is already in this batch.`);
+      }
+      return;
+    }
+
+    const parsedWeight = Number(lastWeightRef.current);
+    const safeWeight = Number.isFinite(parsedWeight) && parsedWeight > 0 ? parsedWeight : 0;
 
     const newBottle: BatchBottle = {
       serial: upperSerial,
-      category: lastCategory,
-      gasType: lastGasType,
-      weight: lastWeight
+      category: lastCategoryRef.current,
+      gasType: lastGasTypeRef.current,
+      weight: safeWeight
     };
 
-    setBatch(prev => {
-      if (prev.some(b => b.serial === upperSerial)) {
-        alert("Bottle already scanned in this batch!");
-        return prev;
-      }
-      return [newBottle, ...prev];
-    });
-    
+    const nextBatch = [newBottle, ...batchRef.current];
+    batchRef.current = nextBatch;
+    setBatch(nextBatch);
+    showScanStatus("info", `Added ${upperSerial} to batch.`);
     setManualSerial("");
     // We intentionally DO NOT stop scanning. Let them rapid fire.
   }
@@ -88,6 +131,7 @@ export default function BulkDeliveryPage() {
     return () => {
       if (scannerRef.current) {
         scannerRef.current.clear().catch(console.error);
+        scannerRef.current = null;
       }
     };
   }, [step, isScanning]);
@@ -100,52 +144,102 @@ export default function BulkDeliveryPage() {
   }, []);
 
   const removeBottle = (serial: string) => {
-    setBatch(prev => prev.filter(b => b.serial !== serial));
+    setBatch(prev => {
+      const next = prev.filter(b => b.serial !== serial);
+      batchRef.current = next;
+      return next;
+    });
   };
 
   const submitBatch = async () => {
+    if (isSubmitting || batch.length === 0) return;
     setIsSubmitting(true);
+    setSubmitError(null);
     // Stop scanner if active
-    if (scannerRef.current) scannerRef.current.clear();
+    if (scannerRef.current) {
+      scannerRef.current.clear().catch(console.error);
+      scannerRef.current = null;
+    }
     setIsScanning(false);
 
-    // Register all simultaneously
-    const promises = batch.map(async b => {
-      let rentalExpiryDate: string | undefined = undefined;
-      if (supplier) {
-        const days = await db.getDurationForSupplier(supplier, b.category);
-        if (days) {
-          const expiry = new Date();
-          expiry.setDate(expiry.getDate() + days);
-          rentalExpiryDate = expiry.toISOString().slice(0, 10);
+    try {
+      let resolvedVehicleReg = activeVehicleReg || user?.vehicleReg || undefined;
+      if (locationType === "van" && !resolvedVehicleReg && user?.id) {
+        try {
+          const profile = await db.getEngineerById(user.id);
+          if (profile?.vehicleReg) resolvedVehicleReg = profile.vehicleReg;
+        } catch {
+          // Ignore profile lookup error and continue
         }
       }
 
-      return db.registerBottle({
-        serial: b.serial,
-        category: b.category,
-        gasType: b.category === "nitrogen" ? "Nitrogen" : (b.category === "reclaim" ? "None (Supplier Clean)" : b.gasType),
-        initialWeight: b.weight,
-        currentWeight: b.category === "reclaim" ? 0 : b.weight,
-        locationType: locationType as any,
-        locationId: locationType === "van" ? `${user?.name} - Van` : locationType === "office" ? "HQ-Stores" : jobNumber,
-        poNumber,
-        supplier,
-        rentalExpiryDate,
-        registeredAt: new Date().toISOString(),
-        lastEngineer: user?.name,
-        registeredBy: user?.name
+      const batchSnapshot = [...batch];
+      const results = await Promise.allSettled(
+        batchSnapshot.map(async b => {
+          let rentalExpiryDate: string | undefined = undefined;
+          if (supplier) {
+            const days = await db.getDurationForSupplier(supplier, b.category);
+            if (days) {
+              const expiry = new Date();
+              expiry.setDate(expiry.getDate() + days);
+              rentalExpiryDate = expiry.toISOString().slice(0, 10);
+            }
+          }
+
+          return db.registerBottle({
+            serial: b.serial,
+            category: b.category,
+            gasType: b.category === "nitrogen" ? "Nitrogen" : (b.category === "reclaim" ? "None (Supplier Clean)" : b.gasType),
+            initialWeight: b.weight,
+            currentWeight: b.category === "reclaim" ? 0 : b.weight,
+            locationType: locationType as any,
+            locationId: locationType === "van" ? `${user?.name} - Van` : locationType === "office" ? "HQ-Stores" : jobNumber,
+            vehicleReg: locationType === "van" ? resolvedVehicleReg : undefined,
+            poNumber,
+            supplier,
+            rentalExpiryDate,
+            registeredAt: new Date().toISOString(),
+            lastEngineer: user?.name,
+            registeredBy: user?.name
+          });
+        })
+      );
+
+      const succeededSerials = new Set<string>();
+      const failedItems: { serial: string; message: string }[] = [];
+
+      results.forEach((result, idx) => {
+        const item = batchSnapshot[idx];
+        if (result.status === "fulfilled") {
+          succeededSerials.add(item.serial);
+        } else {
+          failedItems.push({
+            serial: item.serial,
+            message: (result.reason as Error)?.message || "Registration failed"
+          });
+        }
       });
-    });
 
-    try {
-      await Promise.all(promises);
-
-      setIsSubmitting(false);
-      setIsSuccess(true);
+      if (failedItems.length === 0) {
+        setSubmittedCount(succeededSerials.size);
+        setBatch([]);
+        batchRef.current = [];
+        setIsSuccess(true);
+      } else {
+        const remaining = batchSnapshot.filter(b => !succeededSerials.has(b.serial));
+        setBatch(remaining);
+        batchRef.current = remaining;
+        const details = failedItems.map(f => `${f.serial} (${f.message})`).join(", ");
+        setSubmitError(
+          succeededSerials.size > 0
+            ? `${succeededSerials.size} bottle(s) registered successfully. ${failedItems.length} failed and remain in your batch: ${details}`
+            : `Failed to register ${failedItems.length} bottle(s): ${details}`
+        );
+      }
     } catch (error) {
       console.error(error);
-      alert((error as Error).message || "Failed to register some bottles in the batch.");
+      setSubmitError((error as Error)?.message || "Failed to register bottles in the batch.");
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -154,7 +248,7 @@ export default function BulkDeliveryPage() {
     return (
       <div className={styles.successContainer}>
         <CheckCircle2 size={64} color="var(--success)" />
-        <h2>{batch.length} Bottles Received!</h2>
+        <h2>{submittedCount} Bottles Received!</h2>
         <p>Batch successfully registered to PO {poNumber}.</p>
         <button onClick={() => router.push("/engineer")} className={styles.primaryBtn}>
           Return to Dashboard
@@ -199,7 +293,7 @@ export default function BulkDeliveryPage() {
           <div className={styles.inputGroup}>
             <label style={{ marginBottom: '0.75rem', display: 'block' }}>Location Received</label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.75rem' }}>
-              {user?.role === "admin" && (
+              {canUseOfficeStores && (
                 <button
                   type="button"
                   onClick={() => setLocationType("office")}
@@ -318,9 +412,9 @@ export default function BulkDeliveryPage() {
             <p className={styles.hint}>Bottles you scan will automatically use these settings. Change them here if the next bottle in the pallet is different.</p>
             <div className={styles.row}>
               <select value={lastCategory} onChange={e => setLastCategory(e.target.value as BottleCategory)} className={styles.miniSelect}>
-                <option value="new">New</option>
-                <option value="reclaim">Reclaim</option>
-                <option value="nitrogen">Nitrogen</option>
+                <option value="new">Virgin Gas</option>
+                <option value="reclaim">Recovery / Reclaim</option>
+                <option value="nitrogen">Nitrogen (OFN)</option>
               </select>
               {lastCategory === "new" && (
                 <select value={lastGasType} onChange={e => setLastGasType(e.target.value)} className={styles.miniSelect}>
@@ -330,11 +424,54 @@ export default function BulkDeliveryPage() {
                 </select>
               )}
               <div className={styles.weightInputWrapper}>
-                <input type="number" value={lastWeight} onChange={e => setLastWeight(parseFloat(e.target.value))} className={styles.miniInput} />
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={lastWeight}
+                  onChange={e => {
+                    const val = parseFloat(e.target.value);
+                    setLastWeight(Number.isNaN(val) ? 0 : val);
+                  }}
+                  className={styles.miniInput}
+                />
                 <span>kg</span>
               </div>
             </div>
           </div>
+
+          {scanStatus && (
+            <div
+              role="status"
+              style={{
+                marginBottom: "1rem",
+                padding: "0.75rem 1rem",
+                borderRadius: "10px",
+                fontSize: "0.88rem",
+                fontWeight: 600,
+                border:
+                  scanStatus.type === "warning"
+                    ? "1px solid var(--warning)"
+                    : scanStatus.type === "error"
+                    ? "1px solid #ff4444"
+                    : "1px solid var(--primary)",
+                background:
+                  scanStatus.type === "warning"
+                    ? "rgba(255, 170, 0, 0.12)"
+                    : scanStatus.type === "error"
+                    ? "rgba(255, 68, 68, 0.12)"
+                    : "rgba(0, 229, 255, 0.1)",
+                color:
+                  scanStatus.type === "warning"
+                    ? "var(--warning)"
+                    : scanStatus.type === "error"
+                    ? "#ff6b6b"
+                    : "var(--primary)"
+              }}
+            >
+              {scanStatus.message}
+            </div>
+          )}
 
           {!isScanning ? (
             <>
@@ -420,7 +557,16 @@ export default function BulkDeliveryPage() {
                   <li key={b.serial} className={styles.batchItem}>
                     <div className={styles.itemInfo}>
                       <strong>{b.serial}</strong>
-                      <span>{b.category === 'new' ? b.gasType : b.category} ({b.weight}kg)</span>
+                      <span>
+                        {b.category === "new"
+                          ? `Virgin Gas (${b.gasType})`
+                          : b.category === "reclaim"
+                          ? "Recovery / Reclaim"
+                          : b.category === "nitrogen"
+                          ? "Nitrogen (OFN)"
+                          : b.category}{" "}
+                        ({b.weight}kg)
+                      </span>
                     </div>
                     <button onClick={() => removeBottle(b.serial)} className={styles.removeBtn}>
                       <Trash2 size={16} />
@@ -430,6 +576,24 @@ export default function BulkDeliveryPage() {
               </ul>
             )}
           </div>
+
+          {submitError && (
+            <div
+              role="alert"
+              style={{
+                marginBottom: "1rem",
+                padding: "0.85rem 1rem",
+                borderRadius: "10px",
+                background: "rgba(255, 68, 68, 0.12)",
+                border: "1px solid #ff4444",
+                color: "#ff6b6b",
+                fontSize: "0.88rem",
+                lineHeight: 1.4
+              }}
+            >
+              {submitError}
+            </div>
+          )}
 
           <button
             className={styles.submitBatchBtn}

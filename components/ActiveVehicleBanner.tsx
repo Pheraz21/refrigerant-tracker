@@ -59,6 +59,7 @@ export function ActiveVehicleBanner() {
 
   const handleSaveCustom = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isMateOrApprentice) return;
     if (!customReg.trim()) return;
     setActiveVehicle(customReg.trim().toUpperCase(), "Custom Van");
     setCustomReg("");
@@ -331,46 +332,58 @@ export function ActiveVehicleBanner() {
             </div>
 
             {/* Custom Registration Input */}
-            <form onSubmit={handleSaveCustom} style={{ borderTop: "1px solid rgba(255, 255, 255, 0.08)", paddingTop: "1rem" }}>
-              <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700, marginBottom: "0.5rem" }}>
-                Or Enter Another Registration
+            {isMateOrApprentice ? (
+              <div style={{
+                borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+                paddingTop: "1rem",
+                fontSize: "0.8rem",
+                color: "var(--text-muted)",
+                lineHeight: 1.5
+              }}>
+                Working from another Lead Engineer&apos;s van? Select their van above to request pairing approval (SOP-002). Direct custom registration entry is disabled for mates and apprentices.
               </div>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
-                <input
-                  type="text"
-                  value={customReg}
-                  onChange={e => setCustomReg(e.target.value.toUpperCase())}
-                  placeholder="e.g. KV71 FLP"
-                  style={{
-                    flex: 1,
-                    padding: "0.75rem 1rem",
-                    background: "rgba(255, 255, 255, 0.05)",
-                    border: "1px solid rgba(255, 255, 255, 0.15)",
-                    borderRadius: "8px",
-                    color: "#fff",
-                    fontFamily: "var(--font-geist-mono)",
-                    fontWeight: 700,
-                    fontSize: "0.95rem"
-                  }}
-                />
-                <button
-                  type="submit"
-                  disabled={!customReg.trim()}
-                  style={{
-                    padding: "0.75rem 1.25rem",
-                    background: "var(--primary)",
-                    border: "none",
-                    borderRadius: "8px",
-                    color: "#000",
-                    fontWeight: 700,
-                    cursor: customReg.trim() ? "pointer" : "not-allowed",
-                    opacity: customReg.trim() ? 1 : 0.5
-                  }}
-                >
-                  Set Van
-                </button>
-              </div>
-            </form>
+            ) : (
+              <form onSubmit={handleSaveCustom} style={{ borderTop: "1px solid rgba(255, 255, 255, 0.08)", paddingTop: "1rem" }}>
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 700, marginBottom: "0.5rem" }}>
+                  Or Enter Another Registration
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <input
+                    type="text"
+                    value={customReg}
+                    onChange={e => setCustomReg(e.target.value.toUpperCase())}
+                    placeholder="e.g. KV71 FLP"
+                    style={{
+                      flex: 1,
+                      padding: "0.75rem 1rem",
+                      background: "rgba(255, 255, 255, 0.05)",
+                      border: "1px solid rgba(255, 255, 255, 0.15)",
+                      borderRadius: "8px",
+                      color: "#fff",
+                      fontFamily: "var(--font-geist-mono)",
+                      fontWeight: 700,
+                      fontSize: "0.95rem"
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!customReg.trim()}
+                    style={{
+                      padding: "0.75rem 1.25rem",
+                      background: "var(--primary)",
+                      border: "none",
+                      borderRadius: "8px",
+                      color: "#000",
+                      fontWeight: 700,
+                      cursor: customReg.trim() ? "pointer" : "not-allowed",
+                      opacity: customReg.trim() ? 1 : 0.5
+                    }}
+                  >
+                    Set Van
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

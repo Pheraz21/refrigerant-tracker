@@ -25,25 +25,40 @@ export default function SignaturePad({
   penColor,
 }: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const lastEmittedRef = useRef<string | undefined>(undefined);
+  const hasDrawnRef = useRef(false);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
   const [isTouched, setIsTouched] = useState(false);
 
   const defaultPenColor = penColor || (theme === "light" ? "#0f172a" : "#00e5ff");
 
-  // If initial value is an image data URL and canvas is blank, draw it
+  // Sync external value changes (prefill or external clear), skipping self-emitted strokes
   useEffect(() => {
+    if (value === lastEmittedRef.current) return;
+
     const canvas = canvasRef.current;
-    if (!canvas || !value || !value.startsWith("data:image/")) return;
+    if (!canvas) return;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+
+    if (!value) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      hasDrawnRef.current = false;
+      setHasDrawn(false);
+      setIsTouched(false);
+      return;
+    }
+
+    if (!value.startsWith("data:image/")) return;
 
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      hasDrawnRef.current = true;
       setHasDrawn(true);
     };
     img.src = value;
@@ -94,6 +109,7 @@ export default function SignaturePad({
     const { x, y } = getCanvasCoordinates(e);
     ctx.lineTo(x, y);
     ctx.stroke();
+    hasDrawnRef.current = true;
     setHasDrawn(true);
   };
 
@@ -106,10 +122,16 @@ export default function SignaturePad({
       // pointer might already be released
     }
 
+    if (!hasDrawnRef.current) {
+      setIsTouched(false);
+      return;
+    }
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const dataUrl = canvas.toDataURL("image/png");
+    lastEmittedRef.current = dataUrl;
     onChange?.(dataUrl);
   };
 
@@ -123,8 +145,10 @@ export default function SignaturePad({
     if (!ctx) return;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    hasDrawnRef.current = false;
     setHasDrawn(false);
     setIsTouched(false);
+    lastEmittedRef.current = "";
     onChange?.("");
   };
 

@@ -369,158 +369,186 @@ export default function MoveBottlePage() {
 
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setIsSubmitting(true);
-    
-    const isReclaimWithGas = hasReclaimWaste(bottle);
-    const isMovingSiteToVanWithoutWaste = (bottle?.locationType === "site" && destination === "van" && !wasteAddedOnVisit);
-    const isMovingOfficeToVan = (bottle?.locationType === "office" && destination === "van");
-    const isDirectVanMove = (destination === "van" && reclaimFlowPath !== "alternative");
 
-    const requiresInternalHWCN = isReclaimWithGas && 
-      destination !== "supplier" && 
-      destination !== "site" && 
-      destination !== "engineer" &&
-      !isMovingSiteToVanWithoutWaste &&
-      !isMovingOfficeToVan &&
-      !isDirectVanMove;
-    const requiresSupplierHWCN = isReclaimWithGas && (destination === "supplier");
-    const needsTransit = requiresInternalHWCN || requiresSupplierHWCN;
+    try {
+      const isReclaimWithGas = hasReclaimWaste(bottle);
+      const isMovingSiteToVanWithoutWaste = (bottle?.locationType === "site" && destination === "van" && !wasteAddedOnVisit);
+      const isMovingOfficeToVan = (bottle?.locationType === "office" && destination === "van");
+      const isDirectVanMove = (destination === "van" && reclaimFlowPath !== "alternative");
 
-    if (!needsTransit) {
-      const finalDest = destination === "engineer" ? "van" : destination;
-      let finalLocationId = "";
-      
-      let effectiveEngineerName = activeVehicleOwner || user?.name;
-      if (destination === "engineer") {
-        const targetUser = engineers.find(e => e.id === selectedEngineer);
-        finalLocationId = `${targetUser?.name || "Engineer"} - Van`;
-        effectiveEngineerName = targetUser?.name || user?.name;
-      } else if (destination === "van") {
-        finalLocationId = `${activeVehicleOwner || user?.name} - Van`;
-        effectiveEngineerName = activeVehicleOwner || user?.name;
-      } else if (destination === "office") {
-        finalLocationId = "HQ-Stores";
-        effectiveEngineerName = activeVehicleOwner || user?.name;
-      } else if (destination === "site") {
-        const cleanJob = (locationId || "").trim().replace(/\s+/g, "").toUpperCase();
-        if (!/^[A-Za-z]\d+$/.test(cleanJob)) {
-          alert("Job number must start with 1 letter followed by numbers without spaces (e.g. J12345, M98201).");
-          setIsSubmitting(false);
-          return;
+      const requiresInternalHWCN = isReclaimWithGas && 
+        destination !== "supplier" && 
+        destination !== "site" && 
+        destination !== "engineer" &&
+        !isMovingSiteToVanWithoutWaste &&
+        !isMovingOfficeToVan &&
+        !isDirectVanMove;
+      const requiresSupplierHWCN = isReclaimWithGas && (destination === "supplier");
+      const needsTransit = requiresInternalHWCN || requiresSupplierHWCN;
+
+      if (!needsTransit) {
+        const finalDest = destination === "engineer" ? "van" : destination;
+        let finalLocationId = "";
+        
+        let effectiveEngineerName = activeVehicleOwner || user?.name;
+        if (destination === "engineer") {
+          const targetUser = engineers.find(e => e.id === selectedEngineer);
+          finalLocationId = `${targetUser?.name || "Engineer"} - Van`;
+          effectiveEngineerName = targetUser?.name || user?.name;
+        } else if (destination === "van") {
+          finalLocationId = `${activeVehicleOwner || user?.name} - Van`;
+          effectiveEngineerName = activeVehicleOwner || user?.name;
+        } else if (destination === "office") {
+          finalLocationId = "HQ-Stores";
+          effectiveEngineerName = activeVehicleOwner || user?.name;
+        } else if (destination === "site") {
+          const cleanJob = (locationId || "").trim().replace(/\s+/g, "").toUpperCase();
+          if (!/^[A-Za-z]\d+$/.test(cleanJob)) {
+            alert("Job number must start with 1 letter followed by numbers without spaces (e.g. J12345, M98201).");
+            return;
+          }
+          finalLocationId = cleanJob;
+          effectiveEngineerName = activeVehicleOwner || user?.name;
+        } else if (destination === "other") {
+          finalLocationId = `${customDestination.name}, ${customDestination.address}, ${customDestination.postcode}`;
+          effectiveEngineerName = activeVehicleOwner || user?.name;
+        } else {
+          finalLocationId = locationId || (destination === "supplier" ? "Supplier" : `${activeVehicleOwner || user?.name} - Van`);
         }
-        finalLocationId = cleanJob;
-        effectiveEngineerName = activeVehicleOwner || user?.name;
-      } else if (destination === "other") {
-        finalLocationId = `${customDestination.name}, ${customDestination.address}, ${customDestination.postcode}`;
-        effectiveEngineerName = activeVehicleOwner || user?.name;
+
+        const targetVanReg = (finalDest === "van") ? (activeVehicleReg || vehicleReg || user?.vehicleReg) : undefined;
+        await db.updateBottleLocation(serialParam, finalDest as any, finalLocationId, undefined, undefined, undefined, effectiveEngineerName, targetVanReg, user?.name);
+        
+        // If returning directly to supplier or office, also update status
+        if (destination === "supplier" || destination === "office") {
+          const updates: any = { status: destination === "supplier" ? "returned" : "active" };
+          if (destination === "supplier") {
+            updates.supplier_hwcn_photo_pending = false; // Non-reclaim doesn't need a photo
+          }
+          await db.updateBottle(serialParam, updates);
+        }
       } else {
-        finalLocationId = locationId || (destination === "supplier" ? "Supplier" : `${activeVehicleOwner || user?.name} - Van`);
-      }
-
-      const targetVanReg = (finalDest === "van") ? (activeVehicleReg || vehicleReg || user?.vehicleReg) : undefined;
-      await db.updateBottleLocation(serialParam, finalDest as any, finalLocationId, undefined, undefined, undefined, effectiveEngineerName, targetVanReg, user?.name);
-      
-      // If returning directly to supplier or office, also update status
-      if (destination === "supplier" || destination === "office") {
-        const updates: any = { status: destination === "supplier" ? "returned" : "active" };
-        if (destination === "supplier") {
-          updates.supplier_hwcn_photo_pending = false; // Non-reclaim doesn't need a photo
+        // In transit (Requires HWCN or Supplier Document)
+        let finalLocationId = destination === "office" ? "HQ-Stores" : destination === "other" ? customDestination.name : locationId || "Supplier";
+        if (destination === "van") {
+           finalLocationId = intendedDest; // If they clicked 'Transfer to Van', the actual destination is their chosen intendedDest
         }
-        await db.updateBottle(serialParam, updates);
-      }
-    } else {
-      // In transit (Requires HWCN or Supplier Document)
-      let finalLocationId = destination === "office" ? "HQ-Stores" : destination === "other" ? customDestination.name : locationId || "Supplier";
-      if (destination === "van") {
-         finalLocationId = intendedDest; // If they clicked 'Transfer to Van', the actual destination is their chosen intendedDest
-      }
-      const fullDestinationString = destination === "other" ? `${customDestination.name}, ${customDestination.address}, ${customDestination.postcode}` : finalLocationId;
-      
-      const targetVanReg = activeVehicleReg || vehicleReg || user?.vehicleReg;
-      let hwcnId = undefined;
-      if (requiresInternalHWCN) {
-        // Query prior completed HWCNs to determine incremental weight and cross-reference
-        const priorHwcns = await db.getHWCNsForBottle(serialParam);
-        const priorCompleted = (priorHwcns || []).filter((h: any) => h.hwcnStatus === "complete");
-        const lastPrior = priorCompleted.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+        const fullDestinationString = destination === "other" ? `${customDestination.name}, ${customDestination.address}, ${customDestination.postcode}` : finalLocationId;
         
-        const priorConsignedWeight = priorCompleted.reduce((sum: number, h: any) => sum + Number(h.incrementalWeight || h.fillWeight || 0), 0);
+        const targetVanReg = activeVehicleReg || vehicleReg || user?.vehicleReg;
+        let hwcnId = undefined;
+        if (requiresInternalHWCN) {
+          // Query prior completed HWCNs to determine incremental weight and cross-reference
+          const priorHwcns = await db.getHWCNsForBottle(serialParam);
+          const priorCompleted = (priorHwcns || []).filter((h: any) => h.hwcnStatus === "complete");
+          const lastPrior = priorCompleted.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+          
+          const priorConsignedWeight = priorCompleted.reduce((sum: number, h: any) => sum + Number(h.incrementalWeight || h.fillWeight || 0), 0);
+          
+          // Check if any gas from prior consignment was recharged on site
+          const usageLogs = await db.getUsageLogs(serialParam);
+          const rechargeLogs = (usageLogs || []).filter(
+            (l: any) => (l.jobType === "recycled_charge" || l.jobType === "service") &&
+            (!lastPrior || new Date(l.date).getTime() >= new Date(lastPrior.date).getTime())
+          );
+          const rechargedSincePrior = rechargeLogs.reduce((sum: number, l: any) => sum + Number(l.weightUsed || 0), 0);
+          const netPriorRemaining = Math.max(0, priorConsignedWeight - rechargedSincePrior);
+
+          const currentTotal = bottle?.currentWeight || 0;
+          const incremental = priorCompleted.length > 0 ? Math.max(0, currentTotal - netPriorRemaining) : currentTotal;
+
+          const cleanedSites = hwcnSites.map((s: any) => ({
+            ...(s.jobNumber ? { jobNumber: s.jobNumber } : {}),
+            name: (s.name || "").trim(),
+            address: (s.address || "").trim(),
+            postcode: (s.postcode || "").trim()
+          }));
+
+          await db.updateBottle(serialParam, { producer_sites: cleanedSites });
+
+          hwcnId = await db.createHWCN({
+            serial: serialParam,
+            destination: intendedDest || fullDestinationString,
+            sites: cleanedSites,
+            vehicleReg: targetVanReg || vehicleReg,
+            engineer: carrierName || user?.name,
+            date: new Date().toISOString(),
+            gasType: bottle?.gasType || "Unknown",
+            fillWeight: incremental > 0 ? incremental : currentTotal,
+            incrementalWeight: incremental > 0 ? incremental : currentTotal,
+            priorHWCN: lastPrior ? lastPrior.id : undefined,
+            priorWeight: priorConsignedWeight > 0 ? priorConsignedWeight : undefined,
+            totalCylinderWeight: currentTotal
+          });
+          setGeneratedHWCN(hwcnId);
+        }
         
-        // Check if any gas from prior consignment was recharged on site
-        const usageLogs = await db.getUsageLogs(serialParam);
-        const rechargeLogs = (usageLogs || []).filter(
-          (l: any) => (l.jobType === "recycled_charge" || l.jobType === "service") &&
-          (!lastPrior || new Date(l.date).getTime() >= new Date(lastPrior.date).getTime())
+        let intendedLocType = destination;
+        if (destination === "van") {
+          intendedLocType = intendedDest === "HQ-Stores" ? "office" : "site";
+        }
+
+        await db.updateBottleLocation(
+          serialParam,
+          "van",
+          `${activeVehicleOwner || user?.name} - Van`,
+          intendedDest || fullDestinationString,
+          intendedLocType as any,
+          hwcnId,
+          activeVehicleOwner || user?.name,
+          targetVanReg,
+          user?.name
         );
-        const rechargedSincePrior = rechargeLogs.reduce((sum: number, l: any) => sum + Number(l.weightUsed || 0), 0);
-        const netPriorRemaining = Math.max(0, priorConsignedWeight - rechargedSincePrior);
+      }
 
-        const currentTotal = bottle?.currentWeight || 0;
-        const incremental = priorCompleted.length > 0 ? Math.max(0, currentTotal - netPriorRemaining) : currentTotal;
+      if (isDiscrepancy) {
+        const targetEngineerName = engineers.find(e => e.id === selectedEngineer)?.name;
+        const actualLocationLabel =
+          destination === "van"
+            ? `${activeVehicleOwner || user?.name}'s van`
+            : destination === "engineer"
+            ? `${targetEngineerName || "another engineer"}'s van`
+            : destination === "office"
+            ? "HQ-Stores"
+            : destination === "site"
+            ? `Site ${(locationId || "").trim().replace(/\s+/g, "").toUpperCase() || "Unknown"}`
+            : destination === "supplier"
+            ? (locationId || bottle?.supplier || "Supplier")
+            : destination === "other"
+            ? (customDestination.name || "another location")
+            : destination;
 
-        const cleanedSites = hwcnSites.map((s: any) => ({
-          ...(s.jobNumber ? { jobNumber: s.jobNumber } : {}),
-          name: (s.name || "").trim(),
-          address: (s.address || "").trim(),
-          postcode: (s.postcode || "").trim()
-        }));
-
-        await db.updateBottle(serialParam, { producer_sites: cleanedSites });
-
-        hwcnId = await db.createHWCN({
-          serial: serialParam,
-          destination: intendedDest || fullDestinationString,
-          sites: cleanedSites,
-          vehicleReg: targetVanReg || vehicleReg,
-          engineer: carrierName || user?.name,
-          date: new Date().toISOString(),
-          gasType: bottle?.gasType || "Unknown",
-          fillWeight: incremental > 0 ? incremental : currentTotal,
-          incrementalWeight: incremental > 0 ? incremental : currentTotal,
-          priorHWCN: lastPrior ? lastPrior.id : undefined,
-          priorWeight: priorConsignedWeight > 0 ? priorConsignedWeight : undefined,
-          totalCylinderWeight: currentTotal
+        await db.createNotification({
+          type: "location_discrepancy",
+          title: "Location Discrepancy Reported",
+          message: `${user?.name} has recorded Bottle ${serialParam} at ${actualLocationLabel}, but the app stated it was in ${bottle?.locationId || "Central Stores"}.`,
+          metadata: {
+            serial: serialParam,
+            reportedBy: user?.name,
+            oldLocation: bottle?.locationId || "Central Stores",
+            newLocation: destination,
+            actualLocation: actualLocationLabel
+          }
         });
-        setGeneratedHWCN(hwcnId);
-      }
-      
-      let intendedLocType = destination;
-      if (destination === "van") {
-        intendedLocType = intendedDest === "HQ-Stores" ? "office" : "site";
       }
 
-      await db.updateBottleLocation(
-        serialParam,
-        "van",
-        `${activeVehicleOwner || user?.name} - Van`,
-        intendedDest || fullDestinationString,
-        intendedLocType as any,
-        hwcnId,
-        activeVehicleOwner || user?.name,
-        targetVanReg,
-        user?.name
-      );
-    }
+      hasSubmittedRef.current = true;
+      setIsDirty(false);
+      setCustomMessage(undefined);
 
-    if (isDiscrepancy) {
-      await db.createNotification({
-        type: "location_discrepancy",
-        title: "Location Discrepancy Reported",
-        message: `${user?.name} has recorded Bottle ${serialParam} was in his van, but the app stated it was in ${bottle?.locationId || "Central Stores"}.`,
-        metadata: { serial: serialParam, reportedBy: user?.name, oldLocation: bottle?.locationId || "Central Stores", newLocation: destination }
-      });
-    }
-
-    hasSubmittedRef.current = true;
-    setIsDirty(false);
-    setCustomMessage(undefined);
-
-    // Redirect immediately if no HWCN was generated, otherwise show success screen with HWCN link
-    if (requiresInternalHWCN || (needsTransit && isReclaimWithGas && (destination === "office" || destination === "other"))) {
+      // Redirect immediately if no HWCN was generated, otherwise show success screen with HWCN link
+      if (requiresInternalHWCN || (needsTransit && isReclaimWithGas && (destination === "office" || destination === "other"))) {
+        setIsSuccess(true);
+      } else {
+        router.replace("/engineer");
+      }
+    } catch (err) {
+      console.error("Failed to transfer bottle:", err);
+      alert((err as Error)?.message || "Failed to complete bottle transfer. Please check your connection and try again.");
+    } finally {
       setIsSubmitting(false);
-      setIsSuccess(true);
-    } else {
-      router.replace("/engineer");
     }
   };
 

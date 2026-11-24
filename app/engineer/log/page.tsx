@@ -356,6 +356,7 @@ export default function LogBottlePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setValidationError(null);
 
     if (!bottleData) return;
@@ -382,203 +383,218 @@ export default function LogBottlePage() {
         weight: parseFloat(eq.weight) || 0
       }));
 
-    // Weight Validation
-    if (jobType === "leak_test") {
-      if (equipmentToSave.length === 0) {
-        setValidationError("Statutory leak checks require entering at least one equipment item (serial/model) inspected.");
-        return;
-      }
-    } else if (isRecycleMode || jobType === "recycled_charge") {
-      const availableReclaim = bottleData.currentWeight || 0;
-      if (totalWeight <= 0) {
-        setValidationError("Please enter the weight of recycled gas charged into equipment.");
-        return;
-      }
-      if (totalWeight > availableReclaim) {
-        setValidationError(`Cannot dispense ${totalWeight.toFixed(2)}kg. Only ${availableReclaim.toFixed(2)}kg of recycled gas is currently in this cylinder.`);
-        return;
-      }
-      if (bottleCategory === "reclaim") {
-        const logs = await db.getUsageLogs(serialParam);
-        const currentRecoveryLogs: any[] = [];
-        for (const log of logs) {
-          if (log.jobType === "recovery" || log.jobType === "waste") {
-            currentRecoveryLogs.push(log);
+    setIsSubmitting(true);
+    try {
+      // Weight Validation
+      if (jobType === "leak_test") {
+        if (equipmentToSave.length === 0) {
+          setValidationError("Statutory leak checks require entering at least one equipment item (serial/model) inspected.");
+          return;
+        }
+      } else if (isRecycleMode || jobType === "recycled_charge") {
+        const availableReclaim = bottleData.currentWeight || 0;
+        if (totalWeight <= 0) {
+          setValidationError("Please enter the weight of recycled gas charged into equipment.");
+          return;
+        }
+        if (totalWeight > availableReclaim) {
+          setValidationError(`Cannot dispense ${totalWeight.toFixed(2)}kg. Only ${availableReclaim.toFixed(2)}kg of recycled gas is currently in this cylinder.`);
+          return;
+        }
+        if (bottleCategory === "reclaim") {
+          const logs = await db.getUsageLogs(serialParam);
+          const currentRecoveryLogs: any[] = [];
+          for (const log of logs) {
+            if (log.jobType === "recovery" || log.jobType === "waste") {
+              currentRecoveryLogs.push(log);
+            }
+            if (log.weightAfter === 0 && log.jobType !== "recovery") {
+              break;
+            }
           }
-          if (log.weightAfter === 0 && log.jobType !== "recovery") {
-            break;
+          const reclaimedRefs = new Set<string>();
+          for (const log of currentRecoveryLogs) {
+            if (log.siteRef) reclaimedRefs.add(log.siteRef.trim().replace(/\s+/g, "").toUpperCase());
+            if (log.siteName) reclaimedRefs.add(log.siteName.trim().replace(/\s+/g, "").toUpperCase());
+          }
+          if (bottleData.producerSites && Array.isArray(bottleData.producerSites)) {
+            for (const site of bottleData.producerSites) {
+              if ((site as any).jobNumber) reclaimedRefs.add(String((site as any).jobNumber).trim().replace(/\s+/g, "").toUpperCase());
+              if (site.name) reclaimedRefs.add(site.name.trim().replace(/\s+/g, "").toUpperCase());
+            }
+          }
+          let crmTitleNorm = "";
+          if (cleanJobNumber) {
+            const crm = await db.getCrmJobByNumber(cleanJobNumber);
+            if (crm?.siteTitle) crmTitleNorm = crm.siteTitle.trim().replace(/\s+/g, "").toUpperCase();
+          }
+          const isMatch = reclaimedRefs.has(cleanJobNumber) || (crmTitleNorm ? reclaimedRefs.has(crmTitleNorm) : false);
+          if (!isMatch) {
+            setValidationError("Recycled gas from a reclaim cylinder can only be re-charged into equipment on the same job number it was reclaimed from.");
+            return;
           }
         }
-        const reclaimedRefs = new Set<string>();
-        for (const log of currentRecoveryLogs) {
-          if (log.siteRef) reclaimedRefs.add(log.siteRef.trim().replace(/\s+/g, "").toUpperCase());
-          if (log.siteName) reclaimedRefs.add(log.siteName.trim().replace(/\s+/g, "").toUpperCase());
+      } else if (bottleCategory === "reclaim") {
+        if (totalWeight <= 0) {
+          setValidationError("Please enter a valid refrigerant weight greater than 0 kg.");
+          return;
         }
-        if (bottleData.producerSites && Array.isArray(bottleData.producerSites)) {
-          for (const site of bottleData.producerSites) {
-            if ((site as any).jobNumber) reclaimedRefs.add(String((site as any).jobNumber).trim().replace(/\s+/g, "").toUpperCase());
-            if (site.name) reclaimedRefs.add(site.name.trim().replace(/\s+/g, "").toUpperCase());
-          }
+        const currentFill = bottleData.currentWeight || 0;
+        const maxFill = bottleData.maxWeight || bottleData.initialWeight || 20; // Default to 20 if not set
+        if (currentFill + totalWeight > maxFill) {
+          setValidationError(`Cannot add ${totalWeight.toFixed(2)}kg. Bottle only has ${(maxFill - currentFill).toFixed(2)}kg of space left.`);
+          return;
         }
-        let crmTitleNorm = "";
-        if (cleanJobNumber) {
-          const crm = await db.getCrmJobByNumber(cleanJobNumber);
-          if (crm?.siteTitle) crmTitleNorm = crm.siteTitle.trim().replace(/\s+/g, "").toUpperCase();
+      } else if (bottleCategory === "supply" || bottleCategory === "new" || bottleCategory === "recycled") {
+        if (totalWeight <= 0) {
+          setValidationError("Please enter a valid refrigerant weight greater than 0 kg.");
+          return;
         }
-        const isMatch = reclaimedRefs.has(cleanJobNumber) || (crmTitleNorm ? reclaimedRefs.has(crmTitleNorm) : false);
-        if (!isMatch) {
-          setValidationError("Recycled gas from a reclaim cylinder can only be re-charged into equipment on the same job number it was reclaimed from.");
+        const currentSupply = bottleData.currentWeight || 0;
+        if (totalWeight > currentSupply) {
+          setValidationError(`Cannot log ${totalWeight.toFixed(2)}kg usage. Only ${currentSupply.toFixed(2)}kg of gas remains in this bottle.`);
           return;
         }
       }
-    } else if (bottleCategory === "reclaim") {
-      const currentFill = bottleData.currentWeight || 0;
-      const maxFill = bottleData.maxWeight || bottleData.initialWeight || 20; // Default to 20 if not set
-      if (currentFill + totalWeight > maxFill) {
-        setValidationError(`Cannot add ${totalWeight.toFixed(2)}kg. Bottle only has ${(maxFill - currentFill).toFixed(2)}kg of space left.`);
-        return;
-      }
-    } else if (bottleCategory === "supply" || bottleCategory === "new" || bottleCategory === "recycled") {
-      const currentSupply = bottleData.currentWeight || 0;
-      if (totalWeight > currentSupply) {
-        setValidationError(`Cannot log ${totalWeight.toFixed(2)}kg usage. Only ${currentSupply.toFixed(2)}kg of gas remains in this bottle.`);
-        return;
-      }
-    }
 
-    // §4.2: Check if this is adding a 2nd producer site
-    const isRecovery = jobType === "recovery" && bottleCategory !== "recycled";
-    const hasExistingSites = existingProducerSites.length > 0;
-    
-    const currentLocation = (bottleData?.locationId || jobNumber || "").trim().toUpperCase();
-    const isSameExistingSite = existingProducerSites.some((s: any) => {
-      const sJob = (s.jobNumber || "").trim().toUpperCase();
-      const sName = (s.name || "").trim().toUpperCase();
-      if (cleanJobNumber && (sJob === cleanJobNumber || sName === cleanJobNumber)) return true;
-      if (currentLocation && (sJob === currentLocation || sName === currentLocation)) return true;
-      if (producerSite.name && sName === producerSite.name.trim().toUpperCase() && (s.address || "").trim() === (producerSite.address || "").trim()) return true;
-      return false;
-    });
-    const isNewSite = hasExistingSites && !isSameExistingSite;
-    
-    if (isRecovery && isNewSite && !multiSiteAcknowledged) {
-      setShowMultiSiteWarning(true);
-      return;
-    }
-
-    if (willReachZero && isFullyEvacuated === null) {
-      setValidationError("Please confirm whether the cylinder has been fully emptied / vacced.");
-      return;
-    }
-    
-    setIsSubmitting(true);
-    const finalRefrigerant = refrigerantType === "other" ? customRefrigerant : refrigerantType;
-
-    const derivedJobType = (() => {
-      if (jobType === "leak_test") return "leak_test";
-      if (isRecycleMode || jobType === "recycled_charge") return "recycled_charge";
-      if (jobType === "recovery" || jobType === "waste") return jobType;
-      const prefix = (jobNumber || "").split(/[-\s_]/)[0].toUpperCase();
-      if (prefix === "C") return "install";
-      if (prefix === "M") return "maintenance";
-      return "service";
-    })();
-
-    await db.logUsage(
-      serialParam,
-      derivedJobType,
-      derivedJobType === "leak_test" ? 0 : totalWeight,
-      derivedJobType === "waste",
-      derivedJobType === "recovery" ? { ...producerSite, jobNumber: cleanJobNumber } : undefined,
-      finalRefrigerant,
-      user?.name || "Unknown",
-      jobNumber || undefined,
-      equipmentToSave.length > 0 ? equipmentToSave : undefined,
-      supervisingEngineer || undefined,
-      supervisingCert || undefined,
-      willReachZero ? (isFullyEvacuated ?? false) : undefined
-    );
-
-    // §4.2: If multi-site was acknowledged, auto-generate Internal HWCN and set dest to Office
-    if (isRecovery && multiSiteAcknowledged && bottleData) {
-      const sites = [...existingProducerSites, { ...producerSite, jobNumber: cleanJobNumber }];
-      let vehicleReg = "";
-      if (user?.id) {
-        const profile = await db.getEngineerById(user.id);
-        if (profile?.vehicleReg) vehicleReg = profile.vehicleReg;
-      }
-
-      const curGas = (bottleData.gasType || "").trim();
-      const isEvacuated =
-        !hasReclaimWaste(bottleData) ||
-        !curGas ||
-        curGas.toLowerCase() === "unused" ||
-        curGas.toLowerCase() === "none (supplier clean)" ||
-        curGas.toLowerCase() === "empty / evacuated" ||
-        curGas.toLowerCase() === "empty/evacuated" ||
-        curGas.toLowerCase() === "none (21d vacc'd)" ||
-        curGas.toLowerCase() === "mixed/recovery" ||
-        curGas === "Unknown";
-
-      let resolvedHwcnGas: string;
-      if (isEvacuated) {
-        resolvedHwcnGas = finalRefrigerant || "Mixed";
-      } else if (curGas.toLowerCase() === "mixed" || curGas.toLowerCase() === "mixed/recovery") {
-        resolvedHwcnGas = "Mixed";
-      } else if (curGas.toLowerCase() === (finalRefrigerant || "").trim().toLowerCase()) {
-        resolvedHwcnGas = curGas;
-      } else {
-        // Different gas added to bottle that already has gas -> Mixed
-        resolvedHwcnGas = "Mixed";
-      }
-
-      const hwcnId = await db.createHWCN({
-        serial: serialParam,
-        destination: "HQ-Stores",
-        sites: sites,
-        vehicleReg: vehicleReg,
-        engineer: user?.name,
-        date: new Date().toISOString(),
-        gasType: resolvedHwcnGas,
-        fillWeight: (bottleData.currentWeight || 0) + totalWeight
+      // §4.2: Check if this is adding a 2nd producer site
+      const isRecovery = jobType === "recovery" && bottleCategory !== "recycled";
+      const hasExistingSites = existingProducerSites.length > 0;
+      
+      const currentLocation = (bottleData?.locationId || jobNumber || "").trim().toUpperCase();
+      const isSameExistingSite = existingProducerSites.some((s: any) => {
+        const sJob = (s.jobNumber || "").trim().toUpperCase();
+        const sName = (s.name || "").trim().toUpperCase();
+        if (cleanJobNumber && (sJob === cleanJobNumber || sName === cleanJobNumber)) return true;
+        if (currentLocation && (sJob === currentLocation || sName === currentLocation)) return true;
+        if (producerSite.name && sName === producerSite.name.trim().toUpperCase() && (s.address || "").trim() === (producerSite.address || "").trim()) return true;
+        return false;
       });
-      // Update bottle with new intended destination
-      await db.updateBottleLocation(serialParam, bottleData.locationType, bottleData.locationId, "HQ-Stores", "office" as any, hwcnId);
-    }
-
-    // Log decommissioned equipment if any are flagged
-    const decomEquipment = equipmentList.filter(eq => eq.decommissioned && eq.manufacturer);
-    if (decomEquipment.length > 0 && isRecovery) {
-      try {
-        await db.logDecommission({
-          bottleSerial: serialParam,
-          jobNumber: jobNumber,
-          siteName: producerSite.name || jobNumber,
-          siteAddress: producerSite.address || "",
-          sitePostcode: producerSite.postcode || "",
-          engineer: user?.name || "Unknown",
-          equipment: decomEquipment.map(eq => ({
-            manufacturer: eq.manufacturer,
-            model: eq.model,
-            serial: eq.serial,
-            weightRecovered: parseFloat(eq.weight) || 0
-          })),
-          gasType: finalRefrigerant,
-          totalWeightRecovered: decomEquipment.reduce((sum, eq) => sum + (parseFloat(eq.weight) || 0), 0)
-        });
-      } catch (err) {
-        console.error('Error logging decommission:', err);
+      const isNewSite = hasExistingSites && !isSameExistingSite;
+      
+      if (isRecovery && isNewSite && !multiSiteAcknowledged) {
+        setShowMultiSiteWarning(true);
+        return;
       }
-    }
 
-    setIsDirty(false);
-    setIsSubmitting(false);
-    setIsSuccess(true);
+      if (willReachZero && isFullyEvacuated === null) {
+        setValidationError("Please confirm whether the cylinder has been fully emptied / vacced.");
+        return;
+      }
+
+      const finalRefrigerant = refrigerantType === "other" ? customRefrigerant : refrigerantType;
+
+      const derivedJobType = (() => {
+        if (jobType === "leak_test") return "leak_test";
+        if (isRecycleMode || jobType === "recycled_charge") return "recycled_charge";
+        if (jobType === "recovery" || jobType === "waste") return jobType;
+        const normalizedJob = (jobNumber || "").trim().toUpperCase();
+        if (normalizedJob.startsWith("C")) return "install";
+        if (normalizedJob.startsWith("M")) return "maintenance";
+        return "service";
+      })();
+
+      await db.logUsage(
+        serialParam,
+        derivedJobType,
+        derivedJobType === "leak_test" ? 0 : totalWeight,
+        derivedJobType === "waste",
+        derivedJobType === "recovery" ? { ...producerSite, jobNumber: cleanJobNumber } : undefined,
+        finalRefrigerant,
+        user?.name || "Unknown",
+        jobNumber || undefined,
+        equipmentToSave.length > 0 ? equipmentToSave : undefined,
+        supervisingEngineer || undefined,
+        supervisingCert || undefined,
+        willReachZero ? (isFullyEvacuated ?? false) : undefined
+      );
+
+      // §4.2: If multi-site was acknowledged, auto-generate Internal HWCN and set dest to Office
+      if (isRecovery && multiSiteAcknowledged && bottleData) {
+        const sites = [...existingProducerSites, { ...producerSite, jobNumber: cleanJobNumber }];
+        let vehicleReg = "";
+        if (user?.id) {
+          const profile = await db.getEngineerById(user.id);
+          if (profile?.vehicleReg) vehicleReg = profile.vehicleReg;
+        }
+
+        const curGas = (bottleData.gasType || "").trim();
+        const isEvacuated =
+          !hasReclaimWaste(bottleData) ||
+          !curGas ||
+          curGas.toLowerCase() === "unused" ||
+          curGas.toLowerCase() === "none (supplier clean)" ||
+          curGas.toLowerCase() === "empty / evacuated" ||
+          curGas.toLowerCase() === "empty/evacuated" ||
+          curGas.toLowerCase() === "none (21d vacc'd)" ||
+          curGas.toLowerCase() === "mixed/recovery" ||
+          curGas === "Unknown";
+
+        let resolvedHwcnGas: string;
+        if (isEvacuated) {
+          resolvedHwcnGas = finalRefrigerant || "Mixed";
+        } else if (curGas.toLowerCase() === "mixed" || curGas.toLowerCase() === "mixed/recovery") {
+          resolvedHwcnGas = "Mixed";
+        } else if (curGas.toLowerCase() === (finalRefrigerant || "").trim().toLowerCase()) {
+          resolvedHwcnGas = curGas;
+        } else {
+          // Different gas added to bottle that already has gas -> Mixed
+          resolvedHwcnGas = "Mixed";
+        }
+
+        const hwcnId = await db.createHWCN({
+          serial: serialParam,
+          destination: "HQ-Stores",
+          sites: sites,
+          vehicleReg: vehicleReg,
+          engineer: user?.name,
+          date: new Date().toISOString(),
+          gasType: resolvedHwcnGas,
+          fillWeight: (bottleData.currentWeight || 0) + totalWeight
+        });
+        // Update bottle with new intended destination
+        await db.updateBottleLocation(serialParam, bottleData.locationType, bottleData.locationId, "HQ-Stores", "office" as any, hwcnId);
+      }
+
+      // Log decommissioned equipment if any are flagged
+      const decomEquipment = equipmentList.filter(eq => eq.decommissioned && eq.manufacturer);
+      if (decomEquipment.length > 0 && isRecovery) {
+        try {
+          await db.logDecommission({
+            bottleSerial: serialParam,
+            jobNumber: jobNumber,
+            siteName: producerSite.name || jobNumber,
+            siteAddress: producerSite.address || "",
+            sitePostcode: producerSite.postcode || "",
+            engineer: user?.name || "Unknown",
+            equipment: decomEquipment.map(eq => ({
+              manufacturer: eq.manufacturer,
+              model: eq.model,
+              serial: eq.serial,
+              weightRecovered: parseFloat(eq.weight) || 0
+            })),
+            gasType: finalRefrigerant,
+            totalWeightRecovered: decomEquipment.reduce((sum, eq) => sum + (parseFloat(eq.weight) || 0), 0)
+          });
+        } catch (err) {
+          console.error('Error logging decommission:', err);
+        }
+      }
+
+      setIsDirty(false);
+      setIsSuccess(true);
+    } catch (err) {
+      console.error("Failed to save compliance log:", err);
+      setValidationError((err as Error)?.message || "Failed to save compliance log. Please check your connection and try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  // Mate Role Intercept (Non-F-Gas qualified without pairing)
-  const isMatePaired = (user?.role === "mate") && (activePairingStatus === "approved" || !!activeVehicleOwner || !!activePairing?.leadEngineerName);
-  if (user?.role === "mate" && !isMatePaired) {
+  // Mate & Apprentice Role Intercept (Non-F-Gas qualified without approved pairing - SOP-002)
+  const requiresPairing = user?.role === "mate" || user?.role === "apprentice";
+  const isMatePaired = requiresPairing && activePairingStatus === "approved";
+  if (requiresPairing && !isMatePaired) {
     return (
       <div className={styles.container} style={{ textAlign: "center", padding: "3rem 1.5rem" }}>
         <div style={{
@@ -591,7 +607,7 @@ export default function LogBottlePage() {
         </div>
         <h2 style={{ color: "#fff", marginBottom: "0.75rem", fontSize: "1.3rem" }}>Lead Engineer Pairing Required</h2>
         <p style={{ color: "var(--text-muted)", fontSize: "0.92rem", lineHeight: 1.6, maxWidth: "380px", margin: "0 auto 2rem" }}>
-          Under UK F-Gas and REFCOM regulations, non-qualified mates must be paired to a certified Lead Engineer&apos;s van to log gas under direct supervision. Please pair with your Lead Engineer in the app to proceed.
+          Under UK F-Gas and REFCOM regulations, non-qualified mates and apprentices must be paired to a certified Lead Engineer&apos;s van with approved supervision before logging gas. Please pair with your Lead Engineer in the app to proceed.
         </p>
         <Link href="/engineer" style={{ textDecoration: "none" }}>
           <button className={styles.primaryBtn} style={{ width: "100%" }}>

@@ -61,25 +61,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const { db } = await import("./db");
         const pairing = await db.getActivePairingForUser(currentUser.id);
-        if (pairing) {
+        if (pairing && pairing.pairingStatus === "approved") {
           setActivePairing(pairing);
           setActivePairingStatus(pairing.pairingStatus);
-          if (pairing.pairingStatus === "approved") {
-            setActiveVehicleRegState(pairing.vehicleReg);
-            setActiveVehicleOwnerState(pairing.leadEngineerName);
-          } else if (pairing.pairingStatus === "pending") {
-            // Stay with own van until approved
-            if (!activeVehicleReg) {
-              setActiveVehicleRegState(currentUser.vehicleReg || null);
-              setActiveVehicleOwnerState(currentUser.name);
-            }
+          setActiveVehicleRegState(pairing.vehicleReg);
+          setActiveVehicleOwnerState(pairing.leadEngineerName);
+          if (typeof window !== "undefined") {
+            localStorage.setItem(
+              "fgas_active_vehicle",
+              JSON.stringify({ reg: pairing.vehicleReg, ownerName: pairing.leadEngineerName })
+            );
           }
         } else {
-          setActivePairing(null);
-          setActivePairingStatus("none");
-          if (!activeVehicleReg) {
-            setActiveVehicleRegState(currentUser.vehicleReg || null);
-            setActiveVehicleOwnerState(currentUser.name);
+          setActivePairing(pairing || null);
+          setActivePairingStatus(pairing ? pairing.pairingStatus : "none");
+          setActiveVehicleRegState(null);
+          setActiveVehicleOwnerState(null);
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("fgas_active_vehicle");
           }
         }
       } catch (e) {
@@ -120,22 +119,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async function syncSession() {
       const storedUser = localStorage.getItem("fgas_user");
       const storedVehicle = localStorage.getItem("fgas_active_vehicle");
-      if (storedVehicle) {
-        try {
-          const parsedV = JSON.parse(storedVehicle);
-          if (parsedV.reg) {
-            setActiveVehicleRegState(parsedV.reg);
-            setActiveVehicleOwnerState(parsedV.ownerName || null);
-          }
-        } catch {}
-      }
 
       if (!storedUser) {
         setLoading(false);
         return;
       }
 
-      const parsed = JSON.parse(storedUser);
+      let parsed: User;
+      try {
+        parsed = JSON.parse(storedUser);
+      } catch {
+        localStorage.removeItem("fgas_user");
+        setLoading(false);
+        return;
+      }
+
+      const restoreNonMateVehicle = (targetUser: User) => {
+        let restored = false;
+        if (storedVehicle) {
+          try {
+            const parsedV = JSON.parse(storedVehicle);
+            if (parsedV.reg) {
+              setActiveVehicleRegState(parsedV.reg);
+              setActiveVehicleOwnerState(parsedV.ownerName || null);
+              restored = true;
+            }
+          } catch {}
+        }
+        if (!restored && targetUser.vehicleReg) {
+          setActiveVehicleRegState(targetUser.vehicleReg);
+          setActiveVehicleOwnerState(targetUser.name);
+        }
+      };
+
       try {
         const { db } = await import("./db");
         let dbUser = await db.getUserById(parsed.id);
@@ -146,7 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         
         if (dbUser) {
-          const updated = {
+          const updated: User = {
             ...parsed,
             id: dbUser.id, // Update ID in case of migration
             name: dbUser.name,
@@ -160,24 +176,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(updated);
           localStorage.setItem("fgas_user", JSON.stringify(updated));
 
-          await syncPairing(updated);
-
-          // Set default vehicle if not explicitly set
-          if (!storedVehicle && dbUser.vehicleReg) {
-            setActiveVehicleRegState(dbUser.vehicleReg);
-            setActiveVehicleOwnerState(dbUser.name);
+          if (updated.role === "mate" || updated.role === "apprentice") {
+            await syncPairing(updated);
+          } else {
+            restoreNonMateVehicle(updated);
           }
         } else {
           setUser(parsed);
-          await syncPairing(parsed);
-          if (!storedVehicle && parsed.vehicleReg) {
-            setActiveVehicleRegState(parsed.vehicleReg);
-            setActiveVehicleOwnerState(parsed.name);
+          if (parsed.role === "mate" || parsed.role === "apprentice") {
+            await syncPairing(parsed);
+          } else {
+            restoreNonMateVehicle(parsed);
           }
         }
       } catch (err) {
         console.error("Session sync failed", err);
         setUser(parsed);
+        if (parsed.role !== "mate" && parsed.role !== "apprentice") {
+          restoreNonMateVehicle(parsed);
+        }
       } finally {
         setLoading(false);
       }
@@ -193,18 +210,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const isEngineerLogin = pathname === "/";
       
       if (!user) {
-        // Not logged in — allow signup, logins, and forgot password
+        // Not logged in — allow signup, logins, forgot password, and reset password
         const isSignup = pathname === "/signup";
         const isForgotPassword = pathname === "/forgot-password";
+        const isResetPassword = pathname === "/reset-password";
         if (isAdminRoute && !isAdminLogin) {
           router.push("/admin/login");
-        } else if (!isEngineerLogin && !isAdminLogin && !isSignup && !isForgotPassword) {
+        } else if (!isEngineerLogin && !isAdminLogin && !isSignup && !isForgotPassword && !isResetPassword) {
           router.push("/");
         }
       } else {
         // Logged in — check status
-        if (user.status !== "approved" && user.role !== "admin") {
-          // Block access if not approved (except for primary admin)
+        if (user.status === "disabled" || (user.status !== "approved" && user.role !== "admin")) {
+          // Block access if disabled (even for admin) or not approved (except for primary admin)
           if (pathname !== "/pending") router.push("/pending");
           return;
         }
@@ -292,7 +310,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(userToSet);
     localStorage.setItem("fgas_user", JSON.stringify(userToSet));
 
-    if (dbUser.vehicleReg) {
+    if (userToSet.role === "mate" || userToSet.role === "apprentice") {
+      await syncPairing(userToSet);
+    } else if (dbUser.vehicleReg) {
       setActiveVehicleRegState(dbUser.vehicleReg);
       setActiveVehicleOwnerState(dbUser.name);
       localStorage.setItem("fgas_active_vehicle", JSON.stringify({ reg: dbUser.vehicleReg, ownerName: dbUser.name }));

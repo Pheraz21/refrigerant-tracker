@@ -263,31 +263,31 @@ export default function BottleActionHub() {
 
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!bottle) return;
+    if (!bottle || isSubmittingTransfer) return;
     setIsSubmittingTransfer(true);
-    
-    // Check if HWCN is required: only when transferring waste to Office/Stores or Other facility (NOT when taking bottle to a Job Site or van handover)
-    const isReclaimWithGas = hasReclaimWaste(bottle);
-    const isMultiSite = (bottle.producerSites?.length || 0) > 1;
-    const isMovingSiteToVanWithoutWaste = bottle.locationType === "site" && destination === "van" && !wasteAddedOnVisit;
-    const isMovingOfficeToVan = bottle.locationType === "office" && destination === "van";
-    const requiresHWCN = isReclaimWithGas && destination !== "supplier" && destination !== "site" && destination !== "engineer" && !isMovingSiteToVanWithoutWaste && !isMovingOfficeToVan;
-    
-    if (requiresHWCN) {
-      // Need to redirect to full move flow to handle HWCN generation
-      router.replace(`/engineer/move?serial=${bottle.serial}&dest=${destination}`);
-      return;
-    }
-
-    // MULTI-SITE CONSTRAINT: If multi-site, user cannot return to supplier. 
-    // They must pick Office.
-    if (isMultiSite && destination === "supplier") {
-      alert("Notice: This bottle contains waste from multiple locations. Suppliers only accept waste from a single producer per HWCN. This bottle must be returned to the HQ-Stores for internal consolidation.");
-      setDestination("office");
-      return;
-    }
 
     try {
+      // Check if HWCN is required: only when transferring waste to Office/Stores or Other facility (NOT when taking bottle to a Job Site or van handover)
+      const isReclaimWithGas = hasReclaimWaste(bottle);
+      const isMultiSite = (bottle.producerSites?.length || 0) > 1;
+      const isMovingSiteToVanWithoutWaste = bottle.locationType === "site" && destination === "van" && !wasteAddedOnVisit;
+      const isMovingOfficeToVan = bottle.locationType === "office" && destination === "van";
+      const requiresHWCN = isReclaimWithGas && destination !== "supplier" && destination !== "site" && destination !== "engineer" && !isMovingSiteToVanWithoutWaste && !isMovingOfficeToVan;
+      
+      if (requiresHWCN) {
+        // Need to redirect to full move flow to handle HWCN generation
+        router.replace(`/engineer/move?serial=${bottle.serial}&dest=${destination}`);
+        return;
+      }
+
+      // MULTI-SITE CONSTRAINT: If multi-site, user cannot return to supplier. 
+      // They must pick Office.
+      if (isMultiSite && destination === "supplier") {
+        alert("Notice: This bottle contains waste from multiple locations. Suppliers only accept waste from a single producer per HWCN. This bottle must be returned to the HQ-Stores for internal consolidation.");
+        setDestination("office");
+        return;
+      }
+
       const hasLiveHWCN = Boolean(bottle.activeHWCN || bottle.intendedDestination);
       const requiresSupplierHWCN = isReclaimWithGas && destination === "supplier" && !hasLiveHWCN;
       const needsTransit = requiresSupplierHWCN; // Only supplier HWCNs are handled inline now

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { CheckCircle2, Database, ArrowLeft, Truck, Building2, MapPin, RotateCcw, Wind, AlertTriangle, Edit3, ShieldCheck } from "lucide-react";
 import styles from "../../log/page.module.css"; // Reuse existing form styles
@@ -124,7 +124,8 @@ export default function RegisterBottlePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const serialParam = searchParams.get("serial") || "UNKNOWN";
-  const { user } = useAuth();
+  const { user, activeVehicleReg } = useAuth();
+  const hasInitializedVehicleRegRef = useRef(false);
 
   const [serialInput, setSerialInput] = useState(serialParam.trim().toUpperCase());
   const [isEditingSerial, setIsEditingSerial] = useState(false);
@@ -182,20 +183,22 @@ export default function RegisterBottlePage() {
   }, [effectiveSerial, serialParam]);
 
   useEffect(() => {
-    if (user && locationType === "van") {
-      // Priority 1: User context vehicle reg (available for all roles if set)
-      if (user.vehicleReg) {
-        setVehicleReg(user.vehicleReg);
-      }
+    if (!user || locationType !== "van" || hasInitializedVehicleRegRef.current) return;
 
-      // Auto-fill vehicle reg if missing
-      if (!vehicleReg) {
-        db.getEngineerById(user.id).then(profile => {
-          if (profile?.vehicleReg) setVehicleReg(profile.vehicleReg);
-        });
-      }
+    const preferredReg = activeVehicleReg || user.vehicleReg;
+    if (preferredReg) {
+      hasInitializedVehicleRegRef.current = true;
+      setVehicleReg(prev => prev || preferredReg);
+      return;
     }
-  }, [user, vehicleReg]);
+
+    hasInitializedVehicleRegRef.current = true;
+    db.getEngineerById(user.id).then(profile => {
+      if (profile?.vehicleReg) {
+        setVehicleReg(prev => prev || profile.vehicleReg);
+      }
+    }).catch(console.error);
+  }, [user, activeVehicleReg, locationType]);
 
   const applyExpiryForSupplierAndCategory = (supplierName: string, cat: BottleCategory) => {
     if (!supplierName) return;
@@ -240,6 +243,7 @@ export default function RegisterBottlePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (!effectiveSerial || effectiveSerial === "UNKNOWN") {
       alert("Please enter a valid bottle serial number.");
       return;
@@ -249,45 +253,50 @@ export default function RegisterBottlePage() {
       return;
     }
 
-    setIsSubmitting(true);
-
-    const finalGas = gasType === "Other" ? customGas : gasType;
-
-    if (gasType === "Other" && customGas) {
-      // Ensure the new gas is in our global gases table
-      await db.ensureGas(customGas);
-
-      // Create notification for office to update details
-      await db.createNotification({
-        type: "new_gas_registration",
-        title: "New Gas Cataloged",
-        message: `Engineer ${user?.name} registered a new gas: ${customGas}. Please update UN/GWP details.`,
-        targetRole: "office",
-        metadata: {
-          gasName: customGas,
-          registeredBy: user?.name,
-          serial: effectiveSerial
-        }
-      });
+    const parsedWeight = Number(weight);
+    if (!Number.isFinite(parsedWeight) || parsedWeight <= 0) {
+      alert("Please enter a valid weight greater than 0 kg.");
+      return;
     }
 
     if (locationType === "site") {
       const cleanJob = (locationId || "").trim().replace(/\s+/g, "").toUpperCase();
       if (!/^[A-Za-z]\d+$/.test(cleanJob)) {
         alert("Job number must start with 1 letter followed by numbers without spaces (e.g. J12345, M98201).");
-        setIsSubmitting(false);
         return;
       }
     }
 
+    setIsSubmitting(true);
+
     try {
+      const finalGas = gasType === "Other" ? customGas : gasType;
+
+      if (gasType === "Other" && customGas) {
+        // Ensure the new gas is in our global gases table
+        await db.ensureGas(customGas);
+
+        // Create notification for office to update details
+        await db.createNotification({
+          type: "new_gas_registration",
+          title: "New Gas Cataloged",
+          message: `Engineer ${user?.name} registered a new gas: ${customGas}. Please update UN/GWP details.`,
+          targetRole: "office",
+          metadata: {
+            gasName: customGas,
+            registeredBy: user?.name,
+            serial: effectiveSerial
+          }
+        });
+      }
+
       const cleanLocationId = locationType === "site" ? (locationId || "").trim().replace(/\s+/g, "").toUpperCase() : locationId;
       await db.registerBottle({
         serial: effectiveSerial,
         category,
         gasType: category === "reclaim" ? "None (Supplier Clean)" : (category === "nitrogen" ? "Nitrogen" : finalGas),
-        initialWeight: Number(weight),
-        currentWeight: category === "reclaim" ? 0 : Number(weight),
+        initialWeight: parsedWeight,
+        currentWeight: category === "reclaim" ? 0 : parsedWeight,
         locationType: locationType as any,
         locationId: locationType === "van" ? `${user?.name} - Van` : (locationType === "office" || locationType === "office_collected") ? "HQ-Stores" : cleanLocationId,
         vehicleReg: locationType === "van" ? vehicleReg : undefined,
@@ -299,11 +308,11 @@ export default function RegisterBottlePage() {
         registeredAt: new Date().toISOString()
       });
 
-      setIsSubmitting(false);
       setIsSuccess(true);
     } catch (error) {
       console.error(error);
       alert((error as Error).message || "Failed to register bottle.");
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -724,6 +733,7 @@ export default function RegisterBottlePage() {
           <input
             type="number"
             step="0.01"
+            min="0.01"
             value={weight}
             onChange={(e) => setWeight(e.target.value)}
             placeholder={category === "reclaim" ? "e.g. 10.0" : "e.g. 10.5"}
