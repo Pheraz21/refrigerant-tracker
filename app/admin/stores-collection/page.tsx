@@ -118,19 +118,43 @@ export default function StoresCollectionPage() {
     });
   };
 
+  const filteredSuppliers = useMemo(() => {
+    const s = new Set<string>();
+    filtered.forEach(b => { if (b.supplier) s.add(b.supplier.toLowerCase()); });
+    return s;
+  }, [filtered]);
+
+  const needsSupplierFilter = !supplierFilter && !supplierLock && filteredSuppliers.size > 1;
+
+  const eligibleForSelectAll = useMemo(() => {
+    if (supplierLock) {
+      return filtered.filter(b => !b.supplier || b.supplier.toLowerCase() === supplierLock.toLowerCase());
+    }
+    if (needsSupplierFilter) return [];
+    return filtered;
+  }, [filtered, supplierLock, needsSupplierFilter]);
+
+  const allEligibleSelected =
+    eligibleForSelectAll.length > 0 && eligibleForSelectAll.every(b => selected.has(b.serial));
+
   const toggleAll = () => {
-    if (selected.size === filtered.length && filtered.length > 0) {
+    setError("");
+    if (allEligibleSelected) {
       setSelected(new Set());
       setSupplier("");
       setSupplierLock("");
-    } else {
-      const firstWithSupplier = filtered.find(b => b.supplier);
-      if (firstWithSupplier?.supplier) {
-        setSupplier(firstWithSupplier.supplier);
-        setSupplierLock(firstWithSupplier.supplier);
-      }
-      setSelected(new Set(filtered.map(b => b.serial)));
+      return;
     }
+    if (needsSupplierFilter) {
+      setError("Please select a supplier from the filter dropdown (or select one bottle first) before using Select All.");
+      return;
+    }
+    const targetSupplier = supplierLock || eligibleForSelectAll.find(b => b.supplier)?.supplier || "";
+    if (targetSupplier) {
+      setSupplier(targetSupplier);
+      setSupplierLock(targetSupplier);
+    }
+    setSelected(new Set(eligibleForSelectAll.map(b => b.serial)));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -217,9 +241,28 @@ export default function StoresCollectionPage() {
               <button
                 type="button"
                 onClick={toggleAll}
-                style={{ fontSize: "0.8rem", color: "rgba(255,255,255,0.5)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+                disabled={needsSupplierFilter && !allEligibleSelected}
+                title={
+                  needsSupplierFilter && !allEligibleSelected
+                    ? "Select a supplier from the filter dropdown first (cannot select across multiple suppliers)"
+                    : undefined
+                }
+                style={{
+                  fontSize: "0.8rem",
+                  color: needsSupplierFilter && !allEligibleSelected ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.5)",
+                  background: "none",
+                  border: "none",
+                  cursor: needsSupplierFilter && !allEligibleSelected ? "not-allowed" : "pointer",
+                  textDecoration: needsSupplierFilter && !allEligibleSelected ? "none" : "underline"
+                }}
               >
-                {selected.size === filtered.length ? "Deselect all" : "Select all"}
+                {allEligibleSelected
+                  ? "Deselect all"
+                  : needsSupplierFilter
+                    ? "Filter by supplier to select all"
+                    : supplierLock
+                      ? `Select all (${supplierLock})`
+                      : "Select all"}
               </button>
             )}
           </div>

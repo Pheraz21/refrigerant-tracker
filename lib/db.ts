@@ -2733,8 +2733,24 @@ export const db = {
     if (updates.supplier !== undefined) dbUpdates.supplier = updates.supplier;
     if (updates.poNumber !== undefined) dbUpdates.po_number = updates.poNumber;
     if (updates.lastEngineer !== undefined) dbUpdates.last_engineer = updates.lastEngineer || null;
+    if (updates.producerSites !== undefined) {
+      dbUpdates.producer_sites = updates.producerSites;
+    } else if (updates.producer_sites !== undefined) {
+      dbUpdates.producer_sites = updates.producer_sites;
+    }
+    if (updates.supplierHwcnPhotoPending !== undefined) {
+      dbUpdates.supplier_hwcn_photo_pending = updates.supplierHwcnPhotoPending;
+    } else if (updates.supplier_hwcn_photo_pending !== undefined) {
+      dbUpdates.supplier_hwcn_photo_pending = updates.supplier_hwcn_photo_pending;
+    }
 
-    await supabase.from('bottles').update(dbUpdates).eq('serial', serial);
+    if (Object.keys(dbUpdates).length === 0) return;
+
+    const { error } = await supabase.from('bottles').update(dbUpdates).eq('serial', serial);
+    if (error) {
+      console.error(`updateBottle failed for ${serial}:`, error);
+      throw error;
+    }
   },
 
   async updateUserVehicle(userId: string, newReg: string): Promise<void> {

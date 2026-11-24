@@ -65,10 +65,11 @@ export default function AdminDashboard() {
   const daysColor = (days: number) => days > 28 ? "#ff3366" : days > 14 ? "#ffaa00" : "rgba(255,255,255,0.45)";
 
   const idleBottles60 = bottles.filter(b =>
-    b.status === "active" && b.locationChangedAt &&
+    (b.status === "active" || b.status === "unused" || b.status === "full") && b.locationChangedAt &&
     (Date.now() - new Date(b.locationChangedAt).getTime()) > 60 * 86400000
   );
-  const expiringIn14 = expiringBottles.filter(b => b.daysLeft >= 0 && b.daysLeft <= 14);
+  const expiredBottles = expiringBottles.filter(b => b.daysLeft < 0);
+  const expiringIn14 = expiringBottles.filter(b => b.daysLeft <= 14);
   const pendingHWCNsSorted = [...pendingHWCNs].sort((a, b) => {
     const da = new Date(a.deliveredAt || a.date).getTime();
     const db2 = new Date(b.deliveredAt || b.date).getTime();
@@ -197,7 +198,12 @@ export default function AdminDashboard() {
               <CalendarClock size={16} color={expiringIn14.length > 0 ? "#ff3366" : "#22c55e"} style={{flexShrink: 0}} />
               <span style={{flex: 1, fontSize: "0.875rem", color: expiringIn14.length > 0 ? "#fff" : "rgba(255,255,255,0.5)"}}>
                 {expiringIn14.length > 0
-                  ? <><strong style={{color: "#ff3366"}}>{expiringIn14.length}</strong> rental bottle{expiringIn14.length !== 1 ? "s" : ""} expiring within 14 days</>
+                  ? <>
+                      <strong style={{color: "#ff3366"}}>{expiringIn14.length}</strong> rental bottle{expiringIn14.length !== 1 ? "s" : ""}{" "}
+                      {expiredBottles.length > 0
+                        ? `expired (${expiredBottles.length}) or expiring within 14 days`
+                        : "expiring within 14 days"}
+                    </>
                   : "No rentals expiring soon"}
               </span>
               <ArrowRight size={14} color="rgba(255,255,255,0.25)" />

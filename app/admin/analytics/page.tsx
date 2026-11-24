@@ -45,6 +45,8 @@ export default function AnalyticsPage() {
       const now = Date.now();
       const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
       const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
+      const excludedStatuses = new Set(["returned", "decommissioned", "archived"]);
+      const liveBottles = bottles.filter((b: any) => !excludedStatuses.has((b.status || "").toLowerCase()));
 
       // ── Section 1: Engineer Holdings ──────────────────────────────────
       const engineers = users.filter((u: any) =>
@@ -52,24 +54,32 @@ export default function AnalyticsPage() {
       );
 
       const stats = engineers.map((eng: any) => {
-        const vanBottles = bottles.filter(
-          (b: any) =>
-            b.locationType === "van" &&
-            !!eng.vehicleReg &&
-            b.vehicleReg === eng.vehicleReg
-        );
+        const engReg = (eng.vehicleReg || "").trim().toUpperCase();
+        const engName = (eng.name || "").trim().toLowerCase();
+        const vanBottles = liveBottles.filter((b: any) => {
+          if (b.locationType !== "van") return false;
+          const bReg = (b.vehicleReg || "").trim().toUpperCase();
+          const bLoc = (b.locationId || "").trim();
+          if (engReg && (bReg === engReg || bLoc.toUpperCase() === engReg)) return true;
+          const locName = bLoc.replace(" - Van", "").trim();
+          return (!!eng.id && locName === eng.id) || (!!engName && locName.toLowerCase() === engName);
+        });
         const newB = vanBottles.filter((b: any) => b.category === "new");
+        const recycledB = vanBottles.filter((b: any) => b.category === "recycled");
         const nitroB = vanBottles.filter((b: any) => b.category === "nitrogen");
         const reclaimB = vanBottles.filter((b: any) => b.category === "reclaim");
         const newKg = newB.reduce((s: number, b: any) => s + (b.currentWeight || 0), 0);
+        const recycledKg = recycledB.reduce((s: number, b: any) => s + (b.currentWeight || 0), 0);
         const nitroKg = nitroB.reduce((s: number, b: any) => s + (b.currentWeight || 0), 0);
         const reclaimKg = reclaimB.reduce((s: number, b: any) => s + (b.currentWeight || 0), 0);
-        const totalKg = newKg + nitroKg + reclaimKg;
+        const totalKg = newKg + recycledKg + nitroKg + reclaimKg;
         return {
           name: eng.name,
           vehicleReg: eng.vehicleReg || "—",
           newBottles: newB.length,
           newKg,
+          recycledBottles: recycledB.length,
+          recycledKg,
           nitroBottles: nitroB.length,
           nitroKg,
           reclaimBottles: reclaimB.length,
@@ -91,23 +101,22 @@ export default function AnalyticsPage() {
         ? returnedWithGas.reduce((s: number, b: any) => s + (b.currentWeight || 0), 0) / returnedWithGas.length
         : 0;
 
-      const activeReclaim = bottles.filter((b: any) => b.category === "reclaim" && b.status === "active" && (b.currentWeight || 0) > 0 && (b.initialWeight || 0) > 0);
+      const activeReclaim = liveBottles.filter((b: any) => b.category === "reclaim" && (b.currentWeight || 0) > 0 && (b.initialWeight || 0) > 0);
       const avgWasteFill = activeReclaim.length > 0
         ? activeReclaim.reduce((s: number, b: any) => s + ((b.currentWeight || 0) / (b.initialWeight || 1)) * 100, 0) / activeReclaim.length
         : 0;
       const consolidationCount = activeReclaim.filter((b: any) => (b.currentWeight || 0) / (b.initialWeight || 1) < 0.5).length;
 
-      const activeNew = bottles.filter((b: any) => b.category === "new" && b.status === "active" && (b.initialWeight || 0) > 0);
+      const activeNew = liveBottles.filter((b: any) => b.category === "new" && (b.initialWeight || 0) > 0);
       const avgNewUtilisation = activeNew.length > 0
-        ? activeNew.reduce((s: number, b: any) => s + ((b.initialWeight - b.currentWeight) / b.initialWeight) * 100, 0) / activeNew.length
+        ? activeNew.reduce((s: number, b: any) => s + (((b.initialWeight || 0) - (b.currentWeight || 0)) / (b.initialWeight || 1)) * 100, 0) / activeNew.length
         : 0;
 
       setEfficiencyStats({ unusedReturnRate, avgWasteRemaining, avgWasteFill, consolidationCount, activeReclaimCount: activeReclaim.length, activeNewCount: activeNew.length, avgNewUtilisation });
 
       // ── Section 3: Gas Inventory by Type ─────────────────────────────
-      const activeBottles = bottles.filter((b: any) => b.status === "active");
       const gasMap: Record<string, { totalKg: number; count: number; inVans: number; inSites: number; inStores: number }> = {};
-      for (const b of activeBottles) {
+      for (const b of liveBottles) {
         const g = b.gasType || "Unknown";
         if (!gasMap[g]) gasMap[g] = { totalKg: 0, count: 0, inVans: 0, inSites: 0, inStores: 0 };
         gasMap[g].totalKg += b.currentWeight || 0;
@@ -123,15 +132,19 @@ export default function AnalyticsPage() {
       setGasInventory(gasRows.map(r => ({ ...r, pct: totalFleetKg > 0 ? (r.totalKg / totalFleetKg) * 100 : 0 })));
 
       // ── Section 4: Fleet Health ───────────────────────────────────────
-      const totalActive = activeBottles.length;
-      const avgAgeMs = activeBottles.length > 0
-        ? activeBottles.reduce((s: number, b: any) => s + (now - new Date(b.registeredAt).getTime()), 0) / activeBottles.length
+      const totalActive = liveBottles.length;
+      const validRegTimes = liveBottles
+        .map((b: any) => (b.registeredAt ? new Date(b.registeredAt).getTime() : NaN))
+        .filter((t: number) => Number.isFinite(t));
+      const avgAgeMs = validRegTimes.length > 0
+        ? validRegTimes.reduce((s: number, t: number) => s + Math.max(0, now - t), 0) / validRegTimes.length
         : 0;
       const avgAgeDays = Math.round(avgAgeMs / (24 * 60 * 60 * 1000));
 
-      const idle = activeBottles.filter((b: any) => {
+      const idle = liveBottles.filter((b: any) => {
         if (!b.locationChangedAt) return false;
-        return (now - new Date(b.locationChangedAt).getTime()) > thirtyDaysMs;
+        const t = new Date(b.locationChangedAt).getTime();
+        return Number.isFinite(t) && (now - t) > thirtyDaysMs;
       }).map((b: any) => ({
         serial: b.serial,
         gasType: b.gasType,
@@ -140,7 +153,9 @@ export default function AnalyticsPage() {
         daysSince: Math.floor((now - new Date(b.locationChangedAt).getTime()) / (24 * 60 * 60 * 1000)),
       })).sort((a: any, b: any) => b.daysSince - a.daysSince);
 
-      const totalWasteKg = activeReclaim.reduce((s: number, b: any) => s + (b.currentWeight || 0), 0);
+      const totalWasteKg = liveBottles
+        .filter((b: any) => b.category === "reclaim" && (b.currentWeight || 0) > 0)
+        .reduce((s: number, b: any) => s + (b.currentWeight || 0), 0);
 
       const recentHwcns = hwcns.filter((h: any) => new Date(h.date).getTime() > now - ninetyDaysMs);
       const completedHwcns = recentHwcns.filter((h: any) => h.hwcnStatus === "complete").length;
@@ -208,13 +223,20 @@ export default function AnalyticsPage() {
                 </div>
 
                 {/* Category bars */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1rem" }}>
                   <div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", marginBottom: "0.3rem" }}>
                       <span style={{ color: "var(--primary)", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.25rem" }}><Package size={11} /> New Gas</span>
                       <span style={{ color: "rgba(255,255,255,0.5)" }}>{eng.newKg.toFixed(1)} kg · {eng.newBottles}b</span>
                     </div>
                     <MiniBar pct={(eng.newKg / maxEngineerKg) * 100} color="var(--primary)" />
+                  </div>
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", marginBottom: "0.3rem" }}>
+                      <span style={{ color: "#10b981", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.25rem" }}><Package size={11} /> Recycled</span>
+                      <span style={{ color: "rgba(255,255,255,0.5)" }}>{eng.recycledKg.toFixed(1)} kg · {eng.recycledBottles}b</span>
+                    </div>
+                    <MiniBar pct={(eng.recycledKg / maxEngineerKg) * 100} color="#10b981" />
                   </div>
                   <div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.72rem", marginBottom: "0.3rem" }}>

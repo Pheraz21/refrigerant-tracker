@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { db, Bottle } from "@/lib/db";
+import { db, Bottle, hasReclaimWaste } from "@/lib/db";
 import { ShieldAlert, Truck, MapPin, Warehouse, Package, ArrowRight, AlertTriangle, Info } from "lucide-react";
 import Link from "next/link";
 
@@ -11,8 +11,11 @@ export default function HazWasteSummaryPage() {
 
   useEffect(() => {
     db.getAllBottles().then(data => {
-      // Only include active reclaim bottles that currently hold waste (currentWeight > 0)
-      const wasteBottles = data.filter(b => b.category === "reclaim" && b.status === "active" && (b.currentWeight || 0) > 0);
+      // Include all live reclaim bottles holding waste (active, full, or Trace), excluding returned/archived/decommissioned
+      const excludedStatuses = new Set(["returned", "archived", "decommissioned"]);
+      const wasteBottles = data.filter(
+        b => b.category === "reclaim" && !excludedStatuses.has((b.status || "").toLowerCase()) && hasReclaimWaste(b)
+      );
       setBottles(wasteBottles);
       setLoading(false);
     });
@@ -122,12 +125,21 @@ export default function HazWasteSummaryPage() {
           </p>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {bottles.filter(b => b.currentWeight > 10).length === 0 ? (
-              <div style={{ padding: "1.5rem", textAlign: "center", color: "rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.02)", borderRadius: "8px" }}>
-                No high-weight cylinders detected.
-              </div>
-            ) : (
-              bottles.filter(b => b.currentWeight > 10).map(b => {
+            {(() => {
+              const alertBottles = bottles.filter(b => {
+                const daysHeld = b.locationChangedAt
+                  ? Math.floor((Date.now() - new Date(b.locationChangedAt).getTime()) / 86400000)
+                  : null;
+                return (b.currentWeight || 0) > 10 || (daysHeld !== null && daysHeld > 30);
+              });
+              if (alertBottles.length === 0) {
+                return (
+                  <div style={{ padding: "1.5rem", textAlign: "center", color: "rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.02)", borderRadius: "8px" }}>
+                    No high-weight or overdue cylinders detected.
+                  </div>
+                );
+              }
+              return alertBottles.map(b => {
                 const daysHeld = b.locationChangedAt
                   ? Math.floor((Date.now() - new Date(b.locationChangedAt).getTime()) / 86400000)
                   : null;
@@ -148,7 +160,7 @@ export default function HazWasteSummaryPage() {
                         </div>
                       </div>
                       <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.25rem" }}>
-                        <div style={{ fontSize: "1.1rem", fontWeight: 800, color: "#ffbb00" }}>{b.currentWeight.toFixed(2)} kg</div>
+                        <div style={{ fontSize: "1.1rem", fontWeight: 800, color: "#ffbb00" }}>{(b.currentWeight || 0).toFixed(2)} kg</div>
                         {daysHeld !== null && (
                           <div style={{ fontSize: "0.72rem", fontWeight: 700, color: heldColor }}>
                             {daysHeld === 0 ? "Arrived today" : `${daysHeld} days held`}
@@ -158,8 +170,8 @@ export default function HazWasteSummaryPage() {
                     </div>
                   </Link>
                 );
-              })
-            )}
+              });
+            })()}
           </div>
         </div>
 

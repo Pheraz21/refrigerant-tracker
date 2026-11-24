@@ -110,9 +110,7 @@ export default function EquipmentRegisterPage() {
         setExpandedKeys(new Set([`sn:${snParam.toLowerCase()}`]));
       }
     }
-    db.purgeTestEquipmentData().then(() => {
-      fetchLogs();
-    });
+    fetchLogs();
   }, []);
 
   const handleArchiveEquipment = async (e: React.MouseEvent, g: EquipmentGroup) => {

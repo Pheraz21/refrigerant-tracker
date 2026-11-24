@@ -25,7 +25,7 @@ export default function HWCNViewPage() {
   const { id } = useParams();
   const router = useRouter();
   const hwcnId = decodeURIComponent(id as string);
-  const { user } = useAuth();
+  const { user, activeVehicleReg } = useAuth();
   const [hwcn, setHwcn] = useState<any>(null);
   const [usageLogs, setUsageLogs] = useState<any[]>([]);
   const [bottle, setBottle] = useState<any>(null);
@@ -497,7 +497,14 @@ export default function HWCNViewPage() {
             </p>
             {field("1. Carrier's name", hwcn.engineer)}
             {field("2. Carrier's reg no.", carrierReg)}
-            {field("3. Vehicle reg no.", hwcn.vehicleReg || "VA68 LNE")}
+            {field(
+              "3. Vehicle reg no.",
+              hwcn.vehicleReg ||
+                (user?.name && hwcn.engineer && user.name.toLowerCase() === hwcn.engineer.toLowerCase()
+                  ? (activeVehicleReg || user.vehicleReg || "")
+                  : "") ||
+                "Not recorded"
+            )}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem", marginTop: "0.3rem" }}>
               {field("Date", formattedDate)}
               {field("Time", formattedTime)}

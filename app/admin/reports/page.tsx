@@ -123,7 +123,7 @@ export default function ReportsPage() {
               </div>
               <button onClick={() => exportCSV(
                 [["Serial","Gas Type","Full Weight (kg)","Current Weight (kg)","Weight Used (kg)","Location"],
-                 ...newBottles.map(b => [b.serial, b.gasType, b.initialWeight.toFixed(2), b.currentWeight.toFixed(2), (b.initialWeight - b.currentWeight).toFixed(2), b.locationId || b.locationType])],
+                 ...newBottles.map(b => [b.serial, b.gasType, (b.initialWeight ?? 0).toFixed(2), (b.currentWeight ?? 0).toFixed(2), ((b.initialWeight ?? 0) - (b.currentWeight ?? 0)).toFixed(2), b.locationId || b.locationType])],
                 `refrigerant_usage_${today}.csv`
               )} style={{display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.45rem 0.9rem", background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.2)", borderRadius: "7px", color: "#00e5ff", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer"}}>
                 <FileSpreadsheet size={14} /> Export CSV
@@ -144,9 +144,9 @@ export default function ReportsPage() {
                   <tr key={b.serial} style={{borderBottom: "1px solid rgba(255,255,255,0.04)"}}>
                     <td style={{padding: "0.8rem 1rem", fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "#00e5ff"}}>{b.serial}</td>
                     <td style={{padding: "0.8rem 1rem"}}>{b.gasType}</td>
-                    <td style={{padding: "0.8rem 1rem"}}>{b.initialWeight.toFixed(2)} kg</td>
-                    <td style={{padding: "0.8rem 1rem", color: "#22c55e", fontWeight: 600}}>{b.currentWeight.toFixed(2)} kg</td>
-                    <td style={{padding: "0.8rem 1rem", color: "#ffc107", fontWeight: 600}}>{(b.initialWeight - b.currentWeight).toFixed(2)} kg</td>
+                    <td style={{padding: "0.8rem 1rem"}}>{(b.initialWeight ?? 0).toFixed(2)} kg</td>
+                    <td style={{padding: "0.8rem 1rem", color: "#22c55e", fontWeight: 600}}>{(b.currentWeight ?? 0).toFixed(2)} kg</td>
+                    <td style={{padding: "0.8rem 1rem", color: "#ffc107", fontWeight: 600}}>{((b.initialWeight ?? 0) - (b.currentWeight ?? 0)).toFixed(2)} kg</td>
                     <td style={{padding: "0.8rem 1rem", fontSize: "0.85rem", color: "var(--text-muted)"}}>{b.locationId || b.locationType}</td>
                   </tr>
                 ))}
@@ -154,9 +154,9 @@ export default function ReportsPage() {
               <tfoot>
                 <tr style={{background: "rgba(255,255,255,0.03)", borderTop: "2px solid rgba(255,255,255,0.1)"}}>
                   <td colSpan={2} style={{padding: "0.8rem 1rem", fontWeight: 700}}>Totals</td>
-                  <td style={{padding: "0.8rem 1rem", fontWeight: 700}}>{newBottles.reduce((sum, b) => sum + b.initialWeight, 0).toFixed(2)} kg</td>
-                  <td style={{padding: "0.8rem 1rem", fontWeight: 700, color: "#22c55e"}}>{newBottles.reduce((sum, b) => sum + b.currentWeight, 0).toFixed(2)} kg</td>
-                  <td style={{padding: "0.8rem 1rem", fontWeight: 700, color: "#ffc107"}}>{newBottles.reduce((sum, b) => sum + (b.initialWeight - b.currentWeight), 0).toFixed(2)} kg</td>
+                  <td style={{padding: "0.8rem 1rem", fontWeight: 700}}>{newBottles.reduce((sum, b) => sum + (b.initialWeight ?? 0), 0).toFixed(2)} kg</td>
+                  <td style={{padding: "0.8rem 1rem", fontWeight: 700, color: "#22c55e"}}>{newBottles.reduce((sum, b) => sum + (b.currentWeight ?? 0), 0).toFixed(2)} kg</td>
+                  <td style={{padding: "0.8rem 1rem", fontWeight: 700, color: "#ffc107"}}>{newBottles.reduce((sum, b) => sum + ((b.initialWeight ?? 0) - (b.currentWeight ?? 0)), 0).toFixed(2)} kg</td>
                   <td></td>
                 </tr>
               </tfoot>
@@ -173,7 +173,7 @@ export default function ReportsPage() {
                 <p style={{margin: "0.25rem 0 0", fontSize: "0.82rem", color: "var(--text-muted)"}}>{bottles.length} bottles across {Object.keys(locGroups).length} locations</p>
               </div>
               <button onClick={() => {
-                const rows = Object.entries(locGroups).flatMap(([loc, bots]) => bots.map(b => [b.serial, b.gasType, b.category, b.currentWeight.toFixed(2), loc]));
+                const rows = Object.entries(locGroups).flatMap(([loc, bots]) => bots.map(b => [b.serial, b.gasType, b.category, (b.currentWeight ?? 0).toFixed(2), loc]));
                 exportCSV([["Serial","Gas Type","Category","Current Weight (kg)","Location"], ...rows], `bottle_locations_${today}.csv`);
               }} style={{display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.45rem 0.9rem", background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.2)", borderRadius: "7px", color: "#00e5ff", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer"}}>
                 <FileSpreadsheet size={14} /> Export CSV
@@ -196,10 +196,10 @@ export default function ReportsPage() {
                         <div style={{display: "flex", alignItems: "center", gap: "1rem"}}>
                           <span>
                             {b.category === "reclaim" 
-                              ? `${b.currentWeight.toFixed(2)} / ${b.initialWeight.toFixed(2)} kg` 
+                              ? `${(b.currentWeight ?? 0).toFixed(2)} / ${(b.initialWeight ?? 0).toFixed(2)} kg` 
                               : b.category === "nitrogen" 
-                                ? `${b.initialWeight.toFixed(2)} kg` 
-                                : `${b.currentWeight.toFixed(2)} kg`}
+                                ? `${(b.initialWeight ?? 0).toFixed(2)} kg` 
+                                : `${(b.currentWeight ?? 0).toFixed(2)} kg`}
                           </span>
                           <span style={{
                             fontSize: "0.72rem", fontWeight: 600, padding: "0.15rem 0.5rem", borderRadius: "12px",
@@ -227,7 +227,7 @@ export default function ReportsPage() {
                 <p style={{margin: "0.25rem 0 0", fontSize: "0.82rem", color: "var(--text-muted)"}}>Full summary of reclaim cylinders currently held by company</p>
               </div>
               <button onClick={() => {
-                const rows = Object.entries(locGroups).flatMap(([loc, bots]) => bots.filter(b => b.category === "reclaim").map(b => [b.serial, b.gasType, b.currentWeight.toFixed(2), b.initialWeight.toFixed(2), loc]));
+                const rows = Object.entries(locGroups).flatMap(([loc, bots]) => bots.filter(b => b.category === "reclaim").map(b => [b.serial, b.gasType, (b.currentWeight ?? 0).toFixed(2), (b.initialWeight ?? 0).toFixed(2), loc]));
                 exportCSV([["Serial","Gas Type","Current Weight (kg)","Max Weight (kg)","Location"], ...rows], `haz_waste_audit_${today}.csv`);
               }} style={{display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.45rem 0.9rem", background: "rgba(255,51,102,0.08)", border: "1px solid rgba(255,51,102,0.2)", borderRadius: "7px", color: "#ff3366", fontSize: "0.8rem", fontWeight: 600, cursor: "pointer"}}>
                 <FileSpreadsheet size={14} /> Export CSV
@@ -237,7 +237,7 @@ export default function ReportsPage() {
               {Object.entries(locGroups).map(([loc, bots]) => {
                 const wasteBots = bots.filter(b => b.category === "reclaim");
                 if (wasteBots.length === 0) return null;
-                const totalWeight = wasteBots.reduce((sum, b) => sum + b.currentWeight, 0);
+                const totalWeight = wasteBots.reduce((sum, b) => sum + (b.currentWeight ?? 0), 0);
 
                 return (
                   <div key={loc} style={{marginBottom: "1.5rem", padding: "1rem", background: "rgba(255,255,255,0.02)", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.05)"}}>
@@ -255,7 +255,7 @@ export default function ReportsPage() {
                             <span style={{fontFamily: "var(--font-geist-mono)", fontWeight: 700, color: "var(--primary)"}}>{b.serial}</span>
                             <span style={{color: "rgba(255,255,255,0.6)"}}>{b.gasType}</span>
                           </div>
-                          <span style={{fontWeight: 600}}>{b.currentWeight.toFixed(2)} kg</span>
+                          <span style={{fontWeight: 600}}>{(b.currentWeight ?? 0).toFixed(2)} kg</span>
                         </div>
                       ))}
                     </div>

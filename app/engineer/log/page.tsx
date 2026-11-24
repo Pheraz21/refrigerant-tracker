@@ -172,10 +172,10 @@ export default function LogBottlePage() {
           const match = engineers.find(e => e.name.toLowerCase() === lead.toLowerCase());
           if (match) {
             setSupervisingEngineer(match.name);
-            setSupervisingCert(match.certificate || "REF1010728 (Cat I)");
+            setSupervisingCert(match.certificate || "");
           } else {
             setSupervisingEngineer(lead);
-            setSupervisingCert("REF1010728 (Cat I)");
+            setSupervisingCert("");
           }
         }
       });
@@ -763,7 +763,7 @@ export default function LogBottlePage() {
                   const name = e.target.value;
                   setSupervisingEngineer(name);
                   const match = qualifiedEngineers.find(eng => eng.name === name);
-                  if (match?.certificate) setSupervisingCert(match.certificate);
+                  setSupervisingCert(match?.certificate || "");
                 }}
                 required
                 style={{
@@ -790,7 +790,7 @@ export default function LogBottlePage() {
                 type="text"
                 value={supervisingCert}
                 onChange={e => setSupervisingCert(e.target.value)}
-                placeholder="REF1010728 (Cat I)"
+                placeholder="e.g. F-Gas Cert No. (Cat I)"
                 style={{
                   background: "rgba(0,0,0,0.3)",
                   border: "1px solid rgba(192, 132, 252, 0.4)",

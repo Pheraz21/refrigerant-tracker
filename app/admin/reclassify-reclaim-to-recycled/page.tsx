@@ -71,7 +71,7 @@ export default function ReclassifyRecycledPage() {
       const [allStoresBottles, gases, allLogs] = await Promise.all([
         db.getBottlesByLocation("office"),
         db.getGases(),
-        db.getMovementLogs("all")
+        db.getMovementLogs()
       ]);
       setStoresBottles(allStoresBottles);
       setGasCatalogue(gases);
@@ -224,6 +224,14 @@ export default function ReclassifyRecycledPage() {
       setTransferError("Please select a recipient Recycled cylinder in Stores.");
       return;
     }
+    const donorGas = (selectedDonorBottle.gasType || "").trim();
+    const recipientGas = (selectedRecipientBottle.gasType || "").trim();
+    if (!donorGas || !recipientGas || donorGas.toLowerCase() !== recipientGas.toLowerCase()) {
+      setTransferError(
+        `Gas type mismatch: cannot decant "${donorGas || "Unknown"}" from ${selectedDonorBottle.serial} into "${recipientGas || "Unknown"}" recycled cylinder ${selectedRecipientBottle.serial}. Both cylinders must contain the same refrigerant.`
+      );
+      return;
+    }
     const transferNum = parseFloat(transferWeightInput);
     if (isNaN(transferNum) || transferNum <= 0) {
       setTransferError("Please enter a valid transfer weight (> 0 kg).");
@@ -235,7 +243,13 @@ export default function ReclassifyRecycledPage() {
       );
       return;
     }
-    const recipientCapacity = selectedRecipientBottle.initialWeight || 20;
+    const recipientCapacity = Number(selectedRecipientBottle.initialWeight ?? 0);
+    if (!recipientCapacity || recipientCapacity <= 0) {
+      setTransferError(
+        `Recipient cylinder ${selectedRecipientBottle.serial} has no valid capacity recorded. Please update its rated capacity before decanting.`
+      );
+      return;
+    }
     const recipientCurrent = selectedRecipientBottle.currentWeight || 0;
     const spaceLeft = Math.max(0, recipientCapacity - recipientCurrent);
     if (transferNum > spaceLeft) {
