@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { Suspense, useState, useEffect, useMemo, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { CheckCircle2, Truck, ArrowLeft, MapPin, Building2, Users, AlertTriangle, Building, Recycle } from "lucide-react";
 import styles from "../log/page.module.css"; // Reuse existing form styles
@@ -30,7 +30,7 @@ async function uploadHwcnPhoto(base64: string, serial: string): Promise<string> 
   }
 }
 
-export default function MoveBottlePage() {
+function MoveBottleContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const serialParam = searchParams.get("serial") || "UNKNOWN";
@@ -1783,5 +1783,13 @@ export default function MoveBottlePage() {
         </form>
       )}
     </div>
+  );
+}
+
+export default function MoveBottlePage() {
+  return (
+    <Suspense fallback={<div style={{ padding: "3rem 1.5rem", textAlign: "center", color: "#94a3b8" }}>Loading...</div>}>
+      <MoveBottleContent />
+    </Suspense>
   );
 }

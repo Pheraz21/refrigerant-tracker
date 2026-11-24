@@ -374,6 +374,7 @@ export default function RefrigerantJobsPage() {
   };
 
   useEffect(() => { load(); }, []);
+  useEffect(() => () => { uprnAbortRef.current = true; }, []);
 
   const jobs = useMemo<JobSummary[]>(() => {
     const grouped = new Map<string, UsageLog[]>();
@@ -486,7 +487,7 @@ export default function RefrigerantJobsPage() {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf);
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const rawRows: Record<string, any>[] = XLSX.utils.sheet_to_json(ws);
+      const rawRows: Record<string, any>[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
       if (!rawRows.length) { setImportError("File is empty or could not be parsed."); return; }
       const allParsed = parseRows(rawRows);
       if (!allParsed.length) {
@@ -494,15 +495,52 @@ export default function RefrigerantJobsPage() {
         return;
       }
 
+      const normJobKey = (s?: string | null) => (s || "").trim().replace(/\.0+$/, "").toUpperCase();
+      const mergeParsedJob = (
+        prev: Omit<CrmJob, "id" | "importedAt">,
+        next: Omit<CrmJob, "id" | "importedAt">
+      ): Omit<CrmJob, "id" | "importedAt"> => ({
+        ...prev,
+        jobNumber: next.jobNumber || prev.jobNumber,
+        jobNumberUnprefixed: next.jobNumberUnprefixed || prev.jobNumberUnprefixed,
+        prefix: next.prefix || prev.prefix,
+        customer: next.customer || prev.customer,
+        siteTitle: next.siteTitle || prev.siteTitle,
+        siteAddress: next.siteAddress || prev.siteAddress,
+        sitePostcode: next.sitePostcode || prev.sitePostcode,
+        startDate: next.startDate || prev.startDate,
+        category: next.category || prev.category,
+        faultCode: next.faultCode || prev.faultCode,
+        jobTitle: next.jobTitle || prev.jobTitle,
+        uprn: next.uprn ?? prev.uprn,
+        rawData: { ...(prev.rawData || {}), ...(next.rawData || {}) },
+      });
+
+      // Deduplicate duplicate Job Numbers within the same uploaded file
+      const dedupedByKey = new Map<string, Omit<CrmJob, "id" | "importedAt">>();
+      for (const r of allParsed) {
+        const k = normJobKey(r.jobNumber);
+        if (!k) continue;
+        const prev = dedupedByKey.get(k);
+        dedupedByKey.set(k, prev ? mergeParsedJob(prev, r) : r);
+      }
+      const dedupedParsed = Array.from(dedupedByKey.values());
+
       const allCrm = await db.getAllCrmJobs();
       const existingByKey = new Map<string, CrmJob>();
       for (const j of allCrm) {
-        if (j.jobNumber) existingByKey.set(j.jobNumber.trim().toUpperCase(), j);
+        if (j.jobNumber) {
+          const rawKey = j.jobNumber.trim().toUpperCase();
+          const normKey = normJobKey(j.jobNumber);
+          existingByKey.set(rawKey, j);
+          if (normKey && !existingByKey.has(normKey)) existingByKey.set(normKey, j);
+        }
         if (j.jobNumberUnprefixed) {
-          const unpKey = j.jobNumberUnprefixed.trim().toUpperCase();
-          if (!existingByKey.has(unpKey)) existingByKey.set(unpKey, j);
-          if (j.prefix) {
-            existingByKey.set(`${j.prefix.trim().toUpperCase()}${unpKey}`, j);
+          const unpKey = normJobKey(j.jobNumberUnprefixed);
+          if (unpKey && !existingByKey.has(unpKey)) existingByKey.set(unpKey, j);
+          if (j.prefix && unpKey) {
+            const prefKey = `${j.prefix.trim().toUpperCase()}${unpKey}`;
+            if (!existingByKey.has(prefKey)) existingByKey.set(prefKey, j);
           }
         }
       }
@@ -510,60 +548,63 @@ export default function RefrigerantJobsPage() {
       const normText = (s?: string | null) => (s || "").trim().replace(/\s+/g, " ").toLowerCase();
       const normPc = (s?: string | null) => (s || "").trim().replace(/\s+/g, "").toUpperCase();
 
-      const newRows: Omit<CrmJob, "id" | "importedAt">[] = [];
-      const updatedRows: UpdatedJobPreview[] = [];
+      const newRowsByKey = new Map<string, Omit<CrmJob, "id" | "importedAt">>();
+      const updatedRowsByKey = new Map<string, UpdatedJobPreview>();
       let skippedCount = 0;
 
-      for (const r of allParsed) {
-        const key1 = (r.jobNumber || "").trim().toUpperCase();
-        const key2 = (r.jobNumberUnprefixed || "").trim().toUpperCase();
+      for (const r of dedupedParsed) {
+        const key1 = normJobKey(r.jobNumber);
+        const key2 = normJobKey(r.jobNumberUnprefixed);
         const existing = existingByKey.get(key1) || (key2 ? existingByKey.get(key2) : undefined);
 
         if (!existing) {
-          newRows.push(r);
+          const prevNew = newRowsByKey.get(key1);
+          newRowsByKey.set(key1, prevNew ? mergeParsedJob(prevNew, r) : r);
           continue;
         }
 
-        const changes: string[] = [];
-        let addressOrPostcodeChanged = false;
+        const existingKey = normJobKey(existing.jobNumber);
+        const baseRecord = updatedRowsByKey.get(existingKey)?.job || existing;
+        const changes: string[] = updatedRowsByKey.get(existingKey)?.changes ? [...updatedRowsByKey.get(existingKey)!.changes] : [];
+        let addressOrPostcodeChanged = baseRecord.uprn === null && existing.uprn !== null;
 
-        if (r.sitePostcode && normPc(r.sitePostcode) !== normPc(existing.sitePostcode)) {
-          changes.push(`Postcode: ${existing.sitePostcode ? `"${existing.sitePostcode}"` : "(blank)"} → "${r.sitePostcode}"`);
+        if (r.sitePostcode && normPc(r.sitePostcode) !== normPc(baseRecord.sitePostcode)) {
+          changes.push(`Postcode: ${baseRecord.sitePostcode ? `"${baseRecord.sitePostcode}"` : "(blank)"} → "${r.sitePostcode}"`);
           addressOrPostcodeChanged = true;
         }
-        if (r.siteAddress && normText(r.siteAddress) !== normText(existing.siteAddress)) {
-          changes.push(`Address: ${existing.siteAddress ? `"${existing.siteAddress}"` : "(blank)"} → "${r.siteAddress}"`);
+        if (r.siteAddress && normText(r.siteAddress) !== normText(baseRecord.siteAddress)) {
+          changes.push(`Address: ${baseRecord.siteAddress ? `"${baseRecord.siteAddress}"` : "(blank)"} → "${r.siteAddress}"`);
           addressOrPostcodeChanged = true;
         }
-        if (r.siteTitle && normText(r.siteTitle) !== normText(existing.siteTitle)) {
-          changes.push(`Site Title: ${existing.siteTitle ? `"${existing.siteTitle}"` : "(blank)"} → "${r.siteTitle}"`);
+        if (r.siteTitle && normText(r.siteTitle) !== normText(baseRecord.siteTitle)) {
+          changes.push(`Site Title: ${baseRecord.siteTitle ? `"${baseRecord.siteTitle}"` : "(blank)"} → "${r.siteTitle}"`);
         }
-        if (r.customer && normText(r.customer) !== normText(existing.customer)) {
-          changes.push(`Customer: ${existing.customer ? `"${existing.customer}"` : "(blank)"} → "${r.customer}"`);
+        if (r.customer && normText(r.customer) !== normText(baseRecord.customer)) {
+          changes.push(`Customer: ${baseRecord.customer ? `"${baseRecord.customer}"` : "(blank)"} → "${r.customer}"`);
         }
-        if (r.jobTitle && normText(r.jobTitle) !== normText(existing.jobTitle)) {
-          changes.push(`Job Title: ${existing.jobTitle ? `"${existing.jobTitle}"` : "(blank)"} → "${r.jobTitle}"`);
+        if (r.jobTitle && normText(r.jobTitle) !== normText(baseRecord.jobTitle)) {
+          changes.push(`Job Title: ${baseRecord.jobTitle ? `"${baseRecord.jobTitle}"` : "(blank)"} → "${r.jobTitle}"`);
         }
 
         if (changes.length > 0) {
-          updatedRows.push({
+          updatedRowsByKey.set(existingKey, {
             job: {
               ...r,
               // Keep the existing canonical jobNumber in crm_jobs so the onConflict update matches 100%
               jobNumber: existing.jobNumber,
-              jobNumberUnprefixed: r.jobNumberUnprefixed || existing.jobNumberUnprefixed,
-              prefix: r.prefix || existing.prefix,
-              customer: r.customer || existing.customer,
-              siteTitle: r.siteTitle || existing.siteTitle,
-              siteAddress: r.siteAddress || existing.siteAddress,
-              sitePostcode: r.sitePostcode || existing.sitePostcode,
-              startDate: r.startDate || existing.startDate,
-              category: r.category || existing.category,
-              faultCode: r.faultCode || existing.faultCode,
-              jobTitle: r.jobTitle || existing.jobTitle,
+              jobNumberUnprefixed: r.jobNumberUnprefixed || baseRecord.jobNumberUnprefixed,
+              prefix: r.prefix || baseRecord.prefix,
+              customer: r.customer || baseRecord.customer,
+              siteTitle: r.siteTitle || baseRecord.siteTitle,
+              siteAddress: r.siteAddress || baseRecord.siteAddress,
+              sitePostcode: r.sitePostcode || baseRecord.sitePostcode,
+              startDate: r.startDate || baseRecord.startDate,
+              category: r.category || baseRecord.category,
+              faultCode: r.faultCode || baseRecord.faultCode,
+              jobTitle: r.jobTitle || baseRecord.jobTitle,
               // Reset UPRN if the address or postcode changed so Find UPRNs re-geocodes it; otherwise preserve existing UPRN
               uprn: addressOrPostcodeChanged ? null : existing.uprn,
-              rawData: { ...(existing.rawData || {}), ...(r.rawData || {}) },
+              rawData: { ...(baseRecord.rawData || {}), ...(r.rawData || {}) },
             },
             changes,
           });
@@ -572,6 +613,8 @@ export default function RefrigerantJobsPage() {
         }
       }
 
+      const newRows = Array.from(newRowsByKey.values());
+      const updatedRows = Array.from(updatedRowsByKey.values());
       setPreview({ newRows, updatedRows, skippedCount });
     } catch (err: any) {
       setImportError("Failed to parse file: " + err.message);
@@ -625,21 +668,6 @@ export default function RefrigerantJobsPage() {
     uprnAbortRef.current = false;
     setUprnProgress({ done: 0, total: uprnPending.length });
 
-    try {
-      const testRes = await fetch("/api/uprn", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address: uprnPending[0].siteAddress, postcode: uprnPending[0].sitePostcode }),
-      });
-      const testJson = await testRes.json();
-      if (testJson.error === "API key not configured") {
-        setUprnError("OS Places API key is not configured. Add OS_PLACES_API_KEY to your .env.local file and restart the dev server.");
-        setUprnRunning(false); setUprnProgress(null); return;
-      }
-    } catch {
-      setUprnError("Could not reach the UPRN lookup service.");
-      setUprnRunning(false); setUprnProgress(null); return;
-    }
-
     let found = 0;
     for (let i = 0; i < uprnPending.length; i++) {
       if (uprnAbortRef.current) break;
@@ -649,23 +677,52 @@ export default function RefrigerantJobsPage() {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ address: job.siteAddress, postcode: job.sitePostcode }),
         });
-        const { uprn } = await res.json();
-        if (uprn) {
+        let data: any = null;
+        try { data = await res.json(); } catch { data = null; }
+        if (data?.error === "API key not configured") {
+          setUprnError("OS Places API key is not configured. Add OS_PLACES_API_KEY to your .env.local file and restart the dev server.");
+          setUprnRunning(false);
+          setUprnProgress(null);
+          return;
+        }
+        if (!res.ok) {
+          if (i === 0 && !data) {
+            setUprnError(`UPRN lookup service returned HTTP ${res.status}.`);
+            setUprnRunning(false);
+            setUprnProgress(null);
+            return;
+          }
+        } else if (data?.uprn) {
+          const uprn = data.uprn;
           found++;
           await db.updateCrmJobUprn(job.id, uprn);
-          setCrmMap(prev => {
-            const next = new Map(prev);
-            const cur = next.get(job.jobNumber);
-            if (cur) next.set(job.jobNumber, { ...cur, uprn });
-            return next;
-          });
+          if (!uprnAbortRef.current) {
+            setCrmMap(prev => {
+              const next = new Map(prev);
+              const cur = next.get(job.jobNumber);
+              if (cur) next.set(job.jobNumber, { ...cur, uprn });
+              return next;
+            });
+          }
         }
-      } catch { /* skip */ }
+      } catch {
+        if (i === 0) {
+          setUprnError("Could not reach the UPRN lookup service.");
+          setUprnRunning(false);
+          setUprnProgress(null);
+          return;
+        }
+        /* skip */
+      }
+      if (uprnAbortRef.current) break;
       setUprnProgress({ done: i + 1, total: uprnPending.length });
       if (i < uprnPending.length - 1) await new Promise(r => setTimeout(r, 110));
     }
-    setUprnRunning(false); setUprnProgress(null);
-    if (found > 0) await load();
+    if (!uprnAbortRef.current) {
+      setUprnRunning(false);
+      setUprnProgress(null);
+      if (found > 0) await load();
+    }
   };
 
   const DECOM_PDF_STYLES = `

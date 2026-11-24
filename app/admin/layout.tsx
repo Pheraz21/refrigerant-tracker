@@ -108,9 +108,14 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
   const [notifCount, setNotifCount] = useState(0);
   const [pendingUsersCount, setPendingUsersCount] = useState(0);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(() => {
-    try { return localStorage.getItem("adminSidebarCollapsed") === "true"; } catch { return false; }
-  });
+  const [collapsed, setCollapsed] = useState(false);
+
+  const canAccessAdmin = Boolean(
+    user?.availableRoles?.includes("admin") ||
+    user?.availableRoles?.includes("office") ||
+    user?.role === "admin" ||
+    user?.role === "office"
+  );
 
   const handleNavClick = (e: React.MouseEvent, href: string) => {
     if (pathname === href) return;
@@ -118,6 +123,14 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
       e.preventDefault();
     }
   };
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("adminSidebarCollapsed") === "true") {
+        setCollapsed(true);
+      }
+    } catch {}
+  }, []);
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -131,13 +144,6 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    try { localStorage.setItem("adminSidebarCollapsed", String(collapsed)); } catch {}
-  }, [collapsed]);
-
-  useEffect(() => {
-    const canAccessAdmin =
-      user?.availableRoles?.includes("admin") || user?.availableRoles?.includes("office") ||
-      user?.role === "admin" || user?.role === "office";
     if (!loading && (!user || !canAccessAdmin)) {
       if (pathname !== "/admin/login") {
         router.push("/admin/login");
@@ -154,14 +160,23 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
       const interval = setInterval(loadCounts, 5000);
       return () => clearInterval(interval);
     }
-  }, [user, loading, pathname, router]);
+  }, [user, loading, canAccessAdmin, pathname, router]);
 
   // Login page gets no layout
   if (pathname === "/admin/login") {
     return <>{children}</>;
   }
 
-  if (loading || !user) return null;
+  if (loading || !user || !canAccessAdmin) return null;
+
+  const activeHref = navGroups
+    .flatMap(g => g.items)
+    .filter(item =>
+      ('exact' in item && item.exact)
+        ? pathname === item.href
+        : pathname === item.href || pathname.startsWith(`${item.href}/`)
+    )
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
 
   return (
     <div style={{display: "flex", minHeight: "100vh", background: "var(--bg-main)"}}>
@@ -219,9 +234,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
                 <div style={{height: "1px", background: "rgba(255,255,255,0.06)", margin: "0.5rem 0.5rem"}} />
               )}
               {group.items.map(item => {
-                const isActive = ('exact' in item && item.exact)
-                  ? pathname === item.href
-                  : pathname.startsWith(item.href);
+                const isActive = item.href === activeHref;
                 const badge = item.label === "Notifications" && notifCount > 0 ? notifCount
                   : item.label === "User Management" && pendingUsersCount > 0 ? pendingUsersCount
                   : 0;
@@ -295,7 +308,11 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
         {/* Sidebar toggle — always visible, outside scrollable nav */}
         <div style={{padding: collapsed ? "0.5rem" : "0.5rem 0.75rem", borderTop: "1px solid rgba(255,255,255,0.06)", flexShrink: 0}}>
           <button
-            onClick={() => setCollapsed(c => !c)}
+            onClick={() => setCollapsed(c => {
+              const next = !c;
+              try { localStorage.setItem("adminSidebarCollapsed", String(next)); } catch {}
+              return next;
+            })}
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             style={{
               width: "100%", display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "flex-end",

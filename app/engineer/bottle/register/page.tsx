@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { Suspense, useState, useEffect, useMemo, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { CheckCircle2, Database, ArrowLeft, Truck, Building2, MapPin, RotateCcw, Wind, AlertTriangle, Edit3, ShieldCheck } from "lucide-react";
 import styles from "../../log/page.module.css"; // Reuse existing form styles
@@ -120,7 +120,7 @@ function checkSupplierSerialFormat(rawSerial: string, supplierName: string): { i
   return { isValid: true };
 }
 
-export default function RegisterBottlePage() {
+function RegisterBottleContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const serialParam = searchParams.get("serial") || "UNKNOWN";
@@ -786,5 +786,13 @@ export default function RegisterBottlePage() {
         </button>
       </form>
     </div>
+  );
+}
+
+export default function RegisterBottlePage() {
+  return (
+    <Suspense fallback={<div style={{ padding: "3rem 1.5rem", textAlign: "center", color: "#94a3b8" }}>Loading...</div>}>
+      <RegisterBottleContent />
+    </Suspense>
   );
 }

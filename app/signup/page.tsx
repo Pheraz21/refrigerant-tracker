@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { UserPlus, Loader2, ArrowLeft, ShieldCheck, Wrench, Shield, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
@@ -31,7 +31,7 @@ const labelStyle: React.CSSProperties = {
   fontWeight: 500,
 };
 
-export default function SignupPage() {
+function SignupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const roleParam = searchParams.get("role") as UserRole | null;
@@ -306,5 +306,13 @@ export default function SignupPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0a0a", color: "#94a3b8" }}>Loading...</div>}>
+      <SignupContent />
+    </Suspense>
   );
 }

@@ -3,99 +3,64 @@
 import { useEffect, useState } from "react";
 import { db, AppUser, UserStatus, UserRole } from "@/lib/db";
 import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/lib/AuthContext";
 import { Users, ShieldCheck, ShieldAlert, UserX, Truck, Mail, Phone, Calendar, Search, Filter, Save, X, Settings2, Building, KeyRound } from "lucide-react";
 import Link from "next/link";
 
-export default function UserManagementPage() {
-  const [users, setUsers] = useState<AppUser[]>([]);
-  const [activePairings, setActivePairings] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [editingUserId, setEditingUserId] = useState<string | null>(null);
-  const [tempReg, setTempReg] = useState("");
-  const [employerEditingId, setEmployerEditingId] = useState<string | null>(null);
-  const [tempEmployer, setTempEmployer] = useState("");
-  const [roleEditingId, setRoleEditingId] = useState<string | null>(null);
-  const [resetEmailSent, setResetEmailSent] = useState<Record<string, boolean>>({});
+interface UserTableProps {
+  title: string;
+  usersList: AppUser[];
+  icon: any;
+  activePairings: any[];
+  currentUserId?: string;
+  roleEditingId: string | null;
+  setRoleEditingId: (id: string | null) => void;
+  employerEditingId: string | null;
+  setEmployerEditingId: (id: string | null) => void;
+  tempEmployer: string;
+  setTempEmployer: (val: string) => void;
+  editingUserId: string | null;
+  setEditingUserId: (id: string | null) => void;
+  tempReg: string;
+  setTempReg: (val: string) => void;
+  resetEmailSent: Record<string, boolean>;
+  toggleRole: (userId: string, role: UserRole) => void;
+  setPrimaryRole: (userId: string, role: UserRole) => void;
+  handleToggleStores: (userId: string, currentValue: boolean) => void;
+  handleSaveEmployer: (userId: string) => void;
+  handleSaveReg: (userId: string) => void;
+  handleUnpair: (pairingId: string) => void;
+  handleSendReset: (email: string, userId: string) => void;
+  handleStatusChange: (userId: string, status: UserStatus) => void;
+}
 
-  const handleSendReset = async (email: string, userId: string) => {
-    await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`
-    });
-    setResetEmailSent(prev => ({ ...prev, [userId]: true }));
-    setTimeout(() => setResetEmailSent(prev => ({ ...prev, [userId]: false })), 5000);
-  };
-
-  useEffect(() => {
-    loadUsers();
-  }, []);
-
-  const loadUsers = async () => {
-    const [allUsers, pairings] = await Promise.all([
-      db.getAllUsers(),
-      db.getAllActivePairings()
-    ]);
-    setUsers(allUsers.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-    setActivePairings(pairings);
-    setLoading(false);
-  };
-
-  const handleUnpair = async (pairingId: string) => {
-    await db.respondToPairingRequest(pairingId, "revoked");
-    loadUsers();
-  };
-
-  const handleStatusChange = async (userId: string, status: UserStatus) => {
-    await db.setUserStatus(userId, status);
-    loadUsers();
-  };
-
-  const handleSaveReg = async (userId: string) => {
-    await db.updateUserVehicle(userId, tempReg);
-    setEditingUserId(null);
-    loadUsers();
-  };
-
-  const handleSaveEmployer = async (userId: string) => {
-    await db.updateUserEmployer(userId, tempEmployer);
-    setEmployerEditingId(null);
-    loadUsers();
-  };
-
-  const toggleRole = async (userId: string, role: UserRole) => {
-    const user = users.find(u => u.id === userId);
-    if (!user) return;
-
-    let newRoles = [...user.availableRoles];
-    if (newRoles.includes(role)) {
-      if (newRoles.length > 1) {
-        newRoles = newRoles.filter(r => r !== role);
-      }
-    } else {
-      newRoles.push(role);
-    }
-
-    await db.updateUserRoles(userId, newRoles);
-    loadUsers();
-  };
-
-  const setPrimaryRole = async (userId: string, role: UserRole) => {
-    await db.switchUserRole(userId, role);
-    loadUsers();
-  };
-
-  const filteredUsers = users.filter(u => 
-    u.name.toLowerCase().includes(search.toLowerCase()) || 
-    u.email.toLowerCase().includes(search.toLowerCase()) ||
-    u.role.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const pendingUsers = filteredUsers.filter(u => u.status === "pending");
-  const disabledUsers = filteredUsers.filter(u => u.status === "disabled");
-  const directStaff = filteredUsers.filter(u => u.employer === "Direct Staff" && u.status === "approved");
-  const otherStaff = filteredUsers.filter(u => u.employer !== "Direct Staff" && u.status === "approved");
-
-  const UserTable = ({ title, usersList, icon: Icon }: { title: string, usersList: AppUser[], icon: any }) => (
+function UserTable({
+  title,
+  usersList,
+  icon: Icon,
+  activePairings,
+  currentUserId,
+  roleEditingId,
+  setRoleEditingId,
+  employerEditingId,
+  setEmployerEditingId,
+  tempEmployer,
+  setTempEmployer,
+  editingUserId,
+  setEditingUserId,
+  tempReg,
+  setTempReg,
+  resetEmailSent,
+  toggleRole,
+  setPrimaryRole,
+  handleToggleStores,
+  handleSaveEmployer,
+  handleSaveReg,
+  handleUnpair,
+  handleSendReset,
+  handleStatusChange,
+}: UserTableProps) {
+  return (
     <div style={{marginBottom: "3rem"}}>
       <h2 style={{fontSize: "1.1rem", fontWeight: 700, marginBottom: "1rem", color: "var(--primary)", display: "flex", alignItems: "center", gap: "0.5rem"}}>
         <Icon size={20} /> {title} ({usersList.length})
@@ -172,29 +137,33 @@ export default function UserManagementPage() {
                       marginTop: "0.5rem", background: "rgba(0,0,0,0.2)", padding: "0.5rem", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.1)"
                     }}>
                       <div style={{display: "flex", flexWrap: "wrap", gap: "1rem"}}>
-                        {["engineer", "mate", "apprentice", "office", "admin"].map(r => (
-                          <div key={r} style={{display: "flex", flexDirection: "column", gap: "0.2rem"}}>
-                            <label style={{fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "0.3rem", cursor: "pointer"}}>
-                              <input
-                                type="checkbox"
-                                checked={u.availableRoles.includes(r as UserRole)}
-                                onChange={() => toggleRole(u.id, r as UserRole)}
-                              />
-                              {r.charAt(0).toUpperCase() + r.slice(1)}
-                            </label>
-                            {u.availableRoles.includes(r as UserRole) && u.role !== r && (
-                              <button
-                                onClick={() => setPrimaryRole(u.id, r as UserRole)}
-                                style={{fontSize: "0.65rem", color: "var(--primary)", background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline", textAlign: "left"}}
-                              >
-                                Set primary
-                              </button>
-                            )}
-                            {u.role === r && (
-                              <span style={{fontSize: "0.65rem", color: "var(--primary)", opacity: 0.6}}>Primary</span>
-                            )}
-                          </div>
-                        ))}
+                        {["engineer", "mate", "apprentice", "office", "admin"].map(r => {
+                          const isSelfAdminLock = currentUserId === u.id && r === "admin" && u.availableRoles.includes("admin");
+                          return (
+                            <div key={r} style={{display: "flex", flexDirection: "column", gap: "0.2rem"}}>
+                              <label style={{fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "0.3rem", cursor: isSelfAdminLock ? "not-allowed" : "pointer", opacity: isSelfAdminLock ? 0.6 : 1}}>
+                                <input
+                                  type="checkbox"
+                                  checked={u.availableRoles.includes(r as UserRole)}
+                                  disabled={isSelfAdminLock}
+                                  onChange={() => toggleRole(u.id, r as UserRole)}
+                                />
+                                {r.charAt(0).toUpperCase() + r.slice(1)}
+                              </label>
+                              {u.availableRoles.includes(r as UserRole) && u.role !== r && (
+                                <button
+                                  onClick={() => setPrimaryRole(u.id, r as UserRole)}
+                                  style={{fontSize: "0.65rem", color: "var(--primary)", background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline", textAlign: "left"}}
+                                >
+                                  Set primary
+                                </button>
+                              )}
+                              {u.role === r && (
+                                <span style={{fontSize: "0.65rem", color: "var(--primary)", opacity: 0.6}}>Primary</span>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                       {(u.availableRoles.includes("engineer") || u.availableRoles.includes("mate") || u.availableRoles.includes("apprentice")) && (
                         <div style={{borderTop: "1px solid rgba(255,255,255,0.08)", marginTop: "0.5rem", paddingTop: "0.5rem"}}>
@@ -202,10 +171,7 @@ export default function UserManagementPage() {
                             <input
                               type="checkbox"
                               checked={u.canViewStores ?? false}
-                              onChange={async () => {
-                                await db.setUserCanViewStores(u.id, !(u.canViewStores ?? false));
-                                loadUsers();
-                              }}
+                              onChange={() => handleToggleStores(u.id, u.canViewStores ?? false)}
                             />
                             Stores Access
                             <span style={{fontSize: "0.65rem", color: "var(--text-muted)"}}>
@@ -408,6 +374,197 @@ export default function UserManagementPage() {
       </div>
     </div>
   );
+}
+
+export default function UserManagementPage() {
+  const { user: currentUser } = useAuth();
+  const [users, setUsers] = useState<AppUser[]>([]);
+  const [activePairings, setActivePairings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [tempReg, setTempReg] = useState("");
+  const [employerEditingId, setEmployerEditingId] = useState<string | null>(null);
+  const [tempEmployer, setTempEmployer] = useState("");
+  const [roleEditingId, setRoleEditingId] = useState<string | null>(null);
+  const [resetEmailSent, setResetEmailSent] = useState<Record<string, boolean>>({});
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const handleSendReset = async (email: string, userId: string) => {
+    setActionError(null);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`
+      });
+      if (error) {
+        setActionError(`Failed to send password reset email to ${email}: ${error.message}`);
+        return;
+      }
+      setResetEmailSent(prev => ({ ...prev, [userId]: true }));
+      setTimeout(() => setResetEmailSent(prev => ({ ...prev, [userId]: false })), 5000);
+    } catch (err: any) {
+      setActionError(`Failed to send password reset email: ${err?.message || "Unknown error"}`);
+    }
+  };
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const loadUsers = async () => {
+    try {
+      const [allUsers, pairings] = await Promise.all([
+        db.getAllUsers(),
+        db.getAllActivePairings()
+      ]);
+      setUsers(allUsers.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      setActivePairings(pairings);
+    } catch (err: any) {
+      setActionError(`Failed to load users: ${err?.message || "Unknown error"}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUnpair = async (pairingId: string) => {
+    if (!window.confirm("Are you sure you want to unpair this crew member?")) return;
+    setActionError(null);
+    try {
+      await db.respondToPairingRequest(pairingId, "revoked");
+      await loadUsers();
+    } catch (err: any) {
+      setActionError(`Failed to unpair crew member: ${err?.message || "Unknown error"}`);
+    }
+  };
+
+  const handleStatusChange = async (userId: string, status: UserStatus) => {
+    const target = users.find(u => u.id === userId);
+    if (status === "disabled") {
+      if (currentUser?.id === userId) {
+        setActionError("You cannot disable your own account.");
+        return;
+      }
+      const actionLabel = target?.status === "pending" ? "reject" : "disable";
+      if (!window.confirm(`Are you sure you want to ${actionLabel} ${target?.name || "this user"}?`)) return;
+    }
+    setActionError(null);
+    try {
+      await db.setUserStatus(userId, status);
+      await loadUsers();
+    } catch (err: any) {
+      setActionError(`Failed to update user status: ${err?.message || "Unknown error"}`);
+    }
+  };
+
+  const handleSaveReg = async (userId: string) => {
+    setActionError(null);
+    try {
+      await db.updateUserVehicle(userId, tempReg);
+      setEditingUserId(null);
+      await loadUsers();
+    } catch (err: any) {
+      setActionError(`Failed to update vehicle registration: ${err?.message || "Unknown error"}`);
+    }
+  };
+
+  const handleSaveEmployer = async (userId: string) => {
+    setActionError(null);
+    try {
+      await db.updateUserEmployer(userId, tempEmployer);
+      setEmployerEditingId(null);
+      await loadUsers();
+    } catch (err: any) {
+      setActionError(`Failed to update employer: ${err?.message || "Unknown error"}`);
+    }
+  };
+
+  const toggleRole = async (userId: string, role: UserRole) => {
+    const user = users.find(u => u.id === userId);
+    if (!user) return;
+    setActionError(null);
+
+    const isRemoving = user.availableRoles.includes(role);
+    if (isRemoving && currentUser?.id === userId && role === "admin") {
+      setActionError("You cannot revoke your own admin role.");
+      return;
+    }
+
+    let newRoles = [...user.availableRoles];
+    if (isRemoving) {
+      if (newRoles.length <= 1) {
+        setActionError("A user must have at least one role.");
+        return;
+      }
+      newRoles = newRoles.filter(r => r !== role);
+    } else {
+      newRoles.push(role);
+    }
+
+    try {
+      await db.updateUserRoles(userId, newRoles);
+      if (isRemoving && user.role === role && newRoles.length > 0) {
+        await db.switchUserRole(userId, newRoles[0]);
+      }
+      await loadUsers();
+    } catch (err: any) {
+      setActionError(`Failed to update user roles: ${err?.message || "Unknown error"}`);
+    }
+  };
+
+  const setPrimaryRole = async (userId: string, role: UserRole) => {
+    setActionError(null);
+    try {
+      await db.switchUserRole(userId, role);
+      await loadUsers();
+    } catch (err: any) {
+      setActionError(`Failed to update primary role: ${err?.message || "Unknown error"}`);
+    }
+  };
+
+  const handleToggleStores = async (userId: string, currentValue: boolean) => {
+    setActionError(null);
+    try {
+      await db.setUserCanViewStores(userId, !currentValue);
+      await loadUsers();
+    } catch (err: any) {
+      setActionError(`Failed to update stores access: ${err?.message || "Unknown error"}`);
+    }
+  };
+
+  const filteredUsers = users.filter(u => 
+    u.name.toLowerCase().includes(search.toLowerCase()) || 
+    u.email.toLowerCase().includes(search.toLowerCase()) ||
+    u.role.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const pendingUsers = filteredUsers.filter(u => u.status === "pending");
+  const disabledUsers = filteredUsers.filter(u => u.status === "disabled");
+  const directStaff = filteredUsers.filter(u => u.employer === "Direct Staff" && u.status === "approved");
+  const otherStaff = filteredUsers.filter(u => u.employer !== "Direct Staff" && u.status === "approved");
+
+  const sharedTableProps = {
+    activePairings,
+    currentUserId: currentUser?.id,
+    roleEditingId,
+    setRoleEditingId,
+    employerEditingId,
+    setEmployerEditingId,
+    tempEmployer,
+    setTempEmployer,
+    editingUserId,
+    setEditingUserId,
+    tempReg,
+    setTempReg,
+    resetEmailSent,
+    toggleRole,
+    setPrimaryRole,
+    handleToggleStores,
+    handleSaveEmployer,
+    handleSaveReg,
+    handleUnpair,
+    handleSendReset,
+    handleStatusChange,
+  };
 
   return (
     <div>
@@ -417,6 +574,33 @@ export default function UserManagementPage() {
         </h1>
         <p style={{color: "var(--text-muted)", fontSize: "0.9rem"}}>Manage engineers, office staff, and access roles</p>
       </div>
+
+      {actionError && (
+        <div
+          style={{
+            background: "rgba(239, 68, 68, 0.1)",
+            border: "1px solid rgba(239, 68, 68, 0.35)",
+            borderRadius: "10px",
+            padding: "0.75rem 1rem",
+            marginBottom: "1.5rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "0.75rem",
+            color: "#fca5a5",
+            fontSize: "0.85rem",
+          }}
+        >
+          <span>{actionError}</span>
+          <button
+            onClick={() => setActionError(null)}
+            style={{ background: "none", border: "none", color: "#fca5a5", cursor: "pointer", display: "flex", alignItems: "center" }}
+            aria-label="Dismiss error"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {activePairings.length > 0 && (
         <div
@@ -490,14 +674,14 @@ export default function UserManagementPage() {
       ) : (
         <>
           {pendingUsers.length > 0 && (
-            <UserTable title="Pending Approval" usersList={pendingUsers} icon={ShieldAlert} />
+            <UserTable title="Pending Approval" usersList={pendingUsers} icon={ShieldAlert} {...sharedTableProps} />
           )}
-          <UserTable title="Direct Staff" usersList={directStaff} icon={ShieldCheck} />
-          <UserTable title="Sub-contractors & Others" usersList={otherStaff} icon={Building} />
+          <UserTable title="Direct Staff" usersList={directStaff} icon={ShieldCheck} {...sharedTableProps} />
+          <UserTable title="Sub-contractors & Others" usersList={otherStaff} icon={Building} {...sharedTableProps} />
           
           {disabledUsers.length > 0 && (
             <div style={{marginTop: "2rem", opacity: 0.6}}>
-              <UserTable title="Rejected / Disabled Accounts" usersList={disabledUsers} icon={UserX} />
+              <UserTable title="Rejected / Disabled Accounts" usersList={disabledUsers} icon={UserX} {...sharedTableProps} />
             </div>
           )}
         </>

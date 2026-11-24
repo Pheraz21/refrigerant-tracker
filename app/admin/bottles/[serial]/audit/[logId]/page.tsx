@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { Suspense, useState, useEffect, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -111,7 +111,7 @@ function formatMoveActionFull(action?: string): string {
   }
 }
 
-export default function BottleAuditEventDetailPage() {
+function BottleAuditEventDetailContent() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1508,5 +1508,13 @@ export default function BottleAuditEventDetailPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function BottleAuditEventDetailPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: "2.5rem", color: "var(--text-muted)" }}>Loading bottle event details...</div>}>
+      <BottleAuditEventDetailContent />
+    </Suspense>
   );
 }

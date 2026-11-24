@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useMemo } from "react";
+import { Suspense, useEffect, useState, useRef, useMemo } from "react";
 import { db, Bottle, AppUser, isBottleTrace, hasReclaimWaste } from "@/lib/db";
 import Link from "next/link";
 import { Truck, AlertTriangle, Search, ArrowUpDown, ArrowUp, ArrowDown, FileText, FileSpreadsheet, Calendar, Filter as FilterIcon, Settings2, Users, UserCheck, XCircle, Shield, Check, Package, ArrowRight, X } from "lucide-react";
@@ -184,7 +184,7 @@ function exportVanPDF(bottles: Bottle[], engineer: string, engineerProfiles: App
   if (w) { w.document.write(html); w.document.close(); }
 }
 
-export default function VanInventoryPage() {
+function VanInventoryContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [engineers, setEngineers] = useState<AppUser[]>([]);
@@ -994,5 +994,13 @@ export default function VanInventoryPage() {
         onReset={reset}
       />
     </div>
+  );
+}
+
+export default function VanInventoryPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: "2rem", color: "var(--text-muted)" }}>Loading...</div>}>
+      <VanInventoryContent />
+    </Suspense>
   );
 }

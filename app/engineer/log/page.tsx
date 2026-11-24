@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { Suspense, useState, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { CheckCircle2, Save, ArrowLeft, AlertTriangle, Edit3 } from "lucide-react";
 import styles from "./page.module.css";
@@ -11,7 +11,7 @@ import { useNavigationGuard } from "@/lib/NavigationGuardContext";
 
 type JobType = "service" | "install" | "retrofit" | "recovery" | "waste" | "recycled_charge" | "leak_test";
 
-export default function LogBottlePage() {
+function LogBottleContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const serialParam = searchParams.get("serial") || "UNKNOWN";
@@ -1535,5 +1535,13 @@ export default function LogBottlePage() {
         </aside>
       )}
     </div>
+  );
+}
+
+export default function LogBottlePage() {
+  return (
+    <Suspense fallback={<div style={{ padding: "3rem 1.5rem", textAlign: "center", color: "#94a3b8" }}>Loading...</div>}>
+      <LogBottleContent />
+    </Suspense>
   );
 }

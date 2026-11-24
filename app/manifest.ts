@@ -9,7 +9,7 @@ export default function manifest(): MetadataRoute.Manifest {
     display: "standalone",
     orientation: "portrait",
     background_color: "#0a0e14",
-    theme_color: "#00e5ff",
+    theme_color: "#0a0e14",
     icons: [
       {
         src: "/21-degrees-official-transparent.png",

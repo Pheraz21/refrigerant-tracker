@@ -10,16 +10,32 @@ interface HwcnLightboxModalProps {
   title?: string;
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function parsePhotoUrls(photoUrl?: string | string[] | null): string[] {
+  if (!photoUrl) return [];
+  if (Array.isArray(photoUrl)) return photoUrl.map(s => s.trim()).filter(Boolean);
+  const trimmed = photoUrl.trim();
+  if (!trimmed) return [];
+  return trimmed
+    .split(/,\s*(?=(?:https?:\/\/|data:|\/))/i)
+    .map(s => s.trim())
+    .filter(Boolean);
+}
+
 export default function HwcnLightboxModal({ isOpen, onClose, photoUrl, title = "Hazardous Waste Consignment Note" }: HwcnLightboxModalProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
 
-  const urls = useMemo(() => {
-    if (!photoUrl) return [];
-    if (Array.isArray(photoUrl)) return photoUrl.filter(Boolean);
-    return photoUrl.split(",").map(s => s.trim()).filter(Boolean);
-  }, [photoUrl]);
+  const urls = useMemo(() => parsePhotoUrls(photoUrl), [photoUrl]);
 
   useEffect(() => {
     setActiveIndex(0);
@@ -45,23 +61,32 @@ export default function HwcnLightboxModal({ isOpen, onClose, photoUrl, title = "
   const handlePrintAll = () => {
     const win = window.open("", "_blank");
     if (!win) return;
+    const safeTitle = escapeHtml(title);
     const imgsHtml = urls.map((u, i) => `
       <div style="page-break-after: always; text-align: center; margin-bottom: 20px;">
         <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px;">Document Page ${i + 1} of ${urls.length}</div>
-        <img src="${u}" style="max-width: 100%; display: inline-block;" />
+        <img src="${escapeHtml(u)}" style="max-width: 100%; display: inline-block;" />
       </div>
     `).join("");
     win.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
-          <title>${title} — Print View</title>
+          <title>${safeTitle} — Print View</title>
           <style>
             body { font-family: 'Segoe UI', sans-serif; margin: 0; padding: 10mm; background: #fff; color: #000; }
             @media print { body { padding: 0; } }
           </style>
         </head>
-        <body>${imgsHtml}</body>
+        <body>
+          ${imgsHtml}
+          <script>
+            window.addEventListener('load', function() {
+              window.focus();
+              window.print();
+            });
+          </script>
+        </body>
       </html>
     `);
     win.document.close();

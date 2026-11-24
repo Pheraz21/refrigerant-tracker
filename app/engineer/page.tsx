@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { Suspense, useEffect, useState, useRef } from "react";
 import { Html5QrcodeScanner, Html5QrcodeScanType } from "html5-qrcode";
 import { CheckCircle2, ScanLine, ArrowRight, PackageSearch, Camera, User, Flame } from "lucide-react";
 import styles from "./page.module.css";
@@ -17,7 +17,7 @@ interface ScanData {
   location: { lat: number; lng: number } | null;
 }
 
-export default function DashboardScannerPage() {
+function DashboardScannerContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
@@ -325,5 +325,13 @@ export default function DashboardScannerPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function DashboardScannerPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: "3rem 1.5rem", textAlign: "center", color: "#94a3b8" }}>Loading...</div>}>
+      <DashboardScannerContent />
+    </Suspense>
   );
 }
